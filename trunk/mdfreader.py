@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-""" Mesured Data Format file reader
+""" Measured Data Format file reader
 Created on Sun Oct 10 12:57:28 2010
 
 :Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
@@ -12,11 +12,12 @@ First class mdfinfo is meant to extract all blocks in file, giving like metadata
 :Version: 2010.11.06
 
 Second class mdf reads file and add dict type data
-	Each channel is identified by its nae the dict key.
+	Each channel is identified by its name the dict key.
 	At a higher level this dict contains other keys :
 		'data' : containing vector of data (numpy)
 		'unit' : unit (string)
 		'time' : name of the string key related to the channel (string)
+		'description' : Description of channel
 		
 	Method plot('channelName') will plot the channel versus corresponding time (not iterable for now)
 	Method resample(samplingTime) will resample all channels by interpolation and make only one channel 'time'
@@ -27,22 +28,25 @@ Requirements
 * `Python 2.6 <http://www.python.org>`__
 * `Numpy 1.4 <http://numpy.scipy.org>`__
 * `Matplotlib 1.0 <http://matplotlib.sourceforge.net>`__
+* 'NetCDF
 
 Examples
 --------
 >>> import mdfreader
 >>> yop=mdfreader.mdf('NameOfFile')
->>> yop.keys() # list channels
+>>> yop.keys() # list channels names
 >>> yop.plot('channelName')
+>>> yop.resample(0.1)
+>>> yop.exportoCSV(sampling=0.01)
+>>> yop.exportNetCDF()
 
 """
 import io
 import struct
 import math
-import time
 import multiprocessing
 import numpy
-import matplotlib.pyplot as plt
+#import time
 
 def processDataBlocks( L, buf, info, channelToList, recordFormat, dataRecordFormat, numberOfRecords, dataGroup ):
 	## Processes recorded data blocks
@@ -204,7 +208,6 @@ class mdfinfo( superDict ):
         if fileName != None:
             self.readinfo( fileName )
     ## Reads block informations inside file
-    #@classmethod
     def readinfo( self, fileName = None ):
         # Read MDF file and extract its complete structure
         if self.fileName == None:
@@ -421,9 +424,11 @@ class mdfinfo( superDict ):
         CHAR = '<c'
         REAL = '<d'
         BOOL = '<h'
-        #UINT8= '<B'
+        UINT8 = '<B'
+        INT16 = '<h'
         UINT16 = '<H'
         UINT32 = '<I'
+        UNIT64 = '<Q'
 
         if block == 'HDFormat':
             formats = ( 
@@ -582,9 +587,15 @@ class mdfinfo( superDict ):
                     Block[fieldName] = value[0]
             return Block
 
-
 class mdf( mdfinfo, superDict ):
-	" mdf file class"
+	""" mdf file class 
+	It imports mdf files version 3.0 and partially above.
+	To use : yop= mdfreader.mdf('FileName.dat')
+	Some additional useful methods:
+	Resample : yop.resample(SamplingRate_in_secs)
+	plot a specific channel : yop.plot('ChannelName')
+	export to csv file : yop.exportCSV() , specific filename can be input
+	In future, export to netcdf : yop.exportNetCDF() """
 
 	def __init__( self, fileName = None ):
 		self.fileName = fileName
@@ -598,7 +609,7 @@ class mdf( mdfinfo, superDict ):
 		if self.fileName == None:
 		    self.fileName = fileName
 
-		inttime = time.clock()
+		#inttime = time.clock()
 		## Read information block from file
 		info = mdfinfo( self.fileName )
 
@@ -814,8 +825,8 @@ class mdf( mdfinfo, superDict ):
 		    print( 'Unsupported Signal Data Type ' + str( signalDataType ) + ' ', numberOfBits )
 		return dataType
 
-
 	def plot( self, channelName ):
+		import matplotlib.pyplot as plt
 		if self[channelName]['data'].dtype != '|S1': # if channel not a string
 			# plot using matplotlib the channel versus time
 			if self[channelName].has_key( 'time' ):
@@ -834,39 +845,146 @@ class mdf( mdfinfo, superDict ):
 
 	def allPlot( self ):
 		# plot all channels in the object, be careful for test purpose only,
-		# can display many many many plots averloading your computer
+		# can display many many many plots overloading your computer
 		for Name in self.keys():
 			try:
 				self.plot( Name )
 			except:
 				print( Name )
 
-	def resample( self, samplingTime ):
+	def resample( self, samplingTime = 0.1 ):
+		""" Resamples mdf channels inside object for one single time"""
 		# resample all channels to one sampling time vector
-		channelNames = self.keys()
-		try: # define new time
-			newTime = numpy.arange( 0, self['time0']['data'][len( self['time0']['data'] ) - 1], samplingTime )
-			self['time']['data'] = newTime
-			self['time']['unit'] = self['time0']['unit']
-		except:
-			print( 'Cannot process time, already resampled or empty object' )
-		for Name in channelNames:
-			try:
-				if Name not in self.timeChannelList:
-					timevect = self[self[Name]['time']]['data']
-					if self[Name]['data'].dtype != '|S1': # if channel not a string
-						self[Name]['data'] = numpy.interp( newTime, timevect, self[Name]['data'] )
-					del self[Name]['time']
+		if len( self.timeChannelList ) > 1: # Not yet resampled
+			channelNames = self.keys()
+			try: # define new time
+				minTime = maxTime = []
+				for time in self.timeChannelList:
+					if len( self[time]['data'] ) > 0:
+						minTime.append( self[time]['data'][0] )
+						maxTime.append( self[time]['data'][len( self[time]['data'] ) - 1] )
+						if self[time]['unit'] != '':
+							unit = self[time]['unit']
+				self['time']['data'] = numpy.arange( min( minTime ),
+									max( maxTime ),
+									samplingTime )
+				self['time']['unit'] = unit
+
 			except:
-				if len( timevect ) != len( self[Name]['data'] ):
-					print( Name + ' and time channel ' + self[Name]['time'] + ' do not have same length' )
-				elif numpy.all( numpy.diff( timevect ) > 0 ):
-					print( Name + ' has non regularly increasing time channel ' + self[Name]['time'] )
-		# remove time channels in timeChannelList
-		for ind in range( len( self.timeChannelList ) ):
-			del self[self.timeChannelList[ind]]
-		self.timeChannelList = [] # empty list
-		self.timeChannelList.append( 'time' )
+				print( 'Cannot process time, already resampled or empty object' )
+				pass
+			# Interpolate channels
+			for Name in channelNames:
+				try:
+					if Name not in self.timeChannelList:
+						timevect = self[self[Name]['time']]['data']
+						if self[Name]['data'].dtype != '|S1': # if channel not array of string
+							self[Name]['data'] = numpy.interp( self['time']['data'],
+															 timevect,
+															  self[Name]['data'] )
+							del self[Name]['time']
+				except:
+					if len( timevect ) != len( self[Name]['data'] ):
+						print( Name + ' and time channel ' + self[Name]['time'] + ' do not have same length' )
+					elif numpy.all( numpy.diff( timevect ) > 0 ):
+						print( Name + ' has non regularly increasing time channel ' + self[Name]['time'] )
+			# remove time channels in timeChannelList
+			for ind in range( len( self.timeChannelList ) ):
+				del self[self.timeChannelList[ind]]
+			self.timeChannelList = [] # empty list
+			self.timeChannelList.append( 'time' )
+		else:
+			pass
+
+	def timeseries( self ):
+		# Converts data into timeseries objects, remove time name linked and keep unit
+		# Size of mdf object should almost double with this configuration
+		# as time vector is copied for each channel -> not so optimum data structure 
+		# but can be handy for timeseries manipulations 
+		from scikits.timeseries import time_series
+		for Name in self.keys():
+			self[Name]['data'] = time_series( self[Name]['data'], dates = self[self[Name]['time']]['data'] )
+			self[Name].pop( 'time' )
+	def exportoCSV( self, filename = None, sampling = 0.1 ):
+		# Export mdf file into csv
+		# If no name defined, it will use original mdf name and path
+		# By default, sampling is 0.1sec but can be changed
+		import csv
+		self.resample( sampling )
+		if filename == None:
+			filename = self.fileName.replace( '.dat', '' )
+			filename = filename.replace( '.DAT', '' )
+			filename = filename + '.csv'
+		f = open( filename, "wb" )
+		writer = csv.writer( f, dialect = csv.excel )
+		writer.writerow( [name for name in self.keys() if self[name]['data'].dtype == 'float64'] ) # writes channel names
+		writer.writerow( [self[name]['unit'] for name in self.keys() if self[name]['data'].dtype == 'float64'] ) # writes units
+		# concatenate all channels
+		buf = numpy.vstack( [self[name]['data'].transpose() for name in self.keys() if self[name]['data'].dtype == 'float64'] )
+		buf = buf.transpose()
+		# Write all rows
+		r, c = buf.shape
+		writer.writerows( [list( buf[i, :] ) for i in range( r )] )
+		f.close()
+
+	def exportNetCDF( self, filename = None, sampling = None ):
+		# Export mdf file into netcdf file
+		from Scientific.IO import NetCDF
+		import datetime
+		def cleanName( name ):
+			output = name.replace( '$', '' )
+			ouput = output.replace( '[', '' )
+			ouput = output.replace( ']', '' )
+			return output
+		if sampling != None:
+			self.resample( sampling )
+		if filename == None:
+			filename = self.fileName.replace( '.dat', '' )
+			filename = filename.replace( '.DAT', '' )
+			filename = filename + '.nc'
+		f = NetCDF.NetCDFFile( filename, 'w' )
+		setattr( f, 'Origin', filename )
+		setattr( f, 'Source', 'MDF' )
+		setattr( f, 'Creator', 'mdfreader' )
+		setattr( f, 'Date', datetime.date.today().isoformat() )
+		setattr( f, 'Time', datetime.datetime.now().isoformat() )
+		# Create dimensions having name of all time channels
+		for time in self.timeChannelList:
+			f.createDimension( time, len( self[time]['data'] ) )
+		# Create variables definition, dimension and attributes
+		var = {}
+		for name in self.keys():
+			if self[name]['data'].dtype == 'float64':
+				type = 'd'
+			elif self[name]['data'].dtype == 'float32':
+				type = 'f'
+			elif self[name]['data'].dtype in ['int8', 'int16', 'uint8', 'uint16']:
+				type = 'i'
+			elif self[name]['data'].dtype in ['int32', 'uint32']:
+				type = 'l'
+			elif self[name]['data'].dtype == '|S1':
+				type = 'c'
+			else:
+				print( 'Can not process numpy type ' + self[name]['data'].dtype + ' of channel' )
+			# create variable
+			CleanedName = cleanName( name )
+			try:
+				var[name] = f.createVariable( CleanedName, type, ( self[name]['time'], ) )
+			except :
+				print( 'Name of variable ' + name + ' can not be processed' )
+			# Create attributes
+			setattr( var[name], 'title', CleanedName )
+			setattr( var[name], 'units', self[name]['unit'] )
+			setattr( var[name], 'Description', self[name]['description'] )
+			if name in self.timeChannelList:
+				setattr( var[name], 'Type', 'Time Channel' )
+				setattr( var[name], 'datatype', 'time' )
+			else:
+				setattr( var[name], 'Type', 'Data Channel' )
+		# put data in variables
+		for name in self.keys():
+			var[name] = self[name]['data']
+		f.close()
 
 if __name__ == '__main__': # to allow multiprocessing
 	MDF = mdf()
