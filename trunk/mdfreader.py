@@ -587,7 +587,8 @@ class mdfinfo( superDict ):
                     Block[fieldName] = value[0]
             return Block
 
-class mdf( mdfinfo, superDict ):
+
+class mdf( dict ):
 	""" mdf file class 
 	It imports mdf files version 3.0 and partially above.
 	To use : yop= mdfreader.mdf('FileName.dat')
@@ -709,30 +710,28 @@ class mdf( mdfinfo, superDict ):
 
 		fid.close() # close file
 		for i in range ( len( proc ) ): # Make sure all processes are finished
-			try:
-				proc[i].join()
-			except:
-				print ( 'process ' + str( i ) + ' can not be closed' )
-				pass
+			#try:
+			proc[i].join( 120 ) # waits for 2 minutes, should be enough ?
+			#except:
+			#	print ( 'process ' + str( i ) + ' can not be closed' )
+			#	pass
 
-		tru = []
-		truc = ''
 		for dataGroup in range( info.HDBlock['numberOfDataGroups'] ):
 			for channelGroup in range( info.DGBlock[dataGroup]['numberOfChannelGroups'] ):
 				for channel in range( info.CGBlock[dataGroup][channelGroup]['numberOfChannels'] ):
 					numberOfRecords = info.CGBlock[dataGroup][channelGroup]['numberOfRecords']
 					if numberOfRecords != 0 :
 						channelName = info.CNBlock[dataGroup][channelGroup][channel]['signalName']
-						if channelName == 'time': # assumes first channel is time
+						if channelName == 'time':# assumes first channel is time
 							channelName = channelName + str( dataGroup )
-							self.timeChannelList.append( channelName )
-						if channelName in L :
-							# corresponding time channel of considered channel
+							if channelName in L and len( L[channelName] ) != 0:
+								self.timeChannelList.append( channelName )
+						if channelName in L and len( L[channelName] ) != 0:
+							self[channelName] = {}
 							self[channelName]['time'] = 'time' + str( dataGroup )
 							self[channelName]['unit'] = info.CCBlock[dataGroup][channelGroup][channel]['physicalUnit'] # Unit of channel
 							self[channelName]['description'] = info.CNBlock[dataGroup][channelGroup][channel]['signalDescription']
-							if not ( type( L[channelName] ) == type( tru ) or type( L[channelName] ) == type( truc ) ) :
-								self[channelName]['data'] = L[channelName]
+							self[channelName]['data'] = L[channelName]
 
 	@staticmethod
 	def datatypeformat( signalDataType, numberOfBits ):
@@ -857,22 +856,21 @@ class mdf( mdfinfo, superDict ):
 		# resample all channels to one sampling time vector
 		if len( self.timeChannelList ) > 1: # Not yet resampled
 			channelNames = self.keys()
-			try: # define new time
-				minTime = maxTime = []
-				for time in self.timeChannelList:
-					if len( self[time]['data'] ) > 0:
-						minTime.append( self[time]['data'][0] )
-						maxTime.append( self[time]['data'][len( self[time]['data'] ) - 1] )
-						if self[time]['unit'] != '':
-							unit = self[time]['unit']
-				self['time']['data'] = numpy.arange( min( minTime ),
-									max( maxTime ),
-									samplingTime )
-				self['time']['unit'] = unit
+			minTime = maxTime = []
+			self['time'] = {}
+			unit = ''
+			for time in self.timeChannelList:
+				if time in self and len( self[time]['data'] ) > 0:
+					minTime.append( self[time]['data'][0] )
+					maxTime.append( self[time]['data'][len( self[time]['data'] ) - 1] )
+					if self[time]['unit'] != '':
+						unit = self[time]['unit']
+			self['time']['data'] = numpy.arange( min( minTime ),
+								max( maxTime ),
+								samplingTime )
+			self['time']['unit'] = unit
+			self['time']['description'] = 'Unique time channel'
 
-			except:
-				print( 'Cannot process time, already resampled or empty object' )
-				pass
 			# Interpolate channels
 			for Name in channelNames:
 				try:
@@ -886,25 +884,16 @@ class mdf( mdfinfo, superDict ):
 				except:
 					if len( timevect ) != len( self[Name]['data'] ):
 						print( Name + ' and time channel ' + self[Name]['time'] + ' do not have same length' )
-					elif numpy.all( numpy.diff( timevect ) > 0 ):
+					elif not numpy.all( numpy.diff( timevect ) > 0 ):
 						print( Name + ' has non regularly increasing time channel ' + self[Name]['time'] )
 			# remove time channels in timeChannelList
-			for ind in range( len( self.timeChannelList ) ):
-				del self[self.timeChannelList[ind]]
+			for ind in self.timeChannelList:
+				del self[ind]
 			self.timeChannelList = [] # empty list
 			self.timeChannelList.append( 'time' )
 		else:
 			pass
 
-	def timeseries( self ):
-		# Converts data into timeseries objects, remove time name linked and keep unit
-		# Size of mdf object should almost double with this configuration
-		# as time vector is copied for each channel -> not so optimum data structure 
-		# but can be handy for timeseries manipulations 
-		from scikits.timeseries import time_series
-		for Name in self.keys():
-			self[Name]['data'] = time_series( self[Name]['data'], dates = self[self[Name]['time']]['data'] )
-			self[Name].pop( 'time' )
 	def exportoCSV( self, filename = None, sampling = 0.1 ):
 		# Export mdf file into csv
 		# If no name defined, it will use original mdf name and path
@@ -968,10 +957,10 @@ class mdf( mdfinfo, superDict ):
 				print( 'Can not process numpy type ' + self[name]['data'].dtype + ' of channel' )
 			# create variable
 			CleanedName = cleanName( name )
-			try:
+			if len( self.timeChannelList ) == 1: # mdf resampled
+				var[name] = f.createVariable( CleanedName, type, ( self.timeChannelList[0], ) )
+			else: # not resampled
 				var[name] = f.createVariable( CleanedName, type, ( self[name]['time'], ) )
-			except :
-				print( 'Name of variable ' + name + ' can not be processed' )
 			# Create attributes
 			setattr( var[name], 'title', CleanedName )
 			setattr( var[name], 'units', self[name]['unit'] )

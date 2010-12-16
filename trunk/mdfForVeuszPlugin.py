@@ -5,7 +5,7 @@ Created on 18 nov. 2010
 '''
 from veusz.plugins import *
 from veusz.plugins.datasetplugin import Dataset1D as ImportDataset1D
-#from veusz.plugins.field import FieldText as ImportFieldText
+from veusz.plugins.field import FieldFloat as ImportFieldFloat
 try:
     from mdfreader import mdf
     from mdfreader import mdfinfo
@@ -16,11 +16,11 @@ except ImportError:
     except ImportError:
         import sys
         import os
+        import os.path
         sys.path.append( os.getcwdu() )
+        print( os.path.join( os.getcwdu(), 'plugins' ) )
         from mdfreader import mdf
         from mdfreader import mdfinfo
-
-import numpy
 
 class ImportPlugin( mdfinfo ):
     """Define a plugin to read data in a particular format.
@@ -30,8 +30,8 @@ class ImportPlugin( mdfinfo ):
     """
 
     name = 'Import plugin'
-    author = ''
-    description = ''
+    author = 'Aymeric Rateau'
+    description = 'Import MDF files'
 
     def __init__( self ):
         """Override this to declare a list of input fields if required."""
@@ -73,6 +73,7 @@ class MdfImportPlugin( ImportPlugin, mdf ):
 
     def __init__( self ):
         ImportPlugin.__init__( self )
+        self.fields = [ImportFieldFloat( "mult", descr = "Sampling", default = 0.1 )]
 
     def doImport( self, params ):
         """Actually import data
@@ -81,10 +82,11 @@ class MdfImportPlugin( ImportPlugin, mdf ):
         """
 
         data = mdf( params.filename )
+        data.resample( samplingTime = params.field_results['mult'] )
         List = []
         for channelName in data.keys():
-            if data[channelName]['data'].size == data[data[channelName]['time']]['data'].size:
-                #List.append( ImportDataset2D( channelName, numpy.column_stack( ( data[channelName]['data'] , data[data[channelName]['time']]['data'] ) ) ) )
+            if len( data[channelName]['data'] ) > 0 and data[channelName]['data'].dtype != '|S1':
+                print( data[channelName]['data'].dtype )
                 List.append( ImportDataset1D( channelName, data[channelName]['data'] ) )
         return List
 
