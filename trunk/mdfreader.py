@@ -46,21 +46,25 @@ import struct
 import math
 import multiprocessing
 import numpy
+import itertools
 #import time
 
-def processDataBlocks( L, buf, info, channelToList, recordFormat, dataRecordFormat, numberOfRecords, dataGroup ):
+def processDataBlocks( L, buff, info, channelToList, recordFormat, dataRecordFormat, numberOfRecords, dataGroup ):
 	## Processes recorded data blocks
 	# Outside of class to allow multiprocessing
 	numberOfRecordIDs = info.DGBlock[dataGroup]['numberOfRecordIDs']
-
+	procTime = time.clock()
+	#print( 'Start process ' + str( dataGroup ) + ' ' + str( time.clock() ) )
 	if numberOfRecords != 0:
-		buf = [struct.unpack( recordFormat, buf[i] ) for i in range( numberOfRecords )]
-
+		structure = struct.Struct( recordFormat )
+		buff = [structure.unpack( buff[i] ) for i in range( numberOfRecords )]
+		#print( 'Process ' + str( dataGroup ) + ' Unpack ' + str( time.clock() - procTime ) )
 		# converts list of records into list of values (for each channel, except bits that are packed)
-		buf = zip( *buf )
+		buff = zip( *buff )
 
-		np = [( numpy.array( buf[i], dtype = dataRecordFormat[i] ) ) for i in range( len( dataRecordFormat ) )]
-
+		#print( 'Process ' + str( dataGroup ) + ' zip ' + str( time.clock() - procTime ) )
+		np = [( numpy.array( buff[i], dtype = dataRecordFormat[i] ) ) for i in range( len( dataRecordFormat ) )]
+		#print( 'Process ' + str( dataGroup ) + ' numpy ' + str( time.clock() - procTime ) )
 		# Check if recordId are used for unsorted writing
 		if numberOfRecordIDs >= 1:
 			offset = 1
@@ -83,13 +87,13 @@ def processDataBlocks( L, buf, info, channelToList, recordFormat, dataRecordForm
 				if signalDataType not in ( 1, 2, 3, 8 ):
 					if signalDataType == 0:
 						if numberOfBits == 1: # One bit, considered Bool in numpy
-							temp = buf[channelToList[channel + offset]] # used datatype is uint8
+							temp = buff[channelToList[channel + offset]] # used datatype is uint8
 							mask = 1 << isBitInUnit8 # masks isBitUnit8
 							temp = [( ( int( temp[record] ) & mask ) >> ( isBitInUnit8 ) ) for record in range( numberOfRecords )]
 							L[channelName] = numpy.array( temp, dtype = 'uint8' )
 							isBitInUnit8 += 1
 						elif numberOfBits == 2:
-							temp = buf[channelToList[channel + offset]] # used datatype is uint8
+							temp = buff[channelToList[channel + offset]] # used datatype is uint8
 							mask = 1 << isBitInUnit8
 							mask = mask | ( 1 << ( isBitInUnit8 + 1 ) ) # adds second bit in mask
 							temp = [( ( int( temp[record] ) & mask ) >> ( isBitInUnit8 ) ) for record in range( numberOfRecords )]
@@ -170,6 +174,7 @@ def processDataBlocks( L, buf, info, channelToList, recordFormat, dataRecordForm
 				elif conversionFormulaIdentifier == 12: # Text Range Table
 					pass # Not yet supported, practically not used format
 		del np
+		#print( 'Process ' + str( dataGroup ) + ' Finished ' + str( time.clock() - procTime ) )
 
 class superDict( dict ):
     # dict with autovivification to allow easy dict nesting
@@ -420,7 +425,7 @@ class mdfinfo( superDict ):
         # document version 2.0, 14/11/2002
 
         ## Data Type Definitions '<' for little-endian byteOrder
-        LINK = '<i'
+        LINK = '<I'
         CHAR = '<c'
         REAL = '<d'
         BOOL = '<h'
@@ -601,6 +606,7 @@ class mdf( dict ):
 	def __init__( self, fileName = None ):
 		self.fileName = fileName
 		self.timeChannelList = []
+		self.multiProc = True # flag to activate multiprocessing
 		if fileName != None:
 			self.read( fileName )
 
@@ -615,14 +621,20 @@ class mdf( dict ):
 		info = mdfinfo( self.fileName )
 
 		# Open file
-		fid = io.open( fileName, 'rb' )
+		fid = open( fileName, 'rb', buffering = 65536 )
 		# prepare multiprocessing of dataGroups
 		proc = []
 		manager = multiprocessing.Manager()
 		L = manager.dict()
 
+		# Look for the biggest group to process first
+		dataGroupList = dict.fromkeys( range( info.HDBlock['numberOfDataGroups'] ) )
+		for dataGroup in dataGroupList.keys():
+			dataGroupList[dataGroup] = info.CGBlock[dataGroup][0]['numberOfRecords']
+		sortedDataGroup = sorted( dataGroupList, key = dataGroupList.__getitem__, reverse = True )
+
 		## Defines record format
-		for dataGroup in range( info.HDBlock['numberOfDataGroups'] ):
+		for dataGroup in sortedDataGroup:
 			# Number for records in data block, meaning number of samples
 			numberOfRecordIDs = info.DGBlock[dataGroup]['numberOfRecordIDs']
 			#Pointer to data block
@@ -642,7 +654,7 @@ class mdf( dict ):
 			else: # otherwise initialize recordFormat
 				recordFormat = '<' # little-endian
 				formatSize = 0
-			# Prcess dataFormats
+			# Process dataFormats
 			for channelGroup in range( info.DGBlock[dataGroup]['numberOfChannelGroups'] ):
 				# Reads size of each channel
 				#dataRecordSize = info.CGBlock[dataGroup][channelGroup]['dataRecordSize']
@@ -700,21 +712,24 @@ class mdf( dict ):
 			if numberOfRecordIDs == 2:
 				recordFormat = recordFormat + 'B' # adds unsigned int
 				formatSize += 1 # increases by 1byte recordFomat size
-
+			#print( 'Group ' + str( dataGroup ) + ' ' + str( time.clock() - inttime ) )
 			## reads recursively the records
 			buf = [fid.read( formatSize ) for i in range( numberOfRecords ) ]
-
-			proc.append( multiprocessing.Process( target = processDataBlocks,
-				args = ( L, buf, info, channelToList, recordFormat, dataRecordFormat, numberOfRecords, dataGroup ) ) )
-			proc[dataGroup].start()
+			if self.multiProc:
+				proc.append( multiprocessing.Process( target = processDataBlocks,
+					args = ( L, buf, info, channelToList, recordFormat, dataRecordFormat, numberOfRecords, dataGroup ) ) )
+				proc[-1].start()
+			else:
+				processDataBlocks( L, buf, info, channelToList, recordFormat, dataRecordFormat, numberOfRecords, dataGroup )
 
 		fid.close() # close file
-		for i in range ( len( proc ) ): # Make sure all processes are finished
-			#try:
-			proc[i].join( 120 ) # waits for 2 minutes, should be enough ?
-			#except:
-			#	print ( 'process ' + str( i ) + ' can not be closed' )
-			#	pass
+		if self.multiProc:
+			for i in range ( len( proc ) ): # Make sure all processes are finished
+				#try:
+				proc[i].join( 120 ) # waits for 2 minutes, should be enough ?
+				#except:
+				#	print ( 'process ' + str( i ) + ' can not be closed' )
+				#	pass
 
 		for dataGroup in range( info.HDBlock['numberOfDataGroups'] ):
 			for channelGroup in range( info.DGBlock[dataGroup]['numberOfChannelGroups'] ):
@@ -732,7 +747,7 @@ class mdf( dict ):
 							self[channelName]['unit'] = info.CCBlock[dataGroup][channelGroup][channel]['physicalUnit'] # Unit of channel
 							self[channelName]['description'] = info.CNBlock[dataGroup][channelGroup][channel]['signalDescription']
 							self[channelName]['data'] = L[channelName]
-
+		#print( 'Finished in ' + str( time.clock() - inttime ) )
 	@staticmethod
 	def datatypeformat( signalDataType, numberOfBits ):
 		# DATATYPEFORMAT Data type format precision to give to fread
