@@ -46,14 +46,14 @@ import struct
 import math
 import multiprocessing
 import numpy
-import itertools
+#import itertools
 #import time
 
 def processDataBlocks( L, buff, info, channelToList, recordFormat, dataRecordFormat, numberOfRecords, dataGroup ):
 	## Processes recorded data blocks
 	# Outside of class to allow multiprocessing
 	numberOfRecordIDs = info.DGBlock[dataGroup]['numberOfRecordIDs']
-	procTime = time.clock()
+	#procTime = time.clock()
 	#print( 'Start process ' + str( dataGroup ) + ' ' + str( time.clock() ) )
 	if numberOfRecords != 0:
 		structure = struct.Struct( recordFormat )
@@ -62,14 +62,15 @@ def processDataBlocks( L, buff, info, channelToList, recordFormat, dataRecordFor
 		# converts list of records into list of values (for each channel, except bits that are packed)
 		buff = zip( *buff )
 
-		#print( 'Process ' + str( dataGroup ) + ' zip ' + str( time.clock() - procTime ) )
-		np = [( numpy.array( buff[i], dtype = dataRecordFormat[i] ) ) for i in range( len( dataRecordFormat ) )]
-		#print( 'Process ' + str( dataGroup ) + ' numpy ' + str( time.clock() - procTime ) )
 		# Check if recordId are used for unsorted writing
 		if numberOfRecordIDs >= 1:
 			offset = 1
 		else:
 			offset = 0
+
+		#print( 'Process ' + str( dataGroup ) + ' zip ' + str( time.clock() - procTime ) )
+		np = [( numpy.array( buff[i + offset], dtype = dataRecordFormat[i] ) ) for i in range( len( dataRecordFormat ) )]
+		#print( 'Process ' + str( dataGroup ) + ' numpy ' + str( time.clock() - procTime ) )
 
 		isBitInUnit8 = 0 # Initialise Bit counter
 		## Processes Bits, metadata and conversion
@@ -87,26 +88,26 @@ def processDataBlocks( L, buff, info, channelToList, recordFormat, dataRecordFor
 				if signalDataType not in ( 1, 2, 3, 8 ):
 					if signalDataType == 0:
 						if numberOfBits == 1: # One bit, considered Bool in numpy
-							temp = buff[channelToList[channel + offset]] # used datatype is uint8
+							temp = buff[channelToList[channel]] # used datatype is uint8
 							mask = 1 << isBitInUnit8 # masks isBitUnit8
 							temp = [( ( int( temp[record] ) & mask ) >> ( isBitInUnit8 ) ) for record in range( numberOfRecords )]
 							L[channelName] = numpy.array( temp, dtype = 'uint8' )
 							isBitInUnit8 += 1
 						elif numberOfBits == 2:
-							temp = buff[channelToList[channel + offset]] # used datatype is uint8
+							temp = buff[channelToList[channel]] # used datatype is uint8
 							mask = 1 << isBitInUnit8
 							mask = mask | ( 1 << ( isBitInUnit8 + 1 ) ) # adds second bit in mask
 							temp = [( ( int( temp[record] ) & mask ) >> ( isBitInUnit8 ) ) for record in range( numberOfRecords )]
 							L[channelName] = numpy.array( temp, dtype = 'uint8' )
 							isBitInUnit8 += 2
 						else:
-							L[channelName] = np[channelToList[channel + offset]]
+							L[channelName] = np[channelToList[channel]]
 							isBitInUnit8 = 0 # Initialise Bit counter
 					else:
-						L[channelName] = np[channelToList[channel + offset]]
+						L[channelName] = np[channelToList[channel]]
 						isBitInUnit8 = 0 # Initialise Bit counter
 				else:
-					L[channelName] = np[channelToList[channel + offset]]
+					L[channelName] = np[channelToList[channel]]
 					isBitInUnit8 = 0 # Initialise Bit counter
 
 				## Process Conversion
@@ -287,15 +288,18 @@ class mdfinfo( superDict ):
                     CNTXpointer = self.CNBlock[dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
                     # Read data Text block info into structure
                     temp = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer )
-                    signalname = temp['Text']
-                    slashlocation = signalname.find( '\\' )
-                    if slashlocation > 0:
-                        if slashlocation + 1 < len( signalname ):
-                            # Save device name
-                            temp['DeviceName'] = signalname[slashlocation + 1:len( signalname )]
-                        # Clean signal name from device name
-                        signalname = signalname[0:slashlocation]
-                    temp['Text'] = signalname
+                    signalname = None
+                    if temp:
+                        signalname = temp['Text']
+                        slashlocation = signalname.find( '\\' )
+                        if slashlocation > 0:
+                            if slashlocation + 1 < len( signalname ):
+                                # Save device name
+                                temp['DeviceName'] = signalname[slashlocation + 1:len( signalname )]
+                            # Clean signal name from device name
+                            signalname = signalname[0:slashlocation]
+                        temp['Text'] = signalname
+
                     self.CNBlock[dataGroup][channelGroup][channel]['ASAMNameBlock'] = temp
 
                     CNTXpointer = self.CNBlock[dataGroup][channelGroup][channel]['pointerToSignalIdentifierBlock']
@@ -433,7 +437,7 @@ class mdfinfo( superDict ):
         INT16 = '<h'
         UINT16 = '<H'
         UINT32 = '<I'
-        UNIT64 = '<Q'
+        UINT64 = '<Q'
 
         if block == 'HDFormat':
             formats = ( 
@@ -650,7 +654,7 @@ class mdf( dict ):
 			if numberOfRecordIDs >= 1:
 				# start first with uint8
 				recordFormat = '<B' # adds uint8
-				formatSize += 1 # increases by 1byte recordFomat size
+				formatSize = 1 # increases by 1byte recordFormat size
 			else: # otherwise initialize recordFormat
 				recordFormat = '<' # little-endian
 				formatSize = 0
@@ -842,18 +846,25 @@ class mdf( dict ):
 	def plot( self, channelName ):
 		import matplotlib.pyplot as plt
 		if self[channelName]['data'].dtype != '|S1': # if channel not a string
+			self.fig = plt.figure()
 			# plot using matplotlib the channel versus time
-			if self[channelName].has_key( 'time' ):
+			if self[channelName].has_key( 'time' ): # Resampled signals
 				timeName = self[channelName]['time']
 				if timeName == '': # resampled channels, only one time channel called 'time'
 					timeName = 'time'
-			else:
-				timeName = 'time'
-			self.fig = plt.figure()
-			plt.plot( self[timeName]['data'], self[channelName]['data'] )
+				if self.has_key( timeName ): # time channel properly defined
+					plt.plot( self[timeName]['data'], self[channelName]['data'] )
+					plt.xlabel( timeName + ' [' + self[timeName]['unit'] + ']' )
+				else: # no time channel found
+					plt.plot( self[channelName]['data'] )
+			else: # no time signal recognized
+				plt.plot( self[channelName]['data'] )
+
 			plt.title( self[channelName]['description'] )
-			plt.xlabel( timeName + ' [' + self[timeName]['unit'] + ']' )
-			plt.ylabel( channelName + ' [' + self[channelName]['unit'] + ']' )
+			if self[channelName]['unit'] == {}:
+				plt.ylabel( channelName )
+			else:
+				plt.ylabel( channelName + ' [' + self[channelName]['unit'] + ']' )
 			plt.grid( True )
 			plt.show()
 
