@@ -594,15 +594,16 @@ class mdf( dict ):
 	def __init__( self, fileName = None ):
 		self.fileName = fileName
 		self.timeChannelList = []
-		self.multiProc = False # flag to activate multiprocessing
+		self.multiProc = True # flag to activate multiprocessing
 		if fileName != None:
 			self.read( fileName )
 
 	## reads mdf file
-	def read( self, fileName ):
+	def read( self, fileName, multiproc = True ):
 		# read mdf file
 		if self.fileName == None:
 		    self.fileName = fileName
+		self.multiproc = multiproc
 
 		#inttime = time.clock()
 		## Read information block from file
@@ -610,12 +611,13 @@ class mdf( dict ):
 
 		# Open file
 		fid = open( fileName, 'rb', buffering = 65536 )
+
 		# prepare multiprocessing of dataGroups
 		proc = []
 		manager = multiprocessing.Manager()
 		L = manager.dict()
 
-		# Look for the biggest group to process first
+		# Look for the biggest group to process first, to reduce processing time
 		dataGroupList = dict.fromkeys( range( info.HDBlock['numberOfDataGroups'] ) )
 		for dataGroup in dataGroupList.keys():
 			dataGroupList[dataGroup] = info.CGBlock[dataGroup][0]['numberOfRecords']
@@ -623,7 +625,7 @@ class mdf( dict ):
 
 		## Defines record format
 		for dataGroup in sortedDataGroup:
-			# Number for records in data block, meaning number of samples
+			# Number for records before and after the data records
 			numberOfRecordIDs = info.DGBlock[dataGroup]['numberOfRecordIDs']
 			#Pointer to data block
 			pointerToData = info.DGBlock[dataGroup]['pointerToDataRecords']
@@ -669,7 +671,7 @@ class mdf( dict ):
 					if numberOfRecordIDs == 2:
 						numpyDataRecordFormat.append( ( 'secondRecordID', 'uint8' ) )
 					#print( 'Group ' + str( dataGroup ) + ' ' + str( time.clock() - inttime ) )
-					## reads recursively the records
+					## reads the records
 					buf = numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = numberOfRecords )
 
 					if self.multiProc:
@@ -685,6 +687,8 @@ class mdf( dict ):
 			for i in range ( len( proc ) ): # Make sure all processes are finished
 				proc[i].join( 120 ) # waits for 2 minutes, should be enough ?
 
+		# After all processing of channels,
+		# prepare final class data with all its keys
 		for dataGroup in range( info.HDBlock['numberOfDataGroups'] ):
 			for channelGroup in range( info.DGBlock[dataGroup]['numberOfChannelGroups'] ):
 				for channel in range( info.CGBlock[dataGroup][channelGroup]['numberOfChannels'] ):
@@ -796,28 +800,31 @@ class mdf( dict ):
 
 	def plot( self, channelName ):
 		import matplotlib.pyplot as plt
-		if self[channelName]['data'].dtype != '|S1': # if channel not a string
-			self.fig = plt.figure()
-			# plot using matplotlib the channel versus time
-			if self[channelName].has_key( 'time' ): # Resampled signals
-				timeName = self[channelName]['time']
-				if timeName == '': # resampled channels, only one time channel called 'time'
-					timeName = 'time'
-				if self.has_key( timeName ): # time channel properly defined
-					plt.plot( self[timeName]['data'], self[channelName]['data'] )
-					plt.xlabel( timeName + ' [' + self[timeName]['unit'] + ']' )
-				else: # no time channel found
+		if channelName in self:
+			if self[channelName]['data'].dtype != '|S1': # if channel not a string
+				self.fig = plt.figure()
+				# plot using matplotlib the channel versus time
+				if 'time' in self[channelName]: # Resampled signals
+					timeName = self[channelName]['time']
+					if timeName == '': # resampled channels, only one time channel called 'time'
+						timeName = 'time'
+					if timeName in self: # time channel properly defined
+						plt.plot( self[timeName]['data'], self[channelName]['data'] )
+						plt.xlabel( timeName + ' [' + self[timeName]['unit'] + ']' )
+					else: # no time channel found
+						plt.plot( self[channelName]['data'] )
+				else: # no time signal recognized
 					plt.plot( self[channelName]['data'] )
-			else: # no time signal recognized
-				plt.plot( self[channelName]['data'] )
 
-			plt.title( self[channelName]['description'] )
-			if self[channelName]['unit'] == {}:
-				plt.ylabel( channelName )
-			else:
-				plt.ylabel( channelName + ' [' + self[channelName]['unit'] + ']' )
-			plt.grid( True )
-			plt.show()
+				plt.title( self[channelName]['description'] )
+				if self[channelName]['unit'] == {}:
+					plt.ylabel( channelName )
+				else:
+					plt.ylabel( channelName + ' [' + self[channelName]['unit'] + ']' )
+				plt.grid( True )
+				plt.show()
+		else:
+			print( 'Channel ' + channelName + ' not existing' )
 
 	def allPlot( self ):
 		# plot all channels in the object, be careful for test purpose only,
@@ -950,6 +957,39 @@ class mdf( dict ):
 		# put data in variables
 		for name in self.keys():
 			var[name] = self[name]['data']
+		f.close()
+
+	def exporttoHDF5( self, filename = None, sampling = None ):
+		# export class data structure into hdf5 file
+		import h5py
+		if sampling != None:
+			self.resample( sampling )
+		if filename == None:
+			filename = self.fileName.replace( '.dat', '' )
+			filename = filename.replace( '.DAT', '' )
+			filename = filename + '.hdf'
+		f = h5py.File( filename, 'w' )
+		if len( self.timeChannelList ) > 1:
+			# if several time groups of channels 
+			groups = {}
+			ngroups = 0
+			grp = {}
+			for channel in self.keys():
+				if self[channel]['time'] not in groups.keys():
+					# create new time group
+					ngroups += 1
+					groups[self[channel]['time'] ] = ngroups
+					grp[ngroups] = f.create_group( self[channel]['time'] )
+				dset = grp[groups[self[channel]['time'] ]].create_dataset( channel, data = self[channel]['data'] )
+				attr = h5py.AttributeManager( dset )
+				attr.create( 'unit', self[channel]['unit'] )
+				attr.create( 'description', self[channel]['description'] )
+		else: # resampled or only one time for all channels : no groups
+			for channel in self.keys():
+				dset = f.create_dataset( channel, data = self[channel]['data'] )
+				attr = h5py.AttributeManager( dset )
+				attr.create( 'unit', self[channel]['unit'] )
+				attr.create( 'description', self[channel]['description'] )
 		f.close()
 
 if __name__ == '__main__': # to allow multiprocessing
