@@ -799,7 +799,10 @@ class mdf( dict ):
 		return dataType
 
 	def plot( self, channelName ):
-		import matplotlib.pyplot as plt
+		try:
+			import matplotlib.pyplot as plt
+		except:
+			raise( 'matplotlib not found' )
 		if channelName in self:
 			if self[channelName]['data'].dtype != '|S1': # if channel not a string
 				self.fig = plt.figure()
@@ -902,7 +905,10 @@ class mdf( dict ):
 
 	def exportNetCDF( self, filename = None, sampling = None ):
 		# Export mdf file into netcdf file
-		from Scientific.IO import NetCDF
+		try:
+			from Scientific.IO import NetCDF
+		except:
+			raise( 'Scientific.IO module not found' )
 		import datetime
 		def cleanName( name ):
 			output = name.replace( '$', '' )
@@ -961,7 +967,10 @@ class mdf( dict ):
 
 	def exporttoHDF5( self, filename = None, sampling = None ):
 		# export class data structure into hdf5 file
-		import h5py
+		try:
+			import h5py
+		except:
+			raise( 'h5py not found' )
 		if sampling != None:
 			self.resample( sampling )
 		if filename == None:
@@ -991,6 +1000,71 @@ class mdf( dict ):
 				attr.create( 'unit', self[channel]['unit'] )
 				attr.create( 'description', self[channel]['description'] )
 		f.close()
+
+	def exporttoMatlab( self, filename = None ):
+		# export class data struture into .mat file
+		try:
+			from scipy.io import savemat
+		except:
+			raise( 'scipy module not found' )
+		if filename == None:
+			filename = self.fileName.replace( '.dat', '' )
+			filename = filename.replace( '.DAT', '' )
+			filename = filename + '.mat'
+		# convert self into simple dict without and metadata
+		temp = {}
+		for channel in self.keys():
+			temp[channel] = self[channel]['data']
+		print( temp )
+		savemat( filename , temp, long_field_names = True )
+
+	def exporttoExcel( self , filename = None ):
+		# export to excel 95 to 2003
+		# finally long to process, to be multiprocessed
+		try:
+			import xlwt
+		except:
+			raise( 'xlwt module missing' )
+		if filename == None:
+			filename = self.fileName.replace( '.dat', '' )
+			filename = filename.replace( '.DAT', '' )
+			filename = filename + '.xls'
+		styleText = xlwt.easyxf( 'font: name Times New Roman, color-index black, bold off' )
+		style = xlwt.XFStyle()
+		wb = xlwt.Workbook()
+		channelList = self.keys()
+		# Excel 2003 limits
+		maxCols = 255
+		maxLines = 65535
+		workbooknumber = int( math.ceil( len( channelList ) * 1.0 / ( maxCols * 1.0 ) ) )
+		tooLongChannels = []
+		# split colmuns in several worksheets if more than 256 cols 
+		for workbook in range( workbooknumber ):
+			ws = wb.add_sheet( 'Sheet' + str( workbook ) )#, cell_overwrite_ok = True )
+			if workbook == workbooknumber - 1: # last sheet
+				columnrange = range( workbook * maxCols, len( channelList ) )
+			elif workbook < workbooknumber - 1 and workbooknumber > 1: # first sheets
+				columnrange = range( workbook * maxCols, ( workbook + 1 ) * maxCols )
+			for col in columnrange:
+				# write header
+				ws.write( 0, col - workbook * maxCols, channelList[col] , styleText )
+				vect = self[channelList[col]]['data'] # data vector
+				if vect.dtype in ['uint8', 'uint16', 'int8', 'int16']:
+					# export to excel in uint8 do not work
+					vect = vect.astype( float )
+				if not len( vect ) > maxLines :
+					if vect.dtype not in ['|S1']: # if not a string
+						[ws.write( row + 1, col - workbook * maxCols, vect[row] , style ) for row in range( len( vect ) )]
+					#else: # it's a string, cannot write for the moment
+					#	[ws.write( row + 1, col - workbook * maxCols, str( vect[row] ) , styleNumber ) for row in range( len( vect ) )]
+				else: # channel too long, written until max Excel line limit
+					if vect.dtype not in ['|S1']: # if not a string
+						[ws.write( row + 1, col - workbook * maxCols, vect[row] , style ) for row in range( maxLines )]
+					tooLongChannels.append( channelList[col] ) # to later warn user the channel is not completly written
+		wb.save( filename )
+		if len( tooLongChannels ) > 0: # if not empty, some channels have been not processed
+			print( 'Following channels were too long to be processed completely, maybe you should resample : ' )
+			print( tooLongChannels )
 
 if __name__ == '__main__': # to allow multiprocessing
 	MDF = mdf()
