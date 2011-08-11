@@ -9,7 +9,7 @@ First class mdfinfo is meant to extract all blocks in file, giving like metadata
 	Method read() will read file and add in the class all Blocks info as defined in MDF specification
 	"Format Specification MDF Format Version 3.0", 14/11/2002
 
-:Version: 2010.07.30 r9
+:Version: 2010.08.11 r12
 
 Second class mdf reads file and add dict type data
 	Each channel is identified by its name the dict key.
@@ -39,6 +39,9 @@ Examples
 >>> yop.resample(0.1)
 >>> yop.exportoCSV(sampling=0.01)
 >>> yop.exportNetCDF()
+>>> yop.exporttoHDF5()
+>>> yop.exporttoMatlab()
+>>> yop.exporttoExcel()
 
 """
 import io
@@ -1030,7 +1033,6 @@ class mdf( dict ):
 			filename = filename.replace( '.DAT', '' )
 			filename = filename + '.xls'
 		styleText = xlwt.easyxf( 'font: name Times New Roman, color-index black, bold off' )
-		style = xlwt.XFStyle()
 		wb = xlwt.Workbook()
 		channelList = self.keys()
 		# Excel 2003 limits
@@ -1040,7 +1042,7 @@ class mdf( dict ):
 		tooLongChannels = []
 		# split colmuns in several worksheets if more than 256 cols 
 		for workbook in range( workbooknumber ):
-			ws = wb.add_sheet( 'Sheet' + str( workbook ) )#, cell_overwrite_ok = True )
+			ws = wb.add_sheet( 'Sheet' + str( workbook ) ) #, cell_overwrite_ok = True )
 			if workbook == workbooknumber - 1: # last sheet
 				columnrange = range( workbook * maxCols, len( channelList ) )
 			elif workbook < workbooknumber - 1 and workbooknumber > 1: # first sheets
@@ -1049,19 +1051,19 @@ class mdf( dict ):
 				# write header
 				ws.write( 0, col - workbook * maxCols, channelList[col] , styleText )
 				vect = self[channelList[col]]['data'] # data vector
-				if vect.dtype in ['uint8', 'uint16', 'int8', 'int16']:
-					# export to excel in uint8 do not work
-					vect = vect.astype( float )
 				if not len( vect ) > maxLines :
 					if vect.dtype not in ['|S1']: # if not a string
-						[ws.write( row + 1, col - workbook * maxCols, vect[row] , style ) for row in range( len( vect ) )]
-					#else: # it's a string, cannot write for the moment
-					#	[ws.write( row + 1, col - workbook * maxCols, str( vect[row] ) , styleNumber ) for row in range( len( vect ) )]
+						#ws.col( col - workbook * maxCols ).write( 1, vect )
+						[ws.row( row + 1 ).set_cell_number( col - workbook * maxCols, vect[row] ) for row in range( len( vect ) )]
+					else: # it's a string, cannot write for the moment
+						[ws.row( row + 1 ).set_cell_text( col - workbook * maxCols, vect[row] ) for row in range( len( vect ) )]
 				else: # channel too long, written until max Excel line limit
 					if vect.dtype not in ['|S1']: # if not a string
-						[ws.write( row + 1, col - workbook * maxCols, vect[row] , style ) for row in range( maxLines )]
+						[ws.row( row + 1 ).set_cell_number( col - workbook * maxCols, vect[row] ) for row in range( maxLines )]
+					else: # it's a string, cannot write for the moment
+						[ws.row( row + 1 ).set_cell_text( col - workbook * maxCols, vect[row] ) for row in range( maxLines )]
 					tooLongChannels.append( channelList[col] ) # to later warn user the channel is not completly written
-		wb.save( filename )
+		wb.save( filename ) # writes workbook on HDD
 		if len( tooLongChannels ) > 0: # if not empty, some channels have been not processed
 			print( 'Following channels were too long to be processed completely, maybe you should resample : ' )
 			print( tooLongChannels )
