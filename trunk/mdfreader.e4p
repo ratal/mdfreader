@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Project SYSTEM "Project-4.6.dtd">
+<!-- eric4 project file for project mdfreader -->
+<!-- Saved: 2011-08-18, 22:01:19 -->
+<!-- Copyright (C) 2011 Aymeric Rateau, aymeric.rateau@gmail.com -->
+<Project version="4.6">
+  <Language>en</Language>
+  <ProgLanguage mixed="1">Python</ProgLanguage>
+  <ProjectType>Qt4</ProjectType>
+  <Description>Utility to read MDF data format and convert to several other data formats</Description>
+  <Version>13</Version>
+  <Author>Aymeric Rateau</Author>
+  <Email>aymeric.rateau@gmail.com</Email>
+  <Sources>
+    <Source>mdfreader.py</Source>
+    <Source>trunk/mdfreader.py</Source>
+    <Source>trunk/mdfForVeuszPlugin.py</Source>
+    <Source>mdfForVeuszPlugin.py</Source>
+    <Source>mdfreaderui.py</Source>
+    <Source>Ui_mdfreaderui.py</Source>
+  </Sources>
+  <Forms>
+    <Form>mdfreaderui.ui</Form>
+  </Forms>
+  <Translations>
+  </Translations>
+  <Resources>
+  </Resources>
+  <Interfaces>
+  </Interfaces>
+  <Others>
+  </Others>
+  <MainScript>mdfreader.py</MainScript>
+  <Vcs>
+    <VcsType>None</VcsType>
+  </Vcs>
+  <FiletypeAssociations>
+    <FiletypeAssociation pattern="*.rb" type="SOURCES" />
+    <FiletypeAssociation pattern="*.ui" type="FORMS" />
+    <FiletypeAssociation pattern="*.idl" type="INTERFACES" />
+    <FiletypeAssociation pattern="*.qm" type="TRANSLATIONS" />
+    <FiletypeAssociation pattern="*.ptl" type="SOURCES" />
+    <FiletypeAssociation pattern="*.ui.h" type="FORMS" />
+    <FiletypeAssociation pattern="*.ts" type="TRANSLATIONS" />
+    <FiletypeAssociation pattern="*.py" type="SOURCES" />
+    <FiletypeAssociation pattern="*.qrc" type="RESOURCES" />
+  </FiletypeAssociations>
+</Project>
