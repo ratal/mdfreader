@@ -9,7 +9,7 @@ First class mdfinfo is meant to extract all blocks in file, giving like metadata
 	Method read() will read file and add in the class all Blocks info as defined in MDF specification
 	"Format Specification MDF Format Version 3.0", 14/11/2002
 
-:Version: 2010.08.11 r12
+:Version: 2010.08.18 r14
 
 Second class mdf reads file and add dict type data
 	Each channel is identified by its name the dict key.
@@ -50,6 +50,9 @@ import math
 import multiprocessing
 import numpy
 
+from PyQt4 import QtCore, QtGui
+from mdfreaderui import MainWindow
+import sys
 #import time
 
 def processDataBlocks( L, buf, info, numberOfRecords, dataGroup ):
@@ -1068,6 +1071,8 @@ class mdf( dict ):
 			print( 'Following channels were too long to be processed completely, maybe you should resample : ' )
 			print( tooLongChannels )
 
-if __name__ == '__main__': # to allow multiprocessing
-	MDF = mdf()
-	MDF.read()
+if __name__ == "__main__":
+    app = QtGui.QApplication(sys.argv)
+    myapp = MainWindow()
+    myapp.show()
+    sys.exit(app.exec_())
