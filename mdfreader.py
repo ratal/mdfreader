@@ -410,7 +410,66 @@ class mdfinfo( superDict ):
 
         # CLose the file
         fid.close()
+        
+    def listChannels( self, fileName = None ):
+        # Read MDF file and extract its complete structure
+        if self.fileName == None:
+            self.fileName = fileName
+        # Open file
+        fid = io.open( self.fileName, 'rb' )
 
+        ### Read header block (HDBlock) information
+        # Set file pointer to start of HDBlock
+        HDpointer = 64
+        # Read Header block info into structure
+        self.HDBlock = self.mdfblockread( self.blockformats( 'HDFormat' ), fid, HDpointer )
+
+        ### Read Data Group blocks (DGBlock) information
+        # Get pointer to first Data Group block
+        DGpointer = self.HDBlock['pointerToFirstDGBlock']
+        for dataGroup in range( self.HDBlock['numberOfDataGroups'] ):
+
+            # Read data Data Group block info into structure
+            self.DGBlock[dataGroup] = self.mdfblockread( self.blockformats( 'DGFormat' ), fid, DGpointer )
+            # Get pointer to next Data Group block
+            DGpointer = self.DGBlock[dataGroup]['pointerToNextDGBlock']
+
+            ### Read Channel Group block (CGBlock) information - offset set already
+
+            # Read data Channel Group block info into structure
+            CGpointer = self.DGBlock[dataGroup]['pointerToNextCGBlock']
+            for channelGroup in range( self.DGBlock[dataGroup]['numberOfChannelGroups'] ):
+                self.CGBlock[dataGroup][channelGroup] = self.mdfblockread( self.blockformats( 'CGFormat' ), fid, CGpointer )
+                CGpointer = self.CGBlock[dataGroup][channelGroup]['pointerToNextCGBlock']
+
+                # Get pointer to next first Channel block
+                CNpointer = self.CGBlock[dataGroup][channelGroup]['pointerToFirstCNBlock']
+
+                # For each Channel
+                for channel in range( self.CGBlock[dataGroup][channelGroup]['numberOfChannels'] ):
+
+                    ### Read Channel block (CNBlock) information
+                    self.numberOfChannels += 1
+                    # Read data Channel block info into structure
+                    self.CNBlock[dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats( 'CNFormat' ), fid, CNpointer )
+                    CNpointer = self.CNBlock[dataGroup][channelGroup][channel]['pointerToNextCNBlock']
+
+                    ### Read Channel text blocks (TXBlock)
+
+                    # Clean signal name
+                    signalname = self.CNBlock[dataGroup][channelGroup][channel]['signalName']
+                    slashlocation = signalname.find( '\\' )
+                    if slashlocation > 0:
+                        if slashlocation + 1 < len( signalname ):
+                            self.CNBlock[dataGroup][channelGroup][channel]['deviceName'] = signalname[slashlocation + 1:len( signalname )]
+                        # Clean signal name from device name
+                        signalname = signalname[0:slashlocation]
+                    self.CNBlock[dataGroup][channelGroup][channel]['signalName'] = signalname
+                    self.channelNameList.append( signalname )
+
+        # CLose the file
+        fid.close()
+        
     #######BLOCKFORMATS####################
     @staticmethod
     def blockformats( block ):
@@ -597,26 +656,24 @@ class mdf( dict ):
 	export to csv file : yop.exportCSV() , specific filename can be input
 	In future, export to netcdf : yop.exportNetCDF() """
 
-	def __init__( self, fileName = None ):
-		self.fileName = fileName
+	def __init__( self):
+		self.fileName = None
 		self.timeChannelList = []
 		self.multiProc = True # flag to activate multiprocessing
-		if fileName != None:
-			self.read( fileName )
 
 	## reads mdf file
-	def read( self, fileName, multiproc = True ):
+	def read( self, fileName=None, multiProc = True ):
 		# read mdf file
 		if self.fileName == None:
 		    self.fileName = fileName
-		self.multiproc = multiproc
+		self.multiProc = multiProc
 
 		#inttime = time.clock()
 		## Read information block from file
 		info = mdfinfo( self.fileName )
 
 		# Open file
-		fid = open( fileName, 'rb', buffering = 65536 )
+		fid = open( self.fileName, 'rb', buffering = 65536 )
 
 		# prepare multiprocessing of dataGroups
 		proc = []
@@ -887,7 +944,7 @@ class mdf( dict ):
 		else:
 			pass
 
-	def exportoCSV( self, filename = None, sampling = 0.1 ):
+	def exportToCSV( self, filename = None, sampling = 0.1 ):
 		# Export mdf file into csv
 		# If no name defined, it will use original mdf name and path
 		# By default, sampling is 0.1sec but can be changed
@@ -909,7 +966,7 @@ class mdf( dict ):
 		writer.writerows( [list( buf[i, :] ) for i in range( r )] )
 		f.close()
 
-	def exportNetCDF( self, filename = None, sampling = None ):
+	def exportToNetCDF( self, filename = None, sampling = None ):
 		# Export mdf file into netcdf file
 		try:
 			from Scientific.IO import NetCDF
@@ -971,7 +1028,7 @@ class mdf( dict ):
 			var[name] = self[name]['data']
 		f.close()
 
-	def exporttoHDF5( self, filename = None, sampling = None ):
+	def exportToHDF5( self, filename = None, sampling = None ):
 		# export class data structure into hdf5 file
 		try:
 			import h5py
@@ -1007,7 +1064,7 @@ class mdf( dict ):
 				attr.create( 'description', self[channel]['description'] )
 		f.close()
 
-	def exporttoMatlab( self, filename = None ):
+	def exportToMatlab( self, filename = None ):
 		# export class data struture into .mat file
 		try:
 			from scipy.io import savemat
@@ -1024,7 +1081,7 @@ class mdf( dict ):
 		print( temp )
 		savemat( filename , temp, long_field_names = True )
 
-	def exporttoExcel( self , filename = None ):
+	def exportToExcel( self , filename = None ):
 		# export to excel 95 to 2003
 		# finally long to process, to be multiprocessed
 		try:
