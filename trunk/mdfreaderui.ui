@@ -27,37 +27,17 @@
      <string>Convert</string>
     </property>
    </widget>
-   <widget class="QListView" name="FileList">
-    <property name="geometry">
-     <rect>
-      <x>20</x>
-      <y>50</y>
-      <width>291</width>
-      <height>511</height>
-     </rect>
-    </property>
-   </widget>
-   <widget class="QListView" name="channelList">
-    <property name="geometry">
-     <rect>
-      <x>340</x>
-      <y>50</y>
-      <width>271</width>
-      <height>511</height>
-     </rect>
-    </property>
-   </widget>
    <widget class="QCommandLinkButton" name="browse">
     <property name="geometry">
      <rect>
       <x>30</x>
-      <y>10</y>
+      <y>0</y>
       <width>101</width>
       <height>31</height>
      </rect>
     </property>
     <property name="toolTip">
-     <string extracomment="Click to browse file to convert"/>
+     <string extracomment="Click to browse file to convert">Click and select MDF file for conversion</string>
     </property>
     <property name="text">
      <string>Browse</string>
@@ -90,6 +70,9 @@
         </property>
         <property name="text">
          <string>Matlab .mat</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -133,16 +116,16 @@
        </widget>
       </item>
       <item>
-       <widget class="QLineEdit" name="lineEdit">
+       <widget class="QLineEdit" name="resampleValue">
         <property name="enabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
        </widget>
       </item>
      </layout>
     </widget>
    </widget>
-   <widget class="QPushButton" name="FileList_2">
+   <widget class="QPushButton" name="LabFileBrowse">
     <property name="geometry">
      <rect>
       <x>630</x>
@@ -152,10 +135,10 @@
      </rect>
     </property>
     <property name="text">
-     <string>File List</string>
+     <string>Lab file</string>
     </property>
    </widget>
-   <widget class="QLineEdit" name="FileListEdit">
+   <widget class="QLineEdit" name="LabFile">
     <property name="enabled">
      <bool>false</bool>
     </property>
@@ -166,6 +149,58 @@
       <width>113</width>
       <height>25</height>
      </rect>
+    </property>
+   </widget>
+   <widget class="QListWidget" name="FileList">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>40</y>
+      <width>271</width>
+      <height>551</height>
+     </rect>
+    </property>
+    <property name="sortingEnabled">
+     <bool>true</bool>
+    </property>
+   </widget>
+   <widget class="QListWidget" name="channelList">
+    <property name="geometry">
+     <rect>
+      <x>310</x>
+      <y>40</y>
+      <width>301</width>
+      <height>551</height>
+     </rect>
+    </property>
+    <property name="sortingEnabled">
+     <bool>true</bool>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label">
+    <property name="geometry">
+     <rect>
+      <x>320</x>
+      <y>20</y>
+      <width>111</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Channel List</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_2">
+    <property name="geometry">
+     <rect>
+      <x>220</x>
+      <y>20</y>
+      <width>57</width>
+      <height>15</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>File List</string>
     </property>
    </widget>
   </widget>
@@ -186,7 +221,7 @@
   <connection>
    <sender>resample</sender>
    <signal>clicked()</signal>
-   <receiver>lineEdit</receiver>
+   <receiver>resampleValue</receiver>
    <slot>show()</slot>
    <hints>
     <hint type="sourcelabel">
