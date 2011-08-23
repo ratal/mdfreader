@@ -21,46 +21,47 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         QMainWindow.__init__(self, parent)
         self.setupUi(self)
         self.fileNames=[]
-        self.mdf=mdfreader.mdf()
-        self.mdfinfo=mdfreader.mdfinfo()
+        self.mdfinfoClass=mdfreader.mdfinfo()
         self.convertSelection='Matlab'
+        self.labFileName=[]
     
     @pyqtSignature("")
     def on_browse_clicked(self):
         """
         Will open a dialog to browse for files
         """
-        self.fileNames=QFileDialog.getOpenFileNames(self, "Select Files", filter=("MDF file (*.dat)"))
+        self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files", filter=("MDF file (*.dat)"))
         if not self.fileNames.isEmpty():
             self.FileList.clear()
             self.FileList.addItems(self.fileNames)
-            self.mdfinfo.readinfo(str(self.fileNames[0]))
+            self.mdfinfoClass.readinfo(str(self.fileNames[0]))
             self.channelList.clear()
-            self.channelList.addItems(self.mdfinfo.channelNameList)
+            self.channelList.addItems(self.mdfinfoClass.channelNameList)
     
     @pyqtSignature("")
     def on_Convert_clicked(self):
         """
-       Will convert mdf files into select format
+       Will convert mdf files into selected format
         """
         # Process all mdf files recursively
+        mdf=mdfreader.mdf()
         for i in range(len(self.fileNames)):
-            self.mdf.fileName=str(self.fileNames[i])
-            self.mdf.read(self.mdf.fileName)
+            mdf.fileName=str(self.fileNames[i])
+            mdf.read(mdf.fileName)
             #resample if requested
             if self.resample.checkState():
-                if not self.resampleValue.isEmpty():
-                    self.mdf.resample(self.resampleValue)
+                if not self.resampleValue.text().isEmpty():
+                    mdf.resample(float(self.resampleValue.text()))
             if self.convertSelection=='Matlab':
-                self.mdf.exportToMatlab()
+                mdf.exportToMatlab(mdf.fileName)
             elif self.convertSelection=='csv':
-                self.mdf.exportToCSV()
+                mdf.exportToCSV(mdf.fileName)
             elif self.convertSelection=='netcdf':
-                self.mdf.exportToNetCDF()
+                mdf.exportToNetCDF(mdf.fileName)
             elif self.convertSelection=='hdf5':
-                self.mdf.exportToHDF5()
+                mdf.exportToHDF5(mdf.fileName)
             elif self.convertSelection=='excel':
-                self.mdf.exportToExcel()
+                mdf.exportToExcel(mdf.fileName)
     
     @pyqtSignature("QListWidgetItem*")
     def on_FileList_itemClicked(self, item):
@@ -68,54 +69,51 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         If user click on file list
         """
         # Refresh list of channels from selected file
-        self.mdfinfo.readinfo(item)
+        self.mdfinfoClass.readinfo(item)
         self.channelList.clear()
-        self.channelList.addItems(self.mdfinfo.channelNameList)
+        self.channelList.addItems(self.mdfinfoClass.channelNameList)
     
     @pyqtSignature("bool")
     def on_matlab_clicked(self, checked):
         """
-        Slot documentation goes here.
+        Selects Matlab conversion
         """
-        # TODO: not implemented yet
         self.convertSelection='Matlab'
     
     @pyqtSignature("bool")
     def on_netcdf_clicked(self, checked):
         """
-        Slot documentation goes here.
+        Selects netcdf conversion.
         """
-        # TODO: not implemented yet
         self.convertSlection='netcdf'
     
     @pyqtSignature("bool")
     def on_hdf5_clicked(self, checked):
         """
-        Slot documentation goes here.
+        Selects hdf5 conversion.
         """
-        # TODO: not implemented yet
         self.convertSelection='hdf5'
     
     @pyqtSignature("bool")
     def on_csv_clicked(self, checked):
         """
-        Slot documentation goes here.
+        Selects csv conversion.
         """
-        # TODO: not implemented yet
         self.convertSelection='csv'
     
     @pyqtSignature("bool")
     def on_excel_clicked(self, checked):
         """
-        Slot documentation goes here.
+        Selects excel conversion.
         """
-        # TODO: not implemented yet
         self.convertSelection='excel'
     
-    @pyqtSignature("bool")
-    def on_resample_toggled(self, checked):
+    @pyqtSignature("")
+    def on_LabFileBrowse_clicked(self):
         """
-        Slot documentation goes here.
+        selects lab file from browser.
         """
-        # Activates or deactivates input for resampling time
-        self.resampleValue.enabled()
+        self.labFileName=QFileDialog.getOpenFileName(self, "Select Lab Files", filter=("Lab file (*.lab)"))
+        if not self.labFileName.isEmpty():
+            self.LabFile.del_()
+            self.LabFile.insert(str(self.labFileName))
