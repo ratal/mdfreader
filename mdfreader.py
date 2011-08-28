@@ -19,7 +19,7 @@ Second class mdf reads file and add dict type data
 		'time' : name of the string key related to the channel (string)
 		'description' : Description of channel
 		
-	Method plot('channelName') will plot the channel versus corresponding time (not iterable for now)
+	Method plot('channelName') will plot the channel versus corresponding time
 	Method resample(samplingTime) will resample all channels by interpolation and make only one channel 'time'
 
 Requirements
@@ -410,7 +410,7 @@ class mdfinfo( superDict ):
 
         # CLose the file
         fid.close()
-        
+
     def listChannels( self, fileName = None ):
         # Read MDF file and extract its complete structure
         if self.fileName == None:
@@ -469,7 +469,7 @@ class mdfinfo( superDict ):
 
         # CLose the file
         fid.close()
-        
+
     #######BLOCKFORMATS####################
     @staticmethod
     def blockformats( block ):
@@ -656,13 +656,17 @@ class mdf( dict ):
 	export to csv file : yop.exportCSV() , specific filename can be input
 	In future, export to netcdf : yop.exportNetCDF() """
 
-	def __init__( self):
+	def __init__( self, fileName = None ):
 		self.fileName = None
 		self.timeChannelList = []
 		self.multiProc = True # flag to activate multiprocessing
+		# clears class from previous reading and avoid to mess up
+		self.clear()
+		if not fileName == None:
+		    self.read( fileName )
 
 	## reads mdf file
-	def read( self, fileName=None, multiProc = True ):
+	def read( self, fileName = None, multiProc = True ):
 		# read mdf file
 		if self.fileName == None:
 		    self.fileName = fileName
@@ -819,6 +823,7 @@ class mdf( dict ):
 
 	@staticmethod
 	def arrayformat( signalDataType, numberOfBits ):
+
 		# Formats used by numpy
 
 		if signalDataType == 0: # unsigned
@@ -861,36 +866,38 @@ class mdf( dict ):
 		    print( 'Unsupported Signal Data Type ' + str( signalDataType ) + ' ', numberOfBits )
 		return dataType
 
-	def plot( self, channelName ):
+
+	def plot( self, channels ):
 		try:
 			import matplotlib.pyplot as plt
 		except:
-			raise( 'matplotlib not found' )
-		if channelName in self:
-			if self[channelName]['data'].dtype != '|S1': # if channel not a string
-				self.fig = plt.figure()
-				# plot using matplotlib the channel versus time
-				if 'time' in self[channelName]: # Resampled signals
-					timeName = self[channelName]['time']
-					if timeName == '': # resampled channels, only one time channel called 'time'
-						timeName = 'time'
-					if timeName in self: # time channel properly defined
-						plt.plot( self[timeName]['data'], self[channelName]['data'] )
-						plt.xlabel( timeName + ' [' + self[timeName]['unit'] + ']' )
-					else: # no time channel found
-						plt.plot( self[channelName]['data'] )
-				else: # no time signal recognized
-					plt.plot( self[channelName]['data'] )
+		    raise( 'matplotlib not found' )
+		for channelName in channels:
+		    if channelName in self:
+		        if self[channelName]['data'].dtype != '|S1': # if channel not a string
+		            self.fig = plt.figure()
+		            # plot using matplotlib the channel versus time
+		            if 'time' in self[channelName]: # Resampled signals
+		                timeName = self[channelName]['time']
+		                if timeName == '': # resampled channels, only one time channel called 'time'
+		                    timeName = 'time'
+		                if timeName in self: # time channel properly defined
+		                    plt.plot( self[timeName]['data'], self[channelName]['data'] )
+		                    plt.xlabel( timeName + ' [' + self[timeName]['unit'] + ']' )
+		                else: # no time channel found
+		                    plt.plot( self[channelName]['data'] )
+		            else: # no time signal recognized
+		                plt.plot( self[channelName]['data'] )
 
-				plt.title( self[channelName]['description'] )
-				if self[channelName]['unit'] == {}:
-					plt.ylabel( channelName )
-				else:
-					plt.ylabel( channelName + ' [' + self[channelName]['unit'] + ']' )
-				plt.grid( True )
-				plt.show()
-		else:
-			print( 'Channel ' + channelName + ' not existing' )
+		            plt.title( self[channelName]['description'] )
+		            if self[channelName]['unit'] == {}:
+		                plt.ylabel( channelName )
+		            else:
+		                plt.ylabel( channelName + ' [' + self[channelName]['unit'] + ']' )
+		            plt.grid( True )
+		            plt.show()
+		    else:
+		        print( 'Channel ' + channelName + ' not existing' )
 
 	def allPlot( self ):
 		# plot all channels in the object, be careful for test purpose only,
@@ -922,6 +929,7 @@ class mdf( dict ):
 			self['time']['description'] = 'Unique time channel'
 
 			# Interpolate channels
+			timevect=[]
 			for Name in channelNames:
 				try:
 					if Name not in self.timeChannelList:
@@ -930,7 +938,8 @@ class mdf( dict ):
 							self[Name]['data'] = numpy.interp( self['time']['data'],
 															 timevect,
 															  self[Name]['data'] )
-							del self[Name]['time']
+							if self[Name].has_key('time'):
+								del self[Name]['time']
 				except:
 					if len( timevect ) != len( self[Name]['data'] ):
 						print( Name + ' and time channel ' + self[Name]['time'] + ' do not have same length' )
@@ -1129,7 +1138,7 @@ class mdf( dict ):
 			print( tooLongChannels )
 
 if __name__ == "__main__":
-    app = QtGui.QApplication(sys.argv)
-    myapp = MainWindow()
+    app = QtGui.QApplication( sys.argv )
+    myapp = MainWindow( mdfClass = mdf(), mdfinfoClass = mdfinfo() )
     myapp.show()
-    sys.exit(app.exec_())
+    sys.exit( app.exec_() )
