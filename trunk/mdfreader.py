@@ -28,7 +28,10 @@ Requirements
 * `Python 2.6 <http://www.python.org>`__
 * `Numpy 1.4 <http://numpy.scipy.org>`__
 * `Matplotlib 1.0 <http://matplotlib.sourceforge.net>`__
-* 'NetCDF
+* 'NetCDF 
+* 'h5py for the HDF5 export
+* 'xlwt for the excel export
+* 'scipy for the Matlab file conversion
 
 Examples
 --------
@@ -42,6 +45,7 @@ Examples
 >>> yop.exporttoHDF5()
 >>> yop.exporttoMatlab()
 >>> yop.exporttoExcel()
+>>> yop.keepChannels(ChannelListToKeep)
 
 """
 import io
@@ -666,7 +670,7 @@ class mdf( dict ):
 		    self.read( fileName )
 
 	## reads mdf file
-	def read( self, fileName = None, multiProc = True ):
+	def read( self, fileName = None, multiProc = True, channelList=None):
 		# read mdf file
 		if self.fileName == None:
 		    self.fileName = fileName
@@ -772,7 +776,8 @@ class mdf( dict ):
 							self[channelName]['unit'] = info.CCBlock[dataGroup][channelGroup][channel]['physicalUnit'] # Unit of channel
 							self[channelName]['description'] = info.CNBlock[dataGroup][channelGroup][channel]['signalDescription']
 							self[channelName]['data'] = L[channelName]
-
+		if not channelList==None and len(channelList)>0:
+			self.keepChannels(channelList)
 		#print( 'Finished in ' + str( time.clock() - inttime ) )
 	@staticmethod
 	def datatypeformat( signalDataType, numberOfBits ):
@@ -922,9 +927,7 @@ class mdf( dict ):
 					maxTime.append( self[time]['data'][len( self[time]['data'] ) - 1] )
 					if self[time]['unit'] != '':
 						unit = self[time]['unit']
-			self['time']['data'] = numpy.arange( min( minTime ),
-								max( maxTime ),
-								samplingTime )
+			self['time']['data'] = numpy.arange( min( minTime ),max( maxTime ),samplingTime )
 			self['time']['unit'] = unit
 			self['time']['description'] = 'Unique time channel'
 
@@ -935,9 +938,7 @@ class mdf( dict ):
 					if Name not in self.timeChannelList:
 						timevect = self[self[Name]['time']]['data']
 						if self[Name]['data'].dtype != '|S1': # if channel not array of string
-							self[Name]['data'] = numpy.interp( self['time']['data'],
-															 timevect,
-															  self[Name]['data'] )
+							self[Name]['data'] = numpy.interp( self['time']['data'], timevect, self[Name]['data'] )
 							if self[Name].has_key('time'):
 								del self[Name]['time']
 				except:
@@ -1136,6 +1137,16 @@ class mdf( dict ):
 		if len( tooLongChannels ) > 0: # if not empty, some channels have been not processed
 			print( 'Following channels were too long to be processed completely, maybe you should resample : ' )
 			print( tooLongChannels )
+
+	def keepChannels(self, channelList):
+		# keep only list of channels and removes the rest
+		removeChannels=[]
+		for channel in self.keys():
+			if channel not in channelList and not 'time'==channel[0:4] and channel not in self.timeChannelList :
+				# avoid to remove time channels otherwise problems with resample
+				removeChannels.append(channel) 
+		if not len(removeChannels)==0:
+			[self.pop(channel) for channel in removeChannels]
 
 if __name__ == "__main__":
     app = QtGui.QApplication( sys.argv )

@@ -82,7 +82,10 @@
       </property>
       <widget class="QListWidget" name="FileList">
        <property name="contextMenuPolicy">
-        <enum>Qt::NoContextMenu</enum>
+        <enum>Qt::ActionsContextMenu</enum>
+       </property>
+       <property name="whatsThis">
+        <string>File list to be converted</string>
        </property>
        <property name="locale">
         <locale language="English" country="Belgium"/>
@@ -112,6 +115,9 @@
        </property>
        <property name="acceptDrops">
         <bool>true</bool>
+       </property>
+       <property name="whatsThis">
+        <string>Channel list inside the selected file</string>
        </property>
        <property name="locale">
         <locale language="English" country="Belgium"/>
@@ -145,6 +151,9 @@
        <property name="acceptDrops">
         <bool>true</bool>
        </property>
+       <property name="whatsThis">
+        <string extracomment="This is the list of channels selected to be converted">Selected channel list to be exported</string>
+       </property>
        <property name="locale">
         <locale language="English" country="Belgium"/>
        </property>
@@ -166,6 +175,9 @@
        <property name="selectionMode">
         <enum>QAbstractItemView::ExtendedSelection</enum>
        </property>
+       <property name="selectionBehavior">
+        <enum>QAbstractItemView::SelectItems</enum>
+       </property>
        <property name="sortingEnabled">
         <bool>true</bool>
        </property>
@@ -176,6 +188,9 @@
      <widget class="QPushButton" name="browse">
       <property name="toolTip">
        <string extracomment="Click to browse file to convert">Click and select MDF file for conversion</string>
+      </property>
+      <property name="whatsThis">
+       <string>Click to browse for MDF files to be converted</string>
       </property>
       <property name="locale">
        <locale language="English" country="Belgium"/>
@@ -255,6 +270,9 @@
         <layout class="QVBoxLayout" name="Resample">
          <item>
           <widget class="QCheckBox" name="resample">
+           <property name="whatsThis">
+            <string>Click to resample according to below sampling time in seconds</string>
+           </property>
            <property name="locale">
             <locale language="English" country="Belgium"/>
            </property>
@@ -267,6 +285,9 @@
           <widget class="QLineEdit" name="resampleValue">
            <property name="enabled">
             <bool>true</bool>
+           </property>
+           <property name="whatsThis">
+            <string>Resampling time in seconds</string>
            </property>
            <property name="inputMethodHints">
             <set>Qt::ImhFormattedNumbersOnly|Qt::ImhPreferNumbers</set>
@@ -282,6 +303,9 @@
         <layout class="QVBoxLayout" name="LabFile_2">
          <item>
           <widget class="QPushButton" name="LabFileBrowse">
+           <property name="whatsThis">
+            <string>Click to selected file containing channel list</string>
+           </property>
            <property name="locale">
             <locale language="English" country="Belgium"/>
            </property>
@@ -294,6 +318,9 @@
           <widget class="QLineEdit" name="LabFile">
            <property name="enabled">
             <bool>true</bool>
+           </property>
+           <property name="whatsThis">
+            <string>Chosen lab file</string>
            </property>
           </widget>
          </item>
@@ -312,6 +339,9 @@
     </item>
     <item row="3" column="3">
      <widget class="QPushButton" name="Convert">
+      <property name="whatsThis">
+       <string>Click to convert all files according your selected options</string>
+      </property>
       <property name="locale">
        <locale language="English" country="Belgium"/>
       </property>
@@ -338,35 +368,7 @@
     </item>
    </layout>
   </widget>
-  <action name="actionBrowse">
-   <property name="text">
-    <string>Browse</string>
-   </property>
-   <property name="toolTip">
-    <string>Open MDF file</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+O</string>
-   </property>
-  </action>
  </widget>
  <resources/>
- <connections>
-  <connection>
-   <sender>resample</sender>
-   <signal>clicked()</signal>
-   <receiver>resampleValue</receiver>
-   <slot>show()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>747</x>
-     <y>213</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>789</x>
-     <y>242</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
+ <connections/>
 </ui>
