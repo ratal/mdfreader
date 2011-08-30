@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file '/home/ratal/workspace/mdfreader/mdfreaderui.ui'
 #
-# Created: Sun Aug 28 20:11:07 2011
+# Created: Tue Aug 30 22:29:47 2011
 #      by: PyQt4 UI code generator 4.7.2
 #
 # WARNING! All changes made in this file will be lost!
@@ -48,7 +48,7 @@ class Ui_MainWindow(object):
         self.Lists.setOrientation(QtCore.Qt.Horizontal)
         self.Lists.setObjectName("Lists")
         self.FileList = QtGui.QListWidget(self.Lists)
-        self.FileList.setContextMenuPolicy(QtCore.Qt.NoContextMenu)
+        self.FileList.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
         self.FileList.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
         self.FileList.setEditTriggers(QtGui.QAbstractItemView.NoEditTriggers)
         self.FileList.setAlternatingRowColors(True)
@@ -77,6 +77,7 @@ class Ui_MainWindow(object):
         self.SelectedChannelList.setDefaultDropAction(QtCore.Qt.MoveAction)
         self.SelectedChannelList.setAlternatingRowColors(True)
         self.SelectedChannelList.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
+        self.SelectedChannelList.setSelectionBehavior(QtGui.QAbstractItemView.SelectItems)
         self.SelectedChannelList.setObjectName("SelectedChannelList")
         self.gridLayout.addWidget(self.Lists, 1, 0, 4, 3)
         self.browse = QtGui.QPushButton(self.TopLayout)
@@ -153,14 +154,11 @@ class Ui_MainWindow(object):
         spacerItem = QtGui.QSpacerItem(113, 20, QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Minimum)
         self.gridLayout.addItem(spacerItem, 4, 3, 1, 1)
         MainWindow.setCentralWidget(self.TopLayout)
-        self.actionBrowse = QtGui.QAction(MainWindow)
-        self.actionBrowse.setObjectName("actionBrowse")
         self.label_2.setBuddy(self.FileList)
         self.label.setBuddy(self.channelList)
         self.label_3.setBuddy(self.SelectedChannelList)
 
         self.retranslateUi(MainWindow)
-        QtCore.QObject.connect(self.resample, QtCore.SIGNAL("clicked()"), self.resampleValue.show)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
@@ -168,24 +166,30 @@ class Ui_MainWindow(object):
         self.label_2.setText(QtGui.QApplication.translate("MainWindow", "File List", None, QtGui.QApplication.UnicodeUTF8))
         self.label.setText(QtGui.QApplication.translate("MainWindow", "File Channel List", None, QtGui.QApplication.UnicodeUTF8))
         self.label_3.setText(QtGui.QApplication.translate("MainWindow", "Selected Channel List", None, QtGui.QApplication.UnicodeUTF8))
+        self.FileList.setWhatsThis(QtGui.QApplication.translate("MainWindow", "File list to be converted", None, QtGui.QApplication.UnicodeUTF8))
         self.FileList.setSortingEnabled(False)
+        self.channelList.setWhatsThis(QtGui.QApplication.translate("MainWindow", "Channel list inside the selected file", None, QtGui.QApplication.UnicodeUTF8))
         self.channelList.setSortingEnabled(True)
+        self.SelectedChannelList.setWhatsThis(QtGui.QApplication.translate("MainWindow", "Selected channel list to be exported", None, QtGui.QApplication.UnicodeUTF8))
         self.SelectedChannelList.setSortingEnabled(True)
         self.browse.setToolTip(QtGui.QApplication.translate("MainWindow", "Click and select MDF file for conversion", None, QtGui.QApplication.UnicodeUTF8))
+        self.browse.setWhatsThis(QtGui.QApplication.translate("MainWindow", "Click to browse for MDF files to be converted", None, QtGui.QApplication.UnicodeUTF8))
         self.browse.setText(QtGui.QApplication.translate("MainWindow", "Browse", None, QtGui.QApplication.UnicodeUTF8))
         self.matlab.setText(QtGui.QApplication.translate("MainWindow", "Matlab .mat", None, QtGui.QApplication.UnicodeUTF8))
         self.netcdf.setText(QtGui.QApplication.translate("MainWindow", "netCDF", None, QtGui.QApplication.UnicodeUTF8))
         self.hdf5.setText(QtGui.QApplication.translate("MainWindow", "HDF5", None, QtGui.QApplication.UnicodeUTF8))
         self.csv.setText(QtGui.QApplication.translate("MainWindow", "CSV", None, QtGui.QApplication.UnicodeUTF8))
         self.excel.setText(QtGui.QApplication.translate("MainWindow", "Excel", None, QtGui.QApplication.UnicodeUTF8))
+        self.resample.setWhatsThis(QtGui.QApplication.translate("MainWindow", "Click to resample according to below sampling time in seconds", None, QtGui.QApplication.UnicodeUTF8))
         self.resample.setText(QtGui.QApplication.translate("MainWindow", "Resample", None, QtGui.QApplication.UnicodeUTF8))
+        self.resampleValue.setWhatsThis(QtGui.QApplication.translate("MainWindow", "Resampling time in seconds", None, QtGui.QApplication.UnicodeUTF8))
         self.resampleValue.setText(QtGui.QApplication.translate("MainWindow", "0.1", None, QtGui.QApplication.UnicodeUTF8))
+        self.LabFileBrowse.setWhatsThis(QtGui.QApplication.translate("MainWindow", "Click to selected file containing channel list", None, QtGui.QApplication.UnicodeUTF8))
         self.LabFileBrowse.setText(QtGui.QApplication.translate("MainWindow", "Lab file", None, QtGui.QApplication.UnicodeUTF8))
+        self.LabFile.setWhatsThis(QtGui.QApplication.translate("MainWindow", "Chosen lab file", None, QtGui.QApplication.UnicodeUTF8))
         self.MergeFiles.setText(QtGui.QApplication.translate("MainWindow", "MergeFiles", None, QtGui.QApplication.UnicodeUTF8))
+        self.Convert.setWhatsThis(QtGui.QApplication.translate("MainWindow", "Click to convert all files according your selected options", None, QtGui.QApplication.UnicodeUTF8))
         self.Convert.setText(QtGui.QApplication.translate("MainWindow", "Convert", None, QtGui.QApplication.UnicodeUTF8))
-        self.actionBrowse.setText(QtGui.QApplication.translate("MainWindow", "Browse", None, QtGui.QApplication.UnicodeUTF8))
-        self.actionBrowse.setToolTip(QtGui.QApplication.translate("MainWindow", "Open MDF file", None, QtGui.QApplication.UnicodeUTF8))
-        self.actionBrowse.setShortcut(QtGui.QApplication.translate("MainWindow", "Ctrl+O", None, QtGui.QApplication.UnicodeUTF8))
 
 
 if __name__ == "__main__":
