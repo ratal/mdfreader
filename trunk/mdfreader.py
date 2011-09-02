@@ -1148,6 +1148,37 @@ class mdf( dict ):
 		if not len(removeChannels)==0:
 			[self.pop(channel) for channel in removeChannels]
 
+	def copy(self):
+		# copy a mdf class
+		yop=mdf()
+		yop.multiProc=self.multiProc
+		yop.fileName=self.fileName
+		yop.timeChannelList=self.timeChannelList
+		for channel in self.keys():
+			yop[channel]=self[channel] 
+		return yop
+
+	def mergeMdf(self, mdfClass):
+		# merges data of 2 mdf classes
+		# both mus have been ressampled, otherwise, impossible to know time vector to match
+		# create union of both lists
+		unionedList=mdfClass.keys() and self.keys()
+		if not self.has_key('time'):
+			raise 'Data not resampled'
+		initialTimeSize=len(self['time']['data'])
+		for channel in unionedList:
+			if mdfClass.has_key(channel) and self.has_key(channel): # channel exists in both class
+				self[channel]['data']=numpy.hstack((self[channel]['data'], mdfClass[channel]['data']))
+			elif mdfClass.has_key(channel): # new channel for self from mdfClass
+				self[channel]=mdfClass[channel] # initialise all fields, units, descriptions, etc.
+				refill=numpy.empty(initialTimeSize)
+				refill.fil(numpy.nan) # fill with NANs
+				self[channel]['data']=numpy.hstack((refill,  mdfClass[channel]['data'])) # readjust against time
+			else: #channel missing in mdfClass
+				refill=numpy.empty(len(mdfClass['time']['data']))
+				refill.fill(numpy.nan) # fill with NANs
+				self[channel]['data']=numpy.hstack((self[channel]['data'], refill))
+
 if __name__ == "__main__":
     app = QtGui.QApplication( sys.argv )
     myapp = MainWindow( mdfClass = mdf(), mdfinfoClass = mdfinfo() )
