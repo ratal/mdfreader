@@ -25,6 +25,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.mdfClass=mdfClass # instance of mdf
         self.mdfinfoClass=mdfinfoClass # instance of mdfinfo
         self.convertSelection='Matlab' # by default Matlab conversion is selected
+        self.MergeFileBool=False # by default
         self.labFileName=[] # .lab file name
         self.actionPlotSelectedChannel = QAction("Plot", self.SelectedChannelList) # context menu to allow plot of channel
         self.SelectedChannelList.addAction(self.actionPlotSelectedChannel )
@@ -71,16 +72,44 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
             channelList=QStringList([]) # pass by QStringList to use removeDuplicates
             [channelList.append(str(self.SelectedChannelList.item(i).text())) for i in range(self.SelectedChannelList.count())]
             channelList.removeDuplicates()
-            for i in range(self.FileList.count()):
-                # read first file of list and removes it from list
-                self.mdfClass.__init__()
+            if not self.MergeFileBool: # export all files separatly
+                for i in range(self.FileList.count()):
+                    # read first file of list and removes it from list
+                    self.mdfClass.__init__()
+                    self.mdfClass.read(str(self.FileList.takeItem(0).text()), multiProc = True, channelList=channelList)
+                    self.show()
+                    #resample if requested
+                    if self.resample.checkState():
+                        if self.resampleValue.text().isEmpty():
+                            self.mdfClass.resample(float(self.resampleValue.text()))
+                    if self.convertSelection=='Matlab':
+                        self.mdfClass.exportToMatlab()
+                    elif self.convertSelection=='csv':
+                        self.mdfClass.exportToCSV()
+                    elif self.convertSelection=='netcdf':
+                        self.mdfClass.exportToNetCDF()
+                    elif self.convertSelection=='hdf5':
+                        self.mdfClass.exportToHDF5()
+                    elif self.convertSelection=='excel':
+                        self.mdfClass.exportToExcel()
+                self.cleanChannelList()
+                #self.cleanSelectedChannelList()
+            elif self.FileList.count(): # Stack files data if min 2 files in list
+                # import first file
+                if self.resampleValue.text().isEmpty():
+                    raise 'Wrong value for resampling'
+                self.mdfClass.__init__() # clear memory
                 self.mdfClass.read(str(self.FileList.takeItem(0).text()), multiProc = True, channelList=channelList)
-                self.show()
-                #resample if requested
-                if self.resample.checkState():
-                    if not self.resampleValue.text().isEmpty():
-                        self.mdfClass.resample(float(self.resampleValue.text()))
-                        print('Resampled successfully'+str(self.fileNames[i]))
+                sampling=float(self.resampleValue.text())
+                self.mdfClass.resample(sampling)
+                buffer=self.mdfClass.copy()
+                for i in range(self.FileList.count()):
+                    # read first file of list and removes it from list
+                    buffer.__init__() # initialises buffer
+                    buffer.read(str(self.FileList.takeItem(0).text()), multiProc = True, channelList=channelList)
+                    buffer.resample(sampling)
+                    self.mdfClass.mergeMdf(buffer)
+                # Export
                 if self.convertSelection=='Matlab':
                     self.mdfClass.exportToMatlab()
                 elif self.convertSelection=='csv':
@@ -91,8 +120,9 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                     self.mdfClass.exportToHDF5()
                 elif self.convertSelection=='excel':
                     self.mdfClass.exportToExcel()
-            self.cleanChannelList()
-            #self.cleanSelectedChannelList()
+                self.cleanChannelList()
+                #self.cleanSelectedChannelList()
+                self.mdfClass.__init__() # clear memory
     
     @pyqtSignature("QListWidgetItem*")
     def on_FileList_itemClicked(self, item):
@@ -199,4 +229,13 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         channelList.removeDuplicates()
         self.SelectedChannelList.clear()
         self.SelectedChannelList.addItems(channelList)
-        
+    
+    @pyqtSignature("bool")
+    def on_MergeFiles_toggled(self, checked):
+        """
+        Slot documentation goes here.
+        """
+        # toggle flag to merge files
+        self.MergeFileBool= not self.MergeFileBool
+        if self.MergeFileBool:
+            self.resample.setCheckState(2)
