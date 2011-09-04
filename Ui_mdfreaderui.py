@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file '/home/ratal/workspace/mdfreader/mdfreaderui.ui'
 #
-# Created: Tue Aug 30 22:29:47 2011
+# Created: Sun Sep  4 19:51:35 2011
 #      by: PyQt4 UI code generator 4.7.2
 #
 # WARNING! All changes made in this file will be lost!
@@ -151,7 +151,7 @@ class Ui_MainWindow(object):
         self.Convert.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
         self.Convert.setObjectName("Convert")
         self.gridLayout.addWidget(self.Convert, 3, 3, 1, 1)
-        spacerItem = QtGui.QSpacerItem(113, 20, QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Minimum)
+        spacerItem = QtGui.QSpacerItem(113, 20, QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Minimum)
         self.gridLayout.addItem(spacerItem, 4, 3, 1, 1)
         MainWindow.setCentralWidget(self.TopLayout)
         self.label_2.setBuddy(self.FileList)
