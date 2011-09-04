@@ -80,8 +80,10 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                     self.show()
                     #resample if requested
                     if self.resample.checkState():
-                        if self.resampleValue.text().isEmpty():
+                        if not self.resampleValue.text().isEmpty():
                             self.mdfClass.resample(float(self.resampleValue.text()))
+                        else:
+                            raise 'Empty field for resampling'
                     if self.convertSelection=='Matlab':
                         self.mdfClass.exportToMatlab()
                     elif self.convertSelection=='csv':
