@@ -48,15 +48,16 @@ Examples
 >>> yop.keepChannels(ChannelListToKeep)
 
 """
-import io
-import struct
-import math
-import multiprocessing
+from io import open
+from struct import calcsize, unpack
+from math import ceil, log, exp
+from multiprocessing import Queue, Process
 import numpy
 
 from PyQt4 import QtCore, QtGui
 from mdfreaderui import MainWindow
-import sys
+from sys import argv, exit
+#from collections import defaultdict
 #import time
 
 def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup ):
@@ -145,9 +146,9 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup ):
 				P6 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P6']
 				P7 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P7']
 				if P4 == 0 and P1 != 0 and P2 != 0:
-					L[channelName]['data'] = math.log( ( ( L[channelName] - P7 ) * P6 - P3 ) / P1 ) / P2
+					L[channelName]['data'] = log( ( ( L[channelName] - P7 ) * P6 - P3 ) / P1 ) / P2
 				elif P1 == 0 and P4 != 0 and P5 != 0:
-					L[channelName] = math.log( ( P3 / ( L[channelName] - P7 ) - P6 ) / P4 ) / P5
+					L[channelName] = log( ( P3 / ( L[channelName] - P7 ) - P6 ) / P4 ) / P5
 				else:
 					print( 'Non possible conversion parameters for channel ' + channelName )
 			elif conversionFormulaIdentifier == 8: # Logarithmic
@@ -159,9 +160,9 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup ):
 				P6 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P6']
 				P7 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P7']
 				if P4 == 0 and P1 != 0 and P2 != 0:
-					L[channelName] = math.exp( ( ( L[channelName] - P7 ) * P6 - P3 ) / P1 ) / P2
+					L[channelName] = exp( ( ( L[channelName] - P7 ) * P6 - P3 ) / P1 ) / P2
 				elif P1 == 0 and P4 != 0 and P5 != 0:
-					L[channelName] = math.exp( ( P3 / ( L[channelName] - P7 ) - P6 ) / P4 ) / P5
+					L[channelName] = exp( ( P3 / ( L[channelName] - P7 ) - P6 ) / P4 ) / P5
 				else:
 					print( 'Non possible conversion parameters for channel ' + channelName )
 			elif conversionFormulaIdentifier == 10: # Text Formula
@@ -171,16 +172,7 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup ):
 	Q.put(L)
 		#print( 'Process ' + str( dataGroup ) + ' Finished ' + str( time.clock() - procTime ) )
 
-class superDict( dict ):
-    # dict with autovivification to allow easy dict nesting
-    def __getitem__( self, item ):
-        try:
-            return dict.__getitem__( self, item )
-        except KeyError:
-            value = self[item] = type( self )()
-            return value
-
-class mdfinfo( superDict ):
+class mdfinfo( ):
     """ mdf file info class
     # MDFINFO is a class information about an MDF (Measure Data Format) file
     #	Based on following specification http://powertrainnvh.com/nvh/MDFspecificationv03.pdf
@@ -200,9 +192,9 @@ class mdfinfo( superDict ):
         self.fileName = fileName
         self.HDBlock = {} # Header Block
         self.DGBlock = {} # Data Group Block
-        self.CGBlock = superDict() # Channel Group Block
-        self.CNBlock = superDict() # Channel Block
-        self.CCBlock = superDict() # Conversion block
+        self.CGBlock = {} # Channel Group Block
+        self.CNBlock = {}# Channel Block
+        self.CCBlock = {} # Conversion block
         self.numberOfChannels = 0 # number of channels
         self.channelNameList = [] # List of channel names
         if fileName != None:
@@ -213,7 +205,7 @@ class mdfinfo( superDict ):
         if self.fileName == None:
             self.fileName = fileName
         # Open file
-        fid = io.open( self.fileName, 'rb' )
+        fid = open( self.fileName, 'rb' )
 
         ### Read header block (HDBlock) information
         # Set file pointer to start of HDBlock
@@ -241,7 +233,12 @@ class mdfinfo( superDict ):
 
             # Read data Channel Group block info into structure
             CGpointer = self.DGBlock[dataGroup]['pointerToNextCGBlock']
+            self.CGBlock[dataGroup]={}
+            self.CNBlock[dataGroup]={}
+            self.CCBlock[dataGroup]={}
             for channelGroup in range( self.DGBlock[dataGroup]['numberOfChannelGroups'] ):
+                self.CNBlock[dataGroup][channelGroup]={}
+                self.CCBlock[dataGroup][channelGroup]={}
                 self.CGBlock[dataGroup][channelGroup] = self.mdfblockread( self.blockformats( 'CGFormat' ), fid, CGpointer )
                 CGpointer = self.CGBlock[dataGroup][channelGroup]['pointerToNextCGBlock']
 
@@ -259,6 +256,7 @@ class mdfinfo( superDict ):
                     ### Read Channel block (CNBlock) information
                     self.numberOfChannels += 1
                     # Read data Channel block info into structure
+                    
                     self.CNBlock[dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats( 'CNFormat' ), fid, CNpointer )
                     CNpointer = self.CNBlock[dataGroup][channelGroup][channel]['pointerToNextCNBlock']
 
@@ -420,7 +418,7 @@ class mdfinfo( superDict ):
         if self.fileName == None:
             self.fileName = fileName
         # Open file
-        fid = io.open( self.fileName, 'rb' )
+        fid = open( self.fileName, 'rb' )
 
         ### Read header block (HDBlock) information
         # Set file pointer to start of HDBlock
@@ -644,8 +642,8 @@ class mdfinfo( superDict ):
                     value = value.strip( '\x00' )
                     Block[fieldName] = value
                 else:
-                    formatSize = struct.calcsize( fieldFormat )
-                    value = struct.unpack( fieldFormat, fid.read( formatSize * fieldNumber ) )
+                    formatSize = calcsize( fieldFormat )
+                    value = unpack( fieldFormat, fid.read( formatSize * fieldNumber ) )
                     Block[fieldName] = value[0]
             return Block
 
@@ -691,7 +689,7 @@ class mdf( dict ):
 
 		# prepare multiprocessing of dataGroups
 		proc = []
-		Q=multiprocessing.Queue()
+		Q=Queue()
 		
 		## Defines record format
 		for dataGroup in sortedDataGroup:
@@ -745,7 +743,7 @@ class mdf( dict ):
 					buf = numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = numberOfRecords )
 					
 					if self.multiProc:
-						proc.append( multiprocessing.Process( target = processDataBlocks,
+						proc.append( Process( target = processDataBlocks,
 							args = ( Q, buf, info, numberOfRecords, dataGroup ) ) )
 						proc[-1].start()
 					else: # for debugging purpose, can switch off multiprocessing
@@ -1109,7 +1107,7 @@ class mdf( dict ):
 		# Excel 2003 limits
 		maxCols = 255
 		maxLines = 65535
-		workbooknumber = int( math.ceil( len( channelList ) * 1.0 / ( maxCols * 1.0 ) ) )
+		workbooknumber = int( ceil( len( channelList ) * 1.0 / ( maxCols * 1.0 ) ) )
 		tooLongChannels = []
 		# split colmuns in several worksheets if more than 256 cols 
 		for workbook in range( workbooknumber ):
@@ -1181,7 +1179,7 @@ class mdf( dict ):
 				self[channel]['data']=numpy.hstack((self[channel]['data'], refill))
 
 if __name__ == "__main__":
-    app = QtGui.QApplication( sys.argv )
+    app = QtGui.QApplication( argv )
     myapp = MainWindow( mdfClass = mdf(), mdfinfoClass = mdfinfo() )
     myapp.show()
-    sys.exit( app.exec_() )
+    exit( app.exec_() )
