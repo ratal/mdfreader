@@ -46,10 +46,9 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         if not self.fileNames.isEmpty():
             self.FileList.addItems(self.fileNames)
             self.mdfinfoClass.__init__()
-            self.mdfinfoClass.listChannels(str(self.fileNames[0]))
             self.cleanChannelList()
             self.cleanSelectedChannelList()
-            self.SelectedChannelList.addItems(self.mdfinfoClass.channelNameList)
+            self.SelectedChannelList.addItems(self.mdfinfoClass.listChannels(str(self.fileNames[0])))
     
     def cleanSelectedChannelList(self):
         # remove all items from list
@@ -76,7 +75,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                 for i in range(self.FileList.count()):
                     # read first file of list and removes it from list
                     self.mdfClass.__init__()
-                    self.mdfClass.read(str(self.FileList.takeItem(0).text()), multiProc = True, channelList=channelList)
+                    self.mdfClass.read(str(self.FileList.takeItem(0).text()), multiProc = False, channelList=channelList)
                     self.show()
                     #resample if requested
                     if self.resample.checkState():
@@ -133,10 +132,9 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         """
         # Refresh list of channels from selected file
         self.mdfinfoClass.__init__()
-        self.mdfinfoClass.listChannels(str(item.text())) # read file
         #self.mdfinfoClass.readinfo(item)
         self.cleanChannelList()
-        self.channelList.addItems(self.mdfinfoClass.channelNameList)
+        self.channelList.addItems(self.mdfinfoClass.listChannels(str(item.text())))
         self.mdfinfoClass.__init__() # clean object to free memory
     
     @pyqtSignature("bool")

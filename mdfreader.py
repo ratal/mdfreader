@@ -422,6 +422,7 @@ class mdfinfo( dict):
             self.fileName = fileName
         # Open file
         fid = open( self.fileName, 'rb' )
+        channelNameList=[]
 
         ### Read header block (HDBlock) information
         # Set file pointer to start of HDBlock
@@ -443,7 +444,12 @@ class mdfinfo( dict):
 
             # Read data Channel Group block info into structure
             CGpointer = self['DGBlock'][dataGroup]['pointerToNextCGBlock']
+            self['CGBlock'][dataGroup]={}
+            self['CNBlock'][dataGroup]={}
+            self['CCBlock'][dataGroup]={}
             for channelGroup in range( self['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
+                self['CNBlock'][dataGroup][channelGroup]={}
+                self['CCBlock'][dataGroup][channelGroup]={}                
                 self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread( self.blockformats( 'CGFormat' ), fid, CGpointer )
                 CGpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToNextCGBlock']
 
@@ -470,10 +476,11 @@ class mdfinfo( dict):
                         # Clean signal name from device name
                         signalname = signalname[0:slashlocation]
                     self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
-                    #self.channelNameList.append( signalname )
+                    channelNameList.append( signalname )
 
         # CLose the file
         fid.close()
+        return channelNameList
 
     #######BLOCKFORMATS####################
     @staticmethod
@@ -677,7 +684,7 @@ class mdf( dict ):
 		    self.fileName = fileName
 		self.multiProc = multiProc
 		if platform=='win32':
-			self.multiProc=False # suppress multiprocessing for windows platform
+			self.multiProc=False # no multiprocessing for windows platform
 
 		#inttime = time.clock()
 		## Read information block from file
@@ -1093,7 +1100,6 @@ class mdf( dict ):
 		temp = {}
 		for channel in self.keys():
 			temp[channel] = self[channel]['data']
-		print( temp )
 		savemat( filename , temp, long_field_names = True )
 
 	def exportToExcel( self , filename = None ):
