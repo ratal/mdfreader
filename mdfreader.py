@@ -51,7 +51,7 @@ Examples
 from io import open
 from struct import calcsize, unpack
 from math import ceil, log, exp
-from multiprocessing import Queue, Process
+from multiprocessing import Queue, Process,  freeze_support
 import numpy
 
 from PyQt4 import QtCore, QtGui
@@ -63,20 +63,20 @@ from sys import argv, exit
 def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup ):
 	## Processes recorded data blocks
 	# Outside of class to allow multiprocessing
-	numberOfRecordIDs = info.DGBlock[dataGroup]['numberOfRecordIDs']
+	numberOfRecordIDs = info['DGBlock'][dataGroup]['numberOfRecordIDs']
 	#procTime = time.clock()
-	#print( 'Start process ' + str( dataGroup ) + ' Number of Channels ' + str( info.CGBlock[dataGroup][0]['numberOfChannels'] ) + ' of length ' + str( len( buf ) ) + ' ' + str( time.clock() ) )
+	#print( 'Start process ' + str( dataGroup ) + ' Number of Channels ' + str( info['CGBlock'][dataGroup][0]['numberOfChannels'] ) + ' of length ' + str( len( buf ) ) + ' ' + str( time.clock() ) )
 	L={}
 	isBitInUnit8 = 0 # Initialize Bit counter
 	## Processes Bits, metadata and conversion
-	for channelGroup in range( info.DGBlock[dataGroup]['numberOfChannelGroups'] ):
-		for channel in range( info.CGBlock[dataGroup][channelGroup]['numberOfChannels'] ):
+	for channelGroup in range( info['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
+		for channel in range( info['CGBlock'][dataGroup][channelGroup]['numberOfChannels'] ):
 			# Type of channel data, signed, unsigned, floating or string
-			signalDataType = info.CNBlock[dataGroup][channelGroup][channel]['signalDataType']
+			signalDataType = info['CNBlock'][dataGroup][channelGroup][channel]['signalDataType']
 			# Corresponding number of bits for this format
-			numberOfBits = info.CNBlock[dataGroup][channelGroup][channel]['numberOfBits']
+			numberOfBits = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
 
-			channelName = info.CNBlock[dataGroup][channelGroup][channel]['signalName']
+			channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
 			temp = buf.__getattribute__( channelName ) # extract channel vector
 
 			if channelName == 'time': # assumes first channel is time
@@ -106,45 +106,45 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup ):
 				isBitInUnit8 = 0 # Initialize Bit counter
 
 			## Process Conversion
-			conversionFormulaIdentifier = info.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier']
+			conversionFormulaIdentifier = info['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier']
 			if conversionFormulaIdentifier == 0: # Parametric, Linear: Physical =Integer*P2 + P1
-				P1 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P1']
-				P2 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P2']
+				P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P1']
+				P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P2']
 				L[channelName] = L[channelName] * P2 + P1
 			elif conversionFormulaIdentifier == 11: # Text Table
 				pass # considers number representative enough, no need to convert into string, more complex
 			elif conversionFormulaIdentifier == 65535: # No conversion, keep data
 				pass
 			elif conversionFormulaIdentifier == 1: # Tabular with interpolation
-				intVal = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['int' ]
-				physVal = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['phys' ]
+				intVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['int' ]
+				physVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['phys' ]
 				if numpy.all( numpy.diff( intVal ) > 0 ):
 					L[channelName] = numpy.interp( L[channelName], intVal, physVal )
 				else:
 					print( 'X values for interpolation of channel ' + channelName + ' are not increasing' )
 			elif conversionFormulaIdentifier == 2: # Tabular
-				intVal = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['int' ]
-				physVal = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['phys' ]
+				intVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['int' ]
+				physVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['phys' ]
 				if numpy.all( numpy.diff( intVal ) > 0 ):
 					L[channelName] = numpy.interp( L[channelName], intVal, physVal )
 				else:
 					print( 'X values for interpolation of channel ' + channelName + ' are not increasing' )
 			elif conversionFormulaIdentifier == 6: # Polynomial
-				P1 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P1']
-				P2 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P2']
-				P3 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P3']
-				P4 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P4']
-				P5 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P5']
-				P6 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P6']
+				P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P1']
+				P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P2']
+				P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P3']
+				P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P4']
+				P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P5']
+				P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P6']
 				L[channelName] = ( P2 - P4 * ( L[channelName]['data'] - P5 - P6 ) ) / ( P3 * ( L[channelName] - P5 - P6 ) - P1 )
 			elif conversionFormulaIdentifier == 7: # Exponential
-				P1 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P1']
-				P2 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P2']
-				P3 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P3']
-				P4 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P4']
-				P5 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P5']
-				P6 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P6']
-				P7 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P7']
+				P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P1']
+				P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P2']
+				P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P3']
+				P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P4']
+				P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P5']
+				P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P6']
+				P7 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P7']
 				if P4 == 0 and P1 != 0 and P2 != 0:
 					L[channelName]['data'] = log( ( ( L[channelName] - P7 ) * P6 - P3 ) / P1 ) / P2
 				elif P1 == 0 and P4 != 0 and P5 != 0:
@@ -152,13 +152,13 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup ):
 				else:
 					print( 'Non possible conversion parameters for channel ' + channelName )
 			elif conversionFormulaIdentifier == 8: # Logarithmic
-				P1 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P1']
-				P2 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P2']
-				P3 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P3']
-				P4 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P4']
-				P5 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P5']
-				P6 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P6']
-				P7 = info.CCBlock[dataGroup][channelGroup][channel]['conversion'] ['P7']
+				P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P1']
+				P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P2']
+				P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P3']
+				P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P4']
+				P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P5']
+				P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P6']
+				P7 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P7']
 				if P4 == 0 and P1 != 0 and P2 != 0:
 					L[channelName] = exp( ( ( L[channelName] - P7 ) * P6 - P3 ) / P1 ) / P2
 				elif P1 == 0 and P4 != 0 and P5 != 0:
@@ -166,13 +166,13 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup ):
 				else:
 					print( 'Non possible conversion parameters for channel ' + channelName )
 			elif conversionFormulaIdentifier == 10: # Text Formula
-				print( 'Conversion of formula : ' + info.CCBlock[dataGroup][channelGroup][channel]['conversion']['textFormula'] + 'not yet supported' )
+				print( 'Conversion of formula : ' + info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula'] + 'not yet supported' )
 			elif conversionFormulaIdentifier == 12: # Text Range Table
 				pass # Not yet supported, practically not used format
 	Q.put(L)
 		#print( 'Process ' + str( dataGroup ) + ' Finished ' + str( time.clock() - procTime ) )
 
-class mdfinfo( ):
+class mdfinfo( dict):
     """ mdf file info class
     # MDFINFO is a class information about an MDF (Measure Data Format) file
     #	Based on following specification http://powertrainnvh.com/nvh/MDFspecificationv03.pdf
@@ -182,19 +182,19 @@ class mdfinfo( ):
     #
     #   	mdfinfo.read(FIELNAME) will process Filename file
     #  General dictionary structure is the following :
-    #  mdfinfo.HDBlock header block
-    #  mdfinfo.DGBlock[dataGroup] Data Group block
-    #  mdfinfo.CGBlock[dataGroup][channelGroup] Channel Group block
-    #  mdfinfo.CNBlock[dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
-    #  mdfinfo.CCBlock[dataGroup][channelGroup][channel] Channel conversion information"""
+    #  mdfinfo['HDBlock'] header block
+    #  mdfinfo['DGBlock'][dataGroup] Data Group block
+    #  mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
+    #  mdfinfo['CNBlock'][dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
+    #  mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information"""
 
     def __init__( self, fileName = None ):
         self.fileName = fileName
-        self.HDBlock = {} # Header Block
-        self.DGBlock = {} # Data Group Block
-        self.CGBlock = {} # Channel Group Block
-        self.CNBlock = {}# Channel Block
-        self.CCBlock = {} # Conversion block
+        self['HDBlock'] = {} # Header Block
+        self['DGBlock']= {} # Data Group Block
+        self['CGBlock'] = {} # Channel Group Block
+        self['CNBlock'] = {}# Channel Block
+        self['CCBlock'] = {} # Conversion block
         self.numberOfChannels = 0 # number of channels
         self.channelNameList = [] # List of channel names
         if fileName != None:
@@ -211,73 +211,73 @@ class mdfinfo( ):
         # Set file pointer to start of HDBlock
         HDpointer = 64
         # Read Header block info into structure
-        self.HDBlock = self.mdfblockread( self.blockformats( 'HDFormat' ), fid, HDpointer )
+        self['HDBlock'] = self.mdfblockread( self.blockformats( 'HDFormat' ), fid, HDpointer )
 
         ### Read text block (TXBlock) information
-        self.HDBlock['TXBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, self.HDBlock['pointerToTXBlock'] )
+        self['HDBlock']['TXBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, self['HDBlock']['pointerToTXBlock'] )
 
         ### Read text block (PRBlock) information
-        self.HDBlock['PRBlock'] = self.mdfblockread( self.blockformats( 'PRFormat' ), fid, self.HDBlock['pointerToPRBlock'] )
+        self['HDBlock']['PRBlock'] = self.mdfblockread( self.blockformats( 'PRFormat' ), fid, self['HDBlock']['pointerToPRBlock'] )
 
         ### Read Data Group blocks (DGBlock) information
         # Get pointer to first Data Group block
-        DGpointer = self.HDBlock['pointerToFirstDGBlock']
-        for dataGroup in range( self.HDBlock['numberOfDataGroups'] ):
+        DGpointer = self['HDBlock']['pointerToFirstDGBlock']
+        for dataGroup in range( self['HDBlock']['numberOfDataGroups'] ):
 
             # Read data Data Group block info into structure
-            self.DGBlock[dataGroup] = self.mdfblockread( self.blockformats( 'DGFormat' ), fid, DGpointer )
+            self['DGBlock'][dataGroup] = self.mdfblockread( self.blockformats( 'DGFormat' ), fid, DGpointer )
             # Get pointer to next Data Group block
-            DGpointer = self.DGBlock[dataGroup]['pointerToNextDGBlock']
+            DGpointer = self['DGBlock'][dataGroup]['pointerToNextDGBlock']
 
             ### Read Channel Group block (CGBlock) information - offset set already
 
             # Read data Channel Group block info into structure
-            CGpointer = self.DGBlock[dataGroup]['pointerToNextCGBlock']
-            self.CGBlock[dataGroup]={}
-            self.CNBlock[dataGroup]={}
-            self.CCBlock[dataGroup]={}
-            for channelGroup in range( self.DGBlock[dataGroup]['numberOfChannelGroups'] ):
-                self.CNBlock[dataGroup][channelGroup]={}
-                self.CCBlock[dataGroup][channelGroup]={}
-                self.CGBlock[dataGroup][channelGroup] = self.mdfblockread( self.blockformats( 'CGFormat' ), fid, CGpointer )
-                CGpointer = self.CGBlock[dataGroup][channelGroup]['pointerToNextCGBlock']
+            CGpointer = self['DGBlock'][dataGroup]['pointerToNextCGBlock']
+            self['CGBlock'][dataGroup]={}
+            self['CNBlock'][dataGroup]={}
+            self['CCBlock'][dataGroup]={}
+            for channelGroup in range( self['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
+                self['CNBlock'][dataGroup][channelGroup]={}
+                self['CCBlock'][dataGroup][channelGroup]={}
+                self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread( self.blockformats( 'CGFormat' ), fid, CGpointer )
+                CGpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToNextCGBlock']
 
-                CGTXpointer = self.CGBlock[dataGroup][channelGroup]['pointerToChannelGroupCommentText']
+                CGTXpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToChannelGroupCommentText']
 
                 # Read data Text block info into structure
-                self.CGBlock[dataGroup][channelGroup]['TXBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CGTXpointer )
+                self['CGBlock'][dataGroup][channelGroup]['TXBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CGTXpointer )
 
                 # Get pointer to next first Channel block
-                CNpointer = self.CGBlock[dataGroup][channelGroup]['pointerToFirstCNBlock']
+                CNpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToFirstCNBlock']
 
                 # For each Channel
-                for channel in range( self.CGBlock[dataGroup][channelGroup]['numberOfChannels'] ):
+                for channel in range( self['CGBlock'][dataGroup][channelGroup]['numberOfChannels'] ):
 
                     ### Read Channel block (CNBlock) information
                     self.numberOfChannels += 1
                     # Read data Channel block info into structure
                     
-                    self.CNBlock[dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats( 'CNFormat' ), fid, CNpointer )
-                    CNpointer = self.CNBlock[dataGroup][channelGroup][channel]['pointerToNextCNBlock']
+                    self['CNBlock'][dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats( 'CNFormat' ), fid, CNpointer )
+                    CNpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToNextCNBlock']
 
                     ### Read Channel text blocks (TXBlock)
 
                     # Clean signal name
-                    signalname = self.CNBlock[dataGroup][channelGroup][channel]['signalName']
+                    signalname = self['CNBlock'][dataGroup][channelGroup][channel]['signalName']
                     slashlocation = signalname.find( '\\' )
                     if slashlocation > 0:
                         if slashlocation + 1 < len( signalname ):
-                            self.CNBlock[dataGroup][channelGroup][channel]['deviceName'] = signalname[slashlocation + 1:len( signalname )]
+                            self['CNBlock'][dataGroup][channelGroup][channel]['deviceName'] = signalname[slashlocation + 1:len( signalname )]
                         # Clean signal name from device name
                         signalname = signalname[0:slashlocation]
-                    self.CNBlock[dataGroup][channelGroup][channel]['signalName'] = signalname
+                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
                     self.channelNameList.append( signalname )
 
-                    CNTXpointer = self.CNBlock[dataGroup][channelGroup][channel]['pointerToChannelCommentBlock']
+                    CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToChannelCommentBlock']
                     # Read data Text block info into structure
-                    self.CNBlock[dataGroup][channelGroup][channel]['ChannelCommentBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer )
+                    self['CNBlock'][dataGroup][channelGroup][channel]['ChannelCommentBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer )
 
-                    CNTXpointer = self.CNBlock[dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
+                    CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
                     # Read data Text block info into structure
                     temp = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer )
                     signalname = None
@@ -292,22 +292,22 @@ class mdfinfo( ):
                             signalname = signalname[0:slashlocation]
                         temp['Text'] = signalname
 
-                    self.CNBlock[dataGroup][channelGroup][channel]['ASAMNameBlock'] = temp
+                    self['CNBlock'][dataGroup][channelGroup][channel]['ASAMNameBlock'] = temp
 
-                    CNTXpointer = self.CNBlock[dataGroup][channelGroup][channel]['pointerToSignalIdentifierBlock']
+                    CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToSignalIdentifierBlock']
                     # Read data Text block info into structure
-                    self.CNBlock[dataGroup][channelGroup][channel]['SignalIdentifierBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer )
+                    self['CNBlock'][dataGroup][channelGroup][channel]['SignalIdentifierBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer )
 
                     ### Read Channel Conversion block (CCBlock)
 
                     # Get pointer to Channel conversion block
-                    CCpointer = self.CNBlock[dataGroup][channelGroup][channel]['pointerToConversionFormula']
+                    CCpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToConversionFormula']
 
                     if CCpointer == 0: # If no conversion formula, set to 1:1
-                        self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] = 65535
+                        self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] = 65535
                     else: # Otherwise get conversion formula, parameters and physical units
                         # Read data Channel Conversion block info into structure
-                        self.CCBlock[dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats( 'CCFormat' ), fid, CCpointer )
+                        self['CCBlock'][dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats( 'CCFormat' ), fid, CCpointer )
 
                         # Extract Channel Conversion formula based on conversion
                         # type(conversionFormulaIdentifier)
@@ -315,100 +315,100 @@ class mdfinfo( ):
                         # Get current file position
                         currentPosition = fid.tell()
 
-                        if self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 0: # Parameteric, Linear: Physical =Integer*P2 + P1
+                        if self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 0: # Parameteric, Linear: Physical =Integer*P2 + P1
 
                             # Read data Channel Conversion parameters info into structure
-                            self.CCBlock[dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula0' ), fid, currentPosition )
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula0' ), fid, currentPosition )
 
-                        elif self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 1: # Table look up with interpolation
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 1: # Table look up with interpolation
 
                             # Get number of parameters sets
-                            num = self.CCBlock[dataGroup][channelGroup][channel]['numberOfValuePairs']
-                            self.CCBlock[dataGroup][channelGroup][channel]['conversion'] = {}
+                            num = self['CCBlock'][dataGroup][channelGroup][channel]['numberOfValuePairs']
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = {}
 
                             for pair in range( num ):
 
                                 # Read data Channel Conversion parameters info into structure
-                                self.CCBlock[dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats( 'CCFormatFormula1' ), fid, currentPosition )
+                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats( 'CCFormatFormula1' ), fid, currentPosition )
                                 # Get current file position
                                 currentPosition = fid.tell()
 
-                        elif self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 2: # table look up
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 2: # table look up
 
                             # Get number of parameters sets
-                            num = self.CCBlock[dataGroup][channelGroup][channel]['numberOfValuePairs']
-                            self.CCBlock[dataGroup][channelGroup][channel]['conversion'] = {}
+                            num = self['CCBlock'][dataGroup][channelGroup][channel]['numberOfValuePairs']
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = {}
 
                             for pair in range( num ):
 
                                 # Read data Channel Conversion parameters info into structure
-                                self.CCBlock[dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats( 'CCFormatFormula2' ), fid, currentPosition )
+                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats( 'CCFormatFormula2' ), fid, currentPosition )
                                 # Get current file position
                                 currentPosition = fid.tell()
 
-                        elif self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 6: # Polynomial
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 6: # Polynomial
 
                             # Read data Channel Conversion parameters info into structure
-                            self.CCBlock[dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula6' ), fid, currentPosition )
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula6' ), fid, currentPosition )
 
-                        elif self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 7: # Exponential
-
-                            # Read data Channel Conversion parameters info into structure
-                            self.CCBlock[dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula7' ), fid, currentPosition )
-
-                        elif self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 8: # Logarithmic
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 7: # Exponential
 
                             # Read data Channel Conversion parameters info into structure
-                            self.CCBlock[dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula8' ), fid, currentPosition )
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula7' ), fid, currentPosition )
 
-                        elif self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 9: #  Rational
-
-                            # Read data Channel Conversion parameters info into structure
-                            self.CCBlock[dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula9' ), fid, currentPosition )
-
-                        elif self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 10: #  Text Formula
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 8: # Logarithmic
 
                             # Read data Channel Conversion parameters info into structure
-                            self.CCBlock[dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula10' ), fid, currentPosition )
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula8' ), fid, currentPosition )
 
-                        elif self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 11: #  Text table
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 9: #  Rational
+
+                            # Read data Channel Conversion parameters info into structure
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula9' ), fid, currentPosition )
+
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 10: #  Text Formula
+
+                            # Read data Channel Conversion parameters info into structure
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats( 'CCFormatFormula10' ), fid, currentPosition )
+
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 11: #  Text table
 
                             # Get number of parameters sets
-                            num = self.CCBlock[dataGroup][channelGroup][channel]['numberOfValuePairs']
-                            self.CCBlock[dataGroup][channelGroup][channel]['conversion'] = {}
+                            num = self['CCBlock'][dataGroup][channelGroup][channel]['numberOfValuePairs']
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = {}
 
                             for pair in range( num ):
 
                                 # Read data Channel Conversion parameters info into structure
-                                self.CCBlock[dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats( 'CCFormatFormula11' ), fid, currentPosition )
+                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats( 'CCFormatFormula11' ), fid, currentPosition )
                                 # Get current file position
                                 currentPosition = fid.tell()
 
-                        elif self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 12: #  Text range table
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 12: #  Text range table
 
                             # Get number of parameters sets
-                            num = self.CCBlock[dataGroup][channelGroup][channel]['numberOfValuePairs']
-                            self.CCBlock[dataGroup][channelGroup][channel]['conversion'] = {}
+                            num = self['CCBlock'][dataGroup][channelGroup][channel]['numberOfValuePairs']
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = {}
 
                             for pair in range( num + 1 ): # first 2 pairs are ignored
 
                                 # Read data Channel Conversion parameters info into structure
-                                self.CCBlock[dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats( 'CCFormatFormula12' ), fid, currentPosition )
+                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats( 'CCFormatFormula12' ), fid, currentPosition )
                                 # Get current file position
                                 currentPosition = fid.tell()
 
                             for pair in range( num ): # get text range    
                                 # Read corresponding text
-                                temp = self.mdfblockread( self.blockformats( 'TXBlock' ), fid, self.CCBlock[dataGroup][channelGroup][channel][pair]['pointerToTXBlock'] )
-                                self.CCBlock[dataGroup][channelGroup][channel]['conversion'][pair]['Textrange'] = temp['Text']
+                                temp = self.mdfblockread( self.blockformats( 'TXBlock' ), fid, self['CCBlock'][dataGroup][channelGroup][channel][pair]['pointerToTXBlock'] )
+                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['Textrange'] = temp['Text']
 
-                        elif self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 65535: #  No conversion int=phys
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 65535: #  No conversion int=phys
                             pass
                         else:
 
                             # Give warning that conversion formula is not being
                             # made
-                            print( 'Conversion Formula type (conversionFormulaIdentifier=' + str( self.CCBlock[dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] ) + ')not supported.' )
+                            print( 'Conversion Formula type (conversionFormulaIdentifier=' + str( self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] ) + ')not supported.' )
 
         # CLose the file
         fid.close()
@@ -424,49 +424,49 @@ class mdfinfo( ):
         # Set file pointer to start of HDBlock
         HDpointer = 64
         # Read Header block info into structure
-        self.HDBlock = self.mdfblockread( self.blockformats( 'HDFormat' ), fid, HDpointer )
+        self['HDBlock'] = self.mdfblockread( self.blockformats( 'HDFormat' ), fid, HDpointer )
 
         ### Read Data Group blocks (DGBlock) information
         # Get pointer to first Data Group block
-        DGpointer = self.HDBlock['pointerToFirstDGBlock']
-        for dataGroup in range( self.HDBlock['numberOfDataGroups'] ):
+        DGpointer = self['HDBlock']['pointerToFirstDGBlock']
+        for dataGroup in range( self['HDBlock']['numberOfDataGroups'] ):
 
             # Read data Data Group block info into structure
-            self.DGBlock[dataGroup] = self.mdfblockread( self.blockformats( 'DGFormat' ), fid, DGpointer )
+            self['DGBlock'][dataGroup] = self.mdfblockread( self.blockformats( 'DGFormat' ), fid, DGpointer )
             # Get pointer to next Data Group block
-            DGpointer = self.DGBlock[dataGroup]['pointerToNextDGBlock']
+            DGpointer = self['DGBlock'][dataGroup]['pointerToNextDGBlock']
 
             ### Read Channel Group block (CGBlock) information - offset set already
 
             # Read data Channel Group block info into structure
-            CGpointer = self.DGBlock[dataGroup]['pointerToNextCGBlock']
-            for channelGroup in range( self.DGBlock[dataGroup]['numberOfChannelGroups'] ):
-                self.CGBlock[dataGroup][channelGroup] = self.mdfblockread( self.blockformats( 'CGFormat' ), fid, CGpointer )
-                CGpointer = self.CGBlock[dataGroup][channelGroup]['pointerToNextCGBlock']
+            CGpointer = self['DGBlock'][dataGroup]['pointerToNextCGBlock']
+            for channelGroup in range( self['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
+                self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread( self.blockformats( 'CGFormat' ), fid, CGpointer )
+                CGpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToNextCGBlock']
 
                 # Get pointer to next first Channel block
-                CNpointer = self.CGBlock[dataGroup][channelGroup]['pointerToFirstCNBlock']
+                CNpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToFirstCNBlock']
 
                 # For each Channel
-                for channel in range( self.CGBlock[dataGroup][channelGroup]['numberOfChannels'] ):
+                for channel in range( self['CGBlock'][dataGroup][channelGroup]['numberOfChannels'] ):
 
                     ### Read Channel block (CNBlock) information
                     self.numberOfChannels += 1
                     # Read data Channel block info into structure
-                    self.CNBlock[dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats( 'CNFormat' ), fid, CNpointer )
-                    CNpointer = self.CNBlock[dataGroup][channelGroup][channel]['pointerToNextCNBlock']
+                    self['CNBlock'][dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats( 'CNFormat' ), fid, CNpointer )
+                    CNpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToNextCNBlock']
 
                     ### Read Channel text blocks (TXBlock)
 
                     # Clean signal name
-                    signalname = self.CNBlock[dataGroup][channelGroup][channel]['signalName']
+                    signalname = self['CNBlock'][dataGroup][channelGroup][channel]['signalName']
                     slashlocation = signalname.find( '\\' )
                     if slashlocation > 0:
                         if slashlocation + 1 < len( signalname ):
-                            self.CNBlock[dataGroup][channelGroup][channel]['deviceName'] = signalname[slashlocation + 1:len( signalname )]
+                            self['CNBlock'][dataGroup][channelGroup][channel]['deviceName'] = signalname[slashlocation + 1:len( signalname )]
                         # Clean signal name from device name
                         signalname = signalname[0:slashlocation]
-                    self.CNBlock[dataGroup][channelGroup][channel]['signalName'] = signalname
+                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
                     self.channelNameList.append( signalname )
 
         # CLose the file
@@ -682,9 +682,9 @@ class mdf( dict ):
 		fid = open( self.fileName, 'rb', buffering = 65536 )
 
 		# Look for the biggest group to process first, to reduce processing time
-		dataGroupList = dict.fromkeys( range( info.HDBlock['numberOfDataGroups'] ) )
+		dataGroupList = dict.fromkeys( range( info['HDBlock']['numberOfDataGroups'] ) )
 		for dataGroup in dataGroupList.keys():
-			dataGroupList[dataGroup] = info.CGBlock[dataGroup][0]['numberOfRecords']
+			dataGroupList[dataGroup] = info['CGBlock'][dataGroup][0]['numberOfRecords']
 		sortedDataGroup = sorted( dataGroupList, key = dataGroupList.__getitem__, reverse = True )
 
 		# prepare multiprocessing of dataGroups
@@ -694,9 +694,9 @@ class mdf( dict ):
 		## Defines record format
 		for dataGroup in sortedDataGroup:
 			# Number for records before and after the data records
-			numberOfRecordIDs = info.DGBlock[dataGroup]['numberOfRecordIDs']
+			numberOfRecordIDs = info['DGBlock'][dataGroup]['numberOfRecordIDs']
 			#Pointer to data block
-			pointerToData = info.DGBlock[dataGroup]['pointerToDataRecords']
+			pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
 			fid.seek( pointerToData )
 			# initialize counter of bits
 			precedingNumberOfBits = 0
@@ -705,24 +705,24 @@ class mdf( dict ):
 				# start first with uint8
 				numpyDataRecordFormat.append( ( 'firstRecordID', 'uint8' ) )
 
-			for channelGroup in range( info.DGBlock[dataGroup]['numberOfChannelGroups'] ):
+			for channelGroup in range( info['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
 				# Reads size of each channel
-				#dataRecordSize = info.CGBlock[dataGroup][channelGroup]['dataRecordSize']
+				#dataRecordSize = info['CGBlock'][dataGroup][channelGroup]['dataRecordSize']
 				# Number of samples recorded
-				numberOfRecords = info.CGBlock[dataGroup][channelGroup]['numberOfRecords']
+				numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
 
 				if numberOfRecords != 0: # continue if there are at least some records
-					for channel in range( info.CGBlock[dataGroup][channelGroup]['numberOfChannels'] ):
+					for channel in range( info['CGBlock'][dataGroup][channelGroup]['numberOfChannels'] ):
 						# Type of channel data, signed, unsigned, floating or string
-						signalDataType = info.CNBlock[dataGroup][channelGroup][channel]['signalDataType']
+						signalDataType = info['CNBlock'][dataGroup][channelGroup][channel]['signalDataType']
 						# Corresponding number of bits for this format
-						numberOfBits = info.CNBlock[dataGroup][channelGroup][channel]['numberOfBits']
+						numberOfBits = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
 						# Defines data format
 						#datatype = self.datatypeformat( signalDataType, numberOfBits )
 
 						if numberOfBits < 8: # adding bit format, ubit1 or ubit2
 							if precedingNumberOfBits == 8: # 8 bit make a byte
-							    numpyDataRecordFormat.append( ( info.CNBlock[dataGroup][channelGroup][channel]['signalName'], self.arrayformat( signalDataType, numberOfBits ) ) )
+							    numpyDataRecordFormat.append( ( info['CNBlock'][dataGroup][channelGroup][channel]['signalName'], self.arrayformat( signalDataType, numberOfBits ) ) )
 							    precedingNumberOfBits = 0
 							else:
 							    precedingNumberOfBits += numberOfBits # counts successive bits
@@ -730,10 +730,10 @@ class mdf( dict ):
 						else: # adding bytes
 							if precedingNumberOfBits != 0: # There was bits in previous channel
 							    precedingNumberOfBits = 0
-							numpyDataRecordFormat.append( ( info.CNBlock[dataGroup][channelGroup][channel]['signalName'], self.arrayformat( signalDataType, numberOfBits ) ) )
+							numpyDataRecordFormat.append( ( info['CNBlock'][dataGroup][channelGroup][channel]['signalName'], self.arrayformat( signalDataType, numberOfBits ) ) )
 
 					if numberOfBits < 8: # last channel in record is bit inside byte unit8
-						numpyDataRecordFormat.append( ( info.CNBlock[dataGroup][channelGroup][channel]['signalName'], self.arrayformat( signalDataType, numberOfBits ) ) )
+						numpyDataRecordFormat.append( ( info['CNBlock'][dataGroup][channelGroup][channel]['signalName'], self.arrayformat( signalDataType, numberOfBits ) ) )
 						precedingNumberOfBits = 0
 					# Offset of record id at the end of record
 					if numberOfRecordIDs == 2:
@@ -759,12 +759,12 @@ class mdf( dict ):
 
 		# After all processing of channels,
 		# prepare final class data with all its keys
-		for dataGroup in range( info.HDBlock['numberOfDataGroups'] ):
-			for channelGroup in range( info.DGBlock[dataGroup]['numberOfChannelGroups'] ):
-				for channel in range( info.CGBlock[dataGroup][channelGroup]['numberOfChannels'] ):
-					numberOfRecords = info.CGBlock[dataGroup][channelGroup]['numberOfRecords']
+		for dataGroup in range( info['HDBlock']['numberOfDataGroups'] ):
+			for channelGroup in range( info['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
+				for channel in range( info['CGBlock'][dataGroup][channelGroup]['numberOfChannels'] ):
+					numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
 					if numberOfRecords != 0 :
-						channelName = info.CNBlock[dataGroup][channelGroup][channel]['signalName']
+						channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
 						if channelName == 'time':# assumes first channel is time
 							channelName = channelName + str( dataGroup )
 							if channelName in L and len( L[channelName] ) != 0:
@@ -772,8 +772,8 @@ class mdf( dict ):
 						if channelName in L and len( L[channelName] ) != 0:
 							self[channelName] = {}
 							self[channelName]['time'] = 'time' + str( dataGroup )
-							self[channelName]['unit'] = info.CCBlock[dataGroup][channelGroup][channel]['physicalUnit'] # Unit of channel
-							self[channelName]['description'] = info.CNBlock[dataGroup][channelGroup][channel]['signalDescription']
+							self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit'] # Unit of channel
+							self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription']
 							self[channelName]['data'] = L[channelName]
 		if not channelList==None and len(channelList)>0:
 			self.keepChannels(channelList)
@@ -1179,6 +1179,7 @@ class mdf( dict ):
 				self[channel]['data']=numpy.hstack((self[channel]['data'], refill))
 
 if __name__ == "__main__":
+    freeze_support()
     app = QtGui.QApplication( argv )
     myapp = MainWindow( mdfClass = mdf(), mdfinfoClass = mdfinfo() )
     myapp.show()
