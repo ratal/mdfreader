@@ -56,11 +56,11 @@ import numpy
 
 from PyQt4 import QtCore, QtGui
 from mdfreaderui import MainWindow
-from sys import argv, exit
+from sys import argv, exit, platform
 #from collections import defaultdict
 #import time
 
-def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup ):
+def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 	## Processes recorded data blocks
 	# Outside of class to allow multiprocessing
 	numberOfRecordIDs = info['DGBlock'][dataGroup]['numberOfRecordIDs']
@@ -169,7 +169,10 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup ):
 				print( 'Conversion of formula : ' + info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula'] + 'not yet supported' )
 			elif conversionFormulaIdentifier == 12: # Text Range Table
 				pass # Not yet supported, practically not used format
-	Q.put(L)
+	if multiProc:
+		Q.put(L)
+	else:
+		return L
 		#print( 'Process ' + str( dataGroup ) + ' Finished ' + str( time.clock() - procTime ) )
 
 class mdfinfo( dict):
@@ -195,8 +198,8 @@ class mdfinfo( dict):
         self['CGBlock'] = {} # Channel Group Block
         self['CNBlock'] = {}# Channel Block
         self['CCBlock'] = {} # Conversion block
-        self.numberOfChannels = 0 # number of channels
-        self.channelNameList = [] # List of channel names
+        #self.numberOfChannels = 0 # number of channels
+        #self.channelNameList = [] # List of channel names
         if fileName != None:
             self.readinfo( fileName )
     ## Reads block informations inside file
@@ -254,7 +257,7 @@ class mdfinfo( dict):
                 for channel in range( self['CGBlock'][dataGroup][channelGroup]['numberOfChannels'] ):
 
                     ### Read Channel block (CNBlock) information
-                    self.numberOfChannels += 1
+                    #self.numberOfChannels += 1
                     # Read data Channel block info into structure
                     
                     self['CNBlock'][dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats( 'CNFormat' ), fid, CNpointer )
@@ -271,7 +274,7 @@ class mdfinfo( dict):
                         # Clean signal name from device name
                         signalname = signalname[0:slashlocation]
                     self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
-                    self.channelNameList.append( signalname )
+                    #self.channelNameList.append( signalname )
 
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToChannelCommentBlock']
                     # Read data Text block info into structure
@@ -451,7 +454,7 @@ class mdfinfo( dict):
                 for channel in range( self['CGBlock'][dataGroup][channelGroup]['numberOfChannels'] ):
 
                     ### Read Channel block (CNBlock) information
-                    self.numberOfChannels += 1
+                    #self.numberOfChannels += 1
                     # Read data Channel block info into structure
                     self['CNBlock'][dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats( 'CNFormat' ), fid, CNpointer )
                     CNpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToNextCNBlock']
@@ -467,7 +470,7 @@ class mdfinfo( dict):
                         # Clean signal name from device name
                         signalname = signalname[0:slashlocation]
                     self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
-                    self.channelNameList.append( signalname )
+                    #self.channelNameList.append( signalname )
 
         # CLose the file
         fid.close()
@@ -673,6 +676,8 @@ class mdf( dict ):
 		if self.fileName == None:
 		    self.fileName = fileName
 		self.multiProc = multiProc
+		if platform=='win32':
+			self.multiProc=False # suppress multiprocessing for windows platform
 
 		#inttime = time.clock()
 		## Read information block from file
@@ -687,10 +692,11 @@ class mdf( dict ):
 			dataGroupList[dataGroup] = info['CGBlock'][dataGroup][0]['numberOfRecords']
 		sortedDataGroup = sorted( dataGroupList, key = dataGroupList.__getitem__, reverse = True )
 
-		# prepare multiprocessing of dataGroups
-		proc = []
-		Q=Queue()
-		
+		if self.multiProc:
+			# prepare multiprocessing of dataGroups
+			proc = []
+			Q=Queue()
+		L={}
 		## Defines record format
 		for dataGroup in sortedDataGroup:
 			# Number for records before and after the data records
@@ -744,18 +750,18 @@ class mdf( dict ):
 					
 					if self.multiProc:
 						proc.append( Process( target = processDataBlocks,
-							args = ( Q, buf, info, numberOfRecords, dataGroup ) ) )
+							args = ( Q, buf, info, numberOfRecords, dataGroup , True) ) )
 						proc[-1].start()
 					else: # for debugging purpose, can switch off multiprocessing
-						processDataBlocks( Q, buf, info, numberOfRecords, dataGroup )
+						L.update(processDataBlocks( None, buf, info, numberOfRecords, dataGroup,  False))
 
 		fid.close() # close file
 
-		L={}
-		dataGroupsProcessed=1
-		while dataGroupsProcessed<len(dataGroupList): 
-			L.update(Q.get()) # concatenate results of processes in dict
-			dataGroupsProcessed+=1
+		if self.multiProc:
+			dataGroupsProcessed=1
+			while dataGroupsProcessed<len(dataGroupList): 
+				L.update(Q.get()) # concatenate results of processes in dict
+				dataGroupsProcessed+=1
 
 		# After all processing of channels,
 		# prepare final class data with all its keys
