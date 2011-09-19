@@ -8,22 +8,23 @@ from PyQt4.QtGui import QMainWindow, QFileDialog, QAction
 from PyQt4.QtCore import pyqtSignature, SIGNAL, QStringList
 
 from Ui_mdfreaderui import Ui_MainWindow
-import io
-#from mdfreader import mdf, mdfinfo
+from io import open
+from multiprocessing import Process,Pool,cpu_count
+from mdfreader import mdfinfo,mdf
 
 class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
     """
     Class documentation goes here.
     """
-    def __init__(self, parent = None, mdfClass=None, mdfinfoClass=None):
+    def __init__(self, parent = None):
         """
         Constructor
         """
         QMainWindow.__init__(self, parent)
         self.setupUi(self)
         self.fileNames=[] # files to convert
-        self.mdfClass=mdfClass # instance of mdf
-        self.mdfinfoClass=mdfinfoClass # instance of mdfinfo
+        self.mdfClass=mdf() # instance of mdf
+        self.mdfinfoClass=mdfinfo() # instance of mdfinfo
         self.convertSelection='Matlab' # by default Matlab conversion is selected
         self.MergeFileBool=False # by default
         self.labFileName=[] # .lab file name
@@ -42,7 +43,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         """
         Will open a dialog to browse for files
         """
-        self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files", filter=("MDF file (*.dat)"))
+        self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files",filter=("MDF file (*.dat)"))
         if not self.fileNames.isEmpty():
             self.FileList.addItems(self.fileNames)
             self.mdfinfoClass.__init__()
@@ -65,50 +66,60 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         """
        Will convert mdf files into selected format
         """
+		# create list of channels to be converted for all files
+        channelQList=QStringList([]) # pass by QStringList to use removeDuplicates
+        [channelQList.append(str(self.SelectedChannelList.item(i).text())) for i in range(self.SelectedChannelList.count())]
+        channelQList.removeDuplicates()
+        channelList=[]
+        # reconvert in simple picklable list
+        [ channelList.append(str(channel)) for channel in channelQList] 
         # Process all mdf files recursively
         if self.FileList.count()>0: # not empty list
-            # create list of channels to be converted for all files
-            channelList=QStringList([]) # pass by QStringList to use removeDuplicates
-            [channelList.append(str(self.SelectedChannelList.item(i).text())) for i in range(self.SelectedChannelList.count())]
-            channelList.removeDuplicates()
+            ncpu=cpu_count() # to still have response from PC
+            if ncpu<1:
+                ncpu=1
+            pool = Pool(processes=ncpu)
             if not self.MergeFileBool: # export all files separatly
-                for i in range(self.FileList.count()):
-                    # read first file of list and removes it from list
-                    self.mdfClass.__init__()
-                    self.mdfClass.read(str(self.FileList.takeItem(0).text()), multiProc = False, channelList=channelList)
-                    self.show()
-                    #resample if requested
-                    if self.resample.checkState():
-                        if not self.resampleValue.text().isEmpty():
-                            self.mdfClass.resample(float(self.resampleValue.text()))
-                        else:
-                            raise 'Empty field for resampling'
-                    if self.convertSelection=='Matlab':
-                        self.mdfClass.exportToMatlab()
-                    elif self.convertSelection=='csv':
-                        self.mdfClass.exportToCSV()
-                    elif self.convertSelection=='netcdf':
-                        self.mdfClass.exportToNetCDF()
-                    elif self.convertSelection=='hdf5':
-                        self.mdfClass.exportToHDF5()
-                    elif self.convertSelection=='excel':
-                        self.mdfClass.exportToExcel()
+                convertFlag=True
+                convertSelection=self.convertSelection
+                resampleValue=float(self.resampleValue.text())
+                #resample if requested
+                if self.resample.checkState():
+                    if not self.resampleValue.text().isEmpty():
+                        resampleFlag=True
+                    else:
+                        raise 'Empty field for resampling'
+                else:
+                    resampleFlag=False
+                args=[(str(self.FileList.takeItem(0).text()),channelList,resampleFlag,resampleValue,convertFlag,convertSelection) for i in range(self.FileList.count())]
+                result=pool.map_async(processMDFstar,args)
+                result.get() # waits until finished
                 self.cleanChannelList()
-                #self.cleanSelectedChannelList()
             elif self.FileList.count(): # Stack files data if min 2 files in list
                 # import first file
                 if self.resampleValue.text().isEmpty():
                     raise 'Wrong value for resampling'
+                convertFlag=False
+                convertSelection=self.convertSelection
+                resampleValue=float(self.resampleValue.text())
+                resampleFlag=True # always resample when merging
+                fileName=str(self.FileList.item(0).text()) # Uses first file name for the converted file
+                # list filenames
+                args=[(str(self.FileList.takeItem(0).text()),channelList,resampleFlag,resampleValue,convertFlag,convertSelection) for i in range(self.FileList.count())]
+                res=pool.map_async(processMDFstar,args)
+                result=res.get()
+                # Merge results
                 self.mdfClass.__init__() # clear memory
-                self.mdfClass.read(str(self.FileList.takeItem(0).text()), multiProc = True, channelList=channelList)
-                sampling=float(self.resampleValue.text())
-                self.mdfClass.resample(sampling)
+                self.mdfClass.fileName=fileName
+                self.mdfClass.multiProc=False
                 buffer=self.mdfClass.copy()
-                for i in range(self.FileList.count()):
-                    # read first file of list and removes it from list
-                    buffer.__init__() # initialises buffer
-                    buffer.read(str(self.FileList.takeItem(0).text()), multiProc = True, channelList=channelList)
-                    buffer.resample(sampling)
+                res=result[0]
+                self.mdfClass.update(res[0])
+                self.mdfClass.timeChannelList=res[1]
+                for res in result: # Merge
+                    buffer.__init__()
+                    buffer.update(res[0])
+                    buffer.timeChannelList=res[1]
                     self.mdfClass.mergeMdf(buffer)
                 # Export
                 if self.convertSelection=='Matlab':
@@ -182,7 +193,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
             self.LabFile.del_() # clear linedit
             self.LabFile.insert(str(self.labFileName)) # replace linedit field by browsed file name
             # read lab file
-            labfile=io.open(str(self.labFileName), 'r')
+            labfile=open(str(self.labFileName), 'r')
             self.labChannelList=[]
             ine = labfile.readline() # read first line [lab]
             while 1:
@@ -239,3 +250,29 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.MergeFileBool= not self.MergeFileBool
         if self.MergeFileBool:
             self.resample.setCheckState(2)
+
+def processMDF(fileName,channelList,resampleFlag,resampleValue,convertFlag,convertSelection):
+	# Will process file according to defined options
+	yop=mdf()
+	yop.multiProc=False # already multiprocessed
+	yop.read(fileName,channelList=channelList)
+	if resampleFlag:
+		yop.resample(resampleValue)
+	if convertFlag:
+		if convertSelection=='Matlab':
+			yop.exportToMatlab()
+		elif convertSelection=='csv':
+			yop.exportToCSV()
+		elif convertSelection=='netcdf':
+			yop.exportToNetCDF()
+		elif convertSelection=='hdf5':
+			yop.exportToHDF5()
+		elif convertSelection=='excel':
+			yop.exportToExcel()
+	yopPicklable={} # picklable dict and not object
+	for channel in yop.keys():
+		yopPicklable[channel]=yop[channel]
+	return [yopPicklable,yop.timeChannelList]
+
+def processMDFstar(args):
+	return processMDF(*args)
