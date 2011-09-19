@@ -51,13 +51,10 @@ Examples
 from io import open
 from struct import calcsize, unpack
 from math import ceil, log, exp
-from multiprocessing import Queue, Process,  freeze_support
+from multiprocessing import Queue, Process
 import numpy
 
-from PyQt4 import QtCore, QtGui
-from mdfreaderui import MainWindow
-from sys import argv, exit, platform
-#from collections import defaultdict
+from sys import platform
 #import time
 
 def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
@@ -666,7 +663,7 @@ class mdf( dict ):
 	Resample : yop.resample(SamplingRate_in_secs)
 	plot a specific channel : yop.plot('ChannelName')
 	export to csv file : yop.exportCSV() , specific filename can be input
-	In future, export to netcdf : yop.exportNetCDF() """
+	export to netcdf : yop.exportNetCDF() """
 
 	def __init__( self, fileName = None ):
 		self.fileName = None
@@ -693,7 +690,7 @@ class mdf( dict ):
 		# Open file
 		fid = open( self.fileName, 'rb', buffering = 65536 )
 
-		# Look for the biggest group to process first, to reduce processing time
+		# Look for the biggest group to process first, to reduce processing time when mutiprocessed
 		dataGroupList = dict.fromkeys( range( info['HDBlock']['numberOfDataGroups'] ) )
 		for dataGroup in dataGroupList.keys():
 			dataGroupList[dataGroup] = info['CGBlock'][dataGroup][0]['numberOfRecords']
@@ -757,18 +754,16 @@ class mdf( dict ):
 					
 					if self.multiProc:
 						proc.append( Process( target = processDataBlocks,
-							args = ( Q, buf, info, numberOfRecords, dataGroup , True) ) )
+							args = ( Q, buf, info, numberOfRecords, dataGroup , self.multiProc) ) )
 						proc[-1].start()
 					else: # for debugging purpose, can switch off multiprocessing
-						L.update(processDataBlocks( None, buf, info, numberOfRecords, dataGroup,  False))
+						L.update(processDataBlocks( None, buf, info, numberOfRecords, dataGroup,  self.multiProc))
 
 		fid.close() # close file
 
 		if self.multiProc:
-			dataGroupsProcessed=1
-			while dataGroupsProcessed<len(dataGroupList): 
+			for i in proc: 
 				L.update(Q.get()) # concatenate results of processes in dict
-				dataGroupsProcessed+=1
 
 		# After all processing of channels,
 		# prepare final class data with all its keys
@@ -1100,7 +1095,7 @@ class mdf( dict ):
 		temp = {}
 		for channel in self.keys():
 			temp[channel] = self[channel]['data']
-		savemat( filename , temp, long_field_names = True )
+		savemat( filename , temp, long_field_names = True,format='5',do_compression=True,oned_as='column' )
 
 	def exportToExcel( self , filename = None ):
 		# export to excel 95 to 2003
@@ -1171,7 +1166,7 @@ class mdf( dict ):
 
 	def mergeMdf(self, mdfClass):
 		# merges data of 2 mdf classes
-		# both mus have been ressampled, otherwise, impossible to know time vector to match
+		# both must have been ressampled, otherwise, impossible to know time vector to match
 		# create union of both lists
 		unionedList=mdfClass.keys() and self.keys()
 		if not self.has_key('time'):
@@ -1189,10 +1184,8 @@ class mdf( dict ):
 				refill=numpy.empty(len(mdfClass['time']['data']))
 				refill.fill(numpy.nan) # fill with NANs
 				self[channel]['data']=numpy.hstack((self[channel]['data'], refill))
-
+	
 if __name__ == "__main__":
     freeze_support()
-    app = QtGui.QApplication( argv )
-    myapp = MainWindow( mdfClass = mdf(), mdfinfoClass = mdfinfo() )
-    myapp.show()
-    exit( app.exec_() )
+    mdf()
+    
