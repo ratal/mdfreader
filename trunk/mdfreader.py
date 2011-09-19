@@ -668,14 +668,14 @@ class mdf( dict ):
 	def __init__( self, fileName = None ):
 		self.fileName = None
 		self.timeChannelList = []
-		self.multiProc = True # flag to activate multiprocessing
+		self.multiProc = False # flag to activate multiprocessing
 		# clears class from previous reading and avoid to mess up
 		self.clear()
 		if not fileName == None:
 		    self.read( fileName )
 
 	## reads mdf file
-	def read( self, fileName = None, multiProc = True, channelList=None):
+	def read( self, fileName = None, multiProc = False, channelList=None):
 		# read mdf file
 		if self.fileName == None:
 		    self.fileName = fileName
@@ -1095,7 +1095,10 @@ class mdf( dict ):
 		temp = {}
 		for channel in self.keys():
 			temp[channel] = self[channel]['data']
-		savemat( filename , temp, long_field_names = True,format='5',do_compression=True,oned_as='column' )
+		try:
+			savemat( filename , temp, long_field_names = True,format='5',do_compression=True,oned_as='column' )
+		except:
+			savemat( filename , temp, long_field_names = True,format='5')
 
 	def exportToExcel( self , filename = None ):
 		# export to excel 95 to 2003
