@@ -73,8 +73,13 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 			# Corresponding number of bits for this format
 			numberOfBits = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
 
-			channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-			temp = buf.__getattribute__( channelName ) # extract channel vector
+			tempChannelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
+			try:
+				temp = buf.__getattribute__( tempChannelName ) # extract channel vector
+				channelName=tempChannelName
+			except: # if tempChannelName not in buf -> bits in unit8
+				temp = buf.__getattribute__( channelName ) # extract channel vector
+				# do nothing
 
 			if channelName == 'time': # assumes first channel is time
 				channelName = channelName + str( dataGroup )
