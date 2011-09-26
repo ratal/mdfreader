@@ -65,6 +65,8 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 	#print( 'Start process ' + str( dataGroup ) + ' Number of Channels ' + str( info['CGBlock'][dataGroup][0]['numberOfChannels'] ) + ' of length ' + str( len( buf ) ) + ' ' + str( time.clock() ) )
 	L={}
 	isBitInUnit8 = 0 # Initialize Bit counter
+	previousChannelName=info['CNBlock'][0][0][0]['signalName'] # initialise channelName
+	
 	## Processes Bits, metadata and conversion
 	for channelGroup in range( info['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
 		for channel in range( info['CGBlock'][dataGroup][channelGroup]['numberOfChannels'] ):
@@ -73,13 +75,12 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 			# Corresponding number of bits for this format
 			numberOfBits = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
 
-			tempChannelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
+			channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
 			try:
-				temp = buf.__getattribute__( tempChannelName ) # extract channel vector
-				channelName=tempChannelName
+				temp = buf.__getattribute__( channelName) # extract channel vector
+				previousChannelName=channelName
 			except: # if tempChannelName not in buf -> bits in unit8
-				temp = buf.__getattribute__( channelName ) # extract channel vector
-				# do nothing
+				temp = buf.__getattribute__( previousChannelName ) # extract channel vector
 
 			if channelName == 'time': # assumes first channel is time
 				channelName = channelName + str( dataGroup )
@@ -716,6 +717,7 @@ class mdf( dict ):
 			# initialize counter of bits
 			precedingNumberOfBits = 0
 			numpyDataRecordFormat = []
+			dataRecordName = []
 			if numberOfRecordIDs >= 1:
 				# start first with uint8
 				numpyDataRecordFormat.append( ( 'firstRecordID', 'uint8' ) )
@@ -737,7 +739,8 @@ class mdf( dict ):
 
 						if numberOfBits < 8: # adding bit format, ubit1 or ubit2
 							if precedingNumberOfBits == 8: # 8 bit make a byte
-							    numpyDataRecordFormat.append( ( info['CNBlock'][dataGroup][channelGroup][channel]['signalName'], self.arrayformat( signalDataType, numberOfBits ) ) )
+							    dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['signalName'])
+							    numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat( signalDataType, numberOfBits ) ) )
 							    precedingNumberOfBits = 0
 							else:
 							    precedingNumberOfBits += numberOfBits # counts successive bits
@@ -745,17 +748,19 @@ class mdf( dict ):
 						else: # adding bytes
 							if precedingNumberOfBits != 0: # There was bits in previous channel
 							    precedingNumberOfBits = 0
-							numpyDataRecordFormat.append( ( info['CNBlock'][dataGroup][channelGroup][channel]['signalName'], self.arrayformat( signalDataType, numberOfBits ) ) )
+							dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['signalName'])
+							numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat( signalDataType, numberOfBits ) ) )
 
 					if numberOfBits < 8: # last channel in record is bit inside byte unit8
-						numpyDataRecordFormat.append( ( info['CNBlock'][dataGroup][channelGroup][channel]['signalName'], self.arrayformat( signalDataType, numberOfBits ) ) )
+						dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['signalName'])
+						numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat( signalDataType, numberOfBits ) ) )
 						precedingNumberOfBits = 0
 					# Offset of record id at the end of record
 					if numberOfRecordIDs == 2:
 						numpyDataRecordFormat.append( ( 'secondRecordID', 'uint8' ) )
 					#print( 'Group ' + str( dataGroup ) + ' ' + str( time.clock() - inttime ) )
 					## reads the records
-					buf = numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = numberOfRecords )
+					buf = numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = numberOfRecords , names=dataRecordName)
 					
 					if self.multiProc:
 						proc.append( Process( target = processDataBlocks,
