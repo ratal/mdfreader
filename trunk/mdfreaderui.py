@@ -3,14 +3,20 @@
 """
 Module implementing MainWindow.
 """
-
+from sys import version_info
+pythonVer=version_info[0]
 from PyQt4.QtGui import QMainWindow, QFileDialog, QAction
-from PyQt4.QtCore import pyqtSignature, SIGNAL, QStringList
+from PyQt4.QtCore import pyqtSignature, SIGNAL
 
 from Ui_mdfreaderui import Ui_MainWindow
 from io import open
 from multiprocessing import Process,Pool,cpu_count
 from mdfreader import mdfinfo,mdf
+
+from sys import version_info
+PythonVersion=version_info
+PythonVersion=PythonVersion[0]
+MultiProc=True # multiproc switch, for debug purpose
 
 class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
     """
@@ -44,12 +50,13 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         Will open a dialog to browse for files
         """
         self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files",filter=("MDF file (*.dat)"))
-        if not self.fileNames.isEmpty():
+        if not len(self.fileNames)==0:
             self.FileList.addItems(self.fileNames)
             self.mdfinfoClass.__init__()
             self.cleanChannelList()
             self.cleanSelectedChannelList()
-            self.SelectedChannelList.addItems(self.mdfinfoClass.listChannels(str(self.fileNames[0])))
+            ChannelList=convertChannelList(self.mdfinfoClass.listChannels(str(self.fileNames[0])))
+            self.SelectedChannelList.addItems(ChannelList)
     
     def cleanSelectedChannelList(self):
         # remove all items from list
@@ -66,13 +73,10 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         """
        Will convert mdf files into selected format
         """
-		# create list of channels to be converted for all files
-        channelQList=QStringList([]) # pass by QStringList to use removeDuplicates
-        [channelQList.append(str(self.SelectedChannelList.item(i).text())) for i in range(self.SelectedChannelList.count())]
-        channelQList.removeDuplicates()
+        # create list of channels to be converted for all files
         channelList=[]
-        # reconvert in simple picklable list
-        [ channelList.append(str(channel)) for channel in channelQList] 
+        [channelList.append(str(self.SelectedChannelList.item(i).text())) for i in range(self.SelectedChannelList.count())]
+        channelList=list(set(channelList))
         # Process all mdf files recursively
         if self.FileList.count()>0: # not empty list
             ncpu=cpu_count() # to still have response from PC
@@ -85,20 +89,25 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                 resampleValue=float(self.resampleValue.text())
                 #resample if requested
                 if self.resample.checkState():
-                    if not self.resampleValue.text().isEmpty():
+                    if not len(self.resampleValue.text())==0:
                         resampleFlag=True
                     else:
-                        raise 'Empty field for resampling'
+                        print('Empty field for resampling')
+                        raise 
                 else:
                     resampleFlag=False
                 args=[(str(self.FileList.takeItem(0).text()),channelList,resampleFlag,resampleValue,convertFlag,convertSelection) for i in range(self.FileList.count())]
-                result=pool.map_async(processMDFstar,args)
-                result.get() # waits until finished
+                if MultiProc:
+                    result=pool.map_async(processMDFstar,args)
+                    result.get() # waits until finished
+                else:
+                    result=list(map(processMDFstar,args)) 
                 self.cleanChannelList()
             elif self.FileList.count(): # Stack files data if min 2 files in list
                 # import first file
-                if self.resampleValue.text().isEmpty():
-                    raise 'Wrong value for resampling'
+                if len(self.resampleValue.text())==0:
+                    print('Wrong value for resampling')
+                    raise 
                 convertFlag=False
                 convertSelection=self.convertSelection
                 resampleValue=float(self.resampleValue.text())
@@ -106,8 +115,11 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                 fileName=str(self.FileList.item(0).text()) # Uses first file name for the converted file
                 # list filenames
                 args=[(str(self.FileList.takeItem(0).text()),channelList,resampleFlag,resampleValue,convertFlag,convertSelection) for i in range(self.FileList.count())]
-                res=pool.map_async(processMDFstar,args)
-                result=res.get()
+                if MultiProc:
+                    res=pool.map_async(processMDFstar,args)
+                    result=res.get()
+                else:
+                    result=map(processMDFstar,args) # no multiproc, for debug
                 # Merge results
                 self.mdfClass.__init__() # clear memory
                 self.mdfClass.fileName=fileName
@@ -145,7 +157,8 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.mdfinfoClass.__init__()
         #self.mdfinfoClass.readinfo(item)
         self.cleanChannelList()
-        self.channelList.addItems(self.mdfinfoClass.listChannels(str(item.text())))
+        ChannelList=convertChannelList(self.mdfinfoClass.listChannels(str(item.text())))
+        self.channelList.addItems(ChannelList)
         self.mdfinfoClass.__init__() # clean object to free memory
     
     @pyqtSignature("bool")
@@ -160,7 +173,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         """
         Selects netcdf conversion.
         """
-        self.convertSlection='netcdf'
+        self.convertSelection='netcdf'
     
     @pyqtSignature("bool")
     def on_hdf5_clicked(self, checked):
@@ -189,7 +202,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         selects lab file from browser.
         """
         self.labFileName=QFileDialog.getOpenFileName(self, "Select Lab Files", filter=("Lab file (*.lab)"))
-        if not self.labFileName.isEmpty():
+        if not len(self.labFileName)==0:
             self.LabFile.del_() # clear linedit
             self.LabFile.insert(str(self.labFileName)) # replace linedit field by browsed file name
             # read lab file
@@ -235,9 +248,9 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         
     def on_SelectedChannelList_dropEvent(self):
         # avoids to have duplicates in list when channel is dropped
-        channelList=QStringList([]) # pass by QStringList to use removeDuplicates
+        channelList=[] 
         [channelList.append(str(self.SelectedChannelList.item(i).text())) for i in range(self.SelectedChannelList.count())]
-        channelList.removeDuplicates()
+        channelList=list(set( channelList)) #  removeDuplicates
         self.SelectedChannelList.clear()
         self.SelectedChannelList.addItems(channelList)
     
@@ -251,11 +264,11 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         if self.MergeFileBool:
             self.resample.setCheckState(2)
 
-def processMDF(fileName,channelList,resampleFlag,resampleValue,convertFlag,convertSelection):
+def processMDF(fileName,channelist,resampleFlag,resampleValue,convertFlag,convertSelection):
 	# Will process file according to defined options
 	yop=mdf()
 	yop.multiProc=False # already multiprocessed
-	yop.read(fileName,channelList=channelList)
+	yop.read(fileName,channelList=channelist)
 	if resampleFlag:
 		yop.resample(resampleValue)
 	if convertFlag:
@@ -270,9 +283,15 @@ def processMDF(fileName,channelList,resampleFlag,resampleValue,convertFlag,conve
 		elif convertSelection=='excel':
 			yop.exportToExcel()
 	yopPicklable={} # picklable dict and not object
-	for channel in yop.keys():
+	for channel in list(yop.keys()):
 		yopPicklable[channel]=yop[channel]
 	return [yopPicklable,yop.timeChannelList]
 
 def processMDFstar(args):
 	return processMDF(*args)
+
+def convertChannelList(channelList):
+    if PythonVersion<3:
+        return [str(name) for name in channelList]
+    else:
+        return [(name).decode('ascii', 'replace') for name in channelList]
