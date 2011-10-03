@@ -3,8 +3,6 @@
 """
 Module implementing MainWindow.
 """
-from sys import version_info
-pythonVer=version_info[0]
 from PyQt4.QtGui import QMainWindow, QFileDialog, QAction
 from PyQt4.QtCore import pyqtSignature, SIGNAL
 
@@ -76,7 +74,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         # create list of channels to be converted for all files
         channelList=[]
         [channelList.append(str(self.SelectedChannelList.item(i).text())) for i in range(self.SelectedChannelList.count())]
-        channelList=list(set(channelList))
+        channelList=list(set(channelList)) # remove duplicates
         # Process all mdf files recursively
         if self.FileList.count()>0: # not empty list
             ncpu=cpu_count() # to still have response from PC
