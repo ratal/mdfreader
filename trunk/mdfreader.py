@@ -133,7 +133,7 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 				if numpy.all( numpy.diff( intVal ) > 0 ):
 					L[channelName] = numpy.interp( L[channelName], intVal, physVal )
 				else:
-					print(( 'X values for interpolation of channel ' + channelName + ' are not increasing' ))
+					print(( 'X values for interpolation of channel ' + str(channelName) + ' are not increasing' ))
 			elif conversionFormulaIdentifier == 6: # Polynomial
 				P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P1']
 				P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P2']
@@ -155,7 +155,7 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 				elif P1 == 0 and P4 != 0 and P5 != 0:
 					L[channelName] = log( ( P3 / ( L[channelName] - P7 ) - P6 ) / P4 ) / P5
 				else:
-					print(( 'Non possible conversion parameters for channel ' + channelName ))
+					print(( 'Non possible conversion parameters for channel ' + str(channelName) ))
 			elif conversionFormulaIdentifier == 8: # Logarithmic
 				P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P1']
 				P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P2']
@@ -169,9 +169,9 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 				elif P1 == 0 and P4 != 0 and P5 != 0:
 					L[channelName] = exp( ( P3 / ( L[channelName] - P7 ) - P6 ) / P4 ) / P5
 				else:
-					print(( 'Non possible conversion parameters for channel ' + channelName ))
+					print(( 'Non possible conversion parameters for channel ' + str(channelName) ))
 			elif conversionFormulaIdentifier == 10: # Text Formula
-				print(( 'Conversion of formula : ' + info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula'] + 'not yet supported' ))
+				print(( 'Conversion of formula : ' + str(info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula']) + 'not yet supported' ))
 			elif conversionFormulaIdentifier == 12: # Text Range Table
 				pass # Not yet supported, practically not used format
 	if multiProc:
@@ -217,7 +217,7 @@ class mdfinfo( dict):
             fid = open( self.fileName, 'rb' )
         except IOError:
             print('Can not find file'+self.fileName)
-            raise(IOError)
+            raise
 
         ### Read header block (HDBlock) information
         # Set file pointer to start of HDBlock
@@ -891,7 +891,7 @@ class mdf( dict ):
 		    raise
 		for channelName in channels:
 		    if channelName in self:
-		        if self[channelName]['data'].dtype != '|S1': # if channel not a string
+		        if not self[channelName]['data'].dtype in ('|S1', '|S8'): # if channel not a string
 		            self.fig = plt.figure()
 		            # plot using matplotlib the channel versus time
 		            if 'time' in self[channelName]: # Resampled signals
@@ -953,7 +953,7 @@ class mdf( dict ):
 				try:
 					if Name not in self.timeChannelList:
 						timevect = self[self[Name]['time']]['data']
-						if self[Name]['data'].dtype != '|S1': # if channel not array of string
+						if not self[Name]['data'].dtype in ('|S1', '|S8'): # if channel not array of string
 							self[Name]['data'] = numpy.interp( self['time']['data'], timevect, self[Name]['data'] )
 							if 'time' in self[Name]:
 								del self[Name]['time']
@@ -1112,9 +1112,12 @@ class mdf( dict ):
 		# convert self into simple dict without and metadata
 		temp = {}
 		for channel in list(self.keys()):
-			if self[channel]['data'].dtype != '|S1': # does not like special characters chains, skip
-				temp[channel] = self[channel]['data']
-		try:
+			if not self[channel]['data'].dtype in ('|S1', '|S8'): # does not like special characters chains, skip
+				channelName=channel.replace('[', '_') # removes non allowed characters for a matlab variable name
+				channelName=channelName.replace(']', '_')
+				channelName=channelName.replace('$', '')
+				temp[channelName] = self[channel]['data']
+		try: # depends of version used , compression can be used
 			savemat( filename , temp, long_field_names = True,format='5',do_compression=True,oned_as='column' )
 		except:
 			savemat( filename , temp, long_field_names = True,format='5')
@@ -1154,17 +1157,13 @@ class mdf( dict ):
 				vect = self[channelList[col]]['data'] # data vector
 				if not len( vect ) > maxLines :
 					if vect.dtype not in ['|S1', '|S8']: # if not a string
-						#
 						[ws.row( row + 2 ).set_cell_number( col - workbook * maxCols, vect[row] ) for row in list(range( len( vect ) ))]
 					else: # it's a string, cannot write for the moment
-						#print()
 						[ws.row( row + 2 ).set_cell_text( col - workbook * maxCols, vect[row].encode('ascii', 'replace') ) for row in list(range( len( vect ) ))]
 				else: # channel too long, written until max Excel line limit
 					if vect.dtype not in ['|S1', '|S8']: # if not a string
-						#print()
 						[ws.row( row + 2 ).set_cell_number( col - workbook * maxCols, vect[row] ) for row in list(range( maxLines ))]
 					else: # it's a string, cannot write for the moment
-						print(vect[row]) 
 						[ws.row( row + 2 ).set_cell_text( col - workbook * maxCols, vect[row].encode('ascii', 'replace')  ) for row in list(range( maxLines ))]
 					tooLongChannels.append( channelList[col] ) # to later warn user the channel is not completly written
 		wb.save( filename ) # writes workbook on HDD
