@@ -180,6 +180,24 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 		return L
 		#print( 'Process ' + str( dataGroup ) + ' Finished ' + str( time.clock() - procTime ) )
 
+def convertMatlabName(channel):
+# removes non allowed characters for a matlab variable name
+	channel=channel.decode('utf-8')
+	channelName=channel.replace('[', '_ls_') 
+	channelName=channelName.replace(']', '_rs_')
+	channelName=channelName.replace('$', '')
+	channelName=channelName.replace('.', 'p')
+	channelName=channelName.replace('\\','_bs_')
+	channelName=channelName.replace('/','_fs_')
+	channelName=channelName.replace('(','_lp_')
+	channelName=channelName.replace(',','_rp_')
+	channelName=channelName.replace('@','_am_')
+	channelName=channelName.replace(' ','_')
+	channelName=channelName.replace(':','_co_')
+	channelName=channelName.replace('-','_hy_')
+	channelName=channelName.replace('-','_hy_')
+	return channelName
+
 class mdfinfo( dict):
     """ mdf file info class
     # MDFINFO is a class information about an MDF (Measure Data Format) file
@@ -1092,7 +1110,8 @@ class mdf( dict ):
 				attr.create( 'description', (self[channel]['description']).encode('ascii', 'ignore'))
 		else: # resampled or only one time for all channels : no groups
 			for channel in list(self.keys()):
-				dset = f.create_dataset( channel, data = self[channel]['data'] )
+				channelName=convertMatlabName(channel)
+				dset = f.create_dataset( channelName, data = self[channel]['data'] )
 				attr = h5py.AttributeManager( dset )
 				attr.create( 'unit', (self[channel]['unit'] ).encode('ascii', 'ignore'))
 				attr.create( 'description', (self[channel]['description'] ).encode('ascii', 'ignore'))
@@ -1113,9 +1132,7 @@ class mdf( dict ):
 		temp = {}
 		for channel in list(self.keys()):
 			if not self[channel]['data'].dtype in ('|S1', '|S8'): # does not like special characters chains, skip
-				channelName=channel.replace('[', '_') # removes non allowed characters for a matlab variable name
-				channelName=channelName.replace(']', '_')
-				channelName=channelName.replace('$', '')
+				channelName=convertMatlabName(channel)
 				temp[channelName] = self[channel]['data']
 		try: # depends of version used , compression can be used
 			savemat( filename , temp, long_field_names = True,format='5',do_compression=True,oned_as='column' )
@@ -1173,6 +1190,7 @@ class mdf( dict ):
 
 	def keepChannels(self, channelList):
 		# keep only list of channels and removes the rest
+		channelList=[channel.encode('latin1', 'ignore') for channel in channelList]
 		removeChannels=[]
 		for channel in list(self.keys()):
 			if channel not in channelList and not 'time'==channel[0:4] and channel not in self.timeChannelList :
@@ -1202,7 +1220,12 @@ class mdf( dict ):
 		initialTimeSize=len(self['time']['data'])
 		for channel in unionedList:
 			if channel in mdfClass and channel in self: # channel exists in both class
-				self[channel]['data']=numpy.hstack((self[channel]['data'], mdfClass[channel]['data']))
+				if not channel=='time':
+					self[channel]['data']=numpy.hstack((self[channel]['data'], mdfClass[channel]['data']))
+				else:
+					offset=numpy.mean(numpy.diff(mdfClass[channel]['data'])) # sampling
+					offset=self[channel]['data'][-1]+offset # time offset
+					self[channel]['data']=numpy.hstack((self[channel]['data'], mdfClass[channel]['data']+offset))
 			elif channel in mdfClass: # new channel for self from mdfClass
 				self[channel]=mdfClass[channel] # initialise all fields, units, descriptions, etc.
 				refill=numpy.empty(initialTimeSize)
@@ -1216,4 +1239,3 @@ class mdf( dict ):
 if __name__ == "__main__":
     freeze_support()
     mdf()
-    

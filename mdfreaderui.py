@@ -211,7 +211,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                 line = labfile.readline()
                 if not line:
                     break
-                self.labChannelList.append(line)
+                self.labChannelList.append(line.replace('\n',''))
             self.cleanSelectedChannelList() # Clear Selected file list
             self.SelectedChannelList.addItems(self.labChannelList)
     
