@@ -57,6 +57,10 @@ import numpy
 from sys import platform, version_info
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
+if PythonVersion<3:
+    channelTime='time'
+else: # python3 conversion to byte
+    channelTime='time'.encode()
 #import time
 
 def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
@@ -84,7 +88,7 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 			except: # if tempChannelName not in buf -> bits in unit8
 				temp = buf.__getattribute__( str(previousChannelName) ) # extract channel vector
 
-			if channelName == 'time': # assumes first channel is time
+			if channelName == channelTime: # assumes first channel is time
 				channelName = channelName + str( dataGroup )
 			# Process concatenated bits inside unint8	
 			if signalDataType not in ( 1, 2, 3, 8 ):
@@ -795,13 +799,13 @@ class mdf( dict ):
 					numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
 					if numberOfRecords != 0 :
 						channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-						if channelName == 'time':# assumes first channel is time
+						if channelName == channelTime:# assumes first channel is time
 							channelName = channelName + str( dataGroup )
 							if channelName in L and len( L[channelName] ) != 0:
 								self.timeChannelList.append( channelName )
 						if channelName in L and len( L[channelName] ) != 0:
 							self[channelName] = {}
-							self[channelName]['time'] = 'time' + str( dataGroup )
+							self[channelName][channelTime] = channelTime + str( dataGroup )
 							self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit'] # Unit of channel
 							self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription']
 							self[channelName]['data'] = L[channelName]
@@ -912,19 +916,19 @@ class mdf( dict ):
 		        if not self[channelName]['data'].dtype in ('|S1', '|S8'): # if channel not a string
 		            self.fig = plt.figure()
 		            # plot using matplotlib the channel versus time
-		            if 'time' in self[channelName]: # Resampled signals
-		                timeName = self[channelName]['time']
+		            if channelTime in self[channelName]: # Resampled signals
+		                timeName = self[channelName][channelTime]
 		                if timeName == '': # resampled channels, only one time channel called 'time'
-		                    timeName = 'time'
+		                    timeName = channelTime
 		                if timeName in self: # time channel properly defined
 		                    plt.plot( self[timeName]['data'], self[channelName]['data'] )
 		                    plt.xlabel( timeName + ' [' + self[timeName]['unit'].encode('ascii', 'replace') + ']' )
 		                else: # no time channel found
 		                    plt.plot( self[channelName]['data'] )
 		            else: # no time signal recognized,
-		                if 'time' in self: # most probably resampled
-		                    plt.plot( self['time']['data'], self[channelName]['data'] )
-		                    plt.xlabel( 'time [' + self['time']['unit'].encode('ascii', 'replace') + ']' )
+		                if channelTime in self: # most probably resampled
+		                    plt.plot( self[channelTime]['data'], self[channelName]['data'] )
+		                    plt.xlabel( 'time [' + self[channelTime]['unit'].encode('ascii', 'replace') + ']' )
 		                else:
 		                    plt.plot( self[channelName]['data'] )
 
@@ -953,7 +957,7 @@ class mdf( dict ):
 		if len( self.timeChannelList ) > 1: # Not yet resampled
 			channelNames = list(self.keys())
 			minTime = maxTime = []
-			self['time'] = {}
+			self[channelTime] = {}
 			unit = ''
 			for time in self.timeChannelList:
 				if time in self and len( self[time]['data'] ) > 0:
@@ -961,30 +965,30 @@ class mdf( dict ):
 					maxTime.append( self[time]['data'][len( self[time]['data'] ) - 1] )
 					if self[time]['unit'] != '':
 						unit = self[time]['unit']
-			self['time']['data'] = numpy.arange( min( minTime ),max( maxTime ),samplingTime )
-			self['time']['unit'] = unit
-			self['time']['description'] = 'Unique time channel'
+			self[channelTime]['data'] = numpy.arange( min( minTime ),max( maxTime ),samplingTime )
+			self[channelTime]['unit'] = unit
+			self[channelTime]['description'] = 'Unique time channel'
 
 			# Interpolate channels
 			timevect=[]
 			for Name in channelNames:
 				try:
 					if Name not in self.timeChannelList:
-						timevect = self[self[Name]['time']]['data']
+						timevect = self[self[Name][channelTime]]['data']
 						if not self[Name]['data'].dtype in ('|S1', '|S8'): # if channel not array of string
-							self[Name]['data'] = numpy.interp( self['time']['data'], timevect, self[Name]['data'] )
-							if 'time' in self[Name]:
-								del self[Name]['time']
+							self[Name]['data'] = numpy.interp( self[channelTime]['data'], timevect, self[Name]['data'] )
+							if channelTime in self[Name]:
+								del self[Name][channelTime]
 				except:
 					if len( timevect ) != len( self[Name]['data'] ):
-						print(( Name + ' and time channel ' + self[Name]['time'] + ' do not have same length' ))
+						print(( Name + ' and time channel ' + self[Name][channelTime] + ' do not have same length' ))
 					elif not numpy.all( numpy.diff( timevect ) > 0 ):
-						print(( Name + ' has non regularly increasing time channel ' + self[Name]['time'] ))
+						print(( Name + ' has non regularly increasing time channel ' + self[Name][channelTime] ))
 			# remove time channels in timeChannelList
 			for ind in self.timeChannelList:
 				del self[ind]
 			self.timeChannelList = [] # empty list
-			self.timeChannelList.append( 'time' )
+			self.timeChannelList.append( channelTime)
 		else:
 			pass
 
@@ -1064,7 +1068,7 @@ class mdf( dict ):
 			if len( self.timeChannelList ) == 1: # mdf resampled
 				var[name] = f.createVariable( CleanedName, type, ( self.timeChannelList[0], ) )
 			else: # not resampled
-				var[name] = f.createVariable( CleanedName, type, ( self[name]['time'], ) )
+				var[name] = f.createVariable( CleanedName, type, ( self[name][channelTime], ) )
 			# Create attributes
 			setattr( var[name], 'title', CleanedName )
 			setattr( var[name], 'units', self[name]['unit'].encode('ascii', 'replace') )
@@ -1099,12 +1103,12 @@ class mdf( dict ):
 			ngroups = 0
 			grp = {}
 			for channel in list(self.keys()):
-				if self[channel]['time'] not in list(groups.keys()):
+				if self[channel][channelTime] not in list(groups.keys()):
 					# create new time group
 					ngroups += 1
-					groups[self[channel]['time'] ] = ngroups
-					grp[ngroups] = f.create_group( self[channel]['time'] )
-				dset = grp[groups[self[channel]['time'] ]].create_dataset( channel, data = self[channel]['data'] )
+					groups[self[channel][channelTime] ] = ngroups
+					grp[ngroups] = f.create_group( self[channel][channelTime] )
+				dset = grp[groups[self[channel][channelTime] ]].create_dataset( channel, data = self[channel]['data'] )
 				attr = h5py.AttributeManager( dset )
 				attr.create( 'unit', (self[channel]['unit'] ).encode('ascii', 'ignore'))
 				attr.create( 'description', (self[channel]['description']).encode('ascii', 'ignore'))
@@ -1193,7 +1197,7 @@ class mdf( dict ):
 		channelList=[channel.encode('latin1', 'ignore') for channel in channelList]
 		removeChannels=[]
 		for channel in list(self.keys()):
-			if channel not in channelList and not 'time'==channel[0:4] and channel not in self.timeChannelList :
+			if channel not in channelList and not channelTime==channel[0:4] and channel not in self.timeChannelList :
 				# avoid to remove time channels otherwise problems with resample
 				removeChannels.append(channel) 
 		if not len(removeChannels)==0:
@@ -1214,13 +1218,13 @@ class mdf( dict ):
 		# both must have been ressampled, otherwise, impossible to know time vector to match
 		# create union of both lists
 		unionedList=list(mdfClass.keys()) and list(self.keys())
-		if 'time' not in self:
+		if channelTime not in self:
 			print( 'Data not resampled')
 			raise
-		initialTimeSize=len(self['time']['data'])
+		initialTimeSize=len(self[channelTime]['data'])
 		for channel in unionedList:
 			if channel in mdfClass and channel in self: # channel exists in both class
-				if not channel=='time':
+				if not channel==channelTime:
 					self[channel]['data']=numpy.hstack((self[channel]['data'], mdfClass[channel]['data']))
 				else:
 					offset=numpy.mean(numpy.diff(mdfClass[channel]['data'])) # sampling
@@ -1232,7 +1236,7 @@ class mdf( dict ):
 				refill.fil(numpy.nan) # fill with NANs
 				self[channel]['data']=numpy.hstack((refill,  mdfClass[channel]['data'])) # readjust against time
 			else: #channel missing in mdfClass
-				refill=numpy.empty(len(mdfClass['time']['data']))
+				refill=numpy.empty(len(mdfClass[channelTime]['data']))
 				refill.fill(numpy.nan) # fill with NANs
 				self[channel]['data']=numpy.hstack((self[channel]['data'], refill))
 	
