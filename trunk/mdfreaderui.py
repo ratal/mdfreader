@@ -123,7 +123,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                 self.mdfClass.fileName=fileName
                 self.mdfClass.multiProc=False
                 buffer=self.mdfClass.copy()
-                res=result[0]
+                res=result.pop(0)
                 self.mdfClass.update(res[0])
                 self.mdfClass.timeChannelList=res[1]
                 for res in result: # Merge
