@@ -93,6 +93,15 @@
        <property name="editTriggers">
         <set>QAbstractItemView::NoEditTriggers</set>
        </property>
+       <property name="dragEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="dragDropMode">
+        <enum>QAbstractItemView::DragDrop</enum>
+       </property>
+       <property name="defaultDropAction">
+        <enum>Qt::MoveAction</enum>
+       </property>
        <property name="alternatingRowColors">
         <bool>true</bool>
        </property>
@@ -232,7 +241,7 @@
             <string>Matlab .mat</string>
            </property>
            <property name="checked">
-            <bool>true</bool>
+            <bool>false</bool>
            </property>
           </widget>
          </item>
@@ -247,6 +256,9 @@
           <widget class="QRadioButton" name="hdf5">
            <property name="text">
             <string>HDF5</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
            </property>
           </widget>
          </item>
@@ -279,6 +291,9 @@
            <property name="text">
             <string>Resample</string>
            </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
           </widget>
          </item>
          <item>
@@ -293,7 +308,7 @@
             <set>Qt::ImhFormattedNumbersOnly|Qt::ImhPreferNumbers</set>
            </property>
            <property name="text">
-            <string>0.1</string>
+            <string>1.0</string>
            </property>
           </widget>
          </item>
@@ -333,6 +348,9 @@
        </property>
        <property name="text">
         <string>MergeFiles</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
        </property>
       </widget>
      </widget>
