@@ -286,7 +286,12 @@ def processMDF(fileName,channelist,resampleFlag,resampleValue,convertFlag,conver
 	return [yopPicklable,yop.timeChannelList]
 
 def processMDFstar(args):
-	return processMDF(*args)
+    try:
+        return processMDF(*args)
+    except Exception, e:
+        print('Error, following file might be corrupted : '+args[0]) # Shows fileName and parameters to help finding corrupted files
+        print('Please re-try by removing this file from the list and restart mdfconverter to kill processes and clean memory')
+        raise(e) # produce error and stops all processes
 
 def convertChannelList(channelList):
     if PythonVersion<3:
