@@ -9,7 +9,7 @@ First class mdfinfo is meant to extract all blocks in file, giving like metadata
     Method read() will read file and add in the class all Blocks info as defined in MDF specification
     "Format Specification MDF Format Version 3.0", 14/11/2002
 
-:Version: 2012.07.09 r15
+:Version: 2012.10.20 r17
 
 Second class mdf reads file and add dict type data
     Each channel is identified by its name the dict key.
@@ -25,12 +25,13 @@ Second class mdf reads file and add dict type data
 Requirements
 ------------
 
-* `Python 2.6 <http://www.python.org>`__
-* `Numpy 1.4 <http://numpy.scipy.org>`__
+* `Python 2.7 <http://www.python.org>`__
+* `Numpy 1.6 <http://numpy.scipy.org>`__
 * `Matplotlib 1.0 <http://matplotlib.sourceforge.net>`__
 * 'NetCDF 
 * 'h5py for the HDF5 export
 * 'xlwt for the excel export
+* 'openpyxl for the excel 2007 export
 * 'scipy for the Matlab file conversion
 
 Examples

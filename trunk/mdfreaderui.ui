@@ -272,7 +272,14 @@
          <item>
           <widget class="QRadioButton" name="excel">
            <property name="text">
-            <string>Excel</string>
+            <string>Excel 2003</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="excel2010">
+           <property name="text">
+            <string>Excel 2010</string>
            </property>
           </widget>
          </item>
@@ -343,6 +350,9 @@
        </widget>
       </widget>
       <widget class="QCheckBox" name="MergeFiles">
+       <property name="enabled">
+        <bool>true</bool>
+       </property>
        <property name="locale">
         <locale language="English" country="Belgium"/>
        </property>

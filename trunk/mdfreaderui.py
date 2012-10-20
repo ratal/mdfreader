@@ -142,6 +142,8 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                     self.mdfClass.exportToHDF5()
                 elif self.convertSelection=='excel':
                     self.mdfClass.exportToExcel()
+                elif self.convertSelection=='excel2010':
+                    self.mdfClass.exportToXlsx()
                 self.cleanChannelList()
                 #self.cleanSelectedChannelList()
                 self.mdfClass.__init__() # clear memory
@@ -193,7 +195,14 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         Selects excel conversion.
         """
         self.convertSelection='excel'
-    
+ 
+    @pyqtSignature("bool")
+    def on_excel2010_clicked(self, checked):
+        """
+        Selects excel conversion.
+        """
+        self.convertSelection='excel2010'
+
     @pyqtSignature("")
     def on_LabFileBrowse_clicked(self):
         """
@@ -263,27 +272,29 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
             self.resample.setCheckState(2)
 
 def processMDF(fileName,channelist,resampleFlag,resampleValue,convertFlag,convertSelection):
-	# Will process file according to defined options
-	yop=mdf()
-	yop.multiProc=False # already multiprocessed
-	yop.read(fileName,channelList=channelist)
-	if resampleFlag:
-		yop.resample(resampleValue)
-	if convertFlag:
-		if convertSelection=='Matlab':
-			yop.exportToMatlab()
-		elif convertSelection=='csv':
-			yop.exportToCSV()
-		elif convertSelection=='netcdf':
-			yop.exportToNetCDF()
-		elif convertSelection=='hdf5':
-			yop.exportToHDF5()
-		elif convertSelection=='excel':
-			yop.exportToExcel()
-	yopPicklable={} # picklable dict and not object
-	for channel in list(yop.keys()):
-		yopPicklable[channel]=yop[channel]
-	return [yopPicklable,yop.timeChannelList]
+    # Will process file according to defined options
+    yop=mdf()
+    yop.multiProc=False # already multiprocessed
+    yop.read(fileName,channelList=channelist)
+    if resampleFlag:
+        yop.resample(resampleValue)
+    if convertFlag:
+        if convertSelection=='Matlab':
+            yop.exportToMatlab()
+        elif convertSelection=='csv':
+            yop.exportToCSV()
+        elif convertSelection=='netcdf':
+            yop.exportToNetCDF()
+        elif convertSelection=='hdf5':
+            yop.exportToHDF5()
+        elif convertSelection=='excel':
+            yop.exportToExcel()
+        elif convertSelection=='excel2010':
+            yop.exportToXlsx()
+    yopPicklable={} # picklable dict and not object
+    for channel in list(yop.keys()):
+        yopPicklable[channel]=yop[channel]
+    return [yopPicklable,yop.timeChannelList]
 
 def processMDFstar(args):
     try:
