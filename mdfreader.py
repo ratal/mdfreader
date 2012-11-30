@@ -9,7 +9,7 @@ First class mdfinfo is meant to extract all blocks in file, giving like metadata
     Method read() will read file and add in the class all Blocks info as defined in MDF specification
     "Format Specification MDF Format Version 3.0", 14/11/2002
 
-:Version: 2012.10.20 r17
+:Version: 2012.11.30 r18
 
 Second class mdf reads file and add dict type data
     Each channel is identified by its name the dict key.
@@ -122,10 +122,6 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                 P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P1']
                 P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P2']
                 L[channelName] = L[channelName] * P2 + P1
-            elif conversionFormulaIdentifier == 11: # Text Table
-                pass # considers number representative enough, no need to convert into string, more complex
-            elif conversionFormulaIdentifier == 65535: # No conversion, keep data
-                pass
             elif conversionFormulaIdentifier == 1: # Tabular with interpolation
                 intVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['int' ]
                 physVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['phys' ]
@@ -176,10 +172,29 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                     L[channelName] = exp( ( P3 / ( L[channelName] - P7 ) - P6 ) / P4 ) / P5
                 else:
                     print(( 'Non possible conversion parameters for channel ' + str(channelName) ))
-            elif conversionFormulaIdentifier == 10: # Text Formula
+            elif conversionFormulaIdentifier == 9: # rationnal
+                P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P1']
+                P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P2']
+                P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P3']
+                P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P4']
+                P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P5']
+                P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P6']
+                L[channelName] = (P1*L[channelName] *L[channelName] +P2*L[channelName] +P3)/(P4*L[channelName] *L[channelName] +P5*L[channelName] +P6)
+            elif conversionFormulaIdentifier == 10: # Text Formula, not really supported yet
                 print(( 'Conversion of formula : ' + str(info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula']) + 'not yet supported' ))
-            elif conversionFormulaIdentifier == 12: # Text Range Table
-                pass # Not yet supported, practically not used format
+            elif conversionFormulaIdentifier == 11: # Text Table, not really supported yet
+                pass # considers number representative enough, no need to convert into string, more complex                
+            elif conversionFormulaIdentifier == 12: # Text Range Table, not really supported yet
+                print('Not supported text range tables')
+                pass # Not yet supported, practically not used format                
+            elif conversionFormulaIdentifier == 132: # date, not really supported yet
+                pass
+            elif conversionFormulaIdentifier == 133: # time, not really supported yet
+                pass
+            elif conversionFormulaIdentifier == 65535: # No conversion, keep data
+                pass                
+            else:
+                print('Unrecognized conversion type')
     if multiProc:
         Q.put(L)
     else:
@@ -299,30 +314,23 @@ class mdfinfo( dict):
                     ### Read Channel text blocks (TXBlock)
 
                     # Clean signal name
-                    signalname = self['CNBlock'][dataGroup][channelGroup][channel]['signalName']              
+                    shortSignalName = self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] # short name of signal
+                    CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
+                    longSignalName = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer ) # long name of signal
+                    longSignalName = longSignalName['Text']
+                    if len(longSignalName)>len(shortSignalName): # long name should be used
+                        signalname = longSignalName
+                    else:
+                        signalname = shortSignalName
                     signalname = signalname.split( '\\' )
                     if len(signalname) > 1:
                         self['CNBlock'][dataGroup][channelGroup][channel]['deviceName'] = signalname[1]
                     self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname[0].encode('ascii', 'ignore')
                     #self.channelNameList.append( signalname )
-
+                    
+                    # Read channel description
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToChannelCommentBlock']
-                    # Read data Text block info into structure
                     self['CNBlock'][dataGroup][channelGroup][channel]['ChannelCommentBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer )
-
-                    CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
-                    # Read data Text block info into structure
-                    temp = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer )
-                    signalname = None
-                    if temp:
-                        signalname = temp['Text']
-                        signalname = signalname.split( '\\' )
-                        if len(signalname) > 1:
-                            # Save device name
-                            temp['DeviceName'] = signalname[1]
-                        temp['Text'] = signalname[0]
-
-                    self['CNBlock'][dataGroup][channelGroup][channel]['ASAMNameBlock'] = temp
 
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToSignalIdentifierBlock']
                     # Read data Text block info into structure
@@ -495,10 +503,17 @@ class mdfinfo( dict):
                     ### Read Channel text blocks (TXBlock)
 
                     # Clean signal name
-                    signalname = self['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-                    signalname = signalname.split( '\\' )[0].encode('ascii', 'ignore')
-                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
-                    channelNameList.append( signalname )
+                    shortSignalName = self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] # short name of signal
+                    CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
+                    longSignalName = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer ) # long name of signal
+                    longSignalName = longSignalName['Text']
+                    if len(longSignalName)>len(shortSignalName): # long name should be used
+                        signalname = longSignalName
+                    else:
+                        signalname = shortSignalName
+                    signalname = signalname.split( '\\' )
+                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname[0].encode('ascii', 'ignore')
+                    channelNameList.append( signalname[0] )
 
         # CLose the file
         fid.close()
@@ -1030,7 +1045,6 @@ class mdf( dict ):
         except:
             print( 'Scientific.IO module not found' )
             raise
-        import datetime
         def cleanName( name ):
             output = name.replace( '$', '' )
             ouput = output.replace( '[', '' )
@@ -1043,11 +1057,14 @@ class mdf( dict ):
             filename = filename.replace( '.DAT', '' )
             filename = filename + '.nc'
         f = NetCDF.NetCDFFile( filename, 'w' )
-        setattr( f, 'Origin', filename )
-        setattr( f, 'Source', 'MDF' )
-        setattr( f, 'Creator', 'mdfreader' )
-        setattr( f, 'Date', datetime.date.today().isoformat() )
-        setattr( f, 'Time', datetime.datetime.now().isoformat() )
+        info = mdfinfo( self.fileName ) # info for the metadata
+        setattr( f, 'Author',( info['HDBlock']['Author']).encode('ascii', 'ignore'))
+        setattr( f, 'Date', (info['HDBlock']['Date']).encode('ascii', 'ignore'))
+        setattr( f, 'Time', (info['HDBlock']['Time']).encode('ascii', 'ignore') )
+        setattr( f, 'Organization', (info['HDBlock']['Organization']).encode('ascii', 'ignore'))
+        setattr( f, 'ProjectName', (info['HDBlock']['ProjectName']).encode('ascii', 'ignore'))
+        setattr( f, 'Vehicle', (info['HDBlock']['Vehicle']).encode('ascii', 'ignore'))
+        setattr( f, 'Comment', (info['HDBlock']['TXBlock']['Text']).encode('ascii', 'ignore'))
         # Create dimensions having name of all time channels
         for time in self.timeChannelList:
             f.createDimension( time, len( self[time]['data'] ) )
@@ -1099,9 +1116,19 @@ class mdf( dict ):
             filename = self.fileName.replace( '.dat', '' )
             filename = filename.replace( '.DAT', '' )
             filename = filename + '.hdf'
-        f = h5py.File( filename, 'w' )
+        info = mdfinfo( self.fileName ) # info for the metadata
+        f = h5py.File( filename, 'w' ) # create hdf5 file
+        filegroup=f.create_group(filename) # create group in root associated to file
+        attr = h5py.AttributeManager( filegroup ) # adds group/file metadata
+        attr.create('Author',( info['HDBlock']['Author']).encode('ascii', 'ignore'))
+        attr.create('Date', (info['HDBlock']['Date']).encode('ascii', 'ignore'))
+        attr.create('Time', (info['HDBlock']['Time']).encode('ascii', 'ignore'))
+        attr.create('Organization', (info['HDBlock']['Organization']).encode('ascii', 'ignore'))
+        attr.create('ProjectName', (info['HDBlock']['ProjectName']).encode('ascii', 'ignore'))
+        attr.create('Vehicle', (info['HDBlock']['Vehicle']).encode('ascii', 'ignore'))
+        attr.create('Comment', (info['HDBlock']['TXBlock']['Text']).encode('ascii', 'ignore'))
         if len( self.timeChannelList ) > 1:
-            # if several time groups of channels 
+            # if several time groups of channels, not resampled 
             groups = {}
             ngroups = 0
             grp = {}
@@ -1110,7 +1137,7 @@ class mdf( dict ):
                     # create new time group
                     ngroups += 1
                     groups[self[channel]['time'] ] = ngroups
-                    grp[ngroups] = f.create_group( self[channel]['time'] )
+                    grp[ngroups] = filegroup.create_group( self[channel]['time'] )
                 dset = grp[groups[self[channel]['time'] ]].create_dataset( channel, data = self[channel]['data'] )
                 attr = h5py.AttributeManager( dset )
                 attr.create( 'unit', (self[channel]['unit'] ).encode('ascii', 'ignore'))
@@ -1118,7 +1145,7 @@ class mdf( dict ):
         else: # resampled or only one time for all channels : no groups
             for channel in list(self.keys()):
                 channelName=convertMatlabName(channel)
-                dset = f.create_dataset( channelName, data = self[channel]['data'] )
+                dset = filegroup.create_dataset( channelName, data = self[channel]['data'] )
                 attr = h5py.AttributeManager( dset )
                 attr.create( 'unit', (self[channel]['unit'] ).encode('ascii', 'ignore'))
                 attr.create( 'description', (self[channel]['description'] ).encode('ascii', 'ignore'))
