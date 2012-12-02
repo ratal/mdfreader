@@ -47,7 +47,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         """
         Will open a dialog to browse for files
         """
-        self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files",filter=("MDF file (*.dat)"))
+        self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files",filter=("MDF file (*.dat *.mdf)"))
         if not len(self.fileNames)==0:
             self.FileList.addItems(self.fileNames)
             self.mdfinfoClass.__init__()
