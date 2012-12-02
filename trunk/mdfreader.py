@@ -237,6 +237,7 @@ class mdfinfo( dict):
 
     def __init__( self, fileName = None ):
         self.fileName = fileName
+        self['IDBlock'] = {} # Identifier Block
         self['HDBlock'] = {} # Header Block
         self['DGBlock']= {} # Data Group Block
         self['CGBlock'] = {} # Channel Group Block
@@ -257,13 +258,20 @@ class mdfinfo( dict):
         except IOError:
             print('Can not find file'+self.fileName)
             raise
-
+        # read Identifier block
+        #self['IDBlock'] = self.mdfblockread( self.blockformats( 'IDFormat' ), fid, 0)
+        fid.seek(24)
+        self['IDBlock']['ByteOrder']=unpack( '<H', fid.read( 2 ) )
+        self['IDBlock']['FloatingPointFormat']=unpack( '<H', fid.read( 2 ) )
+        self['IDBlock']['VersionNumber']=unpack( '<H', fid.read( 2 ) )
+        self['IDBlock']['VersionNumber']=self['IDBlock']['VersionNumber'][0]
+        self['IDBlock']['CodePageNumber']=unpack( '<H', fid.read( 2 ) )
+        self['IDBlock']['CodePageNumber']=self['IDBlock']['CodePageNumber'][0]
+        
         ### Read header block (HDBlock) information
-        # Set file pointer to start of HDBlock
-        HDpointer = 64
-        # Read Header block info into structure
-        self['HDBlock'] = self.mdfblockread( self.blockformats( 'HDFormat' ), fid, HDpointer )
-
+        # Read Header block info into structure, HD pointer at 64 as mentioned in specification
+        self['HDBlock'] = self.mdfblockread( self.blockformats( 'HDFormat' ), fid, 64 )
+        
         ### Read text block (TXBlock) information
         self['HDBlock']['TXBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, self['HDBlock']['pointerToTXBlock'] )
 
@@ -537,52 +545,11 @@ class mdfinfo( dict):
         UINT32 = '<I'
         UINT64 = '<Q'
 
-        if block == 'HDFormat':
-            formats = ( 
-                ( CHAR , 2, 'BlockType' ),
-                ( UINT16, 1, 'BlockSize' ),
-                ( LINK, 1, 'pointerToFirstDGBlock' ),
-                ( LINK, 1, 'pointerToTXBlock' ),
-                ( LINK, 1, 'pointerToPRBlock' ),
-                ( UINT16, 1, 'numberOfDataGroups' ),
-                ( CHAR, 10, 'Date' ),
-                ( CHAR, 8, 'Time' ),
-                ( CHAR, 32, 'Author' ),
-                ( CHAR, 32, 'Organization' ),
-                ( CHAR, 32, 'ProjectName' ),
-                ( CHAR, 32, 'Vehicle' ) )
-        elif block == 'TXFormat':
+        if block == 'TXFormat':
             formats = ( 
                 ( CHAR, 2, 'BlockType' ),
                 ( UINT16, 1, 'BlockSize' ),
                 ( CHAR, 'Var', 'Text' ) )
-        elif block == 'PRFormat':
-            formats = ( 
-                ( CHAR, 2, 'BlockType' ),
-                ( UINT16, 1, 'BlockSize' ),
-                ( CHAR, 'Var', 'PRData' ) )
-        elif block == 'DGFormat':
-            formats = ( 
-                ( CHAR, 2, 'BlockType' ),
-                ( UINT16, 1, 'BlockSize' ), #All DGBlocks Size
-                ( LINK , 1, 'pointerToNextDGBlock' ),
-                ( LINK , 1, 'pointerToNextCGBlock' ),
-                ( LINK, 1, 'reserved' ),
-                ( LINK, 1, 'pointerToDataRecords' ),
-                ( UINT16, 1, 'numberOfChannelGroups' ),
-                ( UINT16, 1, 'numberOfRecordIDs' ) )
-        elif block == 'CGFormat':
-            formats = ( 
-                ( CHAR, 2, 'BlockType' ),
-                ( UINT16, 1, 'BlockSize' ),
-                ( LINK, 1, 'pointerToNextCGBlock' ),
-                ( LINK, 1, 'pointerToFirstCNBlock' ),
-                ( LINK, 1, 'pointerToChannelGroupCommentText' ),
-                ( UINT16, 1, 'recordID' ),
-                ( UINT16, 1, 'numberOfChannels' ),
-                ( UINT16, 1, 'dataRecordSize' ),
-                ( UINT32, 1, 'numberOfRecords' ) )
-                # last one missing
         elif block == 'CNFormat':
             formats = ( 
                 ( CHAR, 2, 'BlockType' ),
@@ -652,6 +619,56 @@ class mdfinfo( dict):
                 ( REAL, 1, 'lowerRange' ),
                 ( REAL, 1, 'upperRange' ),
                 ( LINK, 1, 'pointerToTXBlock' ) )
+        elif block == 'PRFormat':
+            formats = ( 
+                ( CHAR, 2, 'BlockType' ),
+                ( UINT16, 1, 'BlockSize' ),
+                ( CHAR, 'Var', 'PRData' ) )
+        elif block == 'CGFormat':
+            formats = ( 
+                ( CHAR, 2, 'BlockType' ),
+                ( UINT16, 1, 'BlockSize' ),
+                ( LINK, 1, 'pointerToNextCGBlock' ),
+                ( LINK, 1, 'pointerToFirstCNBlock' ),
+                ( LINK, 1, 'pointerToChannelGroupCommentText' ),
+                ( UINT16, 1, 'recordID' ),
+                ( UINT16, 1, 'numberOfChannels' ),
+                ( UINT16, 1, 'dataRecordSize' ),
+                ( UINT32, 1, 'numberOfRecords' ) )
+                # last one missing
+        elif block == 'DGFormat':
+            formats = ( 
+                ( CHAR, 2, 'BlockType' ),
+                ( UINT16, 1, 'BlockSize' ), #All DGBlocks Size
+                ( LINK , 1, 'pointerToNextDGBlock' ),
+                ( LINK , 1, 'pointerToNextCGBlock' ),
+                ( LINK, 1, 'reserved' ),
+                ( LINK, 1, 'pointerToDataRecords' ),
+                ( UINT16, 1, 'numberOfChannelGroups' ),
+                ( UINT16, 1, 'numberOfRecordIDs' ) )
+        elif block == 'HDFormat':
+            formats = ( 
+                ( CHAR , 2, 'BlockType' ),
+                ( UINT16, 1, 'BlockSize' ),
+                ( LINK, 1, 'pointerToFirstDGBlock' ),
+                ( LINK, 1, 'pointerToTXBlock' ),
+                ( LINK, 1, 'pointerToPRBlock' ),
+                ( UINT16, 1, 'numberOfDataGroups' ),
+                ( CHAR, 10, 'Date' ),
+                ( CHAR, 8, 'Time' ),
+                ( CHAR, 32, 'Author' ),
+                ( CHAR, 32, 'Organization' ),
+                ( CHAR, 32, 'ProjectName' ),
+                ( CHAR, 32, 'Vehicle' ) )
+        elif block== 'IDFormat':
+            formats = ( 
+                ( CHAR, 8, 'FileID' ),
+                ( CHAR, 8, 'FormatID' ),
+                ( CHAR, 8, 'ProgramID' ),
+                ( UINT16, 1, 'ByteOrder' ),
+                ( UINT16, 1, 'FloatingPointFormat' ),
+                ( UINT16, 1, 'VersionNumber' ),
+                ( UINT16, 1, 'CodePageNumber' ))
         else:
             print( 'Block format name error ' )
         return formats
@@ -672,9 +689,9 @@ class mdfinfo( dict):
         #
         # Example function call is:
         # Block=mdfblockread(blockFormat, 1, 413)
-        fid.seek( pointer )
         Block = {}
-        if pointer != 0:
+        if pointer != 0 and not pointer == None:
+            fid.seek( pointer )
             # Extract parameters
             for field in range( len( blockFormat ) ):
                 fieldTuple = blockFormat[field]
@@ -684,13 +701,19 @@ class mdfinfo( dict):
                 if fieldFormat == '<c': # Char
                     if fieldNumber != 'Var':
                         value = fid.read( fieldNumber )
-                    elif Block['BlockSize'] - 4 > 0:
+                    elif Block['BlockSize'] and Block['BlockSize'] - 4 > 0:
                         value = fid.read( Block['BlockSize'] - 4 )
+                    elif not Block['BlockSize'] :
+                        value=''
                     Block[fieldName] = value.decode('latin1', 'replace').replace('\x00', '') # decode
                 else: # numeric
                     formatSize = calcsize( fieldFormat )
-                    value = unpack( fieldFormat, fid.read( formatSize * fieldNumber ) )
-                    Block[fieldName] = value[0]
+                    number=fid.read( formatSize * fieldNumber ) 
+                    if number:
+                        value = unpack( fieldFormat, number)
+                        Block[fieldName] = value[0]
+                    else:
+                        Block[fieldName] = None
             return Block
 
 
