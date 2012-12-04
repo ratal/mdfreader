@@ -1130,6 +1130,7 @@ class mdf( dict ):
         # export class data structure into hdf5 file
         try:
             import h5py
+            import os
         except:
             print( 'h5py not found' )
             raise
@@ -1141,7 +1142,7 @@ class mdf( dict ):
             filename = filename + '.hdf'
         info = mdfinfo( self.fileName ) # info for the metadata
         f = h5py.File( filename, 'w' ) # create hdf5 file
-        filegroup=f.create_group(filename) # create group in root associated to file
+        filegroup=f.create_group(os.path.basename(filename)) # create group in root associated to file
         attr = h5py.AttributeManager( filegroup ) # adds group/file metadata
         attr.create('Author',( info['HDBlock']['Author']).encode('ascii', 'ignore'))
         attr.create('Date', (info['HDBlock']['Date']).encode('ascii', 'ignore'))
