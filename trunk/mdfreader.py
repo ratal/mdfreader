@@ -270,7 +270,7 @@ class mdfinfo( dict):
         
         ### Read header block (HDBlock) information
         # Read Header block info into structure, HD pointer at 64 as mentioned in specification
-        self['HDBlock'] = self.mdfblockread( self.blockformats( 'HDFormat' ), fid, 64 )
+        self['HDBlock'] = self.mdfblockread( self.blockformats( 'HDFormat' ,  self['IDBlock']['VersionNumber']), fid, 64 )
         
         ### Read text block (TXBlock) information
         self['HDBlock']['TXBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, self['HDBlock']['pointerToTXBlock'] )
@@ -529,7 +529,7 @@ class mdfinfo( dict):
 
     #######BLOCKFORMATS####################
     @staticmethod
-    def blockformats( block ):
+    def blockformats( block , version=0):
         # This function returns all the predefined formats for the different blocks
         # in the MDF file as specified in "Format Specification MDF Format Version 3.0"
         # document version 2.0, 14/11/2002
@@ -647,19 +647,38 @@ class mdfinfo( dict):
                 ( UINT16, 1, 'numberOfChannelGroups' ),
                 ( UINT16, 1, 'numberOfRecordIDs' ) )
         elif block == 'HDFormat':
-            formats = ( 
-                ( CHAR , 2, 'BlockType' ),
-                ( UINT16, 1, 'BlockSize' ),
-                ( LINK, 1, 'pointerToFirstDGBlock' ),
-                ( LINK, 1, 'pointerToTXBlock' ),
-                ( LINK, 1, 'pointerToPRBlock' ),
-                ( UINT16, 1, 'numberOfDataGroups' ),
-                ( CHAR, 10, 'Date' ),
-                ( CHAR, 8, 'Time' ),
-                ( CHAR, 32, 'Author' ),
-                ( CHAR, 32, 'Organization' ),
-                ( CHAR, 32, 'ProjectName' ),
-                ( CHAR, 32, 'Vehicle' ) )
+            if version < 3.2:
+                formats = ( 
+                    ( CHAR , 2, 'BlockType' ),
+                    ( UINT16, 1, 'BlockSize' ),
+                    ( LINK, 1, 'pointerToFirstDGBlock' ),
+                    ( LINK, 1, 'pointerToTXBlock' ),
+                    ( LINK, 1, 'pointerToPRBlock' ),
+                    ( UINT16, 1, 'numberOfDataGroups' ),
+                    ( CHAR, 10, 'Date' ),
+                    ( CHAR, 8, 'Time' ),
+                    ( CHAR, 32, 'Author' ),
+                    ( CHAR, 32, 'Organization' ),
+                    ( CHAR, 32, 'ProjectName' ),
+                    ( CHAR, 32, 'Vehicle' ) )
+            else:
+                formats = ( 
+                    ( CHAR , 2, 'BlockType' ),
+                    ( UINT16, 1, 'BlockSize' ),
+                    ( LINK, 1, 'pointerToFirstDGBlock' ),
+                    ( LINK, 1, 'pointerToTXBlock' ),
+                    ( LINK, 1, 'pointerToPRBlock' ),
+                    ( UINT16, 1, 'numberOfDataGroups' ),
+                    ( CHAR, 10, 'Date' ),
+                    ( CHAR, 8, 'Time' ),
+                    ( CHAR, 32, 'Author' ),
+                    ( CHAR, 32, 'Organization' ),
+                    ( CHAR, 32, 'ProjectName' ),
+                    ( CHAR, 32, 'Vehicle' ),
+                    ( UINT64, 1, 'TimeStamp' ), 
+                    ( INT16, 1, 'UTCTimeOffset' ),
+                    ( UINT16, 1, 'TimeQualityClass' ),
+                    ( CHAR, 32, 'TimeIdentification' ) )
         elif block== 'IDFormat':
             formats = ( 
                 ( CHAR, 8, 'FileID' ),
