@@ -9,7 +9,7 @@ First class mdfinfo is meant to extract all blocks in file, giving like metadata
     Method read() will read file and add in the class all Blocks info as defined in MDF specification
     "Format Specification MDF Format Version 3.0", 14/11/2002
 
-:Version: 2012.11.30 r18
+:Version: 2012.12.09 r19
 
 Second class mdf reads file and add dict type data
     Each channel is identified by its name the dict key.
@@ -25,7 +25,7 @@ Second class mdf reads file and add dict type data
 Requirements
 ------------
 
-* `Python 2.7 <http://www.python.org>`__
+* `Python >2.6 <http://www.python.org>`__
 * `Numpy 1.6 <http://numpy.scipy.org>`__
 * `Matplotlib 1.0 <http://matplotlib.sourceforge.net>`__
 * 'NetCDF 
@@ -46,6 +46,7 @@ Examples
 >>> yop.exporttoHDF5()
 >>> yop.exporttoMatlab()
 >>> yop.exporttoExcel()
+>>> yop.exporttoXlsx()
 >>> yop.keepChannels(ChannelListToKeep)
 
 """
@@ -58,16 +59,12 @@ import numpy
 from sys import platform, version_info
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
-if PythonVersion<3:
-    channelTime={'time','TIME'}
-else: # python3 conversion to byte
-    channelTime={'time'.encode(),'TIME'.encode()}
-#import time
+channelTime={'time','TIME'}
 
 def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
     ## Processes recorded data blocks
     # Outside of class to allow multiprocessing
-    numberOfRecordIDs = info['DGBlock'][dataGroup]['numberOfRecordIDs']
+    #numberOfRecordIDs = info['DGBlock'][dataGroup]['numberOfRecordIDs']
     #procTime = time.clock()
     #print( 'Start process ' + str( dataGroup ) + ' Number of Channels ' + str( info['CGBlock'][dataGroup][0]['numberOfChannels'] ) + ' of length ' + str( len( buf ) ) + ' ' + str( time.clock() ) )
     L={}
@@ -203,7 +200,8 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 
 def convertMatlabName(channel):
 # removes non allowed characters for a matlab variable name
-    channel=channel.decode('utf-8')
+    if PythonVersion<3:
+        channel=channel.decode('utf-8')
     channelName=channel.replace('[', '_ls_') 
     channelName=channelName.replace(']', '_rs_')
     channelName=channelName.replace('$', '')
@@ -333,7 +331,7 @@ class mdfinfo( dict):
                     signalname = signalname.split( '\\' )
                     if len(signalname) > 1:
                         self['CNBlock'][dataGroup][channelGroup][channel]['deviceName'] = signalname[1]
-                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname[0].encode('ascii', 'ignore')
+                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname[0]
                     #self.channelNameList.append( signalname )
                     
                     # Read channel description
@@ -520,7 +518,7 @@ class mdfinfo( dict):
                     else:
                         signalname = shortSignalName
                     signalname = signalname.split( '\\' )
-                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname[0].encode('ascii', 'ignore')
+                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname[0]
                     channelNameList.append( signalname[0] )
 
         # CLose the file
@@ -724,7 +722,10 @@ class mdfinfo( dict):
                         value = fid.read( Block['BlockSize'] - 4 )
                     elif not Block['BlockSize'] :
                         value=''
-                    Block[fieldName] = value.decode('latin1', 'replace').replace('\x00', '') # decode
+                    if PythonVersion<3:
+                        Block[fieldName] = value.replace('\x00', '') 
+                    else:
+                        Block[fieldName] = value.decode('latin1', 'replace').replace('\x00', '') # decode bytes
                 else: # numeric
                     formatSize = calcsize( fieldFormat )
                     number=fid.read( formatSize * fieldNumber ) 
@@ -866,7 +867,7 @@ class mdf( dict ):
                         if channelName in L and len( L[channelName] ) != 0:
                             self[channelName] = {}
                             self[channelName]['time'] = 'time' + str( dataGroup )
-                            self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit'] # Unit of channel
+                            self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit'] 
                             self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription']
                             self[channelName]['data'] = L[channelName]
         if not channelList==None and len(channelList)>0:
@@ -982,21 +983,21 @@ class mdf( dict ):
                             timeName = 'time'
                         if timeName in self: # time channel properly defined
                             plt.plot( self[timeName]['data'], self[channelName]['data'] )
-                            plt.xlabel( timeName + ' [' + self[timeName]['unit'].encode('ascii', 'replace') + ']' )
+                            plt.xlabel( timeName + ' [' + self[timeName]['unit'] + ']' )
                         else: # no time channel found
                             plt.plot( self[channelName]['data'] )
                     else: # no time signal recognized,
                         if 'time' in self: # most probably resampled
                             plt.plot( self['time']['data'], self[channelName]['data'] )
-                            plt.xlabel( 'time [' + self['time']['unit'].encode('ascii', 'replace') + ']' )
+                            plt.xlabel( 'time [' + self['time']['unit']+ ']' )
                         else:
                             plt.plot( self[channelName]['data'] )
 
-                    plt.title( self[channelName]['description'].encode('ascii', 'replace') )
+                    plt.title( self[channelName]['description'])
                     if self[channelName]['unit'] == {}:
                         plt.ylabel( channelName )
                     else:
-                        plt.ylabel( channelName + ' [' + self[channelName]['unit'].encode('ascii', 'replace') + ']' )
+                        plt.ylabel( channelName + ' [' + self[channelName]['unit'] + ']' )
                     plt.grid( True )
                     plt.show()
             else:
@@ -1062,16 +1063,14 @@ class mdf( dict ):
             filename = self.fileName.replace( '.dat', '' )
             filename = filename.replace( '.DAT', '' )
             filename = filename + '.csv'
-        f = open( filename, "wb" )
+        if PythonVersion <3:
+            f = open( filename, "wb")
+        else:
+            f = open( filename, "wt" , encoding='latin-1')
         writer = csv.writer( f, dialect = csv.excel )
         # writes header
-        if PythonVersion<3:
-            writer.writerow( [name.encode('ascii', 'replace') for name in list(self.keys()) if self[name]['data'].dtype in ('float64','float32')] ) # writes channel names
-            writer.writerow( [(self[name]['unit']).encode('ascii', 'replace') for name in list(self.keys()) if self[name]['data'].dtype in ('float64','float32')] ) # writes units
-        else:
-            print(list(self.keys()),type(list(self.keys())[0]))  #marche pas !!
-            writer.writerow( [name for name in list(self.keys()) if self[name]['data'].dtype in ('float64','float32')] ) # writes channel names
-            writer.writerow( [self[name]['unit'] for name in list(self.keys()) if self[name]['data'].dtype in ('float64','float32')] ) # writes units
+        writer.writerow( [name for name in list(self.keys()) if self[name]['data'].dtype in ('float64','float32')] ) # writes channel names
+        writer.writerow( [(self[name]['unit']) for name in list(self.keys()) if self[name]['data'].dtype in ('float64','float32')] ) # writes units
         # concatenate all channels
         buf = numpy.vstack( [self[name]['data'].transpose() for name in list(self.keys()) if self[name]['data'].dtype in ('float64','float32')] )
         buf = buf.transpose()
@@ -1100,13 +1099,13 @@ class mdf( dict ):
             filename = filename + '.nc'
         f = NetCDF.NetCDFFile( filename, 'w' )
         info = mdfinfo( self.fileName ) # info for the metadata
-        setattr( f, 'Author',( info['HDBlock']['Author']).encode('ascii', 'ignore'))
-        setattr( f, 'Date', (info['HDBlock']['Date']).encode('ascii', 'ignore'))
-        setattr( f, 'Time', (info['HDBlock']['Time']).encode('ascii', 'ignore') )
-        setattr( f, 'Organization', (info['HDBlock']['Organization']).encode('ascii', 'ignore'))
-        setattr( f, 'ProjectName', (info['HDBlock']['ProjectName']).encode('ascii', 'ignore'))
-        setattr( f, 'Vehicle', (info['HDBlock']['Vehicle']).encode('ascii', 'ignore'))
-        setattr( f, 'Comment', (info['HDBlock']['TXBlock']['Text']).encode('ascii', 'ignore'))
+        setattr( f, 'Author',( info['HDBlock']['Author']))
+        setattr( f, 'Date', (info['HDBlock']['Date']))
+        setattr( f, 'Time', (info['HDBlock']['Time']))
+        setattr( f, 'Organization', (info['HDBlock']['Organization']))
+        setattr( f, 'ProjectName', (info['HDBlock']['ProjectName']))
+        setattr( f, 'Vehicle', (info['HDBlock']['Vehicle']))
+        setattr( f, 'Comment', (info['HDBlock']['TXBlock']['Text']))
         # Create dimensions having name of all time channels
         for time in self.timeChannelList:
             f.createDimension( time, len( self[time]['data'] ) )
@@ -1133,8 +1132,8 @@ class mdf( dict ):
                 var[name] = f.createVariable( CleanedName, type, ( self[name]['time'], ) )
             # Create attributes
             setattr( var[name], 'title', CleanedName )
-            setattr( var[name], 'units', self[name]['unit'].encode('ascii', 'replace') )
-            setattr( var[name], 'Description', self[name]['description'].encode('ascii', 'replace') )
+            setattr( var[name], 'units', self[name]['unit'])
+            setattr( var[name], 'Description', self[name]['description'])
             if name in self.timeChannelList:
                 setattr( var[name], 'Type', 'Time Channel' )
                 setattr( var[name], 'datatype', 'time' )
@@ -1163,13 +1162,13 @@ class mdf( dict ):
         f = h5py.File( filename, 'w' ) # create hdf5 file
         filegroup=f.create_group(os.path.basename(filename)) # create group in root associated to file
         attr = h5py.AttributeManager( filegroup ) # adds group/file metadata
-        attr.create('Author',( info['HDBlock']['Author']).encode('ascii', 'ignore'))
-        attr.create('Date', (info['HDBlock']['Date']).encode('ascii', 'ignore'))
-        attr.create('Time', (info['HDBlock']['Time']).encode('ascii', 'ignore'))
-        attr.create('Organization', (info['HDBlock']['Organization']).encode('ascii', 'ignore'))
-        attr.create('ProjectName', (info['HDBlock']['ProjectName']).encode('ascii', 'ignore'))
-        attr.create('Vehicle', (info['HDBlock']['Vehicle']).encode('ascii', 'ignore'))
-        attr.create('Comment', (info['HDBlock']['TXBlock']['Text']).encode('ascii', 'ignore'))
+        attr.create('Author',( info['HDBlock']['Author']))
+        attr.create('Date', (info['HDBlock']['Date']))
+        attr.create('Time', (info['HDBlock']['Time']))
+        attr.create('Organization', (info['HDBlock']['Organization']))
+        attr.create('ProjectName', (info['HDBlock']['ProjectName']))
+        attr.create('Vehicle', (info['HDBlock']['Vehicle']))
+        attr.create('Comment', (info['HDBlock']['TXBlock']['Text']))
         if len( self.timeChannelList ) > 1:
             # if several time groups of channels, not resampled 
             groups = {}
@@ -1183,15 +1182,15 @@ class mdf( dict ):
                     grp[ngroups] = filegroup.create_group( self[channel]['time'] )
                 dset = grp[groups[self[channel]['time'] ]].create_dataset( channel, data = self[channel]['data'] )
                 attr = h5py.AttributeManager( dset )
-                attr.create( 'unit', (self[channel]['unit'] ).encode('ascii', 'ignore'))
-                attr.create( 'description', (self[channel]['description']).encode('ascii', 'ignore'))
+                attr.create( 'unit', (self[channel]['unit'] ))
+                attr.create( 'description', (self[channel]['description']))
         else: # resampled or only one time for all channels : no groups
             for channel in list(self.keys()):
                 channelName=convertMatlabName(channel)
                 dset = filegroup.create_dataset( channelName, data = self[channel]['data'] )
                 attr = h5py.AttributeManager( dset )
-                attr.create( 'unit', (self[channel]['unit'] ).encode('ascii', 'ignore'))
-                attr.create( 'description', (self[channel]['description'] ).encode('ascii', 'ignore'))
+                attr.create( 'unit', (self[channel]['unit'] ))
+                attr.create( 'description', (self[channel]['description'] ))
         f.close()
 
     def exportToMatlab( self, filename = None ):
@@ -1229,7 +1228,7 @@ class mdf( dict ):
             filename = filename.replace( '.DAT', '' )
             filename = filename + '.xls'
         styleText = xlwt.easyxf( 'font: name Times New Roman, color-index black, bold off' )
-        wb = xlwt.Workbook()
+        wb = xlwt.Workbook(encoding='latin-1')
         channelList = list(self.keys())
         Units=[ self[channel]['unit'] for channel in list(self.keys())]
         # Excel 2003 limits
@@ -1253,12 +1252,14 @@ class mdf( dict ):
                     if vect.dtype not in ['|S1', '|S8']: # if not a string
                         [ws.row( row + 2 ).set_cell_number( col - workbook * maxCols, vect[row] ) for row in list(range( len( vect ) ))]
                     else: # it's a string, cannot write for the moment
-                        [ws.row( row + 2 ).set_cell_text( col - workbook * maxCols, vect[row].encode('ascii', 'replace') ) for row in list(range( len( vect ) ))]
+                        vect=unicode(vect, 'latin-1')
+                        [ws.row( row + 2 ).set_cell_text( col - workbook * maxCols, vect[row]) for row in list(range( len( vect ) ))]
                 else: # channel too long, written until max Excel line limit
                     if vect.dtype not in ['|S1', '|S8']: # if not a string
                         [ws.row( row + 2 ).set_cell_number( col - workbook * maxCols, vect[row] ) for row in list(range( maxLines ))]
                     else: # it's a string, cannot write for the moment
-                        [ws.row( row + 2 ).set_cell_text( col - workbook * maxCols, vect[row].encode('ascii', 'replace')  ) for row in list(range( maxLines ))]
+                        vect=unicode(vect, 'latin-1')
+                        [ws.row( row + 2 ).set_cell_text( col - workbook * maxCols, vect[row] ) for row in list(range( maxLines ))]
                     tooLongChannels.append( channelList[col] ) # to later warn user the channel is not completly written
         wb.save( filename ) # writes workbook on HDD
         if len( tooLongChannels ) > 0: # if not empty, some channels have been not processed
@@ -1327,7 +1328,7 @@ class mdf( dict ):
 
     def keepChannels(self, channelList):
         # keep only list of channels and removes the rest
-        channelList=[channel.encode('latin1', 'ignore') for channel in channelList]
+        channelList=[channel for channel in channelList]
         removeChannels=[]
         for channel in list(self.keys()):
             if channel not in channelList and not 'time'==channel[0:4] and channel not in self.timeChannelList :
