@@ -1217,6 +1217,7 @@ class mdf( dict ):
 
     def exportToExcel( self , filename = None ):
         # export to excel 95 to 2003
+        # currently xlwt is not supporting python 3.x
         # finally long to process, to be multiprocessed
         try:
             import xlwt
@@ -1291,7 +1292,7 @@ class mdf( dict ):
                 ws.cell(row=0, column=j).value=channels[j]
                 ws.cell(row=1, column=j).value=self[channels[j]]['unit']
             for j in range(maxCols):
-                print(j, channels[j])
+                print(channels[j])
                 if self[channels[j]]['data'].dtype  in ['int8', 'int16', 'uint8', 'uint16']:
                      for r in range(len(self[channels[j]]['data'])):
                         ws.cell(row=r+2, column=j).value=numpy.float64(self[channels[j]]['data'][r])

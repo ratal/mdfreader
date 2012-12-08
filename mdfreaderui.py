@@ -215,7 +215,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
             # read lab file
             labfile=open(str(self.labFileName), 'r')
             self.labChannelList=[]
-            ine = labfile.readline() # read first line [lab]
+            line = labfile.readline() # read first line [lab]
             while 1:
                 line = labfile.readline()
                 if not line:
@@ -299,13 +299,13 @@ def processMDF(fileName,channelist,resampleFlag,resampleValue,convertFlag,conver
 def processMDFstar(args):
     try:
         return processMDF(*args)
-    except Exception, e:
+    except :
         print('Error, following file might be corrupted : '+args[0]) # Shows fileName and parameters to help finding corrupted files
         print('Please re-try by removing this file from the list and restart mdfconverter to kill processes and clean memory')
-        raise(e) # produce error and stops all processes
+        raise # produce error and stops all processes
 
 def convertChannelList(channelList):
     if PythonVersion<3:
         return [str(name) for name in channelList]
     else:
-        return [(name).decode('ascii', 'replace') for name in channelList]
+        return [(name) for name in channelList]
