@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE Project SYSTEM "Project-4.6.dtd">
-<!-- eric4 project file for project mdfreader -->
-<!-- Saved: 2012-04-01, 22:30:53 -->
+<!DOCTYPE Project SYSTEM "Project-5.1.dtd">
+<!-- eric5 project file for project mdfreader -->
+<!-- Saved: 2012-12-07, 19:16:50 -->
 <!-- Copyright (C) 2012 Aymeric Rateau, aymeric.rateau@gmail.com -->
-<Project version="4.6">
+<Project version="5.1">
   <Language>en</Language>
-  <ProgLanguage mixed="1">Python</ProgLanguage>
+  <Hash>a4292a9bac002b3553cfe312b60bdcab5d0a8287</Hash>
+  <ProgLanguage mixed="1">Python2</ProgLanguage>
   <ProjectType>Qt4</ProjectType>
   <Description>Utility to read MDF data format and convert to several other data formats</Description>
   <Version>13</Version>
@@ -21,14 +22,10 @@
   <Forms>
     <Form>mdfreaderui.ui</Form>
   </Forms>
-  <Translations>
-  </Translations>
-  <Resources>
-  </Resources>
-  <Interfaces>
-  </Interfaces>
-  <Others>
-  </Others>
+  <Translations/>
+  <Resources/>
+  <Interfaces/>
+  <Others/>
   <MainScript>mdfconverter.py</MainScript>
   <Vcs>
     <VcsType>Subversion</VcsType>
@@ -144,14 +141,14 @@
     </VcsOtherData>
   </Vcs>
   <FiletypeAssociations>
-    <FiletypeAssociation pattern="*.rb" type="SOURCES" />
-    <FiletypeAssociation pattern="*.ui" type="FORMS" />
-    <FiletypeAssociation pattern="*.idl" type="INTERFACES" />
-    <FiletypeAssociation pattern="*.qm" type="TRANSLATIONS" />
-    <FiletypeAssociation pattern="*.ptl" type="SOURCES" />
-    <FiletypeAssociation pattern="*.ui.h" type="FORMS" />
-    <FiletypeAssociation pattern="*.ts" type="TRANSLATIONS" />
-    <FiletypeAssociation pattern="*.py" type="SOURCES" />
-    <FiletypeAssociation pattern="*.qrc" type="RESOURCES" />
+    <FiletypeAssociation pattern="*.idl" type="INTERFACES"/>
+    <FiletypeAssociation pattern="*.ptl" type="SOURCES"/>
+    <FiletypeAssociation pattern="*.py" type="SOURCES"/>
+    <FiletypeAssociation pattern="*.qm" type="TRANSLATIONS"/>
+    <FiletypeAssociation pattern="*.qrc" type="RESOURCES"/>
+    <FiletypeAssociation pattern="*.rb" type="SOURCES"/>
+    <FiletypeAssociation pattern="*.ts" type="TRANSLATIONS"/>
+    <FiletypeAssociation pattern="*.ui" type="FORMS"/>
+    <FiletypeAssociation pattern="*.ui.h" type="FORMS"/>
   </FiletypeAssociations>
 </Project>
