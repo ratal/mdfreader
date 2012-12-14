@@ -2,6 +2,14 @@
 Created on 18 nov. 2010
 
 @author: Aymeric Rateau ; aymeric.rateau@gmail.com
+
+Veusz version confirmed : until 1.16
+
+Instructions :
+1. copy or link mdfForVeuszPlugin.py into the plugins directory of Veusz
+2. copy or link mdfreader.py in root directory of Veusz
+3. Go in Veusz ; Edit / Preferences / Plugins tab and add mdfForVeuszPlugins.py
+
 '''
 from veusz.plugins import *
 from veusz.plugins.datasetplugin import Dataset1D as ImportDataset1D
@@ -32,6 +40,8 @@ class ImportPlugin( mdfinfo ):
     name = 'Import plugin'
     author = 'Aymeric Rateau'
     description = 'Import MDF files'
+    promote_tab = 'MDF'
+    file_extensions = set()
 
     def __init__( self ):
         """Override this to declare a list of input fields if required."""
@@ -46,14 +56,13 @@ class ImportPlugin( mdfinfo ):
 
         info = mdfinfo( params.filename )
         f = ''
-        f += 'Time: ' + info.HDBlock['Date'] + ' '
-        f += info.HDBlock['Time'] + '\n'
-        f += 'Author: ' + info.HDBlock['Author'] + '\n'
-        f += 'Organisation: ' + info.HDBlock['Organization' ] + '\n'
-        f += 'Project Name: ' + info.HDBlock['ProjectName'] + '\n'
-        f += 'Vehicle: ' + info.HDBlock['Vehicle'] + '\n' + 'Channel List:\n'
-        info.channelNameList.sort()
-        for channelName in info.channelNameList:
+        f += 'Time: ' + info['HDBlock']['Date'] + ' '
+        f += info['HDBlock']['Time'] + '\n'
+        f += 'Author: ' + info['HDBlock']['Author'] + '\n'
+        f += 'Organisation: ' + info['HDBlock']['Organization' ] + '\n'
+        f += 'Project Name: ' + info['HDBlock']['ProjectName'] + '\n'
+        f += 'Vehicle: ' + info['HDBlock']['Vehicle'] + '\n' + 'Channel List:\n'
+        for channelName in info.listChannels():
             f += '   ' + channelName + '\n'
         return f, True
 
@@ -86,7 +95,7 @@ class MdfImportPlugin( ImportPlugin, mdf ):
         List = []
         for channelName in data.keys():
             if len( data[channelName]['data'] ) > 0 and data[channelName]['data'].dtype != '|S1':
-                print( data[channelName]['data'].dtype )
+                #print( data[channelName]['data'].dtype )
                 List.append( ImportDataset1D( channelName, data[channelName]['data'] ) )
         return List
 
