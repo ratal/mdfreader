@@ -9,7 +9,7 @@ First class mdfinfo is meant to extract all blocks in file, giving like metadata
     Method read() will read file and add in the class all Blocks info as defined in MDF specification
     "Format Specification MDF Format Version 3.0", 14/11/2002
 
-:Version: 2012.12.09 r19
+:Version: 2013.02.06 r20
 
 Second class mdf reads file and add dict type data
     Each channel is identified by its name the dict key.
@@ -18,7 +18,7 @@ Second class mdf reads file and add dict type data
         'unit' : unit (string)
         'time' : name of the string key related to the channel (string)
         'description' : Description of channel
-        
+
     Method plot('channelName') will plot the channel versus corresponding time
     Method resample(samplingTime) will resample all channels by interpolation and make only one channel 'time'
 
@@ -26,11 +26,11 @@ Requirements
 ------------
 
 * `Python >2.6 <http://www.python.org>`__
-* `Numpy 1.6 <http://numpy.scipy.org>`__
-* `Matplotlib 1.0 <http://matplotlib.sourceforge.net>`__
-* 'NetCDF 
+* `Numpy >1.6 <http://numpy.scipy.org>`__
+* `Matplotlib >1.0 <http://matplotlib.sourceforge.net>`__
+* 'NetCDF
 * 'h5py for the HDF5 export
-* 'xlwt for the excel export
+* 'xlwt for the excel export (not existing for python3)
 * 'openpyxl for the excel 2007 export
 * 'scipy for the Matlab file conversion
 
@@ -59,7 +59,7 @@ import numpy
 from sys import platform, version_info
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
-channelTime={'time','TIME'}
+channelTime={'time','TIME'} # possible channel time writing, adjust if necessary
 
 def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
     ## Processes recorded data blocks
@@ -70,7 +70,7 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
     L={}
     isBitInUnit8 = 0 # Initialize Bit counter
     previousChannelName=info['CNBlock'][0][0][0]['signalName'] # initialise channelName
-    
+
     ## Processes Bits, metadata and conversion
     for channelGroup in range( info['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
         for channel in range( info['CGBlock'][dataGroup][channelGroup]['numberOfChannels'] ):
@@ -89,7 +89,7 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 
             if cName in channelTime: # assumes first channel is time
                 channelName = 'time' + str( dataGroup )
-            # Process concatenated bits inside unint8   
+            # Process concatenated bits inside unint8
             if signalDataType not in ( 1, 2, 3, 8 ):
                 if signalDataType == 0:
                     if numberOfBits == 1: # One bit, considered Boolean in numpy
@@ -180,16 +180,16 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
             elif conversionFormulaIdentifier == 10: # Text Formula, not really supported yet
                 print(( 'Conversion of formula : ' + str(info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula']) + 'not yet supported' ))
             elif conversionFormulaIdentifier == 11: # Text Table, not really supported yet
-                pass # considers number representative enough, no need to convert into string, more complex                
+                pass # considers number representative enough, no need to convert into string, more complex
             elif conversionFormulaIdentifier == 12: # Text Range Table, not really supported yet
                 print('Not supported text range tables')
-                pass # Not yet supported, practically not used format                
+                pass # Not yet supported, practically not used format
             elif conversionFormulaIdentifier == 132: # date, not really supported yet
                 pass
             elif conversionFormulaIdentifier == 133: # time, not really supported yet
                 pass
             elif conversionFormulaIdentifier == 65535: # No conversion, keep data
-                pass                
+                pass
             else:
                 print('Unrecognized conversion type')
     if multiProc:
@@ -202,7 +202,7 @@ def convertMatlabName(channel):
 # removes non allowed characters for a matlab variable name
     if PythonVersion<3:
         channel=channel.decode('utf-8')
-    channelName=channel.replace('[', '_ls_') 
+    channelName=channel.replace('[', '_ls_')
     channelName=channelName.replace(']', '_rs_')
     channelName=channelName.replace('$', '')
     channelName=channelName.replace('.', 'p')
@@ -265,11 +265,11 @@ class mdfinfo( dict):
         self['IDBlock']['VersionNumber']=self['IDBlock']['VersionNumber'][0]
         self['IDBlock']['CodePageNumber']=unpack( '<H', fid.read( 2 ) )
         self['IDBlock']['CodePageNumber']=self['IDBlock']['CodePageNumber'][0]
-        
+
         ### Read header block (HDBlock) information
         # Read Header block info into structure, HD pointer at 64 as mentioned in specification
         self['HDBlock'] = self.mdfblockread( self.blockformats( 'HDFormat' ,  self['IDBlock']['VersionNumber']), fid, 64 )
-        
+
         ### Read text block (TXBlock) information
         self['HDBlock']['TXBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, self['HDBlock']['pointerToTXBlock'] )
 
@@ -313,7 +313,7 @@ class mdfinfo( dict):
                     ### Read Channel block (CNBlock) information
                     #self.numberOfChannels += 1
                     # Read data Channel block info into structure
-                    
+
                     self['CNBlock'][dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats( 'CNFormat' ), fid, CNpointer )
                     CNpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToNextCNBlock']
 
@@ -322,10 +322,13 @@ class mdfinfo( dict):
                     # Clean signal name
                     shortSignalName = self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] # short name of signal
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
-                    longSignalName = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer ) # long name of signal
-                    longSignalName = longSignalName['Text']
-                    if len(longSignalName)>len(shortSignalName): # long name should be used
-                        signalname = longSignalName
+                    if CNTXpointer > 0:
+                        longSignalName = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer ) # long name of signal
+                        longSignalName = longSignalName['Text']
+                        if len(longSignalName)>len(shortSignalName): # long name should be used
+                            signalname = longSignalName
+                        else:
+                            signalname = shortSignalName
                     else:
                         signalname = shortSignalName
                     signalname = signalname.split( '\\' )
@@ -333,7 +336,7 @@ class mdfinfo( dict):
                         self['CNBlock'][dataGroup][channelGroup][channel]['deviceName'] = signalname[1]
                     self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname[0]
                     #self.channelNameList.append( signalname )
-                    
+
                     # Read channel description
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToChannelCommentBlock']
                     self['CNBlock'][dataGroup][channelGroup][channel]['ChannelCommentBlock'] = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer )
@@ -348,6 +351,7 @@ class mdfinfo( dict):
                     CCpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToConversionFormula']
 
                     if CCpointer == 0: # If no conversion formula, set to 1:1
+                        self['CCBlock'][dataGroup][channelGroup][channel] = {}
                         self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] = 65535
                     else: # Otherwise get conversion formula, parameters and physical units
                         # Read data Channel Conversion block info into structure
@@ -434,17 +438,20 @@ class mdfinfo( dict):
                             num = self['CCBlock'][dataGroup][channelGroup][channel]['numberOfValuePairs']
                             self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = {}
 
-                            for pair in range( num + 1 ): # first 2 pairs are ignored
+                            for pair in range( num ): # first pair is default
 
                                 # Read data Channel Conversion parameters info into structure
                                 self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats( 'CCFormatFormula12' ), fid, currentPosition )
                                 # Get current file position
                                 currentPosition = fid.tell()
 
-                            for pair in range( num ): # get text range    
+                            for pair in range( num ): # get text range
                                 # Read corresponding text
-                                temp = self.mdfblockread( self.blockformats( 'TXBlock' ), fid, self['CCBlock'][dataGroup][channelGroup][channel][pair]['pointerToTXBlock'] )
-                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['Textrange'] = temp['Text']
+                                temp = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['pointerToTXBlock'] )
+                                try:
+                                    self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['Textrange'] = temp['Text']
+                                except:
+                                    self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['Textrange'] = ""
 
                         elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 65535: #  No conversion int=phys
                             pass
@@ -490,7 +497,7 @@ class mdfinfo( dict):
             self['CCBlock'][dataGroup]={}
             for channelGroup in range( self['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
                 self['CNBlock'][dataGroup][channelGroup]={}
-                self['CCBlock'][dataGroup][channelGroup]={}                
+                self['CCBlock'][dataGroup][channelGroup]={}
                 self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread( self.blockformats( 'CGFormat' ), fid, CGpointer )
                 CGpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToNextCGBlock']
 
@@ -511,10 +518,13 @@ class mdfinfo( dict):
                     # Clean signal name
                     shortSignalName = self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] # short name of signal
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
-                    longSignalName = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer ) # long name of signal
-                    longSignalName = longSignalName['Text']
-                    if len(longSignalName)>len(shortSignalName): # long name should be used
-                        signalname = longSignalName
+                    if CNTXpointer > 0:
+                        longSignalName = self.mdfblockread( self.blockformats( 'TXFormat' ), fid, CNTXpointer ) # long name of signal
+                        longSignalName = longSignalName['Text']
+                        if len(longSignalName)>len(shortSignalName): # long name should be used
+                            signalname = longSignalName
+                        else:
+                            signalname = shortSignalName
                     else:
                         signalname = shortSignalName
                     signalname = signalname.split( '\\' )
@@ -537,19 +547,19 @@ class mdfinfo( dict):
         CHAR = '<c'
         REAL = '<d'
         BOOL = '<h'
-        UINT8 = '<B'
+        #UINT8 = '<B'
         INT16 = '<h'
         UINT16 = '<H'
         UINT32 = '<I'
         UINT64 = '<Q'
 
         if block == 'TXFormat':
-            formats = ( 
+            formats = (
                 ( CHAR, 2, 'BlockType' ),
                 ( UINT16, 1, 'BlockSize' ),
                 ( CHAR, 'Var', 'Text' ) )
         elif block == 'CNFormat':
-            formats = ( 
+            formats = (
                 ( CHAR, 2, 'BlockType' ),
                 ( UINT16, 1, 'BlockSize' ),
                 ( LINK, 1, 'pointerToNextCNBlock' ),
@@ -571,7 +581,7 @@ class mdfinfo( dict):
                 ( LINK, 1, 'pointerToSignalIdentifierBlock' ),
                 ( UINT16, 1, 'ByteOffset' ) )
         elif block == 'CCFormat':
-            formats = ( 
+            formats = (
                 ( CHAR, 2, 'BlockType' ),
                 ( UINT16, 1, 'BlockSize' ),
                 ( BOOL, 1, 'valueRangeKnown' ),
@@ -618,12 +628,12 @@ class mdfinfo( dict):
                 ( REAL, 1, 'upperRange' ),
                 ( LINK, 1, 'pointerToTXBlock' ) )
         elif block == 'PRFormat':
-            formats = ( 
+            formats = (
                 ( CHAR, 2, 'BlockType' ),
                 ( UINT16, 1, 'BlockSize' ),
                 ( CHAR, 'Var', 'PRData' ) )
         elif block == 'CGFormat':
-            formats = ( 
+            formats = (
                 ( CHAR, 2, 'BlockType' ),
                 ( UINT16, 1, 'BlockSize' ),
                 ( LINK, 1, 'pointerToNextCGBlock' ),
@@ -635,7 +645,7 @@ class mdfinfo( dict):
                 ( UINT32, 1, 'numberOfRecords' ) )
                 # last one missing
         elif block == 'DGFormat':
-            formats = ( 
+            formats = (
                 ( CHAR, 2, 'BlockType' ),
                 ( UINT16, 1, 'BlockSize' ), #All DGBlocks Size
                 ( LINK , 1, 'pointerToNextDGBlock' ),
@@ -646,7 +656,7 @@ class mdfinfo( dict):
                 ( UINT16, 1, 'numberOfRecordIDs' ) )
         elif block == 'HDFormat':
             if version < 3.2:
-                formats = ( 
+                formats = (
                     ( CHAR , 2, 'BlockType' ),
                     ( UINT16, 1, 'BlockSize' ),
                     ( LINK, 1, 'pointerToFirstDGBlock' ),
@@ -660,7 +670,7 @@ class mdfinfo( dict):
                     ( CHAR, 32, 'ProjectName' ),
                     ( CHAR, 32, 'Vehicle' ) )
             else:
-                formats = ( 
+                formats = (
                     ( CHAR , 2, 'BlockType' ),
                     ( UINT16, 1, 'BlockSize' ),
                     ( LINK, 1, 'pointerToFirstDGBlock' ),
@@ -673,12 +683,12 @@ class mdfinfo( dict):
                     ( CHAR, 32, 'Organization' ),
                     ( CHAR, 32, 'ProjectName' ),
                     ( CHAR, 32, 'Vehicle' ),
-                    ( UINT64, 1, 'TimeStamp' ), 
+                    ( UINT64, 1, 'TimeStamp' ),
                     ( INT16, 1, 'UTCTimeOffset' ),
                     ( UINT16, 1, 'TimeQualityClass' ),
                     ( CHAR, 32, 'TimeIdentification' ) )
         elif block== 'IDFormat':
-            formats = ( 
+            formats = (
                 ( CHAR, 8, 'FileID' ),
                 ( CHAR, 8, 'FormatID' ),
                 ( CHAR, 8, 'ProgramID' ),
@@ -723,12 +733,12 @@ class mdfinfo( dict):
                     elif not Block['BlockSize'] :
                         value=''
                     if PythonVersion<3:
-                        Block[fieldName] = value.replace('\x00', '') 
+                        Block[fieldName] = value.replace('\x00', '')
                     else:
                         Block[fieldName] = value.decode('latin1', 'replace').replace('\x00', '') # decode bytes
                 else: # numeric
                     formatSize = calcsize( fieldFormat )
-                    number=fid.read( formatSize * fieldNumber ) 
+                    number=fid.read( formatSize * fieldNumber )
                     if number:
                         value = unpack( fieldFormat, number)
                         Block[fieldName] = value[0]
@@ -738,7 +748,7 @@ class mdfinfo( dict):
 
 
 class mdf( dict ):
-    """ mdf file class 
+    """ mdf file class
     It imports mdf files version 3.0 and partially above.
     To use : yop= mdfreader.mdf('FileName.dat')
     Some additional useful methods:
@@ -750,7 +760,7 @@ class mdf( dict ):
     def __init__( self, fileName = None ):
         self.fileName = None
         self.timeChannelList = []
-        self.multiProc = False # flag to activate multiprocessing
+        self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         # clears class from previous reading and avoid to mess up
         self.clear()
         if not fileName == None:
@@ -838,7 +848,7 @@ class mdf( dict ):
                     #print( 'Group ' + str( dataGroup ) + ' ' + str( time.clock() - inttime ) )
                     ## reads the records
                     buf = numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = numberOfRecords , names=dataRecordName)
-                    
+
                     if self.multiProc:
                         proc.append( Process( target = processDataBlocks,
                             args = ( Q, buf, info, numberOfRecords, dataGroup , self.multiProc) ) )
@@ -849,7 +859,7 @@ class mdf( dict ):
         fid.close() # close file
 
         if self.multiProc:
-            for i in proc: 
+            for i in proc:
                 L.update(Q.get()) # concatenate results of processes in dict
 
         # After all processing of channels,
@@ -867,7 +877,7 @@ class mdf( dict ):
                         if channelName in L and len( L[channelName] ) != 0:
                             self[channelName] = {}
                             self[channelName]['time'] = 'time' + str( dataGroup )
-                            self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit'] 
+                            self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
                             self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription']
                             self[channelName]['data'] = L[channelName]
         if not channelList==None and len(channelList)>0:
@@ -880,7 +890,7 @@ class mdf( dict ):
         #   give to fread for reading the data type specified by SIGNALDATATYPE and
         #   NUMBEROFBITS
 
-        if signalDataType == 0: # unsigned
+        if signalDataType in ( 0, 9, 10, 11 ): # unsigned
             if numberOfBits == 8:
                 dataType = 'B'
             elif numberOfBits == 16:
@@ -925,7 +935,7 @@ class mdf( dict ):
 
         # Formats used by numpy
 
-        if signalDataType == 0: # unsigned
+        if signalDataType in ( 0, 9, 10, 11 ): # unsigned
             if numberOfBits == 8:
                 dataType = 'uint8'
             elif numberOfBits == 16:
@@ -1170,7 +1180,7 @@ class mdf( dict ):
         attr.create('Vehicle', (info['HDBlock']['Vehicle']))
         attr.create('Comment', (info['HDBlock']['TXBlock']['Text']))
         if len( self.timeChannelList ) > 1:
-            # if several time groups of channels, not resampled 
+            # if several time groups of channels, not resampled
             groups = {}
             ngroups = 0
             grp = {}
@@ -1237,7 +1247,7 @@ class mdf( dict ):
         maxLines = 65535
         workbooknumber = int( ceil( len( channelList ) * 1.0 / ( maxCols * 1.0 ) ) )
         tooLongChannels = []
-        # split colmuns in several worksheets if more than 256 cols 
+        # split colmuns in several worksheets if more than 256 cols
         for workbook in range( workbooknumber ):
             ws = wb.add_sheet( 'Sheet' + str( workbook ) ) #, cell_overwrite_ok = True )
             if workbook == workbooknumber - 1: # last sheet
@@ -1288,9 +1298,14 @@ class mdf( dict ):
             wb=openpyxl.workbook.Workbook(encoding='utf-8')
             ws=wb.get_active_sheet()
             # write header
-            for j in range(maxCols):
-                ws.cell(row=0, column=j).value=channels[j]
-                ws.cell(row=1, column=j).value=self[channels[j]]['unit']
+            if PythonVersion<3:
+                for j in range(maxCols):
+                    ws.cell(row=0, column=j).value=channels[j].decode('utf-8', 'ignore')
+                    ws.cell(row=1, column=j).value=self[channels[j]]['unit'].decode('utf-8', 'ignore')
+            else:
+                for j in range(maxCols):
+                    ws.cell(row=0, column=j).value=channels[j]
+                    ws.cell(row=1, column=j).value=self[channels[j]]['unit']               
             for j in range(maxCols):
                 print(channels[j])
                 if self[channels[j]]['data'].dtype  in ['int8', 'int16', 'uint8', 'uint16']:
@@ -1334,7 +1349,7 @@ class mdf( dict ):
         for channel in list(self.keys()):
             if channel not in channelList and not 'time'==channel[0:4] and channel not in self.timeChannelList :
                 # avoid to remove time channels otherwise problems with resample
-                removeChannels.append(channel) 
+                removeChannels.append(channel)
         if not len(removeChannels)==0:
             [self.pop(channel) for channel in removeChannels]
 
@@ -1345,7 +1360,7 @@ class mdf( dict ):
         yop.fileName=self.fileName
         yop.timeChannelList=self.timeChannelList
         for channel in list(self.keys()):
-            yop[channel]=self[channel] 
+            yop[channel]=self[channel]
         return yop
 
     def mergeMdf(self, mdfClass):
@@ -1374,8 +1389,8 @@ class mdf( dict ):
                 refill=numpy.empty(len(mdfClass['time']['data']))
                 refill.fill(numpy.nan) # fill with NANs
                 self[channel]['data']=numpy.hstack((self[channel]['data'], refill))
-    
+
 if __name__ == "__main__":
     freeze_support()
     mdf()
-    
+

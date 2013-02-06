@@ -1,6 +1,6 @@
-﻿from PyQt4 import QtCore, QtGui
+﻿from PyQt4 import QtGui
 from mdfreaderui import MainWindow
-from sys import argv, exit, platform
+from sys import argv, exit
 from multiprocessing import freeze_support
 
 if __name__ == "__main__":

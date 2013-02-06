@@ -8,13 +8,14 @@ from PyQt4.QtCore import pyqtSignature, SIGNAL
 
 from Ui_mdfreaderui import Ui_MainWindow
 from io import open
-from multiprocessing import Process,Pool,cpu_count
+from multiprocessing import Pool,cpu_count
 from mdfreader import mdfinfo,mdf
 
 from sys import version_info
+from os import path
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
-MultiProc=True # multiproc switch, for debug purpose
+MultiProc=True # multiprocess switch, for debug purpose
 
 class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
     """
@@ -30,8 +31,9 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.mdfClass=mdf() # instance of mdf
         self.mdfinfoClass=mdfinfo() # instance of mdfinfo
         self.convertSelection='Matlab' # by default Matlab conversion is selected
-        self.MergeFileBool=False # by default
+        self.MergeFiles=False # by default
         self.labFileName=[] # .lab file name
+        self.defaultPath=None # default path to open for browsing files
         self.actionPlotSelectedChannel = QAction("Plot", self.SelectedChannelList) # context menu to allow plot of channel
         self.SelectedChannelList.addAction(self.actionPlotSelectedChannel )
         self.connect(self.actionPlotSelectedChannel, SIGNAL("triggered()"), self.plotSelected)
@@ -47,7 +49,11 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         """
         Will open a dialog to browse for files
         """
-        self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files",filter=("MDF file (*.dat *.mdf)"))
+        if self.defaultPath==None:
+            self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files",filter=("MDF file (*.dat *.mdf)"))
+            self.defaultPath=path.dirname(str(self.fileNames[0]))
+        else:
+            self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files",self.defaultPath, filter=("MDF file (*.dat *.mdf)"))
         if not len(self.fileNames)==0:
             self.FileList.addItems(self.fileNames)
             self.mdfinfoClass.__init__()
@@ -81,11 +87,11 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
             if ncpu<1:
                 ncpu=1
             pool = Pool(processes=ncpu)
-            if not self.MergeFileBool: # export all files separatly
+            if self.MergeFiles or self.FileList.count()<2: # export all files separately, inverted bool
                 convertFlag=True
                 convertSelection=self.convertSelection
                 resampleValue=float(self.resampleValue.text())
-                #resample if requested
+                #re-sample if requested
                 if self.resample.checkState():
                     if not len(self.resampleValue.text())==0:
                         resampleFlag=True
@@ -101,15 +107,16 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                 else:
                     result=list(map(processMDFstar,args)) 
                 self.cleanChannelList()
-            elif self.FileList.count(): # Stack files data if min 2 files in list
+            elif self.FileList.count()>=2: # Stack files data if min 2 files in list
                 # import first file
+                fileNameList=[]
                 if len(self.resampleValue.text())==0:
-                    print('Wrong value for resampling')
+                    print('Wrong value for re-sampling')
                     raise 
                 convertFlag=False
                 convertSelection=self.convertSelection
                 resampleValue=float(self.resampleValue.text())
-                resampleFlag=True # always resample when merging
+                resampleFlag=True # always re-sample when merging
                 fileName=str(self.FileList.item(0).text()) # Uses first file name for the converted file
                 # list filenames
                 args=[(str(self.FileList.takeItem(0).text()),channelList,resampleFlag,resampleValue,convertFlag,convertSelection) for i in range(self.FileList.count())]
@@ -117,20 +124,22 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                     res=pool.map_async(processMDFstar,args)
                     result=res.get()
                 else:
-                    result=map(processMDFstar,args) # no multiproc, for debug
+                    result=map(processMDFstar,args) # no multiprocess, for debug
                 # Merge results
                 self.mdfClass.__init__() # clear memory
-                self.mdfClass.fileName=fileName
-                self.mdfClass.multiProc=False
-                buffer=self.mdfClass.copy()
-                res=result.pop(0)
-                self.mdfClass.update(res[0])
-                self.mdfClass.timeChannelList=res[1]
+                self.mdfClass.fileName=fileName #First filename will be used for exported file name
+                self.mdfClass.multiProc=False # do not use multiproc inside mdfreader while already using from mdfreaderui level
+                buffer=self.mdfClass.copy() # create/copy empty class in buffer
+                res=result.pop(0) # extract first file data from processed list
+                self.mdfClass.update(res[0]) # initialize mdfclass wih first file data
+                self.mdfClass.timeChannelList=res[1] # initialize timechannellist
+                fileNameList.append(res[2]) # record merged file in list
                 for res in result: # Merge
-                    buffer.__init__()
-                    buffer.update(res[0])
-                    buffer.timeChannelList=res[1]
-                    self.mdfClass.mergeMdf(buffer)
+                    buffer.__init__() # clean buffer class
+                    buffer.update(res[0]) # assigns next class to buffer
+                    buffer.timeChannelList=res[1] 
+                    fileNameList.append(res[2]) 
+                    self.mdfClass.mergeMdf(buffer) # merge buffer to merged class mdfClass
                 # Export
                 if self.convertSelection=='Matlab':
                     self.mdfClass.exportToMatlab()
@@ -145,7 +154,9 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                 elif self.convertSelection=='excel2010':
                     self.mdfClass.exportToXlsx()
                 self.cleanChannelList()
-                #self.cleanSelectedChannelList()
+                print('File list merged :')
+                for file in fileNameList: # prints files merged for checking
+                    print(file) 
                 self.mdfClass.__init__() # clear memory
     
     @pyqtSignature("QListWidgetItem*")
@@ -267,8 +278,8 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         Slot documentation goes here.
         """
         # toggle flag to merge files
-        self.MergeFileBool= not self.MergeFileBool
-        if self.MergeFileBool:
+        self.MergeFiles= not self.MergeFiles
+        if self.MergeFiles:
             self.resample.setCheckState(2)
 
 def processMDF(fileName,channelist,resampleFlag,resampleValue,convertFlag,convertSelection):
@@ -294,7 +305,7 @@ def processMDF(fileName,channelist,resampleFlag,resampleValue,convertFlag,conver
     yopPicklable={} # picklable dict and not object
     for channel in list(yop.keys()):
         yopPicklable[channel]=yop[channel]
-    return [yopPicklable,yop.timeChannelList]
+    return [yopPicklable,yop.timeChannelList, yop.fileName]
 
 def processMDFstar(args):
     try:
