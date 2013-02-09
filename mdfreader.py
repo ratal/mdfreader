@@ -984,7 +984,7 @@ class mdf( dict ):
             raise
         for channelName in channels:
             if channelName in self:
-                if not self[channelName]['data'].dtype in ('|S1', '|S8'): # if channel not a string
+                if not self[channelName]['data'].dtype.kind in ['S', 'U']: # if channel not a string
                     self.fig = plt.figure()
                     # plot using matplotlib the channel versus time
                     if 'time' in self[channelName]: # Resampled signals
@@ -1046,7 +1046,7 @@ class mdf( dict ):
                 try:
                     if Name not in self.timeChannelList:
                         timevect = self[self[Name]['time']]['data']
-                        if not self[Name]['data'].dtype in ('|S1', '|S8'): # if channel not array of string
+                        if not self[Name]['data'].dtype.kind in ('S', 'U'): # if channel not array of string
                             self[Name]['data'] = numpy.interp( self['time']['data'], timevect, self[Name]['data'] )
                             if 'time' in self[Name]:
                                 del self[Name]['time']
@@ -1130,7 +1130,7 @@ class mdf( dict ):
                 type = 'i'
             elif self[name]['data'].dtype in ['int32', 'uint32']:
                 type = 'l'
-            elif self[name]['data'].dtype in ['|S1', '|S8'] :
+            elif self[name]['data'].dtype.kind in ['S', 'U'] :
                 type = 'c'
             else:
                 print(( 'Can not process numpy type ' + str(self[name]['data'].dtype) + ' of channel' ))
@@ -1217,7 +1217,7 @@ class mdf( dict ):
         # convert self into simple dict without and metadata
         temp = {}
         for channel in list(self.keys()):
-            if not self[channel]['data'].dtype in ('|S1', '|S8'): # does not like special characters chains, skip
+            if not self[channel]['data'].dtype.kind in ('S', 'U'): # does not like special characters chains, skip
                 channelName=convertMatlabName(channel)
                 temp[channelName] = self[channel]['data']
         try: # depends of version used , compression can be used
@@ -1230,7 +1230,10 @@ class mdf( dict ):
         # currently xlwt is not supporting python 3.x
         # finally long to process, to be multiprocessed
         try:
-            import xlwt
+            if PythonVersion<3:
+                import xlwt
+            else:
+                import xlwt3 as xlwt
         except:
             print( 'xlwt module missing' )
             raise
@@ -1239,9 +1242,13 @@ class mdf( dict ):
             filename = filename.replace( '.DAT', '' )
             filename = filename + '.xls'
         styleText = xlwt.easyxf( 'font: name Times New Roman, color-index black, bold off' )
-        wb = xlwt.Workbook(encoding='latin-1')
+        coding='utf-8'
+        wb = xlwt.Workbook(encoding=coding)
         channelList = list(self.keys())
-        Units=[ self[channel]['unit'] for channel in list(self.keys())]
+        if PythonVersion<3:
+            Units=[ self[channel]['unit'].decode(coding, 'replace') for channel in list(self.keys())]
+        else:
+            Units=[ self[channel]['unit'] for channel in list(self.keys())]
         # Excel 2003 limits
         maxCols = 255
         maxLines = 65535
@@ -1260,18 +1267,20 @@ class mdf( dict ):
                 ws.write( 1, col - workbook * maxCols, Units[col] , styleText )
                 vect = self[channelList[col]]['data'] # data vector
                 if not len( vect ) > maxLines :
-                    if vect.dtype not in ['|S1', '|S8']: # if not a string
+                    if  vect.dtype.kind not in ['S', 'U']: # if not a string or unicode
                         [ws.row( row + 2 ).set_cell_number( col - workbook * maxCols, vect[row] ) for row in list(range( len( vect ) ))]
                     else: # it's a string, cannot write for the moment
-                        vect=unicode(vect, 'latin-1')
+                        if PythonVersion <3:
+                            vect=vect.encode(coding)
                         [ws.row( row + 2 ).set_cell_text( col - workbook * maxCols, vect[row]) for row in list(range( len( vect ) ))]
                 else: # channel too long, written until max Excel line limit
-                    if vect.dtype not in ['|S1', '|S8']: # if not a string
+                    if vect.dtype.kind not in ['S', 'U']: # if not a string
                         [ws.row( row + 2 ).set_cell_number( col - workbook * maxCols, vect[row] ) for row in list(range( maxLines ))]
                     else: # it's a string, cannot write for the moment
-                        vect=unicode(vect, 'latin-1')
+                        if PythonVersion <3:
+                            vect=vect.encode(coding)
                         [ws.row( row + 2 ).set_cell_text( col - workbook * maxCols, vect[row] ) for row in list(range( maxLines ))]
-                    tooLongChannels.append( channelList[col] ) # to later warn user the channel is not completly written
+                    tooLongChannels.append( channelList[col] ) # to later warn user the channel is not completely written
         wb.save( filename ) # writes workbook on HDD
         if len( tooLongChannels ) > 0: # if not empty, some channels have been not processed
             print( 'Following channels were too long to be processed completely, maybe you should resample : ' )
@@ -1326,7 +1335,7 @@ class mdf( dict ):
             bigmat=numpy.zeros(maxRows) # create empty column
             buf=bigmat
             for col in range(maxCols):
-                if not self[channels[col]]['data'].dtype in ('|S1', '|S8'):
+                if not self[channels[col]]['data'].dtype.kind in ['S', 'U']:
                     chanlen=len(self[channels[col]]['data'])
                     if chanlen<maxRows:
                         buf[:]=None
