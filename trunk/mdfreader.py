@@ -1031,7 +1031,7 @@ class mdf( dict ):
             self['time'] = {}
             unit = ''
             for time in self.timeChannelList:
-                if time in self and len( self[time]['data'] ) > 0:
+                if time in self and len( self[time]['data'] ) > 5: # consider groups having minimum size 
                     minTime.append( self[time]['data'][0] )
                     maxTime.append( self[time]['data'][len( self[time]['data'] ) - 1] )
                     if self[time]['unit'] != '':
