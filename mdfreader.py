@@ -53,7 +53,6 @@ Examples
 from io import open
 from struct import calcsize, unpack
 from math import ceil, log, exp
-from multiprocessing import Queue, Process, freeze_support
 import numpy
 
 from sys import platform, version_info
@@ -774,6 +773,11 @@ class mdf( dict ):
         self.multiProc = multiProc
         if platform=='win32':
             self.multiProc=False # no multiprocessing for windows platform
+        try:
+            from multiprocessing import Queue, Process
+        except:
+            print('No multiprocessing module found')
+            self.multiProc = False
 
         #inttime = time.clock()
         ## Read information block from file
@@ -1399,7 +1403,46 @@ class mdf( dict ):
                 refill.fill(numpy.nan) # fill with NANs
                 self[channel]['data']=numpy.hstack((self[channel]['data'], refill))
 
+    def convertToPandas(self, merging=False, sampling=None):
+        # convert data structure into pandas module
+        try:
+            import pandas as pd
+        except:
+            print('Module pandas missing')
+            raise
+        if sampling is not None:
+            self.resample(sampling)
+        info=mdfinfo(self.fileName)
+        datetimeInfo=numpy.datetime64(info['HDBlock']['Date'].replace(':','-')+' '+info['HDBlock']['Time'])
+        originalKeys=self.keys()   
+        # first find groups of channels sharing same time vector
+        # initialise frame description
+        frame={}
+        for group in self.timeChannelList:
+            frame[group]=[]
+        # create list of channel for each time group
+        [frame[self[channel]['time']].append(channel) for channel in self.keys()]
+        # create frames
+        for group in frame.keys():
+            temp={}
+            # convert time channel into timedelta
+            time=datetimeInfo+numpy.array(self[group]['data']*10E6, dtype='timedelta64[us]')
+            for channel in frame[group]:
+                temp[channel]=pd.Series(self[channel]['data'], index=time)
+            self[group+'_group']=pd.DataFrame(temp)
+            self[group+'_group'].pop(group) # delete time channel, no need anymore
+        # clean rest of self from data and time channel information
+        [self[channel].pop('data') for channel in originalKeys]
+        [self[channel].pop('time') for channel in originalKeys]
+        self.timeChannelList=[]
+        self.timeGroups=[] # save time groups name in list
+        [self.timeGroups.append(group+'_group') for group in frame.keys()]
+
 if __name__ == "__main__":
-    freeze_support()
+    try:
+        from multiprocessing import freeze_support
+        freeze_support()
+    except:
+        None
     mdf()
 
