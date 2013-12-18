@@ -73,7 +73,7 @@ class MDFBlock(dict):
         
     @staticmethod
     def mdfblockreadBYTE( fid, count ):
-        # reads value in file corresponding to format and size
+        # UTF-8 encoded bytes
         value=fid.read( count )
         value.encode('UTF-8').replace('\x00', '') 
         return value
@@ -108,20 +108,37 @@ class HDBlock(MDFBlock):
         self['hd_reserved']=self.mdfblockreadBYTE(fid, 1)
         self['hd_start_angle_rad']=self.mdfblockread(fid, REAL, 1)
         self['hd_start_distance']=self.mdfblockread(fid, REAL, 1)
+        if self['hd_md_comment']: # if comments exist
+            self['Comment']=MDBlock(fid, self['hd_md_comment'])
+
+class FHBlock(MDFBlock):
+    def __init__(self, fid,  pointer):
+        # block header
+        self.loadHeader(fid, pointer)
+        # header block
+        self['fh_fh_first']=self.mdfblockread(fid, LINK, 1)
+        self['fh_md_comment']=self.mdfblockread(fid, LINK, 1)
+        self['fh_time_ns']=self.mdfblockread(fid, UINT64, 1)
+        self['fh_tz_offset_min']=self.mdfblockread(fid, UINT16, 1)
+        self['fh_dst_offset_min']=self.mdfblockread(fid, UINT16, 1)
+        self['fh_time_flags']=self.mdfblockread(fid, UINT8, 1)
+        self['fh_reserved']=self.mdfblockreadBYTE(fid, 3)
+        if self['fh_md_comment']: # comments exist
+            self['Comment']=MDBlock(fid, self['fh_md_comment'])
 
 class MDBlock(MDFBlock):
     def __init__(self, fid,  pointer):
         # block header
         self.loadHeader(fid, pointer)
         # Metadata block
-        self['md_data']=self.mdfblockreadBYTE(fid, self['length'])
+        self['md_data']=self.mdfblockreadBYTE(fid, self['length']-16)
         
 class TXBlock(MDFBlock):
     def __init__(self, fid,  pointer):
         # block header
         self.loadHeader(fid, pointer)
         # Text block
-        self['tx_data']=self.mdfblockreadBYTE(fid, self['length'])
+        self['tx_data']=self.mdfblockreadBYTE(fid, self['length']-16)
         
 class DGBlock(MDFBlock):
     def __init__(self, fid,  pointer):
@@ -191,6 +208,64 @@ class CNBlock(MDFBlock):
         self['cn_limit_ext_max']=self.mdfblockread(fid, REAL, 1)
 
 class CCBlock(MDFBlock):
-    def __init__(self, fid,  pointer,  attachmentNumber=None):
+    def __init__(self, fid,  pointer):
         # block header
         self.loadHeader(fid, pointer)
+        # Channel Conversion block : Links
+        self['cc_tx_name']=self.mdfblockread(fid, LINK, 1)
+        self['cc_cn_next']=self.mdfblockread(fid, LINK, 1)
+        self['cc_md_unit']=self.mdfblockread(fid, LINK, 1)
+        self['cc_md_comment']=self.mdfblockread(fid, LINK, 1)
+        self['cc_cc_inverse']=self.mdfblockread(fid, LINK, 1)
+        self['cc_ref']=self.mdfblockread(fid, LINK, )
+        # data section
+        self['cc_type']=self.mdfblockread(fid, UINT8, 1)
+        
+class DTBlock(MDFBlock):
+    def __init__(self, fid,  pointer):
+        # block header
+        self.loadHeader(fid, pointer)
+        # Text block
+        self['dt_data']=self.mdfblockreadBYTE(fid, )
+        
+class info4(dict):
+    def __init__(self, fileName=None, fid=None):
+        self['IDBlock'] = {} # Identifier Block
+        self['HDBlock'] = {} # Header Block
+        self['DGBlock']= {} # Data Group Block
+        self['CGBlock'] = {} # Channel Group Block
+        self['CNBlock'] = {}# Channel Block
+        self['CCBlock'] = {} # Conversion block
+        self.fileName = fileName
+        if fileName != None and fid==None:
+            try:
+                fid = open( self.fileName, 'rb' )
+            except IOError:
+                print('Can not find file'+self.fileName)
+                raise
+            self.readinfo( fid )
+        elif fileName == None and fid!=None:
+            self.readinfo(fid)
+
+    def readinfo(self, fid):
+        # reads IDBlock
+        self['IDBlock'] = {} # Identifier Block
+        self['HDBlock'] = {} # Header Block
+        self['IDBlock'].update(IDBlock(fid))
+        self['HDBlock'].update(HDBlock(fid))        
+        # import history file
+        self['FHBlock'] = {} # History Block
+        self['FHBlock'][0] = {}
+        self['FHBlock'][0] .update(FHBlock(fid, self['HDBlock']['hd_fh_first']))
+        while self['FHBlock'][0]['fh_fh_next']:
+            self['FHBlock'][0] .update(FHBlock(fid, self['HDBlock']['hd_fh_first']))
+            
+    def listChannels( self, fileName = None ):
+        # Read MDF file and extract its complete structure
+        if not fileName == None:
+            self.fileName = fileName
+        # Open file
+        fid = open( self.fileName, 'rb' )
+        # CLose the file
+        fid.close()
+        #return channelNameList

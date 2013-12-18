@@ -3,7 +3,7 @@ PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 from struct import calcsize, unpack
 
-class info(dict):
+class info3(dict):
     """ mdf file info class version 3.x
     # MDFINFO is a class information about an MDF (Measure Data Format) file
     #   Based on following specification http://powertrainnvh.com/nvh/MDFspecificationv03.pdf
@@ -25,8 +25,8 @@ class info(dict):
         self['CGBlock'] = {} # Channel Group Block
         self['CNBlock'] = {}# Channel Block
         self['CCBlock'] = {} # Conversion block
+        self.fileName = fileName
         if fileName != None and fid==None:
-            self.fileName = fileName
             try:
                 fid = open( self.fileName, 'rb' )
             except IOError:
@@ -35,21 +35,20 @@ class info(dict):
             self.readinfo( fid )
         elif fileName == None and fid!=None:
             self.readinfo(fid)
-        else:
-            raise
+
     def readinfo(self, fid):
         # reads IDBlock
         fid.seek(24)
         self['IDBlock']['ByteOrder']=unpack( '<H', fid.read( 2 ) )
         self['IDBlock']['FloatingPointFormat']=unpack( '<H', fid.read( 2 ) )
-        self['IDBlock']['VersionNumber']=unpack( '<H', fid.read( 2 ) )
-        self['IDBlock']['VersionNumber']=self['IDBlock']['VersionNumber'][0]
+        self['IDBlock']['id_ver']=unpack( '<H', fid.read( 2 ) )
+        self['IDBlock']['id_ver']=self['IDBlock']['id_ver'][0]
         self['IDBlock']['CodePageNumber']=unpack( '<H', fid.read( 2 ) )
         self['IDBlock']['CodePageNumber']=self['IDBlock']['CodePageNumber'][0]
         
         ### Read header block (HDBlock) information
         # Read Header block info into structure, HD pointer at 64 as mentioned in specification
-        self['HDBlock'] = self.mdfblockread( self.blockformats3( 'HDFormat' ,  self['IDBlock']['VersionNumber']), fid, 64 )
+        self['HDBlock'] = self.mdfblockread( self.blockformats3( 'HDFormat' ,  self['IDBlock']['id_ver']), fid, 64 )
 
         ### Read text block (TXBlock) information
         self['HDBlock']['TXBlock'] = self.mdfblockread( self.blockformats3( 'TXFormat' ), fid, self['HDBlock']['pointerToTXBlock'] )
@@ -247,7 +246,7 @@ class info(dict):
         
     def listChannels( self, fileName = None ):
         # Read MDF file and extract its complete structure
-        if self.fileName == None:
+        if not fileName == None:
             self.fileName = fileName
         # Open file
         fid = open( self.fileName, 'rb' )

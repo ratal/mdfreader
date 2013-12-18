@@ -252,84 +252,34 @@ class mdfinfo( dict):
         VersionNumber=unpack( '<H', fid.read( 2 ) )
         VersionNumber=VersionNumber[0]
         if VersionNumber<400: # up to version 3.x not compatible with version 4.x
-            from mdfinfo3 import info
-            self.update(info(None, fid))
+            from mdfinfo3 import info3
+            self.update(info3(None, fid))
         else: #MDF version 4.x
-            import mdfinfo4
-            self['IDBlock'] = {} # Identifier Block
-            self['HDBlock'] = {} # Header Block
-            self['IDBlock'].update(mdfinfo4.IDBlock(fid))
-            self['HDBlock'].update(mdfinfo4.HDBlock(fid))
+            from mdfinfo4 import info4
+            self.update(info4(None, fid))
 
     def listChannels( self, fileName = None ):
         # Read MDF file and extract its complete structure
         if self.fileName == None:
             self.fileName = fileName
         # Open file
-        fid = open( self.fileName, 'rb' )
-        channelNameList=[]
-
-        ### Read header block (HDBlock) information
-        # Set file pointer to start of HDBlock
-        HDpointer = 64
-        # Read Header block info into structure
-        self['HDBlock'] = self.mdfblockread( self.blockformats3( 'HDFormat' ), fid, HDpointer )
-
-        ### Read Data Group blocks (DGBlock) information
-        # Get pointer to first Data Group block
-        DGpointer = self['HDBlock']['pointerToFirstDGBlock']
-        for dataGroup in range( self['HDBlock']['numberOfDataGroups'] ):
-
-            # Read data Data Group block info into structure
-            self['DGBlock'][dataGroup] = self.mdfblockread( self.blockformats3( 'DGFormat' ), fid, DGpointer )
-            # Get pointer to next Data Group block
-            DGpointer = self['DGBlock'][dataGroup]['pointerToNextDGBlock']
-
-            ### Read Channel Group block (CGBlock) information - offset set already
-
-            # Read data Channel Group block info into structure
-            CGpointer = self['DGBlock'][dataGroup]['pointerToNextCGBlock']
-            self['CGBlock'][dataGroup]={}
-            self['CNBlock'][dataGroup]={}
-            self['CCBlock'][dataGroup]={}
-            for channelGroup in range( self['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
-                self['CNBlock'][dataGroup][channelGroup]={}
-                self['CCBlock'][dataGroup][channelGroup]={}
-                self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread( self.blockformats3( 'CGFormat' ), fid, CGpointer )
-                CGpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToNextCGBlock']
-
-                # Get pointer to next first Channel block
-                CNpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToFirstCNBlock']
-
-                # For each Channel
-                for channel in range( self['CGBlock'][dataGroup][channelGroup]['numberOfChannels'] ):
-
-                    ### Read Channel block (CNBlock) information
-                    #self.numberOfChannels += 1
-                    # Read data Channel block info into structure
-                    self['CNBlock'][dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats3( 'CNFormat' ), fid, CNpointer )
-                    CNpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToNextCNBlock']
-
-                    ### Read Channel text blocks (TXBlock)
-
-                    # Clean signal name
-                    shortSignalName = self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] # short name of signal
-                    CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
-                    if CNTXpointer > 0:
-                        longSignalName = self.mdfblockread( self.blockformats3( 'TXFormat' ), fid, CNTXpointer ) # long name of signal
-                        longSignalName = longSignalName['Text']
-                        if len(longSignalName)>len(shortSignalName): # long name should be used
-                            signalname = longSignalName
-                        else:
-                            signalname = shortSignalName
-                    else:
-                        signalname = shortSignalName
-                    signalname = signalname.split( '\\' )
-                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname[0]
-                    channelNameList.append( signalname[0] )
-
-        # CLose the file
-        fid.close()
+        try:
+            fid = open( self.fileName, 'rb' )
+        except IOError:
+            print('Can not find file'+self.fileName)
+            raise
+        # read Identifier block
+        fid.seek(28)
+        VersionNumber=unpack( '<H', fid.read( 2 ) )
+        VersionNumber=VersionNumber[0]
+        if VersionNumber<400: # up to version 3.x not compatible with version 4.x
+            from mdfinfo3 import info3
+            channelNameList=info3()
+            channelNameList.listChannels(fileName)
+        else:
+            from mdfinfo4 import info4
+            channelNameList=info4()
+            channelNameList.listChannels(fileName)
         return channelNameList
 
 class mdf( dict ):
