@@ -39,7 +39,10 @@ class MDFBlock(dict):
     """
     
     def __init__(self):
-        pass
+        self['id']={}
+        self['reserved']={}
+        self['length']={}
+        self['link_count']={}
     
     def loadHeader(self, fid,  pointer):
         #All blocks have the same header
@@ -87,7 +90,7 @@ class IDBlock(MDFBlock):
         self['id_prog']=self.mdfblockreadCHAR(fid, 8)
         self['id_reserved1']=self.mdfblockreadBYTE(fid, 4)
         self['id_ver']=self.mdfblockread(fid, UINT16, 1)
-        self['id_reserved1']=self.mdfblockreadBYTE(fid, 34)
+        self['id_reserved2']=self.mdfblockreadBYTE(fid, 34)
 
 class HDBlock(MDFBlock):
     def __init__(self, fid,  pointer=64):
@@ -99,6 +102,7 @@ class HDBlock(MDFBlock):
         self['hd_ch_first']=self.mdfblockread(fid, LINK, 1)
         self['hd_at_first']=self.mdfblockread(fid, LINK, 1)
         self['hd_ev_first']=self.mdfblockread(fid, LINK, 1)
+        self['hd_md_comment']=self.mdfblockread(fid, LINK, 1)
         self['hd_start_time_ns']=self.mdfblockread(fid, UINT64, 1)
         self['hd_tz_offset_min']=self.mdfblockread(fid, INT16, 1)
         self['hd_dst_offset_min']=self.mdfblockread(fid, INT16, 1)
@@ -115,8 +119,8 @@ class FHBlock(MDFBlock):
     def __init__(self, fid,  pointer):
         # block header
         self.loadHeader(fid, pointer)
-        # header block
-        self['fh_fh_first']=self.mdfblockread(fid, LINK, 1)
+        # history block
+        self['fh_fh_next']=self.mdfblockread(fid, LINK, 1)
         self['fh_md_comment']=self.mdfblockread(fid, LINK, 1)
         self['fh_time_ns']=self.mdfblockread(fid, UINT64, 1)
         self['fh_tz_offset_min']=self.mdfblockread(fid, UINT16, 1)
@@ -125,6 +129,24 @@ class FHBlock(MDFBlock):
         self['fh_reserved']=self.mdfblockreadBYTE(fid, 3)
         if self['fh_md_comment']: # comments exist
             self['Comment']=MDBlock(fid, self['fh_md_comment'])
+            
+class CHBlock(MDFBlock):
+    def __init__(self, fid,  pointer):
+        # block header
+        self.loadHeader(fid, pointer)
+        # Channel hierarchy block
+        self['ch_ch_next']=self.mdfblockread(fid, LINK, 1)
+        self['ch_ch_first']=self.mdfblockread(fid, LINK, 1)
+        self['ch_tx_name']=self.mdfblockread(fid, LINK, 1)
+        self['ch_md_comment']=self.mdfblockread(fid, LINK, 1)
+        self['ch_element']=self.mdfblockread(fid, LINK, (self['link_count']-4)/3)
+        self['ch_element_count']=self.mdfblockread(fid, LINK, 1)
+        self['ch_type']=self.mdfblockread(fid, UINT8, 1)
+        self['ch_reserved']=self.mdfblockreadBYTE(fid, 3)
+        if self['ch_md_comment']: # comments exist
+            self['Comment']=MDBlock(fid, self['ch_md_comment'])
+        if self['ch_tx_name']: # text block containing name of hierarchy level
+            self['ch_name_level']=TXBlock(fid, self['ch_tx_name'])
 
 class MDBlock(MDFBlock):
     def __init__(self, fid,  pointer):
@@ -146,12 +168,14 @@ class DGBlock(MDFBlock):
         self.loadHeader(fid, pointer)
         # Data Group block : Links
         self['dg_dg_next']=self.mdfblockread(fid, LINK, 1)
-        self['dg_cg_next']=self.mdfblockread(fid, LINK, 1)
+        self['dg_cg_first']=self.mdfblockread(fid, LINK, 1)
         self['dg_data']=self.mdfblockread(fid, LINK, 1)
         self['dg_md_comment']=self.mdfblockread(fid, LINK, 1)
         # data section
         self['dg_rec_id_size']=self.mdfblockread(fid, UINT8, 1)
         self['dg_reserved']=self.mdfblockreadBYTE(fid, 7)
+        if self['dg_md_comment']: # comments exist
+            self['Comment']=MDBlock(fid, self['dg_md_comment'])
         
 class CGBlock(MDFBlock):
     def __init__(self, fid,  pointer):
@@ -163,7 +187,7 @@ class CGBlock(MDFBlock):
         self['cg_tx_acq_name']=self.mdfblockread(fid, LINK, 1)
         self['cg_si_acq_source']=self.mdfblockread(fid, LINK, 1)
         self['cg_sr_first']=self.mdfblockread(fid, LINK, 1)
-        self['dg_md_comment']=self.mdfblockread(fid, LINK, 1)
+        self['cg_md_comment']=self.mdfblockread(fid, LINK, 1)
         # data section
         self['cg_record_id']=self.mdfblockread(fid, UINT64, 1)
         self['cg_cycle_count']=self.mdfblockread(fid, UINT64, 1)
@@ -172,6 +196,10 @@ class CGBlock(MDFBlock):
         self['cg_reserved']=self.mdfblockreadBYTE(fid, 4)
         self['cg_data_bytes']=self.mdfblockread(fid, UINT32, 1)
         self['cg_invalid_bytes']=self.mdfblockread(fid, UINT32, 1)
+        if self['cg_md_comment']: # comments exist
+            self['Comment']=MDBlock(fid, self['cg_md_comment'])
+        if self['cg_tx_acq_name']: # comments exist
+            self['acq_name']=TXBlock(fid, self['cg_tx_acq_name'])
         
 class CNBlock(MDFBlock):
     def __init__(self, fid,  pointer,  attachmentNumber=None):
@@ -184,7 +212,7 @@ class CNBlock(MDFBlock):
         self['cn_si_source']=self.mdfblockread(fid, LINK, 1)
         self['cn_cc_conversion']=self.mdfblockread(fid, LINK, 1)
         self['cn_data']=self.mdfblockread(fid, LINK, 1)
-        self['cn_mdunit']=self.mdfblockread(fid, LINK, 1)
+        self['cn_md_unit']=self.mdfblockread(fid, LINK, 1)
         self['cn_md_comment']=self.mdfblockread(fid, LINK, 1)
         self['cn_at_reference']=self.mdfblockread(fid, LINK, attachmentNumber)
         self['cn_default_x']=self.mdfblockread(fid, LINK, 3)
@@ -206,6 +234,12 @@ class CNBlock(MDFBlock):
         self['cn_limit_max']=self.mdfblockread(fid, REAL, 1)
         self['cn_limit_ext_min']=self.mdfblockread(fid, REAL, 1)
         self['cn_limit_ext_max']=self.mdfblockread(fid, REAL, 1)
+        if self['cn_md_comment']: # comments exist
+            self['Comment']=MDBlock(fid, self['cn_md_comment'])
+        if self['cn_md_unit']: # comments exist
+            self['unit']=MDBlock(fid, self['cn_md_unit'])
+        if self['cn_tx_name']: # comments exist
+            self['name']=TXBlock(fid, self['cn_tx_name'])
 
 class CCBlock(MDFBlock):
     def __init__(self, fid,  pointer):
@@ -217,21 +251,37 @@ class CCBlock(MDFBlock):
         self['cc_md_unit']=self.mdfblockread(fid, LINK, 1)
         self['cc_md_comment']=self.mdfblockread(fid, LINK, 1)
         self['cc_cc_inverse']=self.mdfblockread(fid, LINK, 1)
-        self['cc_ref']=self.mdfblockread(fid, LINK, )
+        self['cc_ref']=self.mdfblockread(fid, LINK, self['link_count']-4)
         # data section
         self['cc_type']=self.mdfblockread(fid, UINT8, 1)
+        self['cc_precision']=self.mdfblockread(fid, UINT8, 1)
+        self['cc_flags']=self.mdfblockread(fid, UINT16, 1)
+        self['cc_ref_count']=self.mdfblockread(fid, UINT16, 1)
+        self['cc_val_count']=self.mdfblockread(fid, UINT16, 1)
+        self['cc_phy_range_min']=self.mdfblockread(fid, REAL, 1)
+        self['cc_phy_range_max']=self.mdfblockread(fid, REAL, 1)
+        if self['cc_val_count']:
+            self['cc_val']=self.mdfblockread(fid, REAL, self['cc_val_count'])
+        if self['cc_md_comment']: # comments exist
+            self['Comment']=MDBlock(fid, self['cc_md_comment'])
+        if self['cc_md_unit']: # comments exist
+            self['unit']=MDBlock(fid, self['cc_md_unit'])
+        if self['cc_tx_name']: # comments exist
+            self['name']=TXBlock(fid, self['cc_tx_name'])
         
 class DTBlock(MDFBlock):
     def __init__(self, fid,  pointer):
         # block header
         self.loadHeader(fid, pointer)
         # Text block
-        self['dt_data']=self.mdfblockreadBYTE(fid, )
+        #self['dt_data']=self.mdfblockreadBYTE(fid, self['link_count']-16)
         
 class info4(dict):
     def __init__(self, fileName=None, fid=None):
         self['IDBlock'] = {} # Identifier Block
         self['HDBlock'] = {} # Header Block
+        self['FHBlock'] = {}
+        self['CHBlock'] = {}
         self['DGBlock']= {} # Data Group Block
         self['CGBlock'] = {} # Channel Group Block
         self['CNBlock'] = {}# Channel Block
@@ -244,22 +294,83 @@ class info4(dict):
                 print('Can not find file'+self.fileName)
                 raise
             self.readinfo( fid )
+            # CLose the file
+            fid.close()
         elif fileName == None and fid!=None:
             self.readinfo(fid)
 
     def readinfo(self, fid):
+        # this function reads all blocks contained in mdf4 file
+        
         # reads IDBlock
-        self['IDBlock'] = {} # Identifier Block
-        self['HDBlock'] = {} # Header Block
         self['IDBlock'].update(IDBlock(fid))
+        
+        # reads Header HDBlock
         self['HDBlock'].update(HDBlock(fid))        
-        # import history file
-        self['FHBlock'] = {} # History Block
-        self['FHBlock'][0] = {}
-        self['FHBlock'][0] .update(FHBlock(fid, self['HDBlock']['hd_fh_first']))
-        while self['FHBlock'][0]['fh_fh_next']:
-            self['FHBlock'][0] .update(FHBlock(fid, self['HDBlock']['hd_fh_first']))
-            
+        
+        # reads File History blocks, always exists
+        fh=0 # index of fh blocks
+        self['FHBlock'][fh] = {}
+        self['FHBlock'][fh] .update(FHBlock(fid, self['HDBlock']['hd_fh_first']))
+        while self['FHBlock'][fh]['fh_fh_next']:
+            self['FHBlock'][fh] .update(FHBlock(fid, self['FHBlock'][fh]['fh_fh_next']))
+            fh+=1
+        
+        # reads Channel Hierarchy blocks
+        if self['HDBlock']['hd_ch_first']:
+            ch=0
+            self['CHBlock'][ch] = {}
+            self['CHBlock'][ch] .update(CHBlock(fid, self['HDBlock']['hd_ch_first']))
+            while self['CHBlock'][ch]['ch_ch_next']:
+                self['CHBlock'][ch] .update(CHBlock(fid, self['CHBlock'][ch]['ch_ch_next']))
+                ch+=1
+        
+        # reads Attachment block
+        
+        # reads Event Block
+        
+        # reads Data Group Blocks
+        if self['HDBlock']['hd_dg_first']:
+            dg=0
+            self['DGBlock'][dg] = {}
+            self['DGBlock'][dg] .update(DGBlock(fid,self['HDBlock']['hd_dg_first']))
+            while self['DGBlock'][dg]['dg_dg_next']:
+                dg+=1
+                self['DGBlock'][dg]={}
+                self['DGBlock'][dg].update(DGBlock(fid, self['DGBlock'][dg-1]['dg_dg_next']))
+                # reads Channel Group blocks
+                if self['DGBlock'][dg] ['dg_cg_first']:
+                    cg=0
+                    self['CGBlock'][dg] = {}
+                    self['CGBlock'][dg] [cg]={}
+                    self['CGBlock'][dg][cg].update(CGBlock(fid, self['DGBlock'][dg]['dg_cg_first']))
+                    while self['CGBlock'][dg][cg]['cg_cg_next']:
+                        cg+=1
+                        self['CGBlock'][dg][cg]={}
+                        self['CGBlock'][dg][cg].update(CGBlock(fid, self['CGBlock'][dg][cg-1]['cg_cg_next']))
+                        # reads Source Information Block
+                        
+                        # reads Sample Reduction Block
+                        
+                        # reads Channel Block
+                        cn=0
+                        self['CNBlock'][dg] = {}
+                        self['CNBlock'][dg][cg] = {}
+                        self['CNBlock'][dg][cg][cn] = {}
+                        self['CNBlock'][dg][cg][cn].update(CNBlock(fid, self['CGBlock'][dg][cg]['cg_cn_first']))
+                        while self['CNBlock'][dg][cg][cn]['cn_cn_next']:
+                            cn+=1
+                            self['CNBlock'][dg][cg][cn]={}
+                            self['CNBlock'][dg][cg][cn].update(CNBlock(fid, self['CNBlock'][dg][cg][cn-1]['cn_cn_next']))
+                            # reads Channel Source Information
+                            
+                            # reads Channel Array Block
+                            
+                            # reads Attachment Block
+                            
+                            # reads Channel Conversion Block
+                            self['CCBlock'][dg][cg][cn]=CNBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
+        
     def listChannels( self, fileName = None ):
         # Read MDF file and extract its complete structure
         if not fileName == None:
