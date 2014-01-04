@@ -439,7 +439,7 @@ class SIBlock(MDFBlock):
             self['comment']=self.TXBlock(fid, self['si_md_comment'])
             
 class DATABlock(MDFBlock):
-    def __init__(self, fid,  pointer):
+    def __init__(self, fid,  pointer, zip_type=None):
         # block header
         self.loadHeader(fid, pointer)
         if self['id']=='##DT' or self['id']=='##RD' or self['id']=='##SD': # normal data block
@@ -448,12 +448,52 @@ class DATABlock(MDFBlock):
         elif self['id']=='##DZ': # zipped data block
             self['dz_org_block_type']=self.mdfblockreadCHAR(fid, 2)
             self['dz_zip_type']=self.mdfblockread(fid, UINT8, 1)
-            self['dz_reserved']=self.mdfblockreadBYTE(fid, )
+            if zip_type==None: # HLBlock used
+                self['dz_zip_type']=zip_type
+            self['dz_reserved']=self.mdfblockreadBYTE(fid, 1)
             self['dz_zip_parameter']=self.mdfblockread(fid, UINT32, 1)
             self['dz_org_data_length']=self.mdfblockread(fid, UINT64, 1)
             self['dz_data_length']=self.mdfblockread(fid, UINT64, 1)
             self['data']=self.mdfblockreadBYTE(fid, self['link_count']-24)
-        
+            # uncompress data
+            try:
+                from zlib import decompress
+                if self['dz_zip_type']==0:
+                    self['data']=decompress(self['data'])
+                elif self['dz_zip_type']==1: # data transposed
+                    pass # not yet implemented
+            except:
+                print('zlib module not found or error while uncompressing')
+            
+class DATA(MDFBlock):
+    def __init__(self, fid,  pointer, zip_type=None):
+        # block header
+        self.loadHeader(fid, pointer)
+        if not self['id']=='##DL' and not self['id']=='##HL':
+            self=DATABlock(fid, pointer, zip_type)
+        elif self['id']=='##DL': # data list block
+            # link section
+            self['dl_dl_next']=self.mdfblockread(fid, LINK, 1)
+            self['dl_data']=self.mdfblockread(fid, LINK, self['link_count']-1)
+            # data section
+            self['dl_flags']=self.mdfblockread(fid, UINT8, 1)
+            self['dl_reserved']=self.mdfblockreadBYTE(fid, 3)
+            self['dl_count']=self.mdfblockread(fid, UINT32, 1)
+            self['dl_equal_length']=self.mdfblockread(fid, UINT64, 1)
+            self['dl_offset']=self.mdfblockread(fid, UINT64, 1)
+            # read data list
+            from numpy import vstack
+            self['data']=vstack([DATABlock(fid, self['dl_data'][dl]) for dl in range(self['dl_count'])])
+            
+        elif self['id']=='##HL': # header list block, if DZBlock used
+            # link section
+            self['hl_dl_first']=self.mdfblockread(fid, LINK, 1)
+            # data section
+            self['hl_flags']=self.mdfblockread(fid, UINT16, 1)
+            self['hl_zip_type']=self.mdfblockread(fid, UINT8, 1)
+            self['hl_reserved']=self.mdfblockreadBYTE(fid, 5)
+            self=DATABlock(fid, self['hl_dl_first'], self['hl_zip_type'])
+            
 class info4(dict):
     def __init__(self, fileName=None, fid=None):
         self['IDBlock'] = {} # Identifier Block
