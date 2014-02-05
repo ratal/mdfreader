@@ -263,7 +263,7 @@ class CNBlock(MDFBlock):
             fid.seek(pointer+self['length']-71)
             self['cn_type']=self.mdfblockread(fid, UINT8, 1)
             self['cn_sync_type']=self.mdfblockread(fid, UINT8, 1)
-            self['cn_datatype']=self.mdfblockread(fid, UINT8, 1)
+            self['cn_data_type']=self.mdfblockread(fid, UINT8, 1)
             self['cn_bit_offset']=self.mdfblockread(fid, UINT8, 1)
             self['cn_byte_offset']=self.mdfblockread(fid, UINT32, 1)
             self['cn_bit_count']=self.mdfblockread(fid, UINT32, 1)
@@ -301,7 +301,7 @@ class CNBlock(MDFBlock):
             if self['cn_md_unit']: # comments exist
                 self['unit']=CommentBlock(fid, self['cn_md_unit'], 'unit')
             if self['cn_tx_name']: # comments exist
-                self['name']=CommentBlock(fid, self['cn_tx_name'], 'CN')
+                self['name']=CommentBlock(fid, self['cn_tx_name'], 'CN')['name']
 
 class CCBlock(MDFBlock):
     def __init__(self, fid,  pointer):
@@ -328,6 +328,12 @@ class CCBlock(MDFBlock):
             self['cc_phy_range_max']=self.mdfblockread(fid, REAL, 1)
             if self['cc_val_count']:
                 self['cc_val']=self.mdfblockread(fid, REAL, self['cc_val_count'])
+            if self['cc_type']==3: # reads Algebraic formula
+                self['cc_ref']=CommentBlock(fid, self['cc_ref'])
+            elif self['cc_type']in (7, 8, 9, 10): # text list
+                for i in range(self['cc_ref_count']):
+                    temp=CommentBlock(fid, self['cc_ref'][i])
+                    self['cc_ref'][i]=temp['name']
             if self['cc_md_comment']: # comments exist
                 self['Comment']=CommentBlock(fid, self['cc_md_comment'])
             if self['cc_md_unit']: # comments exist
@@ -336,7 +342,47 @@ class CCBlock(MDFBlock):
                 self['name']=CommentBlock(fid, self['cc_tx_name'])
         else: # no conversion
             self['cc_type']=0
-            
+
+class CABlock(MDFBlock):
+    def __init__(self, fid,  pointer):
+        # block header
+        if pointer != 0 and not pointer == None:
+            fid.seek( pointer )
+            self['id']=self.mdfblockreadCHAR(fid, 4)
+            self['reserved']=self.mdfblockreadBYTE(fid, 4)
+            self['length']=self.mdfblockread(fid, UINT64, 1)
+            self['link_count']=self.mdfblockread(fid, UINT64, 1)
+            # reads data section
+            fid.seek( pointer +24 + self['link_count']*8)
+            self['ca_type']=self.mdfblockread(fid, UINT8, 1) 
+            self['ca_storage']=self.mdfblockread(fid, UINT8, 1) 
+            self['ca_ndim']=self.mdfblockread(fid, UINT16, 1) 
+            self['ca_flags']=int(self.mdfblockread(fid, UINT32, 1) )
+            self['ca_byte_offset_base']=self.mdfblockread(fid, INT32, 1) 
+            self['ca_invalid_bit_pos_base']=self.mdfblockread(fid, UINT32, 1)
+            self['ca_dim_size']=self.mdfblockread(fid, UINT64, self['ca_ndim'])
+            if 1<<5 & self['ca_flags']: # bit5
+                self['ca_axis_value']=self.mdfblockread(fid, REAL, self['ca_dim_size'].sum())
+            if self['ca_storage']>=1:
+                self['ca_cycle_count']=self.mdfblockread(fid, UINT64, self['ca_dim_size'].product())
+            # Channel Conversion block : Links
+            fid.seek( pointer +24 )
+            self['ca_composition']=self.mdfblockread(fid, LINK, 1) # point to CN for array of structures or CA for array of array
+            if self['ca_storage']==2:
+                self['ca_data']=self.mdfblockread(fid, LINK, self['ca_dim_size'].product()) 
+            if 1<<0 &self['ca_flags']: # bit 0
+                self['ca_dynamic_size']=self.mdfblockread(fid, LINK, self['ca_ndim']*3)
+            if 1<<1 &self['ca_flags']: # bit 1
+                self['ca_input_quantity']=self.mdfblockread(fid, LINK, self['ca_ndim']*3)
+            if 1<<2 &self['ca_flags']: # bit 2
+                self['ca_output_quantity']=self.mdfblockread(fid, LINK, 3)
+            if 1<<3 &self['ca_flags']: # bit 3
+                self['ca_comparison_quantity']=self.mdfblockread(fid, LINK, 3)
+            if 1<<4 &self['ca_flags']: # bit 4
+                self['ca_cc_axis_conversion']=self.mdfblockread(fid, LINK, self['ca_ndim'])
+            if 1<<4 &self['ca_flags'] and 1<<5 &self['ca_flags']: # bit 4 and 5
+                self['ca_axis']=self.mdfblockread(fid, LINK, self['ca_ndim']*3)
+
 class ATBlock(MDFBlock):
     def __init__(self, fid,  pointer):
         # block header
@@ -484,62 +530,6 @@ class SIBlock(MDFBlock):
             self['source_name']=self.CommentBlock(fid, self['si_tx_name'])
             self['source_path']=self.CommentBlock(fid, self['si_tx_path'])
             self['comment']=self.CommentBlock(fid, self['si_md_comment'])
-            
-class DATABlock(MDFBlock):
-    def __init__(self, fid,  pointer, zip_type=None):
-        # block header
-        self.loadHeader(fid, pointer)
-        if self['id']=='##DT' or self['id']=='##RD' or self['id']=='##SD': # normal data block
-            # reads data
-            self['data']=self.mdfblockreadBYTE(fid, self['link_count']-24)
-        elif self['id']=='##DZ': # zipped data block
-            self['dz_org_block_type']=self.mdfblockreadCHAR(fid, 2)
-            self['dz_zip_type']=self.mdfblockread(fid, UINT8, 1)
-            if zip_type==None: # HLBlock used
-                self['dz_zip_type']=zip_type
-            self['dz_reserved']=self.mdfblockreadBYTE(fid, 1)
-            self['dz_zip_parameter']=self.mdfblockread(fid, UINT32, 1)
-            self['dz_org_data_length']=self.mdfblockread(fid, UINT64, 1)
-            self['dz_data_length']=self.mdfblockread(fid, UINT64, 1)
-            self['data']=self.mdfblockreadBYTE(fid, self['link_count']-24)
-            # uncompress data
-            try:
-                from zlib import decompress
-                if self['dz_zip_type']==0:
-                    self['data']=decompress(self['data'])
-                elif self['dz_zip_type']==1: # data transposed
-                    pass # not yet implemented
-            except:
-                print('zlib module not found or error while uncompressing')
-            
-class DATA(MDFBlock):
-    def __init__(self, fid,  pointer, zip_type=None):
-        # block header
-        self.loadHeader(fid, pointer)
-        if not self['id']=='##DL' and not self['id']=='##HL':
-            self=DATABlock(fid, pointer, zip_type)
-        elif self['id']=='##DL': # data list block
-            # link section
-            self['dl_dl_next']=self.mdfblockread(fid, LINK, 1)
-            self['dl_data']=self.mdfblockread(fid, LINK, self['link_count']-1)
-            # data section
-            self['dl_flags']=self.mdfblockread(fid, UINT8, 1)
-            self['dl_reserved']=self.mdfblockreadBYTE(fid, 3)
-            self['dl_count']=self.mdfblockread(fid, UINT32, 1)
-            self['dl_equal_length']=self.mdfblockread(fid, UINT64, 1)
-            self['dl_offset']=self.mdfblockread(fid, UINT64, 1)
-            # read data list
-            from numpy import vstack
-            self['data']=vstack([DATABlock(fid, self['dl_data'][dl]) for dl in range(self['dl_count'])])
-            
-        elif self['id']=='##HL': # header list block, if DZBlock used
-            # link section
-            self['hl_dl_first']=self.mdfblockread(fid, LINK, 1)
-            # data section
-            self['hl_flags']=self.mdfblockread(fid, UINT16, 1)
-            self['hl_zip_type']=self.mdfblockread(fid, UINT8, 1)
-            self['hl_reserved']=self.mdfblockreadBYTE(fid, 5)
-            self=DATABlock(fid, self['hl_dl_first'], self['hl_zip_type'])
             
 class info4(dict):
     def __init__(self, fileName=None, fid=None):

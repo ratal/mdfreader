@@ -1,15 +1,105 @@
 # -*- coding: utf-8 -*-
 """ Measured Data Format blocks paser for version 4.x
-Created on Thu Dec 10 12:57:28 2014
+Created on Thu Dec 10 12:57:28 2013
 
 :Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
 
 """
 import numpy
-from math import log, exp
 from sys import platform
-from mdfinfo4 import info4, DATA
-channelTime={'time','TIME'} # possible channel time writing, adjust if necessary
+from mdfinfo4 import info4, MDFBlock
+from collections import OrderedDict
+
+LINK='<Q' 
+REAL='<d'
+BOOL='<h'
+UINT8='<B'
+BYTE='<c'
+INT16='<h'
+UINT16='<H'
+UINT32='<I'
+INT32='<i'
+UINT64='<Q'
+INT64='<q'
+CHAR='<c'
+
+class DATABlock(MDFBlock):
+    def __init__(self, fid,  pointer, numpyDataRecordFormat, numberOfRecords , dataRecordName, zip_type=None, channelList=None):
+        # block header
+        self.loadHeader(fid, pointer)
+        if self['id']=='##DT' or self['id']=='##RD' or self['id']=='##SD': # normal data block
+            if channelList==None: # reads all blocks
+                self['data']=numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = numberOfRecords , names=dataRecordName)
+            else: # channelList defined
+                # reads only the channels using offset functions, channel by channel
+                buf={}
+                # order offsets and names based on offset value
+                channelList=OrderedDict(sorted(channelList.items(), key=lambda t: t[1]))
+                for record in range(numberOfRecords):
+                    for name in dataRecordName:
+                        if name in channelList.keys(): 
+                            fid.seek()
+                            buf.append(numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = 1 , names=name,  offset=None ))
+                self['data']=buf
+                        
+        elif self['id']=='##DZ': # zipped data block
+            self['dz_org_block_type']=self.mdfblockreadCHAR(fid, 2)
+            self['dz_zip_type']=self.mdfblockread(fid, UINT8, 1)
+            if zip_type==None: # HLBlock used
+                self['dz_zip_type']=zip_type
+            self['dz_reserved']=self.mdfblockreadBYTE(fid, 1)
+            self['dz_zip_parameter']=self.mdfblockread(fid, UINT32, 1)
+            self['dz_org_data_length']=self.mdfblockread(fid, UINT64, 1)
+            self['dz_data_length']=self.mdfblockread(fid, UINT64, 1)
+            self['data']=self.mdfblockreadBYTE(fid, self['link_count']-24)
+            # uncompress data
+            try:
+                from zlib import decompress
+                if self['dz_zip_type']==0:
+                    self['data']=decompress(self['data'])
+                elif self['dz_zip_type']==1: # data transposed
+                    pass # not yet implemented
+            except:
+                print('zlib module not found or error while uncompressing')
+            if channelList==None: # reads all blocks
+                self['data']=numpy.core.records.fromstring(self['data'] , dtype = numpyDataRecordFormat, shape = numberOfRecords , names=dataRecordName)
+            else:
+                # reads only the channels using offset functions, channel by channel
+                buf={}
+                # order offsets and names based on offset value
+                channelList=OrderedDict(sorted(channelList.items(), key=lambda t: t[1]))
+                for name in dataRecordName:
+                    if name in channelList.keys():
+                        buf.append(numpy.core.records.fromstring(self['data'], dtype = numpyDataRecordFormat, shape = 1 , names=name,  offset=None ))
+                self['data']=buf
+     
+class DATA(MDFBlock):
+    def __init__(self, fid,  pointer, numpyDataRecordFormat, numberOfRecords , dataRecordName, zip=None, nameList=None):
+        # block header
+        self.loadHeader(fid, pointer)
+        if not self['id']=='##DL' and not self['id']=='##HL':
+            self=DATABlock(fid, pointer, numpyDataRecordFormat, numberOfRecords , dataRecordName, zip_type=zip, channelList=nameList)
+        elif self['id']=='##DL': # data list block
+            # link section
+            self['dl_dl_next']=self.mdfblockread(fid, LINK, 1)
+            self['dl_data']=self.mdfblockread(fid, LINK, self['link_count']-1)
+            # data section
+            self['dl_flags']=self.mdfblockread(fid, UINT8, 1)
+            self['dl_reserved']=self.mdfblockreadBYTE(fid, 3)
+            self['dl_count']=self.mdfblockread(fid, UINT32, 1)
+            self['dl_equal_length']=self.mdfblockread(fid, UINT64, 1)
+            self['dl_offset']=self.mdfblockread(fid, UINT64, 1)
+            # read data list
+            self['data']=numpy.vstack([DATABlock(fid, self['dl_data'][dl], numpyDataRecordFormat, numberOfRecords , dataRecordName, channelList=nameList) for dl in range(self['dl_count'])])
+            
+        elif self['id']=='##HL': # header list block, if DZBlock used
+            # link section
+            self['hl_dl_first']=self.mdfblockread(fid, LINK, 1)
+            # data section
+            self['hl_flags']=self.mdfblockread(fid, UINT16, 1)
+            self['hl_zip_type']=self.mdfblockread(fid, UINT8, 1)
+            self['hl_reserved']=self.mdfblockreadBYTE(fid, 5)
+            self['data']=DATABlock(fid, self['hl_dl_first'], numpyDataRecordFormat, numberOfRecords , dataRecordName, zip_type=self['hl_zip_type'], channelList=nameList)
 
 class mdf4(dict):
     """ mdf file class
@@ -60,35 +150,287 @@ class mdf4(dict):
             proc = []
             Q=Queue()
         L={}
-        for dg in info['DGBlock'].keys():
-            if not info['DGBlock']['dg_data']==0: # data exist
-                #reads data block
-                buf=DATA(fid, info['DGBlock']['dg_data'])
-                
+        for dataGroup in info['DGBlock'].keys():
+            if not info['DGBlock'][dataGroup]['dg_data']==0: # data exist
+                precedingNumberOfBits = 0
                 numpyDataRecordFormat = []
                 dataRecordName = []
-                # defines record ID
-                if info['DGBlock']['dg_data']==0: # no record ID
+                #Pointer to data block
+                pointerToData =info['DGBlock'][dataGroup]['dg_data']
+                # defines record ID if any
+                if info['DGBlock'][dataGroup]['dg_rec_id_size']==0: # no record ID
                     pass
-                elif info['DGBlock']['dg_data']==1:
+                elif info['DGBlock'][dataGroup]['dg_rec_id_size']==1:
                     numpyDataRecordFormat.append( ( 'RecordID', 'uint8' ) )
-                elif info['DGBlock']['dg_data']==2:
+                elif info['DGBlock'][dataGroup]['dg_rec_id_size']==2:
                     numpyDataRecordFormat.append( ( 'RecordID', 'uint16' ) )
-                elif info['DGBlock']['dg_data']==3:
-                    numpyDataRecordFormat.append( ( 'RecordID', 'uint32' ) )
-                elif info['DGBlock']['dg_data']==4:
+                elif info['DGBlock'][dataGroup]['dg_rec_id_size']==3:
+                    numpyDataRecordFormat.append( ( 'RecordID', 'uint16' ) )
+                elif info['DGBlock'][dataGroup]['dg_rec_id_size']==4:
                     numpyDataRecordFormat.append( ( 'RecordID', 'uint64' ) )
                 
                 # defines data record for each channel group 
-                if info['dg_rec_id_size']==0: # sorted data, no record ID, only one channel group
-                    pass
-                else: #unsorted data
-                    for cg in info['CGBlock'][dg].keys():
-                        recordId=info['CGBlock'][dg][cg]['cg_record_id']
-                        for cn in info['CNBlock'][dg][cg][cn].keys():
-            
-                # reads all records according to their recordId
-                recordSize=info['CGBlock'][dg][cg]['cg_dataBytes']
+                for channelGroup in info['CGBlock'][dataGroup].keys():
+
+                    numberOfRecords=info['CGBlock'][dataGroup][channelGroup]['cg_cycle_count']
+                    channelListByte=[]
+                    #dataBytes=info['CGBlock'][dataGroup][channelGroup]['cg_dataBytes']
+                    #invalidBytes=info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bytes']
+                    #invalidBit=info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bit_pos']
+                    for channel in info['CNBlock'][dataGroup][channelGroup].keys():
+                        # Type of channel data, signed, unsigned, floating or string
+                        signalDataType = info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type']
+                        # Corresponding number of bits for this format
+                        numberOfBits = info['CNBlock'][dataGroup][channelGroup][channel]['cn_bit_count']
+                        channelByteOffset= info['CNBlock'][dataGroup][channelGroup][channel]['cn_byte_offset']+info['DGBlock'][dataGroup]['dg_rec_id_size']
+                        channelName=info['CNBlock'][dataGroup][channelGroup][channel]['name']
+                        if channelList is not None:
+                            channelListByte[channelName]=channelByteOffset
+
+                        if numberOfBits < 8: # adding bit format, ubit1 or ubit2
+                            if precedingNumberOfBits == 8: # 8 bit make a byte
+                                dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
+                                numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat( signalDataType, numberOfBits ) ) )
+                                precedingNumberOfBits = 0
+                            else:
+                                precedingNumberOfBits += numberOfBits # counts successive bits
+
+                        else: # adding bytes
+                            if precedingNumberOfBits != 0: # There was bits in previous channel
+                                precedingNumberOfBits = 0
+                            dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
+                            numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat( signalDataType, numberOfBits ) ) )
+
+                    if numberOfBits < 8: # last channel in record is bit inside byte unit8
+                        dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
+                        numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat( signalDataType, numberOfBits ) ) )
+                        precedingNumberOfBits = 0
                 
                 # converts channel group records into channels
-                buf = numpy.core.records.fromrecords( buf, dtype = numpyDataRecordFormat[recordId], shape = numberOfRecords[recordId] , names=dataRecordName[recordId])
+                buf = DATA(fid, pointerToData, numpyDataRecordFormat, numberOfRecords , dataRecordName, nameList=channelListByte)
+                
+                if self.multiProc:
+                    proc.append( Process( target = processDataBlocks, args = ( Q, buf, info, numberOfRecords, dataGroup , self.multiProc) ) )
+                    proc[-1].start()
+                else: # for debugging purpose, can switch off multiprocessing
+                    L.update(processDataBlocks( None, buf, info, numberOfRecords, dataGroup,  self.multiProc))
+
+        fid.close() # close file
+
+        if self.multiProc:
+            for i in proc:
+                L.update(Q.get()) # concatenate results of processes in dict
+        return L
+
+    @staticmethod
+    def arrayformat( signalDataType, numberOfBits ):
+
+        # Formats used by numpy dtype
+
+        if signalDataType in (0, 1): # unsigned
+            if numberOfBits == 8:
+                dataType = 'uint8'
+            elif numberOfBits == 16:
+                dataType = 'uint16';
+            elif numberOfBits == 32:
+                dataType = 'uint32'
+            elif numberOfBits == 64:
+                dataType = 'uint64'
+            elif numberOfBits == 1:
+                dataType = 'uint8' # not directly processed
+            elif numberOfBits == 2:
+                dataType = 'uint8' # not directly processed
+            else:
+                print(( 'Unsupported number of bits for unsigned int ' + str( numberOfBits) ))
+
+        elif signalDataType in (2, 3): # signed int
+            if numberOfBits == 8:
+                dataType = 'int8'
+            elif numberOfBits == 16:
+                dataType = 'int16'
+            elif numberOfBits == 32:
+                dataType = 'int32'
+            elif numberOfBits == 64:
+                dataType = 'int64'
+            else:
+                print(( 'Unsupported number of bits for signed int ' + str( numberOfBits ) ))
+
+        elif signalDataType in ( 4, 5 ): # floating point
+            if numberOfBits == 32:
+                dataType = 'float32'
+            elif numberOfBits == 64:
+                dataType = 'float64'
+            else:
+                print(( 'Unsupported number of bit for floating point ' + str( numberOfBits ) ))
+        
+        elif signalDataType == 6: # string ISO-8859-1 Latin
+            dataType = 'str' # not directly processed
+        elif signalDataType == 7: # UTF-8
+            dataType = 'unicode' # not directly processed
+        elif signalDataType == (8, 9): # UTF-16
+            dataType = 'unicode16' # not directly processed
+        elif signalDataType == 10: # bytes array
+            dataType = 'buffer' # not directly processed
+        elif signalDataType in (11, 12): # MIME sample or MIME stream
+            dataType = ('unint16', 'unint8', 'unint8', 'unint8', 'unint8', 'unint8') # 7 Byte Date data structure
+        elif signalDataType in (13, 14): # CANopen date and time
+            dataType = ('unint32',  'unint16') # 6 Byte time data structure
+        else:
+            print(( 'Unsupported Signal Data Type ' + str( signalDataType ) + ' ', numberOfBits ))
+            
+        # deal with byte order
+        if signalDataType in (1, 3, 5, 9):
+            dataType='>'+dataType
+        
+        return dataType
+
+def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
+    ## Processes recorded data blocks
+    # Outside of class to allow multiprocessing
+    #numberOfRecordIDs = info['DGBlock'][dataGroup]['numberOfRecordIDs']
+    #procTime = time.clock()
+    #print( 'Start process ' + str( dataGroup ) + ' Number of Channels ' + str( info['CGBlock'][dataGroup][0]['numberOfChannels'] ) + ' of length ' + str( len( buf ) ) + ' ' + str( time.clock() ) )
+    L={}
+    isBitInUnit8 = 0 # Initialize Bit counter
+    previousChannelName=info['CNBlock'][0][0][0]['name'] # initialise channelName
+
+    ## Processes Bits, metadata and conversion
+    for channelGroup in info['DGBlock'][dataGroup].keys():
+        for channel in info['CGBlock'][dataGroup][channelGroup].keys():
+            # Type of channel data, signed, unsigned, floating or string
+            signalDataType = info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type']
+            # Corresponding number of bits for this format
+            numberOfBits =  info['CNBlock'][dataGroup][channelGroup][channel]['cn_bit_count']
+
+            cName = info['CNBlock'][dataGroup][channelGroup][channel]['name']
+            channelName=cName
+            try:
+                temp = buf.__getattribute__( str(cName)) # extract channel vector
+                previousChannelName=cName
+            except: # if tempChannelName not in buf -> bits in unit8
+                temp = buf.__getattribute__( str(previousChannelName) ) # extract channel vector
+
+            if info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']: # assumes first channel is time
+                channelName = 'time' + str( dataGroup )
+            # Process concatenated bits inside unint8
+            if signalDataType not in ( 1, 2, 3, 8 ):
+                if signalDataType == 0:
+                    if numberOfBits == 1: # One bit, considered Boolean in numpy
+                        mask = 1 << isBitInUnit8 # masks isBitUnit8
+                        temp = [( ( int( temp[record] ) & mask ) >> ( isBitInUnit8 ) ) for record in range( numberOfRecords )]
+                        L[channelName] = numpy.array( temp, dtype = 'uint8' )
+                        isBitInUnit8 += 1
+                    elif numberOfBits == 2:
+                        mask = 1 << isBitInUnit8
+                        mask = mask | ( 1 << ( isBitInUnit8 + 1 ) ) # adds second bit in mask
+                        temp = [( ( int( temp[record] ) & mask ) >> ( isBitInUnit8 ) ) for record in range( numberOfRecords )]
+                        L[channelName] = numpy.array( temp, dtype = 'uint8' )
+                        isBitInUnit8 += 2
+                    else:
+                        L[channelName] = temp
+                        isBitInUnit8 = 0 # Initialize Bit counter
+                else:
+                    L[channelName] = temp
+                    isBitInUnit8 = 0 # Initialize Bit counter
+            else:
+                L[channelName] = temp
+                isBitInUnit8 = 0 # Initialize Bit counter
+
+            ## Process Conversion
+            conversionFormulaIdentifier = info['CCBlock'][dataGroup][channelGroup][channel]['cc_type']
+            if conversionFormulaIdentifier == 0: # 1:1 conversion
+                pass
+            elif conversionFormulaIdentifier == 1: # Parametric, Linear: Physical =Integer*P2 + P1
+                P1 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [0]
+                P2 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [1]
+                L[channelName] = L[channelName] * P2 + P1
+            elif conversionFormulaIdentifier == 2: # rationnal
+                P1 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [0]
+                P2 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [1]
+                P3 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [2]
+                P4 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [3]
+                P5 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [4]
+                P6 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [5]
+                L[channelName] = (P1*L[channelName] *L[channelName] +P2*L[channelName] +P3)/(P4*L[channelName] *L[channelName] +P5*L[channelName] +P6)
+            elif conversionFormulaIdentifier == 3: #  Algebraic conversion, needs simpy
+                pass # not yet implemented
+                print(info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']) # formulae
+            elif conversionFormulaIdentifier in (4, 5): # value to value table with or without interpolation
+                val_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /2
+                cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
+                intVal = cc_val[range(0, val_count, 2)]
+                physVal = cc_val[range(1, val_count, 2)]
+                if numpy.all( numpy.diff( intVal ) > 0 ):
+                    if conversionFormulaIdentifier == 4:
+                        L[channelName] = numpy.interp( L[channelName], intVal, physVal ) # with interpolation
+                    else:
+                        from scipy import interpolate
+                        f = interpolate.interp1d( intVal, physVal , kind='nearest', bounds_error=False) # nearest
+                        L[channelName] =  f(L[channelName]) # fill with Nan out of bounds while should be bounds
+                else:
+                    print(( 'X values for interpolation of channel ' + channelName + ' are not increasing' ))
+            elif conversionFormulaIdentifier == 6: # Value range to value table
+                val_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /3
+                cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
+                key_min = cc_val[range(0, val_count, 3)]
+                key_max = cc_val[range(1, val_count, 3)]
+                value = cc_val[range(1, val_count, 3)]
+                # look up in range keys
+                for Lindex in range(len(L[channelName] )):
+                    key_index=0 # default index if not found
+                    for i in range(val_count):
+                        if  key_min[i] < L[channelName] [Lindex] < key_max[i]:
+                            key_index=i
+                            break
+                    L[channelName] [Lindex]=value[key_index]
+            elif conversionFormulaIdentifier == 7: # Value to text / scale conversion table
+                val_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] 
+                cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
+                for Lindex in range(len(L[channelName] )):
+                    key_index=0 # default index if not found
+                    for i in range(val_count):
+                        if  L[channelName] [Lindex] == cc_val[i]:
+                            key_index=i
+                            break
+                    L[channelName] [Lindex]=value[key_index]
+            elif conversionFormulaIdentifier == 8: # Value range to Text / Scale conversion Table
+                val_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /2
+                cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
+                key_min = cc_val[range(0, val_count, 2)]
+                key_max = cc_val[range(1, val_count, 2)]
+                # look up in range keys
+                for Lindex in range(len(L[channelName] )):
+                    key_index=0 # default index if not found
+                    for i in range(val_count):
+                        if  key_min[i] < L[channelName] [Lindex] < key_max[i]:
+                            key_index=i
+                            break
+                    L[channelName] [Lindex]=info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref'][key_index]
+            elif conversionFormulaIdentifier == 9: # Text to value table
+                val_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] 
+                cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
+                cc_ref=info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']
+                for Lindex in range(len(L[channelName] )):
+                    key_index=0 # default index if not found
+                    for i in range(val_count):
+                        if  L[channelName] [Lindex] == cc_ref[i]:
+                            key_index=i
+                            break
+                    L[channelName] [Lindex]=cc_val[key_index]
+            elif conversionFormulaIdentifier == 10: # Text to text table
+                ref_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /2
+                cc_ref=info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']
+                for Lindex in range(len(L[channelName] )):
+                    key_index=0 # default index if not found
+                    for i in range(0, ref_count, 2):
+                        if  L[channelName] [Lindex] == cc_ref[i]:
+                            key_index=i
+                            break
+                    L[channelName] [Lindex]=cc_ref[key_index+1]
+            else:
+                print('Unrecognized conversion type')
+    if multiProc:
+        Q.put(L)
+    else:
+        return L
+        #print( 'Process ' + str( dataGroup ) + ' Finished ' + str( time.clock() - procTime ) )
