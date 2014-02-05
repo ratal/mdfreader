@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Project SYSTEM "Project-5.1.dtd">
 <!-- eric5 project file for project mdfreader -->
-<!-- Saved: 2013-12-17, 20:18:20 -->
-<!-- Copyright (C) 2013 Aymeric Rateau, aymeric.rateau@gmail.com -->
+<!-- Saved: 2014-01-12, 15:16:40 -->
+<!-- Copyright (C) 2014 Aymeric Rateau, aymeric.rateau@gmail.com -->
 <Project version="5.1">
   <Language>en</Language>
   <Hash>a4292a9bac002b3553cfe312b60bdcab5d0a8287</Hash>
@@ -21,6 +21,8 @@
     <Source>mdfinfo4.py</Source>
     <Source>test/test2.py</Source>
     <Source>mdfinfo3.py</Source>
+    <Source>mdf4.py</Source>
+    <Source>mdf3.py</Source>
   </Sources>
   <Forms>
     <Form>mdfreaderui.ui</Form>
