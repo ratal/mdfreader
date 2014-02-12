@@ -6,6 +6,7 @@ Created on Thu Dec 10 12:57:28 2013
 
 """
 import numpy
+from struct import unpack
 from sys import platform
 from mdfinfo4 import info4, MDFBlock
 from collections import OrderedDict
@@ -27,7 +28,7 @@ class DATABlock(MDFBlock):
     def __init__(self, fid,  pointer, numpyDataRecordFormat, numberOfRecords , dataRecordName, zip_type=None, channelList=None):
         # block header
         self.loadHeader(fid, pointer)
-        if self['id']=='##DT' or self['id']=='##RD' or self['id']=='##SD': # normal data block
+        if self['id']=='##DT' or self['id']=='##RD': # normal data block
             if channelList==None: # reads all blocks
                 self['data']=numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = numberOfRecords , names=dataRecordName)
             else: # channelList defined
@@ -41,7 +42,10 @@ class DATABlock(MDFBlock):
                             fid.seek()
                             buf.append(numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = 1 , names=name,  offset=None ))
                 self['data']=buf
-                        
+                
+        elif self['id']=='##SD': # Signal Data Block
+            unpack('uint32', fid.read(4)) # length of data
+            
         elif self['id']=='##DZ': # zipped data block
             self['dz_org_block_type']=self.mdfblockreadCHAR(fid, 2)
             self['dz_zip_type']=self.mdfblockread(fid, UINT8, 1)
@@ -90,7 +94,10 @@ class DATA(MDFBlock):
             self['dl_equal_length']=self.mdfblockread(fid, UINT64, 1)
             self['dl_offset']=self.mdfblockread(fid, UINT64, 1)
             # read data list
-            self['data']=numpy.vstack([DATABlock(fid, self['dl_data'][dl], numpyDataRecordFormat, numberOfRecords , dataRecordName, channelList=nameList) for dl in range(self['dl_count'])])
+            if self['dl_count']==1:
+                self['data']=DATABlock(fid, self['dl_data'], numpyDataRecordFormat, numberOfRecords , dataRecordName, channelList=nameList)
+            else:
+                self['data']=numpy.vstack([DATABlock(fid, self['dl_data'][dl], numpyDataRecordFormat, numberOfRecords , dataRecordName, channelList=nameList) for dl in range(self['dl_count'])])
             
         elif self['id']=='##HL': # header list block, if DZBlock used
             # link section
@@ -151,7 +158,7 @@ class mdf4(dict):
             Q=Queue()
         L={}
         for dataGroup in info['DGBlock'].keys():
-            if not info['DGBlock'][dataGroup]['dg_data']==0: # data exist
+            if not info['DGBlock'][dataGroup]['dg_data']==0: # data exists
                 precedingNumberOfBits = 0
                 numpyDataRecordFormat = []
                 dataRecordName = []
@@ -171,7 +178,9 @@ class mdf4(dict):
                 
                 # defines data record for each channel group 
                 for channelGroup in info['CGBlock'][dataGroup].keys():
-
+                    # check if this is a VLSD ChannelGroup
+                    if info['CGBlock'][dataGroup][channelGroup]['cg_cn_first']==0 or info['CGBlock'][dataGroup][channelGroup]['cg_flags']&1:
+                        print('VLSD ChannelGroup, not really implemented yet')
                     numberOfRecords=info['CGBlock'][dataGroup][channelGroup]['cg_cycle_count']
                     channelListByte=[]
                     #dataBytes=info['CGBlock'][dataGroup][channelGroup]['cg_dataBytes']
@@ -207,7 +216,7 @@ class mdf4(dict):
                         precedingNumberOfBits = 0
                 
                 # converts channel group records into channels
-                buf = DATA(fid, pointerToData, numpyDataRecordFormat, numberOfRecords , dataRecordName, nameList=channelListByte)
+                buf = DATA(fid, pointerToData, numpyDataRecordFormat, numberOfRecords , dataRecordName, nameList=channelList)
                 
                 if self.multiProc:
                     proc.append( Process( target = processDataBlocks, args = ( Q, buf, info, numberOfRecords, dataGroup , self.multiProc) ) )
@@ -220,7 +229,34 @@ class mdf4(dict):
         if self.multiProc:
             for i in proc:
                 L.update(Q.get()) # concatenate results of processes in dict
-        return L
+
+        # After all processing of channels,
+        # prepare final class data with all its keys
+        for dataGroup in info['DGBlock'].keys():
+            for channelGroup in info['CGBlock'][dataGroup].keys():
+                for channel in info['CNBlock'][dataGroup][channelGroup].keys():
+                    channelName = info['CNBlock'][dataGroup][channelGroup][channel]['name']
+                    if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in (2, 3, 4):# master channel
+                        channelName = 'time' + str( dataGroup )
+                        if channelName in L and len( L[channelName] ) != 0:
+                            self.timeChannelList.append( channelName )
+                    if channelName in L and len( L[channelName] ) != 0:
+                        self[channelName] = {}
+                        self[channelName]['time'] = 'time' + str( dataGroup )
+                        if info['CCBlock'][dataGroup][channelGroup][channel].has_key('unit'):
+                            self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['unit']
+                        elif info['CNBlock'][dataGroup][channelGroup][channel].has_key('unit'):
+                            self[channelName]['unit'] = info['CNBlock'][dataGroup][channelGroup][channel]['unit']
+                        else:
+                            self[channelName]['unit'] = ''
+                        if info['CNBlock'][dataGroup][channelGroup][channel].has_key('Comment'):
+                            self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['Comment']
+                        else:
+                            self[channelName]['description'] = ''
+                        self[channelName]['data'] = L[channelName]
+        if not channelList==None and len(channelList)>0:
+            self.keepChannels(channelList)
+        #print( 'Finished in ' + str( time.clock() - inttime ) )
 
     @staticmethod
     def arrayformat( signalDataType, numberOfBits ):
@@ -228,7 +264,7 @@ class mdf4(dict):
         # Formats used by numpy dtype
 
         if signalDataType in (0, 1): # unsigned
-            if numberOfBits == 8:
+            if numberOfBits <= 8:
                 dataType = 'uint8'
             elif numberOfBits == 16:
                 dataType = 'uint16';
@@ -236,15 +272,11 @@ class mdf4(dict):
                 dataType = 'uint32'
             elif numberOfBits == 64:
                 dataType = 'uint64'
-            elif numberOfBits == 1:
-                dataType = 'uint8' # not directly processed
-            elif numberOfBits == 2:
-                dataType = 'uint8' # not directly processed
             else:
                 print(( 'Unsupported number of bits for unsigned int ' + str( numberOfBits) ))
 
         elif signalDataType in (2, 3): # signed int
-            if numberOfBits == 8:
+            if numberOfBits <= 8:
                 dataType = 'int8'
             elif numberOfBits == 16:
                 dataType = 'int16'
@@ -295,8 +327,8 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
     previousChannelName=info['CNBlock'][0][0][0]['name'] # initialise channelName
 
     ## Processes Bits, metadata and conversion
-    for channelGroup in info['DGBlock'][dataGroup].keys():
-        for channel in info['CGBlock'][dataGroup][channelGroup].keys():
+    for channelGroup in info['CGBlock'][dataGroup].keys():
+        for channel in info['CNBlock'][dataGroup][channelGroup].keys():
             # Type of channel data, signed, unsigned, floating or string
             signalDataType = info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type']
             # Corresponding number of bits for this format
@@ -305,10 +337,10 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
             cName = info['CNBlock'][dataGroup][channelGroup][channel]['name']
             channelName=cName
             try:
-                temp = buf.__getattribute__( str(cName)) # extract channel vector
+                temp = buf['data']['data'].__getattribute__( str(cName)) # extract channel vector
                 previousChannelName=cName
             except: # if tempChannelName not in buf -> bits in unit8
-                temp = buf.__getattribute__( str(previousChannelName) ) # extract channel vector
+                temp = buf['data']['data'].__getattribute__( str(previousChannelName) ) # extract channel vector
 
             if info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']: # assumes first channel is time
                 channelName = 'time' + str( dataGroup )
