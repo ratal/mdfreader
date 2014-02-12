@@ -260,7 +260,7 @@ class CNBlock(MDFBlock):
             self['length']=self.mdfblockread(fid, UINT64, 1)
             self['link_count']=self.mdfblockread(fid, UINT64, 1)
             # data section
-            fid.seek(pointer+self['length']-71)
+            fid.seek(pointer+self['length']-72)
             self['cn_type']=self.mdfblockread(fid, UINT8, 1)
             self['cn_sync_type']=self.mdfblockread(fid, UINT8, 1)
             self['cn_data_type']=self.mdfblockread(fid, UINT8, 1)
