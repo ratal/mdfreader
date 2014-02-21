@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Project SYSTEM "Project-5.1.dtd">
 <!-- eric5 project file for project mdfreader -->
-<!-- Saved: 2014-01-12, 15:16:40 -->
+<!-- Saved: 2014-02-17, 23:44:02 -->
 <!-- Copyright (C) 2014 Aymeric Rateau, aymeric.rateau@gmail.com -->
 <Project version="5.1">
   <Language>en</Language>
@@ -12,6 +12,7 @@
   <Version>13</Version>
   <Author>Aymeric Rateau</Author>
   <Email>aymeric.rateau@gmail.com</Email>
+  <Eol index="-1"/>
   <Sources>
     <Source>mdfreader.py</Source>
     <Source>mdfForVeuszPlugin.py</Source>
@@ -19,10 +20,10 @@
     <Source>Ui_mdfreaderui.py</Source>
     <Source>mdfconverter.py</Source>
     <Source>mdfinfo4.py</Source>
-    <Source>test/test2.py</Source>
     <Source>mdfinfo3.py</Source>
     <Source>mdf4.py</Source>
     <Source>mdf3.py</Source>
+    <Source>test/test.py</Source>
   </Sources>
   <Forms>
     <Form>mdfreaderui.ui</Form>

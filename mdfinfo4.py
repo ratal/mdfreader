@@ -6,7 +6,7 @@ Created on Sun Dec 15 12:57:28 2013
 
 """
 
-from struct import calcsize, unpack
+from struct import calcsize, unpack, unpack_from
 from sys import version_info
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
@@ -56,10 +56,17 @@ class MDFBlock(dict):
     @staticmethod
     def mdfblockread( fid, type,  count ):
         # reads value in file corresponding to format and size
-        value=fid.read(calcsize(type)*count)
+        valueSize=calcsize(type)
+        value=fid.read(valueSize*count)
         if value:
-            value=unpack( type,value)
-            value=value[0]
+            if count==1:
+                value=unpack( type,value)
+                value=value[0]
+            else:
+                vect={}
+                for i in range(count):
+                    vect[i]=unpack_from( type,value, offset=valueSize*i)
+                return vect
         else:
             value=None
         return value
@@ -123,8 +130,8 @@ class FHBlock(MDFBlock):
         self['fh_fh_next']=self.mdfblockread(fid, LINK, 1)
         self['fh_md_comment']=self.mdfblockread(fid, LINK, 1)
         self['fh_time_ns']=self.mdfblockread(fid, UINT64, 1)
-        self['fh_tz_offset_min']=self.mdfblockread(fid, UINT16, 1)
-        self['fh_dst_offset_min']=self.mdfblockread(fid, UINT16, 1)
+        self['fh_tz_offset_min']=self.mdfblockread(fid, INT16, 1)
+        self['fh_dst_offset_min']=self.mdfblockread(fid, INT16, 1)
         self['fh_time_flags']=self.mdfblockread(fid, UINT8, 1)
         self['fh_reserved']=self.mdfblockreadBYTE(fid, 3)
         if self['fh_md_comment']: # comments exist
@@ -166,7 +173,13 @@ class CommentBlock(MDFBlock):
                 self['xml']=elementTreeToDict(self['xml_tree'])
                 # specific action per comment block type, extracts specific tags from xml
                 if MDType=='CN': # channel comment
-                    pass
+                    self['names']=extractXmlField(self['xml_tree'], 'names')
+                    self['linker_name']=extractXmlField(self['xml_tree'], 'linker_name')
+                    self['linker_address']=extractXmlField(self['xml_tree'], 'linker_address')
+                    self['address']=extractXmlField(self['xml_tree'], 'address')
+                    self['axis_monotony']=extractXmlField(self['xml_tree'], 'axis_monotony')
+                    self['raster']=extractXmlField(self['xml_tree'], 'raster')
+                    self['formula']=extractXmlField(self['xml_tree'], 'formula')
                 elif MDType=='unit': # channel comment
                     self['unit']=self['xml_tree'].find('TX').text
                 elif MDType=='HD': # header comment
@@ -182,13 +195,34 @@ class CommentBlock(MDFBlock):
                     self['tool_id']=self['xml_tree'].find('tool_id').text
                     self['tool_vendor']=self['xml_tree'].find('tool_vendor').text
                     self['tool_version']=self['xml_tree'].find('tool_version').text
-                    self['user_name']=self['xml_tree'].find('user_name').text
+                    self['user_name']=extractXmlField(self['xml_tree'], 'user_name')
+                elif MDType=='SI':
+                    self['TX']=self['xml_tree'].find('TX').text
+                    self['names']=extractXmlField(self['xml_tree'], 'names')
+                    self['path']=extractXmlField(self['xml_tree'], 'path')
+                    self['bus']=extractXmlField(self['xml_tree'], 'bus')
+                    self['protocol']=extractXmlField(self['xml_tree'], 'protocol')
+                elif MDType=='CC':
+                    self['TX']=self['xml_tree'].find('TX').text
+                    self['names']=extractXmlField(self['xml_tree'], 'names')
+                    self['ho:COMPU_METHOD']=extractXmlField(self['xml_tree'], 'ho:COMPU_METHOD')
+                    self['formula']=extractXmlField(self['xml_tree'], 'formula')
+                else:
+                    print('No recognized MDType')
+
             elif self['id']=='##TX':
                 if MDType=='CN': # channel comment
                     self['name']=self.mdfblockreadBYTE(fid, self['length']-24).replace('\x00', '')
                 else:
                     self['Comment']=self.mdfblockreadBYTE(fid, self['length']-24).replace('\x00', '')
-    
+ 
+def extractXmlField(xml_tree, field):
+    tmp=xml_tree.find(field)
+    if hasattr(tmp, 'text'):
+        return tmp.text
+    else:
+        return None
+
 def elementTreeToDict(element):
     #converts xml into dictionnary
     node = dict()
@@ -297,7 +331,7 @@ class CNBlock(MDFBlock):
             else:
                 self['cn_default_x']=None
             if self['cn_md_comment']: # comments exist
-                self['Comment']=CommentBlock(fid, self['cn_md_comment'])
+                self['Comment']=CommentBlock(fid, self['cn_md_comment'], MDType='CN')
             if self['cn_md_unit']: # comments exist
                 self['unit']=CommentBlock(fid, self['cn_md_unit'], 'unit')
             if self['cn_tx_name']: # comments exist
@@ -335,7 +369,7 @@ class CCBlock(MDFBlock):
                     temp=CommentBlock(fid, self['cc_ref'][i])
                     self['cc_ref'][i]=temp['name']
             if self['cc_md_comment']: # comments exist
-                self['Comment']=CommentBlock(fid, self['cc_md_comment'])
+                self['Comment']=CommentBlock(fid, self['cc_md_comment'], MDType='CC')
             if self['cc_md_unit']: # comments exist
                 self['unit']=CommentBlock(fid, self['cc_md_unit'])
             if self['cc_tx_name']: # comments exist
@@ -527,9 +561,9 @@ class SIBlock(MDFBlock):
             self['si_flags']=self.mdfblockread(fid, UINT8, 1)
             self['si_reserved']=self.mdfblockreadBYTE(fid, 5)
             # post treatment
-            self['source_name']=self.CommentBlock(fid, self['si_tx_name'])
-            self['source_path']=self.CommentBlock(fid, self['si_tx_path'])
-            self['comment']=self.CommentBlock(fid, self['si_md_comment'])
+            self['source_name']=CommentBlock(fid, self['si_tx_name'])
+            self['source_path']=CommentBlock(fid, self['si_tx_path'])
+            self['comment']=CommentBlock(fid, self['si_md_comment'], MDType='SI')
             
 class info4(dict):
     def __init__(self, fileName=None, fid=None):
@@ -550,7 +584,7 @@ class info4(dict):
                 print('Can not find file'+self.fileName)
                 raise
             self.readinfo( fid )
-            # CLose the file
+            # Close the file
             fid.close()
         elif fileName == None and fid!=None:
             self.readinfo(fid)
