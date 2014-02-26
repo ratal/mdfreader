@@ -69,7 +69,7 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
             if conversionFormulaIdentifier == 0: # Parametric, Linear: Physical =Integer*P2 + P1
                 P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P1']
                 P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['P2']
-                L[channelName] = L[channelName] * P2 + P1
+                L[channelName] = (L[channelName] * P2 + P1) #.astype(L[channelName].dtype)
             elif conversionFormulaIdentifier == 1: # Tabular with interpolation
                 intVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['int' ]
                 physVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion'] ['phys' ]
@@ -375,7 +375,7 @@ class mdf3(dict):
             fid.write(pack( LINK, 0)) # pointer to trigger block
             pointers['DG'][dataGroup]['data']=fid.tell()
             fid.write(pack( LINK, 0)) # pointer to data block
-            fid.write(pack( UINT16, 1)) # number of channel group 1 because sorted data
+            fid.write(pack( UINT16, 1)) # number of channel group, 1 because sorted data
             
             # sorted data so only one channel group
             pointers['CG'][dataGroup]={}
@@ -392,11 +392,15 @@ class mdf3(dict):
             numChannels=len(rasters[masterChannel])
             fid.write(pack( UINT16, numChannels)) # Number of channels
             fid.write(pack( UINT16, 0)) # Size of data record
-            fid.write(pack( UINT32, len(self[self.timeChannelList[dataGroup]]['data']))) # Number of records
+            nRecords=len(self[self.timeChannelList[dataGroup]]['data'])
+            fid.write(pack( UINT32, nRecords)) # Number of records
             fid.write(pack( LINK, 0)) # pointer to sample reduction block, not used
             
             # Channel blocks writing
             pointers['CN'][dataGroup]={}
+            dataList=[]
+            datadTypeList=[]
+            dataTypeList=''
             for channel in rasters[masterChannel]:
                 pointers['CN'][dataGroup][channel]={}
                 pointers['CN'][dataGroup][channel]['beginCN']=fid.tell()
@@ -422,6 +426,9 @@ class mdf3(dict):
                 writeFormat(fid,CHAR, desc, size=127) # channel description
                 fid.write(pack( UINT16, 0)) # no offset
                 data=self[channel]['data'] # channel data
+                dataList.append(data)
+                dataTypeList=dataTypeList+data.dtype.char
+                datadTypeList.append((channel, data.dtype))
                 if data.dtype in ('float64', 'int64', 'uint64'):
                     numberOfBits=64
                 elif data.dtype in ('float32', 'int32', 'uint32'):
@@ -481,12 +488,14 @@ class mdf3(dict):
                 writeFormat(fid,CHAR, self[channel]['unit'], size=19) # channel description
                 fid.write(pack( UINT16, 65535)) # conversion already done during reading
             
-                # data writing
-                pointers['CN'][dataGroup][channel]['data']=fid.tell()
-                if not data.dtype.kind in ['S', 'U']:
-                    fid.write(pack(data.dtype.char*len(data), *data)) # dumps data vector from numpy
-                else: # string
-                    fid.write(pack('c'*len(data)*data.dtype.itemsize, *data))
+            # data writing
+            pointers['DG'][dataGroup]['beginData']=fid.tell()
+            print(dataList, len(dataList), datadTypeList)
+            records=numpy.array(zip(dataList), dtype=datadTypeList)
+            records=numpy.recarray(records.shape, records.dtype, buf=records) # concatenate vectors in records
+            print(dataTypeList, nRecords, records)
+            records=records.flatten()
+            fid.write(pack('<'+dataTypeList*nRecords, *records)) # dumps data vector from numpy
                     
         # writes pointers back
         fid.seek(pointers['HD']['DG'])

@@ -307,6 +307,7 @@ class mdf( dict ):
             ouput = output.replace( '[', '' )
             ouput = output.replace( ']', '' )
             return output
+            
         if sampling != None:
             self.resample( sampling )
         if filename == None:
