@@ -8,6 +8,7 @@ Created on Thu Dec 9 12:57:28 2014
 import numpy
 from math import log, exp
 from sys import platform
+from struct import pack
 from mdfinfo3 import info3
 channelTime={'time','TIME'} # possible channel time writing, adjust if necessary
 
@@ -292,6 +293,217 @@ class mdf3(dict):
         if not channelList==None and len(channelList)>0:
             self.keepChannels(channelList)
         #print( 'Finished in ' + str( time.clock() - inttime ) )
+    def write(self, fileName=None):
+        # write data in sorted format: 1 datagroup for 1  channel group and many channel with same sampling
+        LINK = 'I'
+        CHAR = 'c'
+        REAL = 'd'
+        BOOL = 'h'
+        #UINT8 = 'B'
+        #BYTE =  'B'
+        #INT16 = 'h'
+        UINT16 = 'H'
+        UINT32 = 'I'
+        #INT32 = 'i'
+        UINT64 = 'Q'
+        #INT64 = 'q'
+        
+        # rediscover mdf class structure
+        rasters={}
+        for master in self.timeChannelList:
+            rasters[master]=[]
+        for channel in self.keys():
+            rasters[self[channel]['time']].append(channel) # group channels by master channel = datagroup&channelgroup
+        pointers={} # records pointers of blocks when writing
+        # writes characters 
+        def writeFormat(fid, format, value, size=None):
+            if size==None:
+                temp=value
+            else:
+                if len(value)>size:
+                    temp=value[:size]
+                else:
+                    temp=value+' '*(size-len(value))
+                temp=temp+' \0'
+            fid.write(pack('<'+format*len(temp),*temp))
+            
+        # Starts first to write ID and header
+        fid=open(fileName, 'wb')
+        writeFormat(fid,CHAR, 'MDF     ')
+        writeFormat(fid,CHAR, '3.30    ')
+        writeFormat(fid,CHAR,'MDFreadr')
+        fid.write(pack( UINT16, 0)) # little endian
+        fid.write(pack(UINT16, 300))# version 3.0
+        fid.write(pack(UINT16, 28591)) # code page ISO2859-1 latin 1 western europe
+        writeFormat(fid, CHAR,'                                  ') # reserved
+        
+        # Header Block
+        writeFormat(fid,CHAR, 'HD')
+        fid.write(pack( UINT16, 208)) # block size
+        pointers['HD']={}
+        pointers['HD']['DG']=fid.tell()
+        fid.write(pack( LINK, 272)) # first Data block pointer
+        pointers['HD']['TX']=fid.tell()
+        fid.write(pack( LINK, 0)) # pointer to TX Block file comment
+        pointers['HD']['PR']=fid.tell()
+        fid.write(pack( LINK, 0)) # pointer to PR Block
+        fid.write(pack( LINK, len(self.timeChannelList ))) # number of data groups
+        writeFormat(fid,CHAR, 'AR'*16) # Author
+        writeFormat(fid,CHAR, '  '*16) # Organisation
+        writeFormat(fid,CHAR, '  '*16) # Project
+        writeFormat(fid,CHAR, '  '*16) # Subject
+        fid.write(pack( UINT64, 0)) # Time Stamp
+        fid.write(pack( UINT16, 0)) # Time quality
+        writeFormat(fid,CHAR, '  '*16) # Timer identification
+        
+        # write DG block
+        pointers['DG']={}
+        pointers['CG']={}
+        pointers['CN']={}
+        firstDG=fid.tell()
+        for dataGroup in range(len(self.timeChannelList)):
+            sampling=numpy.average(numpy.diff(self[self.timeChannelList[dataGroup]]['data']))
+            # writes dataGroup Block
+            pointers['DG'][dataGroup]={}
+            pointers['DG'][dataGroup]['currentDG']=fid.tell()
+            writeFormat(fid,CHAR, 'DG')
+            fid.write(pack( UINT16, 28)) # DG block size
+            pointers['DG'][dataGroup]['nextDG']=fid.tell()
+            fid.write(pack( LINK, 0)) # pointer to next DataGroup
+            pointers['DG'][dataGroup]['CG']=fid.tell()
+            fid.write(pack( LINK, 0)) # pointer to channel group
+            fid.write(pack( LINK, 0)) # pointer to trigger block
+            pointers['DG'][dataGroup]['data']=fid.tell()
+            fid.write(pack( LINK, 0)) # pointer to data block
+            fid.write(pack( UINT16, 1)) # number of channel group 1 because sorted data
+            
+            # sorted data so only one channel group
+            pointers['CG'][dataGroup]={}
+            pointers['CG'][dataGroup]['beginCG']=fid.tell() 
+            writeFormat(fid,CHAR, 'CG')
+            fid.write(pack( UINT16, 30)) # CG block size
+            fid.write(pack( LINK, 0)) # pointer to next Channel Group but no other
+            pointers['CG'][dataGroup]['firstCN']=fid.tell() 
+            fid.write(pack( LINK, 0)) # pointer to first channel block
+            pointers['CG'][dataGroup]['TX']=fid.tell() 
+            fid.write(pack( LINK, 0)) # pointer to TX block
+            fid.write(pack( UINT16, 0)) # No record ID no need for sorted data
+            masterChannel=self.timeChannelList[dataGroup]
+            numChannels=len(rasters[masterChannel])
+            fid.write(pack( UINT16, numChannels)) # Number of channels
+            fid.write(pack( UINT16, 0)) # Size of data record
+            fid.write(pack( UINT32, len(self[self.timeChannelList[dataGroup]]['data']))) # Number of records
+            fid.write(pack( LINK, 0)) # pointer to sample reduction block, not used
+            
+            # Channel blocks writing
+            pointers['CN'][dataGroup]={}
+            for channel in rasters[masterChannel]:
+                pointers['CN'][dataGroup][channel]={}
+                pointers['CN'][dataGroup][channel]['beginCN']=fid.tell()
+                writeFormat(fid,CHAR, 'CN')
+                fid.write(pack( UINT16, 228)) # CN block size
+                pointers['CN'][dataGroup][channel]['nextCN']=fid.tell()
+                fid.write(pack( LINK, 0)) # pointer to next channel block
+                pointers['CN'][dataGroup][channel]['CC']=fid.tell()
+                fid.write(pack( LINK, 0)) # pointer to conversion block
+                fid.write(pack( LINK, 0)) # pointer to source depending block
+                fid.write(pack( LINK, 0)) # pointer to dependency block
+                pointers['CN'][dataGroup][channel]['TX']=fid.tell()
+                fid.write(pack( LINK, 0)) # pointer to comment TX
+                # check if master channel
+                if channel not in self.timeChannelList:
+                    fid.write(pack( UINT16, 0)) # data channel
+                else:
+                    fid.write(pack( UINT16, 1)) # master channel
+                # make channel name in 32 bytes
+                writeFormat(fid,CHAR, channel, size=31) # channel name
+                # channel description
+                desc=self[channel]['description']
+                writeFormat(fid,CHAR, desc, size=127) # channel description
+                fid.write(pack( UINT16, 0)) # no offset
+                data=self[channel]['data'] # channel data
+                if data.dtype in ('float64', 'int64', 'uint64'):
+                    numberOfBits=64
+                elif data.dtype in ('float32', 'int32', 'uint32'):
+                    numberOfBits=32
+                elif data.dtype in ('uint16', 'int16'):
+                    numberOfBits=16
+                elif data.dtype in ('uint8', 'int8'):
+                    numberOfBits=8
+                else:
+                    numberOfBits=8 # if string, not considered
+                fid.write(pack( UINT16, numberOfBits)) # Number of bits
+                if data.dtype =='float64':
+                    dataType=3
+                elif data.dtype in ('uint8', 'uint16', 'uint32', 'uint64'):
+                    dataType=0
+                elif data.dtype in ('int8', 'int16', 'int32', 'int64'):
+                    dataType=1
+                elif data.dtype=='float32':
+                    dataType=2
+                elif data.dtype.kind in ['S', 'U']:
+                    dataType=7
+                else:
+                    print('Not recognised dtype')
+                    raise
+                fid.write(pack( UINT16, dataType)) # Signal data type
+                if not data.dtype.kind in ['S', 'U']:
+                    fid.write(pack( BOOL, 1)) # Value range valid
+                    fid.write(pack( REAL, min(data))) # Min value
+                    fid.write(pack( REAL, max(data))) # Max value
+                else:
+                    fid.write(pack( BOOL, 0)) # No value range valid
+                    fid.write(pack( REAL, 0)) # Min value
+                    fid.write(pack( REAL, 0)) # Max value
+                fid.write(pack( REAL, sampling)) # Sampling rate
+                pointers['CN'][dataGroup][channel]['longChannelName']=fid.tell()
+                fid.write(pack( LINK, 0)) # pointer to long channel name
+                fid.write(pack( LINK, 0)) # pointer to channel display name
+                fid.write(pack( UINT16, 0)) # No Byte offset
+                
+                # TXblock for long channel name
+                writeFormat(fid,CHAR, 'TX')
+                fid.write(pack( UINT16, len(channel)+4+1)) # TX block size
+                writeFormat(fid,CHAR, channel) # channel name that can be long
+                writeFormat(fid,CHAR, '\0') # should ends by 0 (NULL)
+                
+                # Conversion blocks writing
+                writeFormat(fid,CHAR, 'CC')
+                fid.write(pack( UINT16, 36)) # CC block size
+                if not data.dtype.kind in ['S', 'U']:
+                    fid.write(pack( BOOL, 1)) # Value range valid
+                    fid.write(pack( REAL, min(data))) # Min value
+                    fid.write(pack( REAL, max(data))) # Max value
+                else:
+                    fid.write(pack( BOOL, 0)) # No value range valid
+                    fid.write(pack( REAL, 0)) # Min value
+                    fid.write(pack( REAL, 0)) # Max value
+                writeFormat(fid,CHAR, self[channel]['unit'], size=19) # channel description
+                fid.write(pack( UINT16, 65535)) # conversion already done during reading
+            
+                # data writing
+                pointers['CN'][dataGroup][channel]['data']=fid.tell()
+                if not data.dtype.kind in ['S', 'U']:
+                    fid.write(pack(data.dtype.char*len(data), *data)) # dumps data vector from numpy
+                else: # string
+                    fid.write(pack('c'*len(data)*data.dtype.itemsize, *data))
+                    
+        # writes pointers back
+        fid.seek(pointers['HD']['DG'])
+        fid.write(pack( LINK, firstDG)) # first Data block pointer
+        for dataGroup in range(len(self.timeChannelList)-1):
+            fid.seek(pointers['DG'][dataGroup]['nextDG'])
+            fid.write(pack( LINK, pointers['DG'][dataGroup+1]['currentDG'])) # pointer to next DataGroup
+            fid.seek(pointers['DG'][dataGroup]['CG'])
+            fid.write(pack( LINK, pointers['CG'][dataGroup]['beginCG'])) # pointer to channel group
+            fid.seek(pointers['CG'][dataGroup]['firstCN'])
+            fid.write(pack( LINK, pointers['CN'][dataGroup][rasters[self.timeChannelList[dataGroup]][0]]['beginCN'])) # pointer to first channel block
+            for channel in rasters[masterChannel]:
+                pass # TBD
+            
+        print(pointers)
+        fid.close()
+        
     @staticmethod
     def datatypeformat( signalDataType, numberOfBits ):
         # DATATYPEFORMAT Data type format precision to give to fread
