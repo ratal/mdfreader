@@ -149,7 +149,7 @@ def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
         return L
         #print( 'Process ' + str( dataGroup ) + ' Finished ' + str( time.clock() - procTime ) )
 
-class mdf(dict):
+class mdf3(dict):
     """ mdf file class
     It imports mdf files version 3.0 to 3.3
     To use : yop= mdfreader.mdf('FileName.dat') """
@@ -410,6 +410,7 @@ class mdf(dict):
             dataList=[]
             datadTypeList=[]
             dataTypeList=''
+            stringFlag=False
             for channel in rasters[masterChannel]:
                 pointers['CN'][dataGroup][channel]={}
                 pointers['CN'][dataGroup][channel]['beginCN']=fid.tell()
@@ -436,8 +437,7 @@ class mdf(dict):
                 fid.write(pack( UINT16, 0)) # no offset
                 data=self[channel]['data'] # channel data
                 dataList.append(data)
-                dataTypeList=dataTypeList+data.dtype.char
-                datadTypeList.append((channel, data.dtype))
+                datadTypeList.append((channel, data.dtype.type))
                 if data.dtype in ('float64', 'int64', 'uint64'):
                     numberOfBits=64
                 elif data.dtype in ('float32', 'int32', 'uint32'):
@@ -457,11 +457,14 @@ class mdf(dict):
                     dataType=1
                 elif data.dtype=='float32':
                     dataType=2
-                elif data.dtype.kind in ['S', 'U']:
+                elif data.dtype.kind in ['S', 'U']: # string not possible to be written
                     dataType=7
+                    stringFlag=True
                 else:
                     print('Not recognised dtype')
                     raise
+                dataTypeList=dataTypeList+data.dtype.char
+                #print(channel,  data, max(data), min(data), len(data))
                 fid.write(pack( UINT16, dataType)) # Signal data type
                 if not data.dtype.kind in ['S', 'U']:
                     fid.write(pack( BOOL, 1)) # Value range valid
@@ -501,19 +504,19 @@ class mdf(dict):
             
             # data writing
             pointers['DG'][dataGroup]['beginData']=fid.tell()
-            records=numpy.hstack(dataList) # concatenate channels in one matrix
+            records=numpy.asarray(dataList).T
             records=numpy.reshape(records,(1,len(dataTypeList)*nRecords),order='C')[0] # flatten the matrix
-            print(dataTypeList,nRecords,records)
-            if nRecords>1:
+            #print(dataTypeList,records, records.shape)
+            if nRecords>1 and stringFlag==False:
                 fid.write(pack('<'+dataTypeList*nRecords, *records)) # dumps data vector from numpy
             elif nRecords==1:
                 try:
                     fid.write(pack(dataTypeList, records))
                 except:
-                    print('can not save string data')
+                    pass
             else:
-                print('No data in group')
-                raise()
+                # sting contained in data group
+                pass
                 
         # writes pointers back
         fid.seek(pointers['HD']['DG'])
