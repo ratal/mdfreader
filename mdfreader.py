@@ -176,10 +176,10 @@ class mdf( dict ):
         
         self.VersionNumber=info['IDBlock']['id_ver']
         if self.VersionNumber<400: # up to version 3.x not compatible with version 4.x
-            from mdf3 import mdf3
+            from mdf3reader import mdf3
             self.update(mdf3(self.fileName, info, multiProc, channelList))
         else: #MDF version 4.x
-            from mdf4 import mdf4
+            from mdf4reader import mdf4
             self.update(mdf4(self.fileName, info, multiProc, channelList))
 
     def plot( self, channels ):
@@ -307,7 +307,6 @@ class mdf( dict ):
             ouput = output.replace( '[', '' )
             ouput = output.replace( ']', '' )
             return output
-            
         if sampling != None:
             self.resample( sampling )
         if filename == None:
