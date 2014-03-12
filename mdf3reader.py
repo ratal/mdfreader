@@ -407,10 +407,8 @@ class mdf3(dict):
             
             # Channel blocks writing
             pointers['CN'][dataGroup]={}
-            dataList=[]
-            datadTypeList=[]
+            dataList=()
             dataTypeList=''
-            stringFlag=False
             for channel in rasters[masterChannel]:
                 pointers['CN'][dataGroup][channel]={}
                 pointers['CN'][dataGroup][channel]['beginCN']=fid.tell()
@@ -436,8 +434,8 @@ class mdf3(dict):
                 writeChar(fid, desc, size=127) # channel description
                 fid.write(pack( UINT16, 0)) # no offset
                 data=self[channel]['data'] # channel data
-                dataList.append(data)
-                datadTypeList.append((channel, data.dtype.type))
+                dataList=dataList+(data, )
+                #datadTypeList.append((channel, data.dtype.type))
                 if data.dtype in ('float64', 'int64', 'uint64'):
                     numberOfBits=64
                 elif data.dtype in ('float32', 'int32', 'uint32'):
@@ -457,13 +455,15 @@ class mdf3(dict):
                     dataType=1
                 elif data.dtype=='float32':
                     dataType=2
-                elif data.dtype.kind in ['S', 'U']: # string not possible to be written
+                elif data.dtype.kind in ['S', 'U']: 
                     dataType=7
-                    stringFlag=True
                 else:
                     print('Not recognised dtype')
                     raise
-                dataTypeList=dataTypeList+data.dtype.char
+                if not data.dtype.kind in ['S', 'U']: 
+                    dataTypeList=dataTypeList+data.dtype.char
+                else:
+                    dataTypeList=dataTypeList+'s'
                 #print(channel,  data, max(data), min(data), len(data))
                 fid.write(pack( UINT16, dataType)) # Signal data type
                 if not data.dtype.kind in ['S', 'U']:
@@ -504,19 +504,9 @@ class mdf3(dict):
             
             # data writing
             pointers['DG'][dataGroup]['beginData']=fid.tell()
-            records=numpy.asarray(dataList).T
+            records=numpy.array(dataList, object).T
             records=numpy.reshape(records,(1,len(dataTypeList)*nRecords),order='C')[0] # flatten the matrix
-            #print(dataTypeList,records, records.shape)
-            if nRecords>1 and stringFlag==False:
-                fid.write(pack('<'+dataTypeList*nRecords, *records)) # dumps data vector from numpy
-            elif nRecords==1:
-                try:
-                    fid.write(pack(dataTypeList, records))
-                except:
-                    pass
-            else:
-                # sting contained in data group
-                pass
+            fid.write(pack('<'+dataTypeList*nRecords, *records)) # dumps data vector from numpy
                 
         # writes pointers back
         fid.seek(pointers['HD']['DG'])
