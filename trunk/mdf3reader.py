@@ -339,7 +339,7 @@ class mdf3(dict):
                 if len(value) > size:
                     temp = value[:size]
                 else:
-                    temp = value+' '*(size-len(value))
+                    temp = value+' '*(size-len(value)-1)
                 temp = temp+' \0'
             fid.write(pack('<'+CHAR*len(temp),*temp))
 
@@ -418,6 +418,8 @@ class mdf3(dict):
             pointers['DG'][dataGroup]['data'] = fid.tell()
             fid.write(pack(LINK, 0))  # pointer to data block
             fid.write(pack(UINT16, 1))  # number of channel group, 1 because sorted data
+            fid.write(pack(UINT16, 0))  # number of record IDs
+            writeChar(fid, '\0'*32)  # reserved
             
             # sorted data so only one channel group
             pointers['CG'][dataGroup] = {}
@@ -446,17 +448,17 @@ class mdf3(dict):
             dataList = ()
             dataTypeList = ''
             recordNumberOfBits = 0
-            preceedingChannel=None
+            preceedingChannel = None
+            writePointer(fid,pointers['CG'][dataGroup]['firstCN'], fid.tell())  # first channel bock pointer from CG
             for channel in rasters[masterChannel]:
                 pointers['CN'][dataGroup][channel] = {}
                 pointers['CN'][dataGroup][channel]['beginCN'] = fid.tell()
-                writePointer(fid,pointers['CG'][dataGroup]['firstCN'], pointers['CN'][dataGroup][channel]['beginCN'])  # first channel bock pointer from CG
                 writeChar(fid, 'CN')
                 fid.write(pack(UINT16, 228))  # CN block size
                 pointers['CN'][dataGroup][channel]['nextCN'] = fid.tell()
                 if preceedingChannel is not None:  # not possible for first CN
                     writePointer(fid,pointers['CN'][dataGroup][preceedingChannel]['nextCN'], pointers['CN'][dataGroup][channel]['beginCN'])  # pointer in previous cN
-                preceedingChannel=channel
+                preceedingChannel = channel
                 fid.write(pack(LINK, 0))  # pointer to next channel block, 0 as not yet known
                 pointers['CN'][dataGroup][channel]['CC'] = fid.tell()
                 fid.write(pack(LINK, 0))  # pointer to conversion block
@@ -533,7 +535,7 @@ class mdf3(dict):
                 pointers['CN'][dataGroup][channel]['beginCC'] = fid.tell()
                 writePointer(fid,pointers['CN'][dataGroup][channel]['CC'], pointers['CN'][dataGroup][channel]['beginCC'])
                 writeChar(fid, 'CC')
-                fid.write(pack(UINT16, 36))  # CC block size
+                fid.write(pack(UINT16, 46))  # CC block size
                 if not data.dtype.kind in ['S', 'U']:
                     fid.write(pack(BOOL, 1))  # Value range valid
                     fid.write(pack(REAL, min(data)))  # Min value
@@ -544,13 +546,13 @@ class mdf3(dict):
                     fid.write(pack(REAL, 0))  # Max value
                 writeChar(fid, self[channel]['unit'], size=19)  # channel description
                 fid.write(pack(UINT16, 65535))  # conversion already done during reading
-                # fid.write(pack(UINT16, 0)) # additional size information, not necessary for 65535 conversion type ?
+                fid.write(pack(UINT16, 0)) # additional size information, not necessary for 65535 conversion type ?
             
-            writePointer(fid,pointers['CG'][dataGroup]['dataRecordSize'], recordNumberOfBits/8)  # number fo channels in CG
+            writePointer(fid,pointers['CG'][dataGroup]['dataRecordSize'], recordNumberOfBits/8)  # number of channels in CG
             
             # data writing
             pointers['DG'][dataGroup]['beginData'] = fid.tell()
-            writePointer(fid,pointers['DG'][dataGroup]['data'],pointers['DG'][dataGroup]['beginData'])  # write data pointer in datagroup
+            writePointer(fid,pointers['DG'][dataGroup]['data'], pointers['DG'][dataGroup]['beginData'])  # write data pointer in datagroup
             records=numpy.array(dataList, object).T
             records=numpy.reshape(records,(1,len(dataTypeList)*nRecords),order='C')[0]  # flatten the matrix
             fid.write(pack('<'+dataTypeList*nRecords, *records))  # dumps data vector from numpy
