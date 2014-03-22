@@ -161,6 +161,10 @@ class mdf3(dict):
     def __init__( self, fileName=None, info=None,multiProc=False,  channelList=None):
         self.timeChannelList = []
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
+        self.author=None
+        self.organisation=None
+        self.project=None
+        self.subject=None
         # clears class from previous reading and avoid to mess up
         self.clear()
         if fileName is None and info is not None:
@@ -186,10 +190,16 @@ class mdf3(dict):
         else:
             self.fileName = fileName
             
-        #inttime = time.clock()
+        # inttime = time.clock()
         ## Read information block from file
         if info is None:
             info = info3(self.fileName,  None)
+            
+        # reads metadata
+        self.author=info['HDBlock']['Author']
+        self.organisation=info['HDBlock']['Organization']
+        self.project=info['HDBlock']['ProjectName']
+        self.subject=info['HDBlock']['Subject']
 
         try:
             fid = open(self.fileName, 'rb')
@@ -364,14 +374,26 @@ class mdf3(dict):
         fid.write(pack(UINT16, len(self.timeChannelList)))  # number of data groups
         writeChar(fid, time.strftime("%d:%m:%Y"))  # date
         writeChar(fid, time.strftime("%H:%M:%S"))  # time
-        writeChar(fid, 'AR'*16)  # Author
-        writeChar(fid, '  '*16)  # Organisation
-        writeChar(fid, '  '*16)  # Project
-        writeChar(fid, '  '*16)  # Subject
+        if self.author is not None:
+            writeChar(fid, self.author,  size=31)  # Author
+        else:
+            writeChar(fid, ' ',  size=31)  # Author
+        if self.organisation is not None:
+            writeChar(fid, self.organisation,  size=31)  # Organisation
+        else:
+            writeChar(fid, ' ',  size=31)  
+        if self.project is not None:
+            writeChar(fid, self.project,  size=31)  # Project
+        else:
+            writeChar(fid, ' ',  size=31)  
+        if self.subject is not None:
+            writeChar(fid, self.subject,  size=31)  # Subject
+        else:
+            writeChar(fid, ' ',  size=31)  
         fid.write(pack(UINT64, int(time.time()*1000000000)))  # Time Stamp
         fid.write(pack(INT16, 1))  # UTC time offset
         fid.write(pack(UINT16, 0))  # Time quality
-        writeChar(fid, '  '*16)  # Timer identification
+        writeChar(fid, 'Local PC Reference Time         ')  # Timer identification
         
         # write DG block
         pointers['DG'] = {}
@@ -379,12 +401,11 @@ class mdf3(dict):
         pointers['CN'] = {}
         ndataGroup = len(self.timeChannelList)
         for dataGroup in range(ndataGroup):
-            sampling = numpy.average(numpy.diff(self[self.timeChannelList[dataGroup]]['data']))
             # writes dataGroup Block
             pointers['DG'][dataGroup] = {}
             pointers['DG'][dataGroup]['currentDG'] = fid.tell()
             if 0<dataGroup: # not possible for first DG
-                writePointer(fid, pointers['DG'][dataGroup-1]['currentDG'], pointers['DG'][dataGroup]['currentDG'])  # previous datagroup pointer to this new datagroup
+                writePointer(fid, pointers['DG'][dataGroup-1]['nextDG'], pointers['DG'][dataGroup]['currentDG'])  # previous datagroup pointer to this new datagroup
             else:
                 writePointer(fid, pointers['HD']['DG'], pointers['DG'][dataGroup]['currentDG'])  # first datagroup pointer in header block
             writeChar(fid, 'DG')
@@ -401,7 +422,7 @@ class mdf3(dict):
             # sorted data so only one channel group
             pointers['CG'][dataGroup] = {}
             pointers['CG'][dataGroup]['beginCG'] = fid.tell()
-            writePointer(fid,pointers['DG'][dataGroup]['CG'],pointers['CG'][dataGroup]['beginCG'])  # write CG pointer in datagroup
+            writePointer(fid,pointers['DG'][dataGroup]['CG'],pointers['CG'][dataGroup]['beginCG'])  # write first CG pointer in datagroup
             writeChar(fid, 'CG')
             fid.write(pack(UINT16, 30))  # CG block size
             fid.write(pack(LINK, 0))  # pointer to next Channel Group but no other, one CG per DG
@@ -418,23 +439,24 @@ class mdf3(dict):
             nRecords = len(self[self.timeChannelList[dataGroup]]['data'])
             fid.write(pack(UINT32, nRecords))  # Number of records
             fid.write(pack(LINK, 0))  # pointer to sample reduction block, not used
+            sampling = numpy.average(numpy.diff(self[self.timeChannelList[dataGroup]]['data']))            
             
             # Channel blocks writing
             pointers['CN'][dataGroup] = {}
             dataList = ()
             dataTypeList = ''
-            nChannel = 0
             recordNumberOfBits = 0
+            preceedingChannel=None
             for channel in rasters[masterChannel]:
                 pointers['CN'][dataGroup][channel] = {}
                 pointers['CN'][dataGroup][channel]['beginCN'] = fid.tell()
                 writePointer(fid,pointers['CG'][dataGroup]['firstCN'], pointers['CN'][dataGroup][channel]['beginCN'])  # first channel bock pointer from CG
                 writeChar(fid, 'CN')
-                fid.write(pack( UINT16, 228))  # CN block size
+                fid.write(pack(UINT16, 228))  # CN block size
                 pointers['CN'][dataGroup][channel]['nextCN'] = fid.tell()
-                if nChannel > 0:  # not possible for first CN
-                    writePointer(fid,pointers['CN'][dataGroup][channel]['beginCN'], pointers['CN'][dataGroup][channel]['nextCN'])  # pointer in previous cN
-                    nChannel += 1
+                if preceedingChannel is not None:  # not possible for first CN
+                    writePointer(fid,pointers['CN'][dataGroup][preceedingChannel]['nextCN'], pointers['CN'][dataGroup][channel]['beginCN'])  # pointer in previous cN
+                preceedingChannel=channel
                 fid.write(pack(LINK, 0))  # pointer to next channel block, 0 as not yet known
                 pointers['CN'][dataGroup][channel]['CC'] = fid.tell()
                 fid.write(pack(LINK, 0))  # pointer to conversion block
@@ -449,15 +471,13 @@ class mdf3(dict):
                     fid.write(pack(UINT16, 1))  # master channel
                 # make channel name in 32 bytes
                 writeChar(fid,channel, size=31)  # channel name
-                writeChar(fid, '\0')  # should ends by 0 (NULL)
                 # channel description
                 desc = self[channel]['description']
                 writeChar(fid, desc, size=127)  # channel description
-                writeChar(fid, '\0')  # should ends by 0 (NULL)
                 fid.write(pack(UINT16, 0))  # no offset
                 data = self[channel]['data']  # channel data
                 dataList = dataList+(data, )
-                #datadTypeList.append((channel, data.dtype.type))
+
                 if data.dtype in ('float64', 'int64', 'uint64'):
                     numberOfBits = 64
                 elif data.dtype in ('float32', 'int32', 'uint32'):
@@ -481,13 +501,12 @@ class mdf3(dict):
                 elif data.dtype.kind in ['S', 'U']: 
                     dataType=7
                 else:
-                    print('Not recognised dtype')
+                    print('Not recognized dtype')
                     raise
                 if not data.dtype.kind in ['S', 'U']: 
                     dataTypeList = dataTypeList+data.dtype.char
                 else:
                     dataTypeList = dataTypeList + 's'
-                #print(channel,  data, max(data), min(data), len(data))
                 fid.write(pack(UINT16, dataType))  # Signal data type
                 if not data.dtype.kind in ['S', 'U']:
                     fid.write(pack(BOOL, 1))  # Value range valid
@@ -508,8 +527,7 @@ class mdf3(dict):
                 writePointer(fid,pointers['CN'][dataGroup][channel]['longChannelName'], pointers['CN'][dataGroup][channel]['beginlongChannelName'])
                 writeChar(fid, 'TX')
                 fid.write(pack(UINT16, len(channel)+4+1))  # TX block size
-                writeChar(fid, channel)  # channel name that can be long
-                writeChar(fid, '\0')  # should ends by 0 (NULL)
+                writeChar(fid, channel+'\0')  # channel name that can be long, should ends by 0 (NULL)
                 
                 # Conversion blocks writing
                 pointers['CN'][dataGroup][channel]['beginCC'] = fid.tell()
@@ -526,16 +544,18 @@ class mdf3(dict):
                     fid.write(pack(REAL, 0))  # Max value
                 writeChar(fid, self[channel]['unit'], size=19)  # channel description
                 fid.write(pack(UINT16, 65535))  # conversion already done during reading
+                # fid.write(pack(UINT16, 0)) # additional size information, not necessary for 65535 conversion type ?
             
-            writePointer(fid,pointers['CG'][dataGroup]['dataRecordSize'], recordNumberOfBits/8)
+            writePointer(fid,pointers['CG'][dataGroup]['dataRecordSize'], recordNumberOfBits/8)  # number fo channels in CG
+            
             # data writing
-            pointers['DG'][dataGroup]['beginData']=fid.tell()
+            pointers['DG'][dataGroup]['beginData'] = fid.tell()
             writePointer(fid,pointers['DG'][dataGroup]['data'],pointers['DG'][dataGroup]['beginData'])  # write data pointer in datagroup
             records=numpy.array(dataList, object).T
             records=numpy.reshape(records,(1,len(dataTypeList)*nRecords),order='C')[0]  # flatten the matrix
             fid.write(pack('<'+dataTypeList*nRecords, *records))  # dumps data vector from numpy
                 
-        print(pointers)
+        #print(pointers)
         fid.close()
         
     @staticmethod

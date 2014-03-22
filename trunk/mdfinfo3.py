@@ -451,7 +451,7 @@ class info3(dict):
                     ( CHAR, 32, 'Author' ),
                     ( CHAR, 32, 'Organization' ),
                     ( CHAR, 32, 'ProjectName' ),
-                    ( CHAR, 32, 'Vehicle' ) )
+                    ( CHAR, 32, 'Subject' ) )
             else:
                 formats = (
                     ( CHAR , 2, 'BlockType' ),
@@ -465,7 +465,7 @@ class info3(dict):
                     ( CHAR, 32, 'Author' ),
                     ( CHAR, 32, 'Organization' ),
                     ( CHAR, 32, 'ProjectName' ),
-                    ( CHAR, 32, 'Vehicle' ),
+                    ( CHAR, 32, 'Subject' ),
                     ( UINT64, 1, 'TimeStamp' ),
                     ( INT16, 1, 'UTCTimeOffset' ),
                     ( UINT16, 1, 'TimeQualityClass' ),
