@@ -332,7 +332,7 @@ class mdf3(dict):
         pointers = {}  # records pointers of blocks when writing
         
         # writes characters 
-        def writeChar(fid, value, size=None):
+        def writeChar(f, value, size=None):
             if size is None:
                 temp = value
             else:
@@ -340,19 +340,19 @@ class mdf3(dict):
                     temp = value[:size]
                 else:
                     temp = value+' '*(size-len(value)-1)
-                temp = temp+' \0'
-            fid.write(pack('<'+CHAR*len(temp),*temp))
+                temp += ' \0'
+            f.write(pack('<'+CHAR*len(temp), *temp))
 
         # write pointer of block and come back to current stream position
-        def writePointer(fid, pointer, value):
-            currentPosition = fid.tell()
-            fid.seek(pointer)
-            fid.write(pack(LINK, value))
-            fid.seek(currentPosition)
+        def writePointer(f, pointer, value):
+            currentPosition = f.tell()
+            f.seek(pointer)
+            f.write(pack(LINK, value))
+            f.seek(currentPosition)
         
         # Starts first to write ID and header
         fid = open(fileName, 'wb')  # buffering should automatically be set
-        writeChar(fid,'MDF     ')
+        writeChar(fid, 'MDF     ')
         writeChar(fid, '3.30    ')
         writeChar(fid, 'MDFreadr')
         fid.write(pack(UINT16, 0))  # little endian
@@ -403,15 +403,17 @@ class mdf3(dict):
         for dataGroup in range(ndataGroup):
             # writes dataGroup Block
             pointers['DG'][dataGroup] = {}
-            pointers['DG'][dataGroup]['currentDG'] = fid.tell()
-            if 0<dataGroup: # not possible for first DG
-                writePointer(fid, pointers['DG'][dataGroup-1]['nextDG'], pointers['DG'][dataGroup]['currentDG'])  # previous datagroup pointer to this new datagroup
+            if 0 < dataGroup:  # not possible for first DG
+                # previous datagroup pointer to this new datagroup
+                writePointer(fid, pointers['DG'][dataGroup-1]['nextDG'], fid.tell())
             else:
-                writePointer(fid, pointers['HD']['DG'], pointers['DG'][dataGroup]['currentDG'])  # first datagroup pointer in header block
+                # first datagroup pointer in header block
+                writePointer(fid, pointers['HD']['DG'], fid.tell())
             writeChar(fid, 'DG')
             fid.write(pack(UINT16, 28))  # DG block size
             pointers['DG'][dataGroup]['nextDG'] = fid.tell()
-            fid.write(pack(LINK, 0))  # pointer to next DataGroup, 0 by default until it is known when creating new datagroup
+            # pointer to next DataGroup, 0 by default until it is known when creating new datagroup
+            fid.write(pack(LINK, 0))
             pointers['DG'][dataGroup]['CG'] = fid.tell()
             fid.write(pack(LINK, 0))  # pointer to channel group, 0 until CG created
             fid.write(pack(LINK, 0))  # pointer to trigger block, not used
@@ -423,8 +425,8 @@ class mdf3(dict):
             
             # sorted data so only one channel group
             pointers['CG'][dataGroup] = {}
-            pointers['CG'][dataGroup]['beginCG'] = fid.tell()
-            writePointer(fid,pointers['DG'][dataGroup]['CG'],pointers['CG'][dataGroup]['beginCG'])  # write first CG pointer in datagroup
+            # write first CG pointer in datagroup
+            writePointer(fid, pointers['DG'][dataGroup]['CG'], fid.tell())
             writeChar(fid, 'CG')
             fid.write(pack(UINT16, 30))  # CG block size
             fid.write(pack(LINK, 0))  # pointer to next Channel Group but no other, one CG per DG
@@ -449,7 +451,7 @@ class mdf3(dict):
             dataTypeList = ''
             recordNumberOfBits = 0
             preceedingChannel = None
-            writePointer(fid,pointers['CG'][dataGroup]['firstCN'], fid.tell())  # first channel bock pointer from CG
+            writePointer(fid, pointers['CG'][dataGroup]['firstCN'], fid.tell())  # first channel bock pointer from CG
             for channel in rasters[masterChannel]:
                 pointers['CN'][dataGroup][channel] = {}
                 pointers['CN'][dataGroup][channel]['beginCN'] = fid.tell()
@@ -457,7 +459,7 @@ class mdf3(dict):
                 fid.write(pack(UINT16, 228))  # CN block size
                 pointers['CN'][dataGroup][channel]['nextCN'] = fid.tell()
                 if preceedingChannel is not None:  # not possible for first CN
-                    writePointer(fid,pointers['CN'][dataGroup][preceedingChannel]['nextCN'], pointers['CN'][dataGroup][channel]['beginCN'])  # pointer in previous cN
+                    writePointer(fid, pointers['CN'][dataGroup][preceedingChannel]['nextCN'], pointers['CN'][dataGroup][channel]['beginCN'])  # pointer in previous cN
                 preceedingChannel = channel
                 fid.write(pack(LINK, 0))  # pointer to next channel block, 0 as not yet known
                 pointers['CN'][dataGroup][channel]['CC'] = fid.tell()
@@ -472,7 +474,7 @@ class mdf3(dict):
                 else:
                     fid.write(pack(UINT16, 1))  # master channel
                 # make channel name in 32 bytes
-                writeChar(fid,channel, size=31)  # channel name
+                writeChar(fid, channel, size=31)  # channel name
                 # channel description
                 desc = self[channel]['description']
                 writeChar(fid, desc, size=127)  # channel description
@@ -490,25 +492,25 @@ class mdf3(dict):
                     numberOfBits = 8
                 else:
                     numberOfBits = 8  # if string, not considered
-                recordNumberOfBits+=numberOfBits
-                fid.write(pack( UINT16, numberOfBits)) # Number of bits
-                if data.dtype =='float64':
-                    dataType=3
+                recordNumberOfBits += numberOfBits
+                fid.write(pack(UINT16, numberOfBits))  # Number of bits
+                if data.dtype == 'float64':
+                    dataType = 3
                 elif data.dtype in ('uint8', 'uint16', 'uint32', 'uint64'):
-                    dataType=0
+                    dataType = 0
                 elif data.dtype in ('int8', 'int16', 'int32', 'int64'):
-                    dataType=1
-                elif data.dtype=='float32':
-                    dataType=2
+                    dataType = 1
+                elif data.dtype == 'float32':
+                    dataType = 2
                 elif data.dtype.kind in ['S', 'U']: 
-                    dataType=7
+                    dataType = 7
                 else:
                     print('Not recognized dtype')
                     raise
                 if not data.dtype.kind in ['S', 'U']: 
-                    dataTypeList = dataTypeList+data.dtype.char
+                    dataTypeList += data.dtype.char
                 else:
-                    dataTypeList = dataTypeList + 's'
+                    dataTypeList += 's'
                 fid.write(pack(UINT16, dataType))  # Signal data type
                 if not data.dtype.kind in ['S', 'U']:
                     fid.write(pack(BOOL, 1))  # Value range valid
@@ -518,22 +520,20 @@ class mdf3(dict):
                     fid.write(pack(BOOL, 0))  # No value range valid
                     fid.write(pack(REAL, 0))  # Min value
                     fid.write(pack(REAL, 0))  # Max value
-                fid.write(pack( REAL, sampling))  # Sampling rate
+                fid.write(pack(REAL, sampling))  # Sampling rate
                 pointers['CN'][dataGroup][channel]['longChannelName'] = fid.tell()
                 fid.write(pack(LINK, 0))  # pointer to long channel name
                 fid.write(pack(LINK, 0))  # pointer to channel display name
                 fid.write(pack(UINT16, 0))  # No Byte offset
                 
                 # TXblock for long channel name
-                pointers['CN'][dataGroup][channel]['beginlongChannelName'] = fid.tell()
-                writePointer(fid,pointers['CN'][dataGroup][channel]['longChannelName'], pointers['CN'][dataGroup][channel]['beginlongChannelName'])
+                writePointer(fid,pointers['CN'][dataGroup][channel]['longChannelName'],fid.tell())
                 writeChar(fid, 'TX')
                 fid.write(pack(UINT16, len(channel)+4+1))  # TX block size
                 writeChar(fid, channel+'\0')  # channel name that can be long, should ends by 0 (NULL)
                 
                 # Conversion blocks writing
-                pointers['CN'][dataGroup][channel]['beginCC'] = fid.tell()
-                writePointer(fid,pointers['CN'][dataGroup][channel]['CC'], pointers['CN'][dataGroup][channel]['beginCC'])
+                writePointer(fid, pointers['CN'][dataGroup][channel]['CC'], fid.tell())
                 writeChar(fid, 'CC')
                 fid.write(pack(UINT16, 46))  # CC block size
                 if not data.dtype.kind in ['S', 'U']:
@@ -546,15 +546,15 @@ class mdf3(dict):
                     fid.write(pack(REAL, 0))  # Max value
                 writeChar(fid, self[channel]['unit'], size=19)  # channel description
                 fid.write(pack(UINT16, 65535))  # conversion already done during reading
-                fid.write(pack(UINT16, 0)) # additional size information, not necessary for 65535 conversion type ?
-            
-            writePointer(fid,pointers['CG'][dataGroup]['dataRecordSize'], recordNumberOfBits/8)  # number of channels in CG
+                fid.write(pack(UINT16, 0))  # additional size information, not necessary for 65535 conversion type ?
+            # number of channels in CG
+            writePointer(fid, pointers['CG'][dataGroup]['dataRecordSize'], recordNumberOfBits/8)
             
             # data writing
-            pointers['DG'][dataGroup]['beginData'] = fid.tell()
-            writePointer(fid,pointers['DG'][dataGroup]['data'], pointers['DG'][dataGroup]['beginData'])  # write data pointer in datagroup
-            records=numpy.array(dataList, object).T
-            records=numpy.reshape(records,(1,len(dataTypeList)*nRecords),order='C')[0]  # flatten the matrix
+            # write data pointer in datagroup
+            writePointer(fid,pointers['DG'][dataGroup]['data'], fid.tell())
+            records = numpy.array(dataList, object).T
+            records = numpy.reshape(records, (1, len(dataTypeList)*nRecords), order='C')[0]  # flatten the matrix
             fid.write(pack('<'+dataTypeList*nRecords, *records))  # dumps data vector from numpy
                 
         #print(pointers)
@@ -616,7 +616,7 @@ class mdf3(dict):
             if numberOfBits == 8:
                 dataType = 'uint8'
             elif numberOfBits == 16:
-                dataType = 'uint16';
+                dataType = 'uint16'
             elif numberOfBits == 32:
                 dataType = 'uint32'
             elif numberOfBits == 1:
@@ -624,7 +624,7 @@ class mdf3(dict):
             elif numberOfBits == 2:
                 dataType = 'uint8'  # not directly processed
             else:
-                print(('Unsupported number of bits for unsigned int ' + str( signalDataType)))
+                print(('Unsupported number of bits for unsigned int ' + str(signalDataType)))
 
         elif signalDataType == 1:  # signed int
             if numberOfBits == 8:
@@ -634,7 +634,7 @@ class mdf3(dict):
             elif numberOfBits == 32:
                 dataType = 'int32'
             else:
-                print(('Unsupported number of bits for signed int ' + str( signalDataType)))
+                print(('Unsupported number of bits for signed int ' + str(signalDataType)))
 
         elif signalDataType in (2, 3):  # floating point
             if numberOfBits == 32:
@@ -642,11 +642,11 @@ class mdf3(dict):
             elif numberOfBits == 64:
                 dataType = 'float64'
             else:
-                print(('Unsupported number of bit for floating point ' + str( signalDataType)))
+                print(('Unsupported number of bit for floating point ' + str(signalDataType)))
 
         elif signalDataType == 7:  # string
             dataType = 'str'  # not directly processed
-        elif signalDataType == 8: # array of bytes
+        elif signalDataType == 8:  # array of bytes
             dataType = 'buffer'  # not directly processed
         else:
             print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
