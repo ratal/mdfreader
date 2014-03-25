@@ -527,7 +527,7 @@ class mdf3(dict):
                 fid.write(pack(UINT16, 0))  # No Byte offset
                 
                 # TXblock for long channel name
-                writePointer(fid,pointers['CN'][dataGroup][channel]['longChannelName'],fid.tell())
+                writePointer(fid, pointers['CN'][dataGroup][channel]['longChannelName'], fid.tell())
                 writeChar(fid, 'TX')
                 fid.write(pack(UINT16, len(channel)+4+1))  # TX block size
                 writeChar(fid, channel+'\0')  # channel name that can be long, should ends by 0 (NULL)
@@ -548,11 +548,14 @@ class mdf3(dict):
                 fid.write(pack(UINT16, 65535))  # conversion already done during reading
                 fid.write(pack(UINT16, 0))  # additional size information, not necessary for 65535 conversion type ?
             # number of channels in CG
-            writePointer(fid, pointers['CG'][dataGroup]['dataRecordSize'], recordNumberOfBits/8)
+            currentPosition = fid.tell()
+            fid.seek(pointers['CG'][dataGroup]['dataRecordSize'])
+            fid.write(pack(UINT16, recordNumberOfBits/8))  # Size of data record
+            fid.seek(currentPosition)
             
             # data writing
             # write data pointer in datagroup
-            writePointer(fid,pointers['DG'][dataGroup]['data'], fid.tell())
+            writePointer(fid, pointers['DG'][dataGroup]['data'], fid.tell())
             records = numpy.array(dataList, object).T
             records = numpy.reshape(records, (1, len(dataTypeList)*nRecords), order='C')[0]  # flatten the matrix
             fid.write(pack('<'+dataTypeList*nRecords, *records))  # dumps data vector from numpy
