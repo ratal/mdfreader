@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-""" Measured Data Format blocks paser for version 4.x
+""" Measured Data Format blocks parser for version 4.x
 Created on Thu Dec 9 12:57:28 2014
 
 :Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
@@ -339,8 +339,8 @@ class mdf3(dict):
                 if len(value) > size:
                     temp = value[:size]
                 else:
-                    temp = value+' '*(size-len(value)-1)
-                temp += ' \0'
+                    temp = value+' '*(size-len(value))
+                temp += '\0'
             f.write(pack('<'+CHAR*len(temp), *temp))
 
         # write pointer of block and come back to current stream position
