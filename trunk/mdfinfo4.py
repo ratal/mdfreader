@@ -741,7 +741,7 @@ class info4(dict):
                 at+=1
             return atBlocks
     
-    def listChannels( self, fileName = None ):
+    def listChannels4( self, fileName = None ):
         # Read MDF file and extract its complete structure
         if not fileName == None:
             self.fileName = fileName

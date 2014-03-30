@@ -132,12 +132,12 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                 buffer=self.mdfClass.copy() # create/copy empty class in buffer
                 res=result.pop(0) # extract first file data from processed list
                 self.mdfClass.update(res[0]) # initialize mdfclass wih first file data
-                self.mdfClass.timeChannelList=res[1] # initialize timechannellist
+                self.mdfClass.masterChannelList=res[1] # initialize masterChannelList
                 fileNameList.append(res[2]) # record merged file in list
                 for res in result: # Merge
                     buffer.__init__() # clean buffer class
                     buffer.update(res[0]) # assigns next class to buffer
-                    buffer.timeChannelList=res[1] 
+                    buffer.masterChannelList=res[1] 
                     fileNameList.append(res[2]) 
                     self.mdfClass.mergeMdf(buffer) # merge buffer to merged class mdfClass
                 # Export
@@ -305,7 +305,7 @@ def processMDF(fileName,channelist,resampleFlag,resampleValue,convertFlag,conver
     yopPicklable={} # picklable dict and not object
     for channel in list(yop.keys()):
         yopPicklable[channel]=yop[channel]
-    return [yopPicklable,yop.timeChannelList, yop.fileName]
+    return [yopPicklable,yop.masterChannelList, yop.fileName]
 
 def processMDFstar(args):
     try:

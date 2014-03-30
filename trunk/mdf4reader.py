@@ -114,7 +114,7 @@ class mdf4(dict):
     To use : yop= mdfreader.mdf('FileName.mf4')"""
     
     def __init__( self, fileName = None, info=None,multiProc = False,  channelList=None):
-        self.timeChannelList = []
+        self.masterChannelList = []
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         # clears class from previous reading and avoid to mess up
         self.clear()
@@ -125,7 +125,7 @@ class mdf4(dict):
         self.read(self.fileName, info, multiProc, channelList)
 
     ## reads mdf file
-    def read( self, fileName=None, info = None, multiProc = False, channelList=None):
+    def read4( self, fileName=None, info = None, multiProc = False, channelList=None):
         # read mdf file
         self.multiProc = multiProc
         if platform=='win32':
@@ -199,7 +199,7 @@ class mdf4(dict):
                         if numberOfBits < 8: # adding bit format, ubit1 or ubit2
                             if precedingNumberOfBits == 8: # 8 bit make a byte
                                 dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                                numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat( signalDataType, numberOfBits ) ) )
+                                numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat4( signalDataType, numberOfBits ) ) )
                                 precedingNumberOfBits = 0
                             else:
                                 precedingNumberOfBits += numberOfBits # counts successive bits
@@ -208,21 +208,21 @@ class mdf4(dict):
                             if precedingNumberOfBits != 0: # There was bits in previous channel
                                 precedingNumberOfBits = 0
                             dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                            numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat( signalDataType, numberOfBits ) ) )
+                            numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat4( signalDataType, numberOfBits ) ) )
 
                     if numberOfBits < 8: # last channel in record is bit inside byte unit8
                         dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                        numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat( signalDataType, numberOfBits ) ) )
+                        numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat4( signalDataType, numberOfBits ) ) )
                         precedingNumberOfBits = 0
                 
                 # converts channel group records into channels
                 buf = DATA(fid, pointerToData, numpyDataRecordFormat, numberOfRecords , dataRecordName, nameList=channelList)
                 
                 if self.multiProc:
-                    proc.append( Process( target = processDataBlocks, args = ( Q, buf, info, numberOfRecords, dataGroup , self.multiProc) ) )
+                    proc.append( Process( target = processDataBlocks4, args = ( Q, buf, info, numberOfRecords, dataGroup , self.multiProc) ) )
                     proc[-1].start()
                 else: # for debugging purpose, can switch off multiprocessing
-                    L.update(processDataBlocks( None, buf, info, numberOfRecords, dataGroup,  self.multiProc))
+                    L.update(processDataBlocks4( None, buf, info, numberOfRecords, dataGroup,  self.multiProc))
 
         fid.close() # close file
 
@@ -239,7 +239,7 @@ class mdf4(dict):
                     if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in (2, 3, 4):# master channel
                         channelName = 'time' + str( dataGroup )
                         if channelName in L and len( L[channelName] ) != 0:
-                            self.timeChannelList.append( channelName )
+                            self.masterChannelList.append( channelName )
                     if channelName in L and len( L[channelName] ) != 0:
                         self[channelName] = {}
                         self[channelName]['time'] = 'time' + str( dataGroup )
@@ -259,7 +259,7 @@ class mdf4(dict):
         #print( 'Finished in ' + str( time.clock() - inttime ) )
 
     @staticmethod
-    def arrayformat( signalDataType, numberOfBits ):
+    def arrayformat4( signalDataType, numberOfBits ):
 
         # Formats used by numpy dtype
 
@@ -316,7 +316,7 @@ class mdf4(dict):
         
         return dataType
 
-def processDataBlocks( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
+def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
     ## Processes recorded data blocks
     # Outside of class to allow multiprocessing
     #numberOfRecordIDs = info['DGBlock'][dataGroup]['numberOfRecordIDs']

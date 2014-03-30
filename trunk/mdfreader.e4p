@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Project SYSTEM "Project-5.1.dtd">
 <!-- eric5 project file for project mdfreader -->
-<!-- Saved: 2014-03-18, 22:17:42 -->
+<!-- Saved: 2014-03-27, 21:42:32 -->
 <!-- Copyright (C) 2014 Aymeric Rateau, aymeric.rateau@gmail.com -->
 <Project version="5.1">
   <Language>en</Language>
@@ -23,6 +23,7 @@
     <Source>mdfinfo3.py</Source>
     <Source>test/test.py</Source>
     <Source>mdf3reader.py</Source>
+    <Source>mdf4reader.py</Source>
   </Sources>
   <Forms>
     <Form>mdfreaderui.ui</Form>
