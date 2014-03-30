@@ -12,7 +12,9 @@ import time
 from struct import pack
 from mdfinfo3 import info3
 channelTime = {'time', 'TIME'}  # possible channel time writing, adjust if necessary
-
+from sys import version_info
+PythonVersion=version_info
+PythonVersion=PythonVersion[0]
 
 def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
     ## Processes recorded data blocks
@@ -159,7 +161,7 @@ class mdf3(dict):
     To use : yop= mdfreader.mdf('FileName.dat') """
     
     def __init__( self, fileName=None, info=None,multiProc=False,  channelList=None):
-        self.timeChannelList = []
+        self.masterChannelList = []
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         self.author=None
         self.organisation=None
@@ -169,12 +171,14 @@ class mdf3(dict):
         self.clear()
         if fileName is None and info is not None:
             self.fileName = info.fileName
-        else:
+            self.read(self.fileName, info, multiProc, channelList)
+        elif fileName is not None and info is not None:
             self.fileName = fileName
-        self.read(self.fileName, info, multiProc, channelList)
+            self.read(self.fileName, info, multiProc, channelList)
+        
 
     ## reads mdf file
-    def read( self, fileName=None, info=None, multiProc=False, channelList=None):
+    def read3( self, fileName=None, info=None, multiProc=False, channelList=None):
         # read mdf file
         self.multiProc = multiProc
         if platform == 'win32':
@@ -246,12 +250,12 @@ class mdf3(dict):
                         # Corresponding number of bits for this format
                         numberOfBits = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
                         # Defines data format
-                        #datatype = self.datatypeformat( signalDataType, numberOfBits )
+                        #datatype = self.datatypeformat3( signalDataType, numberOfBits )
 
                         if numberOfBits < 8:  # adding bit format, ubit1 or ubit2
                             if precedingNumberOfBits == 8:  # 8 bit make a byte
                                 dataRecordName.append(str(info['CNBlock'][dataGroup][channelGroup][channel]['signalName']))
-                                numpyDataRecordFormat.append((dataRecordName[-1], self.arrayformat(signalDataType, numberOfBits)))
+                                numpyDataRecordFormat.append((dataRecordName[-1], self.arrayformat3(signalDataType, numberOfBits)))
                                 precedingNumberOfBits = 0
                             else:
                                 precedingNumberOfBits += numberOfBits  # counts successive bits
@@ -260,11 +264,11 @@ class mdf3(dict):
                             if precedingNumberOfBits != 0:  # There was bits in previous channel
                                 precedingNumberOfBits = 0
                             dataRecordName.append(str(info['CNBlock'][dataGroup][channelGroup][channel]['signalName']))
-                            numpyDataRecordFormat.append((dataRecordName[-1], self.arrayformat(signalDataType, numberOfBits )))
+                            numpyDataRecordFormat.append((dataRecordName[-1], self.arrayformat3(signalDataType, numberOfBits )))
 
                     if numberOfBits < 8: # last channel in record is bit inside byte unit8
                         dataRecordName.append(str(info['CNBlock'][dataGroup][channelGroup][channel]['signalName']))
-                        numpyDataRecordFormat.append((dataRecordName[-1], self.arrayformat(signalDataType, numberOfBits)))
+                        numpyDataRecordFormat.append((dataRecordName[-1], self.arrayformat3(signalDataType, numberOfBits)))
                         precedingNumberOfBits = 0
                     # Offset of record id at the end of record
                     if numberOfRecordIDs == 2:
@@ -297,7 +301,7 @@ class mdf3(dict):
                         if channelName in channelTime:  # assumes first channel is time
                             channelName = 'time' + str(dataGroup)
                             if channelName in L and len(L[channelName]) != 0:
-                                self.timeChannelList.append(channelName)
+                                self.masterChannelList.append(channelName)
                         if channelName in L and len(L[channelName]) != 0:
                             self[channelName] = {}
                             self[channelName]['time'] = 'time' + str(dataGroup)
@@ -308,7 +312,7 @@ class mdf3(dict):
             self.keepChannels(channelList)
         #print( 'Finished in ' + str( time.clock() - inttime ) )
 
-    def write(self, fileName=None):
+    def write3(self, fileName=None):
         # write data in sorted format: 1 datagroup for 1  channel group and many channel with same sampling
         LINK = 'I'
         CHAR = 'c'
@@ -325,10 +329,13 @@ class mdf3(dict):
         
         # rediscover mdf class structure
         rasters = {}
-        for master in self.timeChannelList:
+        for master in self.masterChannelList:
             rasters[master] = []
-        for channel in self.keys():
-            rasters[self[channel]['time']].append(channel)  # group channels by master channel = datagroup&channelgroup
+        if 'time' in self.keys(): # Resampled signals
+            rasters['time']=self.keys()
+        else:
+            for channel in self.keys():
+                rasters[self[channel]['time']].append(channel)  # group channels by master channel = datagroup&channelgroup
         pointers = {}  # records pointers of blocks when writing
         
         # writes characters 
@@ -341,7 +348,11 @@ class mdf3(dict):
                 else:
                     temp = value+' '*(size-len(value))
                 temp += '\0'
-            f.write(pack('<'+CHAR*len(temp), *temp))
+            if PythonVersion<3:
+                f.write(pack('<'+CHAR*len(temp), *temp))
+            else:
+                temp.encode('latin1', 'replace')
+                f.write(pack('<'+CHAR*len(temp), *temp))
 
         # write pointer of block and come back to current stream position
         def writePointer(f, pointer, value):
@@ -371,7 +382,7 @@ class mdf3(dict):
         fid.write(pack(LINK, 0))  # pointer to TX Block file comment
         pointers['HD']['PR'] = fid.tell()
         fid.write(pack(LINK, 0))  # pointer to PR Block
-        fid.write(pack(UINT16, len(self.timeChannelList)))  # number of data groups
+        fid.write(pack(UINT16, len(self.masterChannelList)))  # number of data groups
         writeChar(fid, time.strftime("%d:%m:%Y"))  # date
         writeChar(fid, time.strftime("%H:%M:%S"))  # time
         if self.author is not None:
@@ -399,7 +410,7 @@ class mdf3(dict):
         pointers['DG'] = {}
         pointers['CG'] = {}
         pointers['CN'] = {}
-        ndataGroup = len(self.timeChannelList)
+        ndataGroup = len(self.masterChannelList)
         for dataGroup in range(ndataGroup):
             # writes dataGroup Block
             pointers['DG'][dataGroup] = {}
@@ -435,15 +446,15 @@ class mdf3(dict):
             pointers['CG'][dataGroup]['TX'] = fid.tell()
             fid.write(pack(LINK, 0))  # pointer to TX block
             fid.write(pack(UINT16, 0))  # No record ID no need for sorted data
-            masterChannel = self.timeChannelList[dataGroup]
+            masterChannel = self.masterChannelList[dataGroup]
             numChannels = len(rasters[masterChannel])
             fid.write(pack(UINT16, numChannels))  # Number of channels
             pointers['CG'][dataGroup]['dataRecordSize'] = fid.tell()
             fid.write(pack(UINT16, 0))  # Size of data record
-            nRecords = len(self[self.timeChannelList[dataGroup]]['data'])
+            nRecords = len(self[self.masterChannelList[dataGroup]]['data'])
             fid.write(pack(UINT32, nRecords))  # Number of records
             fid.write(pack(LINK, 0))  # pointer to sample reduction block, not used
-            sampling = numpy.average(numpy.diff(self[self.timeChannelList[dataGroup]]['data']))            
+            sampling = numpy.average(numpy.diff(self[self.masterChannelList[dataGroup]]['data']))            
             
             # Channel blocks writing
             pointers['CN'][dataGroup] = {}
@@ -469,7 +480,7 @@ class mdf3(dict):
                 pointers['CN'][dataGroup][channel]['TX'] = fid.tell()
                 fid.write(pack(LINK, 0))  # pointer to comment TX, no comment
                 # check if master channel
-                if channel not in self.timeChannelList:
+                if channel not in self.masterChannelList:
                     fid.write(pack(UINT16, 0))  # data channel
                 else:
                     fid.write(pack(UINT16, 1))  # master channel
@@ -564,9 +575,9 @@ class mdf3(dict):
         fid.close()
         
     @staticmethod
-    def datatypeformat(signalDataType, numberOfBits):
+    def datatypeformat3(signalDataType, numberOfBits):
         # DATATYPEFORMAT Data type format precision to give to fread
-        #   DATATYPEFORMAT(SIGNALDATATYPE,NUMBEROFBITS) is the precision string to
+        #   datatypeformat3(SIGNALDATATYPE,NUMBEROFBITS) is the precision string to
         #   give to fread for reading the data type specified by SIGNALDATATYPE and
         #   NUMBEROFBITS
 
@@ -611,7 +622,7 @@ class mdf3(dict):
         return dataType
 
     @staticmethod
-    def arrayformat(signalDataType, numberOfBits):
+    def arrayformat3(signalDataType, numberOfBits):
 
         # Formats used by numpy
 

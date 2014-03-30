@@ -53,6 +53,8 @@ Examples
 from io import open
 from struct import unpack
 from math import ceil
+from mdf3reader import mdf3
+from mdf4reader import mdf4
 import numpy
 
 from sys import version_info
@@ -137,14 +139,14 @@ class mdfinfo( dict):
         if VersionNumber<400: # up to version 3.x not compatible with version 4.x
             from mdfinfo3 import info3
             channelNameList=info3()
-            channelNameList.listChannels(fileName)
+            channelNameList.listChannels3(fileName)
         else:
             from mdfinfo4 import info4
             channelNameList=info4()
-            channelNameList.listChannels(fileName)
+            channelNameList.listChannels4(fileName)
         return channelNameList
 
-class mdf( dict ):
+class mdf( mdf3,  mdf4 ):
     """ mdf file class
     To use : yop= mdfreader.mdf('FileName.dat')
     Some additional useful methods:
@@ -156,7 +158,7 @@ class mdf( dict ):
     def __init__( self, fileName = None ):
         self.fileName = None
         self.VersionNumber=None
-        self.timeChannelList = []
+        self.masterChannelList = []
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         # clears class from previous reading and avoid to mess up
         self.clear()
@@ -176,12 +178,18 @@ class mdf( dict ):
         
         self.VersionNumber=info['IDBlock']['id_ver']
         if self.VersionNumber<400: # up to version 3.x not compatible with version 4.x
-            from mdf3reader import mdf3
-            self.update(mdf3(self.fileName, info, multiProc, channelList))
+            self.read3(self.fileName, info, multiProc, channelList)
         else: #MDF version 4.x
-            from mdf4reader import mdf4
-            self.update(mdf4(self.fileName, info, multiProc, channelList))
-
+            self.read4(self.fileName, info, multiProc, channelList)
+    
+    def write(self, fileName=None):
+        #write mdf
+        if self.fileName is not None:
+            self.fileName = fileName
+        else:
+            print('Please provide filename')
+        self.write3(fileName)
+            
     def plot( self, channels ):
         try:
             import matplotlib.pyplot as plt
@@ -231,12 +239,12 @@ class mdf( dict ):
     def resample( self, samplingTime = 0.1 ):
         """ Resamples mdf channels inside object for one single time"""
         # resample all channels to one sampling time vector
-        if 'time' not in self.timeChannelList: # Not yet resampled
+        if 'time' not in self.masterChannelList: # Not yet resampled
             channelNames = list(self.keys())
             minTime = maxTime = []
             self['time'] = {}
             unit = ''
-            for time in self.timeChannelList:
+            for time in self.masterChannelList:
                 if time in self and len( self[time]['data'] ) > 5: # consider groups having minimum size 
                     minTime.append( self[time]['data'][0] )
                     maxTime.append( self[time]['data'][len( self[time]['data'] ) - 1] )
@@ -250,7 +258,7 @@ class mdf( dict ):
             timevect=[]
             for Name in channelNames:
                 try:
-                    if Name not in self.timeChannelList:
+                    if Name not in self.masterChannelList:
                         timevect = self[self[Name]['time']]['data']
                         if not self[Name]['data'].dtype.kind in ('S', 'U'): # if channel not array of string
                             self[Name]['data'] = numpy.interp( self['time']['data'], timevect, self[Name]['data'] )
@@ -261,11 +269,11 @@ class mdf( dict ):
                         print(( Name + ' and time channel ' + self[Name]['time'] + ' do not have same length' ))
                     elif not numpy.all( numpy.diff( timevect ) > 0 ):
                         print(( Name + ' has non regularly increasing time channel ' + self[Name]['time'] ))
-            # remove time channels in timeChannelList
-            for ind in self.timeChannelList:
+            # remove time channels in masterChannelList
+            for ind in self.masterChannelList:
                 del self[ind]
-            self.timeChannelList = [] # empty list
-            self.timeChannelList.append( 'time' )
+            self.masterChannelList = [] # empty list
+            self.masterChannelList.append( 'time' )
         else:
             pass
 
@@ -323,7 +331,7 @@ class mdf( dict ):
         setattr( f, 'Vehicle', (info['HDBlock']['Vehicle']))
         setattr( f, 'Comment', (info['HDBlock']['TXBlock']['Text']))
         # Create dimensions having name of all time channels
-        for time in self.timeChannelList:
+        for time in self.masterChannelList:
             f.createDimension( time, len( self[time]['data'] ) )
         # Create variables definition, dimension and attributes
         var = {}
@@ -342,15 +350,15 @@ class mdf( dict ):
                 print(( 'Can not process numpy type ' + str(self[name]['data'].dtype) + ' of channel' ))
             # create variable
             CleanedName = cleanName( name )
-            if len( self.timeChannelList ) == 1: # mdf resampled
-                var[name] = f.createVariable( CleanedName, type, ( self.timeChannelList[0], ) )
+            if len( self.masterChannelList ) == 1: # mdf resampled
+                var[name] = f.createVariable( CleanedName, type, ( self.masterChannelList[0], ) )
             else: # not resampled
                 var[name] = f.createVariable( CleanedName, type, ( self[name]['time'], ) )
             # Create attributes
             setattr( var[name], 'title', CleanedName )
             setattr( var[name], 'units', self[name]['unit'])
             setattr( var[name], 'Description', self[name]['description'])
-            if name in self.timeChannelList:
+            if name in self.masterChannelList:
                 setattr( var[name], 'Type', 'Time Channel' )
                 setattr( var[name], 'datatype', 'time' )
             else:
@@ -385,7 +393,7 @@ class mdf( dict ):
         attr.create('ProjectName', (info['HDBlock']['ProjectName']))
         attr.create('Vehicle', (info['HDBlock']['Vehicle']))
         attr.create('Comment', (info['HDBlock']['TXBlock']['Text']))
-        if len( self.timeChannelList ) > 1:
+        if len( self.masterChannelList ) > 1:
             # if several time groups of channels, not resampled
             groups = {}
             ngroups = 0
@@ -509,7 +517,7 @@ class mdf( dict ):
         maxRows=max([len(self[channel]['data']) for channel in list(self.keys())]) # find max column length
         maxCols=len(list(self.keys())) # number of columns
         print('Creating Excel sheet')
-        if len( self.timeChannelList ) > 1: # not resampled data, can be long, writing cell by cell !
+        if len( self.masterChannelList ) > 1: # not resampled data, can be long, writing cell by cell !
             wb=openpyxl.workbook.Workbook(encoding='utf-8')
             ws=wb.get_active_sheet()
             # write header
@@ -562,7 +570,7 @@ class mdf( dict ):
         channelList=[channel for channel in channelList]
         removeChannels=[]
         for channel in list(self.keys()):
-            if channel not in channelList and not 'time'==channel[0:4] and channel not in self.timeChannelList :
+            if channel not in channelList and not 'time'==channel[0:4] and channel not in self.masterChannelList :
                 # avoid to remove time channels otherwise problems with resample
                 removeChannels.append(channel)
         if not len(removeChannels)==0:
@@ -573,7 +581,7 @@ class mdf( dict ):
         yop=mdf()
         yop.multiProc=self.multiProc
         yop.fileName=self.fileName
-        yop.timeChannelList=self.timeChannelList
+        yop.masterChannelList=self.masterChannelList
         for channel in list(self.keys()):
             yop[channel]=self[channel]
         return yop
@@ -620,7 +628,7 @@ class mdf( dict ):
         # first find groups of channels sharing same time vector
         # initialise frame description
         frame={}
-        for group in self.timeChannelList:
+        for group in self.masterChannelList:
             frame[group]=[]
         # create list of channel for each time group
         [frame[self[channel]['time']].append(channel) for channel in self.keys()]
@@ -636,7 +644,7 @@ class mdf( dict ):
         # clean rest of self from data and time channel information
         [self[channel].pop('data') for channel in originalKeys]
         [self[channel].pop('time') for channel in originalKeys]
-        self.timeChannelList=[]
+        self.masterChannelList=[]
         self.timeGroups=[] # save time groups name in list
         [self.timeGroups.append(group+'_group') for group in frame.keys()]
 

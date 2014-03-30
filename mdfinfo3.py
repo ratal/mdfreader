@@ -32,11 +32,11 @@ class info3(dict):
             except IOError:
                 print('Can not find file'+self.fileName)
                 raise
-            self.readinfo( fid )
+            self.readinfo3( fid )
         elif fileName == None and fid!=None:
-            self.readinfo(fid)
+            self.readinfo3(fid)
 
-    def readinfo(self, fid):
+    def readinfo3(self, fid):
         # reads IDBlock
         fid.seek(24)
         self['IDBlock']['ByteOrder']=unpack( '<H', fid.read( 2 ) )
@@ -48,13 +48,13 @@ class info3(dict):
         
         ### Read header block (HDBlock) information
         # Read Header block info into structure, HD pointer at 64 as mentioned in specification
-        self['HDBlock'] = self.mdfblockread( self.blockformats3( 'HDFormat' ,  self['IDBlock']['id_ver']), fid, 64 )
+        self['HDBlock'] = self.mdfblockread3( self.blockformats3( 'HDFormat' ,  self['IDBlock']['id_ver']), fid, 64 )
 
         ### Read text block (TXBlock) information
-        self['HDBlock']['TXBlock'] = self.mdfblockread( self.blockformats3( 'TXFormat' ), fid, self['HDBlock']['pointerToTXBlock'] )
+        self['HDBlock']['TXBlock'] = self.mdfblockread3( self.blockformats3( 'TXFormat' ), fid, self['HDBlock']['pointerToTXBlock'] )
 
         ### Read text block (PRBlock) information
-        self['HDBlock']['PRBlock'] = self.mdfblockread( self.blockformats3( 'PRFormat' ), fid, self['HDBlock']['pointerToPRBlock'] )
+        self['HDBlock']['PRBlock'] = self.mdfblockread3( self.blockformats3( 'PRFormat' ), fid, self['HDBlock']['pointerToPRBlock'] )
 
         ### Read Data Group blocks (DGBlock) information
         # Get pointer to first Data Group block
@@ -62,7 +62,7 @@ class info3(dict):
         for dataGroup in range( self['HDBlock']['numberOfDataGroups'] ):
 
             # Read data Data Group block info into structure
-            self['DGBlock'][dataGroup] = self.mdfblockread( self.blockformats3( 'DGFormat' ), fid, DGpointer )
+            self['DGBlock'][dataGroup] = self.mdfblockread3( self.blockformats3( 'DGFormat' ), fid, DGpointer )
             # Get pointer to next Data Group block
             DGpointer = self['DGBlock'][dataGroup]['pointerToNextDGBlock']
 
@@ -76,13 +76,13 @@ class info3(dict):
             for channelGroup in range( self['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
                 self['CNBlock'][dataGroup][channelGroup]={}
                 self['CCBlock'][dataGroup][channelGroup]={}
-                self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread( self.blockformats3( 'CGFormat' ), fid, CGpointer )
+                self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread3( self.blockformats3( 'CGFormat' ), fid, CGpointer )
                 CGpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToNextCGBlock']
 
                 CGTXpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToChannelGroupCommentText']
 
                 # Read data Text block info into structure
-                self['CGBlock'][dataGroup][channelGroup]['TXBlock'] = self.mdfblockread( self.blockformats3( 'TXFormat' ), fid, CGTXpointer )
+                self['CGBlock'][dataGroup][channelGroup]['TXBlock'] = self.mdfblockread3( self.blockformats3( 'TXFormat' ), fid, CGTXpointer )
 
                 # Get pointer to next first Channel block
                 CNpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToFirstCNBlock']
@@ -94,7 +94,7 @@ class info3(dict):
                     #self.numberOfChannels += 1
                     # Read data Channel block info into structure
 
-                    self['CNBlock'][dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats3( 'CNFormat' ), fid, CNpointer )
+                    self['CNBlock'][dataGroup][channelGroup][channel] = self.mdfblockread3( self.blockformats3( 'CNFormat' ), fid, CNpointer )
                     CNpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToNextCNBlock']
 
                     ### Read Channel text blocks (TXBlock)
@@ -103,7 +103,7 @@ class info3(dict):
                     shortSignalName = self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] # short name of signal
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
                     if CNTXpointer > 0:
-                        longSignalName = self.mdfblockread( self.blockformats3( 'TXFormat' ), fid, CNTXpointer ) # long name of signal
+                        longSignalName = self.mdfblockread3( self.blockformats3( 'TXFormat' ), fid, CNTXpointer ) # long name of signal
                         longSignalName = longSignalName['Text']
                         if len(longSignalName)>len(shortSignalName): # long name should be used
                             signalname = longSignalName
@@ -119,11 +119,11 @@ class info3(dict):
 
                     # Read channel description
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToChannelCommentBlock']
-                    self['CNBlock'][dataGroup][channelGroup][channel]['ChannelCommentBlock'] = self.mdfblockread( self.blockformats3( 'TXFormat' ), fid, CNTXpointer )
+                    self['CNBlock'][dataGroup][channelGroup][channel]['ChannelCommentBlock'] = self.mdfblockread3( self.blockformats3( 'TXFormat' ), fid, CNTXpointer )
 
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToSignalIdentifierBlock']
                     # Read data Text block info into structure
-                    self['CNBlock'][dataGroup][channelGroup][channel]['SignalIdentifierBlock'] = self.mdfblockread( self.blockformats3( 'TXFormat' ), fid, CNTXpointer )
+                    self['CNBlock'][dataGroup][channelGroup][channel]['SignalIdentifierBlock'] = self.mdfblockread3( self.blockformats3( 'TXFormat' ), fid, CNTXpointer )
 
                     ### Read Channel Conversion block (CCBlock)
 
@@ -135,7 +135,7 @@ class info3(dict):
                         self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] = 65535
                     else: # Otherwise get conversion formula, parameters and physical units
                         # Read data Channel Conversion block info into structure
-                        self['CCBlock'][dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats3( 'CCFormat' ), fid, CCpointer )
+                        self['CCBlock'][dataGroup][channelGroup][channel] = self.mdfblockread3( self.blockformats3( 'CCFormat' ), fid, CCpointer )
 
                         # Extract Channel Conversion formula based on conversion
                         # type(conversionFormulaIdentifier)
@@ -146,7 +146,7 @@ class info3(dict):
                         if self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 0: # Parameteric, Linear: Physical =Integer*P2 + P1
 
                             # Read data Channel Conversion parameters info into structure
-                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats3( 'CCFormatFormula0' ), fid, currentPosition )
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula0' ), fid, currentPosition )
 
                         elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 1: # Table look up with interpolation
 
@@ -157,7 +157,7 @@ class info3(dict):
                             for pair in range( num ):
 
                                 # Read data Channel Conversion parameters info into structure
-                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats3( 'CCFormatFormula1' ), fid, currentPosition )
+                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula1' ), fid, currentPosition )
                                 # Get current file position
                                 currentPosition = fid.tell()
 
@@ -170,34 +170,34 @@ class info3(dict):
                             for pair in range( num ):
 
                                 # Read data Channel Conversion parameters info into structure
-                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats3( 'CCFormatFormula2' ), fid, currentPosition )
+                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula2' ), fid, currentPosition )
                                 # Get current file position
                                 currentPosition = fid.tell()
 
                         elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 6: # Polynomial
 
                             # Read data Channel Conversion parameters info into structure
-                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats3( 'CCFormatFormula6' ), fid, currentPosition )
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula6' ), fid, currentPosition )
 
                         elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 7: # Exponential
 
                             # Read data Channel Conversion parameters info into structure
-                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats3( 'CCFormatFormula7' ), fid, currentPosition )
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula7' ), fid, currentPosition )
 
                         elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 8: # Logarithmic
 
                             # Read data Channel Conversion parameters info into structure
-                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats3( 'CCFormatFormula8' ), fid, currentPosition )
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula8' ), fid, currentPosition )
 
                         elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 9: #  Rational
 
                             # Read data Channel Conversion parameters info into structure
-                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats3( 'CCFormatFormula9' ), fid, currentPosition )
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula9' ), fid, currentPosition )
 
                         elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 10: #  Text Formula
 
                             # Read data Channel Conversion parameters info into structure
-                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread( self.blockformats3( 'CCFormatFormula10' ), fid, currentPosition )
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula10' ), fid, currentPosition )
 
                         elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 11: #  Text table
 
@@ -208,7 +208,7 @@ class info3(dict):
                             for pair in range( num ):
 
                                 # Read data Channel Conversion parameters info into structure
-                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats3( 'CCFormatFormula11' ), fid, currentPosition )
+                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula11' ), fid, currentPosition )
                                 # Get current file position
                                 currentPosition = fid.tell()
 
@@ -221,13 +221,13 @@ class info3(dict):
                             for pair in range( num ): # first pair is default
 
                                 # Read data Channel Conversion parameters info into structure
-                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread( self.blockformats3( 'CCFormatFormula12' ), fid, currentPosition )
+                                self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula12' ), fid, currentPosition )
                                 # Get current file position
                                 currentPosition = fid.tell()
 
                             for pair in range( num ): # get text range
                                 # Read corresponding text
-                                temp = self.mdfblockread( self.blockformats3( 'TXFormat' ), fid, self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['pointerToTXBlock'] )
+                                temp = self.mdfblockread3( self.blockformats3( 'TXFormat' ), fid, self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['pointerToTXBlock'] )
                                 try:
                                     self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['Textrange'] = temp['Text']
                                 except:
@@ -244,7 +244,7 @@ class info3(dict):
         # CLose the file
         fid.close()
         
-    def listChannels( self, fileName = None ):
+    def listChannels3( self, fileName = None ):
         # Read MDF file and extract its complete structure
         if not fileName == None:
             self.fileName = fileName
@@ -256,7 +256,7 @@ class info3(dict):
         # Set file pointer to start of HDBlock
         HDpointer = 64
         # Read Header block info into structure
-        self['HDBlock'] = self.mdfblockread( self.blockformats3( 'HDFormat' ), fid, HDpointer )
+        self['HDBlock'] = self.mdfblockread3( self.blockformats3( 'HDFormat' ), fid, HDpointer )
 
         ### Read Data Group blocks (DGBlock) information
         # Get pointer to first Data Group block
@@ -264,7 +264,7 @@ class info3(dict):
         for dataGroup in range( self['HDBlock']['numberOfDataGroups'] ):
 
             # Read data Data Group block info into structure
-            self['DGBlock'][dataGroup] = self.mdfblockread( self.blockformats3( 'DGFormat' ), fid, DGpointer )
+            self['DGBlock'][dataGroup] = self.mdfblockread3( self.blockformats3( 'DGFormat' ), fid, DGpointer )
             # Get pointer to next Data Group block
             DGpointer = self['DGBlock'][dataGroup]['pointerToNextDGBlock']
 
@@ -278,7 +278,7 @@ class info3(dict):
             for channelGroup in range( self['DGBlock'][dataGroup]['numberOfChannelGroups'] ):
                 self['CNBlock'][dataGroup][channelGroup]={}
                 self['CCBlock'][dataGroup][channelGroup]={}
-                self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread( self.blockformats3( 'CGFormat' ), fid, CGpointer )
+                self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread3( self.blockformats3( 'CGFormat' ), fid, CGpointer )
                 CGpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToNextCGBlock']
 
                 # Get pointer to next first Channel block
@@ -290,7 +290,7 @@ class info3(dict):
                     ### Read Channel block (CNBlock) information
                     #self.numberOfChannels += 1
                     # Read data Channel block info into structure
-                    self['CNBlock'][dataGroup][channelGroup][channel] = self.mdfblockread( self.blockformats3( 'CNFormat' ), fid, CNpointer )
+                    self['CNBlock'][dataGroup][channelGroup][channel] = self.mdfblockread3( self.blockformats3( 'CNFormat' ), fid, CNpointer )
                     CNpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToNextCNBlock']
 
                     ### Read Channel text blocks (TXBlock)
@@ -299,7 +299,7 @@ class info3(dict):
                     shortSignalName = self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] # short name of signal
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
                     if CNTXpointer > 0:
-                        longSignalName = self.mdfblockread( self.blockformats3( 'TXFormat' ), fid, CNTXpointer ) # long name of signal
+                        longSignalName = self.mdfblockread3( self.blockformats3( 'TXFormat' ), fid, CNTXpointer ) # long name of signal
                         longSignalName = longSignalName['Text']
                         if len(longSignalName)>len(shortSignalName): # long name should be used
                             signalname = longSignalName
@@ -483,11 +483,11 @@ class info3(dict):
             print( 'Block format name error ' )
         return formats
 
-    #######MDFBLOCKREAD####################
+    #######mdfblockread3####################
     @staticmethod
-    def mdfblockread( blockFormat, fid, pointer ):
-        # MDFBLOCKREAD Extract block of data from MDF file in original data types
-        #   Block=MDFBLOCKREAD(BLOCKFORMAT, FID, OFFSET) returns a
+    def mdfblockread3( blockFormat, fid, pointer ):
+        # mdfblockread3 Extract block of data from MDF file in original data types
+        #   Block=mdfblockread3(BLOCKFORMAT, FID, OFFSET) returns a
         #   dictionary with keys specified in data structure BLOCKFORMAT, fid
         #   FID, at byte offset in the file OFFSET
         #
@@ -498,7 +498,7 @@ class info3(dict):
         #        (CHAR,'Var',Text))
         #
         # Example function call is:
-        # Block=mdfblockread(blockFormat, 1, 413)
+        # Block=mdfblockread3(blockFormat, 1, 413)
         Block = {}
         if pointer != 0 and not pointer == None:
             fid.seek( pointer )
