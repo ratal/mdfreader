@@ -44,7 +44,7 @@ def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
             except:  # if tempChannelName not in buf -> bits in unit8
                 temp = buf.__getattribute__(str(previousChannelName))  # extract channel vector
 
-            if cName in channelTime:  # assumes first channel is time
+            if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:  # time channel
                 channelName = 'time' + str(dataGroup)
             # Process concatenated bits inside unint8
             if signalDataType not in (1, 2, 3, 8):
@@ -298,7 +298,7 @@ class mdf3(dict):
                     numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
                     if numberOfRecords != 0 :
                         channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-                        if channelName in channelTime:  # time channel
+                        if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:  # time channel
                             channelName = 'time' + str(dataGroup)
                         if channelName in L and len(L[channelName]) != 0:
                             if ('time' + str(dataGroup)) not in list(self.masterChannelList.keys()):
@@ -331,10 +331,10 @@ class mdf3(dict):
         # put master channel in first position for each datagroup if not already the case
         for master in list(self.masterChannelList.keys()):
             masterList = self.masterChannelList[master]
+            masterList.sort()  # alphabetically sort the channel names
             masterPosition = masterList.index(master)
-            masterList.sort() # alphabetically sort the channel names
-            masterList.pop(masterPosition) # remove  master channel
-            masterList.insert(0, master) # insert at first position master channel
+            masterList.pop(masterPosition)  # remove  master channel
+            masterList.insert(0, master)  # insert at first position master channel
             self.masterChannelList[master] = masterList
         
         pointers = {}  # records pointers of blocks when writing
