@@ -157,6 +157,8 @@ class mdf4(dict):
             proc = []
             Q=Queue()
         L={}
+        
+        masterDataGroup={}  # datagroup name correspondence with its master channel
         for dataGroup in info['DGBlock'].keys():
             if not info['DGBlock'][dataGroup]['dg_data']==0: # data exists
                 precedingNumberOfBits = 0
@@ -193,13 +195,16 @@ class mdf4(dict):
                         numberOfBits = info['CNBlock'][dataGroup][channelGroup][channel]['cn_bit_count']
                         channelByteOffset= info['CNBlock'][dataGroup][channelGroup][channel]['cn_byte_offset']+info['DGBlock'][dataGroup]['dg_rec_id_size']
                         channelName=info['CNBlock'][dataGroup][channelGroup][channel]['name']
+                        # is it a master channel for the group
+                        if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in (2, 3, 4): # master channel
+                            masterDataGroup[dataGroup]=channelName
                         if channelList is not None:
                             channelListByte[channelName]=channelByteOffset
 
                         if numberOfBits < 8: # adding bit format, ubit1 or ubit2
                             if precedingNumberOfBits == 8: # 8 bit make a byte
                                 dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                                numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat4( signalDataType, numberOfBits ) ) )
+                                numpyDataRecordFormat.append( ( dataRecordName[-1], arrayformat4( signalDataType, numberOfBits ) ) )
                                 precedingNumberOfBits = 0
                             else:
                                 precedingNumberOfBits += numberOfBits # counts successive bits
@@ -208,11 +213,11 @@ class mdf4(dict):
                             if precedingNumberOfBits != 0: # There was bits in previous channel
                                 precedingNumberOfBits = 0
                             dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                            numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat4( signalDataType, numberOfBits ) ) )
+                            numpyDataRecordFormat.append( ( dataRecordName[-1], arrayformat4( signalDataType, numberOfBits ) ) )
 
                     if numberOfBits < 8: # last channel in record is bit inside byte unit8
                         dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                        numpyDataRecordFormat.append( ( dataRecordName[-1], self.arrayformat4( signalDataType, numberOfBits ) ) )
+                        numpyDataRecordFormat.append( ( dataRecordName[-1], arrayformat4( signalDataType, numberOfBits ) ) )
                         precedingNumberOfBits = 0
                 
                 # converts channel group records into channels
@@ -233,16 +238,14 @@ class mdf4(dict):
         # After all processing of channels,
         # prepare final class data with all its keys
         for dataGroup in info['DGBlock'].keys():
+            self.masterChannelList[masterDataGroup[dataGroup]]=[]
             for channelGroup in info['CGBlock'][dataGroup].keys():
                 for channel in info['CNBlock'][dataGroup][channelGroup].keys():
                     channelName = info['CNBlock'][dataGroup][channelGroup][channel]['name']
-                    if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in (2, 3, 4):# master channel
-                        channelName = 'time' + str( dataGroup )
-                        if channelName in L and len( L[channelName] ) != 0:
-                            self.masterChannelList.append( channelName )
                     if channelName in L and len( L[channelName] ) != 0:
+                        self.masterChannelList[masterDataGroup[dataGroup]].append(channelName)
                         self[channelName] = {}
-                        self[channelName]['time'] = 'time' + str( dataGroup )
+                        self[channelName]['master'] = masterDataGroup[dataGroup]
                         if info['CCBlock'][dataGroup][channelGroup][channel].has_key('unit'):
                             self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['unit']
                         elif info['CNBlock'][dataGroup][channelGroup][channel].has_key('unit'):
@@ -254,67 +257,68 @@ class mdf4(dict):
                         else:
                             self[channelName]['description'] = ''
                         self[channelName]['data'] = L[channelName]
+
         if not channelList==None and len(channelList)>0:
             self.keepChannels(channelList)
         #print( 'Finished in ' + str( time.clock() - inttime ) )
 
-    @staticmethod
-    def arrayformat4( signalDataType, numberOfBits ):
 
-        # Formats used by numpy dtype
+def arrayformat4( signalDataType, numberOfBits ):
 
-        if signalDataType in (0, 1): # unsigned
-            if numberOfBits <= 8:
-                dataType = 'uint8'
-            elif numberOfBits == 16:
-                dataType = 'uint16';
-            elif numberOfBits == 32:
-                dataType = 'uint32'
-            elif numberOfBits == 64:
-                dataType = 'uint64'
-            else:
-                print(( 'Unsupported number of bits for unsigned int ' + str( numberOfBits) ))
+    # Formats used by numpy dtype
 
-        elif signalDataType in (2, 3): # signed int
-            if numberOfBits <= 8:
-                dataType = 'int8'
-            elif numberOfBits == 16:
-                dataType = 'int16'
-            elif numberOfBits == 32:
-                dataType = 'int32'
-            elif numberOfBits == 64:
-                dataType = 'int64'
-            else:
-                print(( 'Unsupported number of bits for signed int ' + str( numberOfBits ) ))
-
-        elif signalDataType in ( 4, 5 ): # floating point
-            if numberOfBits == 32:
-                dataType = 'float32'
-            elif numberOfBits == 64:
-                dataType = 'float64'
-            else:
-                print(( 'Unsupported number of bit for floating point ' + str( numberOfBits ) ))
-        
-        elif signalDataType == 6: # string ISO-8859-1 Latin
-            dataType = 'str' # not directly processed
-        elif signalDataType == 7: # UTF-8
-            dataType = 'unicode' # not directly processed
-        elif signalDataType == (8, 9): # UTF-16
-            dataType = 'unicode16' # not directly processed
-        elif signalDataType == 10: # bytes array
-            dataType = 'buffer' # not directly processed
-        elif signalDataType in (11, 12): # MIME sample or MIME stream
-            dataType = ('unint16', 'unint8', 'unint8', 'unint8', 'unint8', 'unint8') # 7 Byte Date data structure
-        elif signalDataType in (13, 14): # CANopen date and time
-            dataType = ('unint32',  'unint16') # 6 Byte time data structure
+    if signalDataType in (0, 1): # unsigned
+        if numberOfBits <= 8:
+            dataType = 'uint8'
+        elif numberOfBits == 16:
+            dataType = 'uint16';
+        elif numberOfBits == 32:
+            dataType = 'uint32'
+        elif numberOfBits == 64:
+            dataType = 'uint64'
         else:
-            print(( 'Unsupported Signal Data Type ' + str( signalDataType ) + ' ', numberOfBits ))
-            
-        # deal with byte order
-        if signalDataType in (1, 3, 5, 9):
-            dataType='>'+dataType
+            print(( 'Unsupported number of bits for unsigned int ' + str( numberOfBits) ))
+
+    elif signalDataType in (2, 3): # signed int
+        if numberOfBits <= 8:
+            dataType = 'int8'
+        elif numberOfBits == 16:
+            dataType = 'int16'
+        elif numberOfBits == 32:
+            dataType = 'int32'
+        elif numberOfBits == 64:
+            dataType = 'int64'
+        else:
+            print(( 'Unsupported number of bits for signed int ' + str( numberOfBits ) ))
+
+    elif signalDataType in ( 4, 5 ): # floating point
+        if numberOfBits == 32:
+            dataType = 'float32'
+        elif numberOfBits == 64:
+            dataType = 'float64'
+        else:
+            print(( 'Unsupported number of bit for floating point ' + str( numberOfBits ) ))
+    
+    elif signalDataType == 6: # string ISO-8859-1 Latin
+        dataType = 'str' # not directly processed
+    elif signalDataType == 7: # UTF-8
+        dataType = 'unicode' # not directly processed
+    elif signalDataType == (8, 9): # UTF-16
+        dataType = 'unicode16' # not directly processed
+    elif signalDataType == 10: # bytes array
+        dataType = 'buffer' # not directly processed
+    elif signalDataType in (11, 12): # MIME sample or MIME stream
+        dataType = ('unint16', 'unint8', 'unint8', 'unint8', 'unint8', 'unint8') # 7 Byte Date data structure
+    elif signalDataType in (13, 14): # CANopen date and time
+        dataType = ('unint32',  'unint16') # 6 Byte time data structure
+    else:
+        print(( 'Unsupported Signal Data Type ' + str( signalDataType ) + ' ', numberOfBits ))
         
-        return dataType
+    # deal with byte order
+    if signalDataType in (1, 3, 5, 9):
+        dataType='>'+dataType
+    
+    return dataType
 
 def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
     ## Processes recorded data blocks
@@ -342,7 +346,7 @@ def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
             except: # if tempChannelName not in buf -> bits in unit8
                 temp = buf['data']['data'].__getattribute__( str(previousChannelName) ) # extract channel vector
 
-            if info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']: # assumes first channel is time
+            if info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type'] in (2, 3, 4):# master channel 
                 channelName = 'time' + str( dataGroup )
             # Process concatenated bits inside unint8
             if signalDataType not in ( 1, 2, 3, 8 ):

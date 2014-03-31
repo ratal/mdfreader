@@ -16,11 +16,11 @@ Second class mdf reads file and add dict type data
     At a higher level this dict contains other keys :
         'data' : containing vector of data (numpy)
         'unit' : unit (string)
-        'time' : name of the string key related to the channel (string)
+        'master' : master channel of channel (time, crank angle, etc.)
         'description' : Description of channel
 
     Method plot('channelName') will plot the channel versus corresponding time
-    Method resample(samplingTime) will resample all channels by interpolation and make only one channel 'time'
+    Method resample(samplingTime) will resample all channels by interpolation and make only one master channel
 
 Requirements
 ------------
@@ -158,7 +158,7 @@ class mdf( mdf3,  mdf4 ):
     def __init__( self, fileName = None ):
         self.fileName = None
         self.VersionNumber=None
-        self.masterChannelList = []
+        self.masterChannelList = {}
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         # clears class from previous reading and avoid to mess up
         self.clear()
@@ -200,20 +200,20 @@ class mdf( mdf3,  mdf4 ):
             if channelName in self:
                 if not self[channelName]['data'].dtype.kind in ['S', 'U']: # if channel not a string
                     self.fig = plt.figure()
-                    # plot using matplotlib the channel versus time
-                    if 'time' in self[channelName]: # Resampled signals
-                        timeName = self[channelName]['time']
-                        if timeName == '': # resampled channels, only one time channel called 'time'
-                            timeName = 'time'
-                        if timeName in self: # time channel properly defined
-                            plt.plot( self[timeName]['data'], self[channelName]['data'] )
-                            plt.xlabel( timeName + ' [' + self[timeName]['unit'] + ']' )
+                    # plot using matplotlib the channel versus master channel
+                    if len(list(self.masterChannelList.keys()))==1: # Resampled signals
+                        masterName = self.masterChannelList.keys()
+                        if masterName == '': # resampled channels, only one time channel most probably called 'master'
+                            masterName ='master'
+                        if masterName in list(self.keys()): # time channel properly defined
+                            plt.plot( self[masterName]['data'], self[channelName]['data'] )
+                            plt.xlabel( masterName + ' [' + self[masterName]['unit'] + ']' )
                         else: # no time channel found
                             plt.plot( self[channelName]['data'] )
-                    else: # no time signal recognized,
-                        if 'time' in self: # most probably resampled
-                            plt.plot( self['time']['data'], self[channelName]['data'] )
-                            plt.xlabel( 'time [' + self['time']['unit']+ ']' )
+                    else: # not resampled
+                        if self[channelName]['master'] in list(self.keys()): # master channel is proper channel name
+                            plt.plot( self[self[channelName]['master']]['data'], self[channelName]['data'] )
+                            plt.xlabel( self[channelName]['master'] + ' [' + self[self[channelName]['master']]['unit'] + ']' )
                         else:
                             plt.plot( self[channelName]['data'] )
 
@@ -236,44 +236,46 @@ class mdf( mdf3,  mdf4 ):
             except:
                 print( Name )
 
-    def resample( self, samplingTime = 0.1 ):
+    def resample( self, samplingTime = 0.1, masterChannelName=None ):
         """ Resamples mdf channels inside object for one single time"""
         # resample all channels to one sampling time vector
-        if 'time' not in self.masterChannelList: # Not yet resampled
+        if len(list(self.masterChannelList.keys()))>1: # Not yet resampled
             channelNames = list(self.keys())
             minTime = maxTime = []
-            self['time'] = {}
+            if masterChannelName is None:
+                masterChannelName='master'
+            self[masterChannelName] = {}
             unit = ''
-            for time in self.masterChannelList:
-                if time in self and len( self[time]['data'] ) > 5: # consider groups having minimum size 
-                    minTime.append( self[time]['data'][0] )
-                    maxTime.append( self[time]['data'][len( self[time]['data'] ) - 1] )
-                    if self[time]['unit'] != '':
-                        unit = self[time]['unit']
-            self['time']['data'] = numpy.arange( min( minTime ),max( maxTime ),samplingTime )
-            self['time']['unit'] = unit
-            self['time']['description'] = 'Unique time channel'
+            for master in list(self.masterChannelList.keys()):
+                if master in self and len( self[master]['data'] ) > 5: # consider groups having minimum size 
+                    minTime.append( self[master]['data'][0] )
+                    maxTime.append( self[master]['data'][len( self[master]['data'] ) - 1] )
+                    if self[master]['unit'] != '':
+                        unit = self[master]['unit']
+            self[masterChannelName]['data'] = numpy.arange( min( minTime ),max( maxTime ),samplingTime )
+            self[masterChannelName]['unit'] = unit
+            self[masterChannelName]['description'] = 'Unique master channel'
 
             # Interpolate channels
             timevect=[]
             for Name in channelNames:
                 try:
-                    if Name not in self.masterChannelList:
-                        timevect = self[self[Name]['time']]['data']
+                    if Name not in list(self.masterChannelList.keys()):
+                        timevect = self[self[Name]['master']]['data']
                         if not self[Name]['data'].dtype.kind in ('S', 'U'): # if channel not array of string
-                            self[Name]['data'] = numpy.interp( self['time']['data'], timevect, self[Name]['data'] )
-                            if 'time' in self[Name]:
-                                del self[Name]['time']
+                            self[Name]['data'] = numpy.interp( self[masterChannelName]['data'], timevect, self[Name]['data'] )
+                            if masterChannelName in self[Name]:
+                                del self[Name][masterChannelName]
                 except:
                     if len( timevect ) != len( self[Name]['data'] ):
-                        print(( Name + ' and time channel ' + self[Name]['time'] + ' do not have same length' ))
+                        print(( Name + ' and time channel ' + self[Name][masterChannelName] + ' do not have same length' ))
                     elif not numpy.all( numpy.diff( timevect ) > 0 ):
-                        print(( Name + ' has non regularly increasing time channel ' + self[Name]['time'] ))
+                        print(( Name + ' has non regularly increasing time channel ' + self[Name][masterChannelName] ))
             # remove time channels in masterChannelList
-            for ind in self.masterChannelList:
+            for ind in list(self.masterChannelList.keys()):
                 del self[ind]
-            self.masterChannelList = [] # empty list
-            self.masterChannelList.append( 'time' )
+            self.masterChannelList = {} # empty dict
+            self.masterChannelList[masterChannelName] = list(self.keys()) 
         else:
             pass
 
@@ -328,10 +330,10 @@ class mdf( mdf3,  mdf4 ):
         setattr( f, 'Time', (info['HDBlock']['Time']))
         setattr( f, 'Organization', (info['HDBlock']['Organization']))
         setattr( f, 'ProjectName', (info['HDBlock']['ProjectName']))
-        setattr( f, 'Vehicle', (info['HDBlock']['Vehicle']))
+        setattr( f, 'Subject', (info['HDBlock']['Subject']))
         setattr( f, 'Comment', (info['HDBlock']['TXBlock']['Text']))
         # Create dimensions having name of all time channels
-        for time in self.masterChannelList:
+        for time in list(self.masterChannelList.keys()):
             f.createDimension( time, len( self[time]['data'] ) )
         # Create variables definition, dimension and attributes
         var = {}
@@ -350,15 +352,15 @@ class mdf( mdf3,  mdf4 ):
                 print(( 'Can not process numpy type ' + str(self[name]['data'].dtype) + ' of channel' ))
             # create variable
             CleanedName = cleanName( name )
-            if len( self.masterChannelList ) == 1: # mdf resampled
-                var[name] = f.createVariable( CleanedName, type, ( self.masterChannelList[0], ) )
+            if len( list(self.masterChannelList.keys()) ) == 1: # mdf resampled
+                var[name] = f.createVariable( CleanedName, type, ( list(self.masterChannelList.keys())[0], ) )
             else: # not resampled
-                var[name] = f.createVariable( CleanedName, type, ( self[name]['time'], ) )
+                var[name] = f.createVariable( CleanedName, type, ( self[name]['master'], ) )
             # Create attributes
             setattr( var[name], 'title', CleanedName )
             setattr( var[name], 'units', self[name]['unit'])
             setattr( var[name], 'Description', self[name]['description'])
-            if name in self.masterChannelList:
+            if name in list(self.masterChannelList.keys()):
                 setattr( var[name], 'Type', 'Time Channel' )
                 setattr( var[name], 'datatype', 'time' )
             else:
@@ -391,20 +393,20 @@ class mdf( mdf3,  mdf4 ):
         attr.create('Time', (info['HDBlock']['Time']))
         attr.create('Organization', (info['HDBlock']['Organization']))
         attr.create('ProjectName', (info['HDBlock']['ProjectName']))
-        attr.create('Vehicle', (info['HDBlock']['Vehicle']))
+        attr.create('Subject', (info['HDBlock']['Subject']))
         attr.create('Comment', (info['HDBlock']['TXBlock']['Text']))
-        if len( self.masterChannelList ) > 1:
+        if len( list(self.masterChannelList.keys()) ) > 1:
             # if several time groups of channels, not resampled
             groups = {}
             ngroups = 0
             grp = {}
             for channel in list(self.keys()):
-                if self[channel]['time'] not in list(groups.keys()):
+                if self[channel]['master'] not in list(groups.keys()):
                     # create new time group
                     ngroups += 1
-                    groups[self[channel]['time'] ] = ngroups
-                    grp[ngroups] = filegroup.create_group( self[channel]['time'] )
-                dset = grp[groups[self[channel]['time'] ]].create_dataset( channel, data = self[channel]['data'] )
+                    groups[self[channel]['master'] ] = ngroups
+                    grp[ngroups] = filegroup.create_group( self[channel]['master'] )
+                dset = grp[groups[self[channel]['master'] ]].create_dataset( channel, data = self[channel]['data'] )
                 attr = h5py.AttributeManager( dset )
                 attr.create( 'unit', (self[channel]['unit'] ))
                 attr.create( 'description', (self[channel]['description']))
@@ -517,7 +519,7 @@ class mdf( mdf3,  mdf4 ):
         maxRows=max([len(self[channel]['data']) for channel in list(self.keys())]) # find max column length
         maxCols=len(list(self.keys())) # number of columns
         print('Creating Excel sheet')
-        if len( self.masterChannelList ) > 1: # not resampled data, can be long, writing cell by cell !
+        if len( list(self.masterChannelList.keys()) ) > 1: # not resampled data, can be long, writing cell by cell !
             wb=openpyxl.workbook.Workbook(encoding='utf-8')
             ws=wb.get_active_sheet()
             # write header
@@ -570,10 +572,11 @@ class mdf( mdf3,  mdf4 ):
         channelList=[channel for channel in channelList]
         removeChannels=[]
         for channel in list(self.keys()):
-            if channel not in channelList and not 'time'==channel[0:4] and channel not in self.masterChannelList :
+            if channel not in channelList and not 'master' in channel and channel not in list(self.masterChannelList.keys()) :
                 # avoid to remove time channels otherwise problems with resample
                 removeChannels.append(channel)
         if not len(removeChannels)==0:
+            [self.masterChannelList[self[channel]['master']].remove(channel) for channel in removeChannels]
             [self.pop(channel) for channel in removeChannels]
 
     def copy(self):
@@ -591,13 +594,13 @@ class mdf( mdf3,  mdf4 ):
         # both must have been ressampled, otherwise, impossible to know time vector to match
         # create union of both lists
         unionedList=list(mdfClass.keys()) and list(self.keys())
-        if 'time' not in self:
+        if not len(list(self.masterChannelList.keys()))==1:
             print( 'Data not resampled')
             raise
-        initialTimeSize=len(self['time']['data'])
+        initialTimeSize=len(self['master']['data'])
         for channel in unionedList:
             if channel in mdfClass and channel in self: # channel exists in both class
-                if not channel=='time':
+                if not channel=='master':
                     self[channel]['data']=numpy.hstack((self[channel]['data'], mdfClass[channel]['data']))
                 else:
                     offset=numpy.mean(numpy.diff(mdfClass[channel]['data'])) # sampling
@@ -609,7 +612,7 @@ class mdf( mdf3,  mdf4 ):
                 refill.fil(numpy.nan) # fill with NANs
                 self[channel]['data']=numpy.hstack((refill,  mdfClass[channel]['data'])) # readjust against time
             else: #channel missing in mdfClass
-                refill=numpy.empty(len(mdfClass['time']['data']))
+                refill=numpy.empty(len(mdfClass['master']['data']))
                 refill.fill(numpy.nan) # fill with NANs
                 self[channel]['data']=numpy.hstack((self[channel]['data'], refill))
 
@@ -628,10 +631,10 @@ class mdf( mdf3,  mdf4 ):
         # first find groups of channels sharing same time vector
         # initialise frame description
         frame={}
-        for group in self.masterChannelList:
+        for group in list(self.masterChannelList.keys()):
             frame[group]=[]
         # create list of channel for each time group
-        [frame[self[channel]['time']].append(channel) for channel in self.keys()]
+        [frame[self[channel]['master']].append(channel) for channel in self.keys()]
         # create frames
         for group in frame.keys():
             temp={}
@@ -643,8 +646,8 @@ class mdf( mdf3,  mdf4 ):
             self[group+'_group'].pop(group) # delete time channel, no need anymore
         # clean rest of self from data and time channel information
         [self[channel].pop('data') for channel in originalKeys]
-        [self[channel].pop('time') for channel in originalKeys]
-        self.masterChannelList=[]
+        [self[channel].pop('master') for channel in originalKeys]
+        self.masterChannelList={}
         self.timeGroups=[] # save time groups name in list
         [self.timeGroups.append(group+'_group') for group in frame.keys()]
 
