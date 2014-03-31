@@ -161,7 +161,7 @@ class mdf3(dict):
     To use : yop= mdfreader.mdf('FileName.dat') """
     
     def __init__( self, fileName=None, info=None,multiProc=False,  channelList=None):
-        self.masterChannelList = []
+        self.masterChannelList = {}
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         self.author=None
         self.organisation=None
@@ -171,11 +171,10 @@ class mdf3(dict):
         self.clear()
         if fileName is None and info is not None:
             self.fileName = info.fileName
-            self.read(self.fileName, info, multiProc, channelList)
-        elif fileName is not None and info is not None:
+            self.read3(self.fileName, info, multiProc, channelList)
+        elif fileName is not None:
             self.fileName = fileName
-            self.read(self.fileName, info, multiProc, channelList)
-        
+            self.read3(self.fileName, info, multiProc, channelList)        
 
     ## reads mdf file
     def read3( self, fileName=None, info=None, multiProc=False, channelList=None):
@@ -233,6 +232,7 @@ class mdf3(dict):
             precedingNumberOfBits = 0
             numpyDataRecordFormat = []
             dataRecordName = []
+            
             if numberOfRecordIDs >= 1:
                 # start first with uint8
                 numpyDataRecordFormat.append(('firstRecordID', 'uint8'))
@@ -251,11 +251,11 @@ class mdf3(dict):
                         numberOfBits = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
                         # Defines data format
                         #datatype = self.datatypeformat3( signalDataType, numberOfBits )
-
+                       
                         if numberOfBits < 8:  # adding bit format, ubit1 or ubit2
                             if precedingNumberOfBits == 8:  # 8 bit make a byte
                                 dataRecordName.append(str(info['CNBlock'][dataGroup][channelGroup][channel]['signalName']))
-                                numpyDataRecordFormat.append((dataRecordName[-1], self.arrayformat3(signalDataType, numberOfBits)))
+                                numpyDataRecordFormat.append((dataRecordName[-1], arrayformat3(signalDataType, numberOfBits)))
                                 precedingNumberOfBits = 0
                             else:
                                 precedingNumberOfBits += numberOfBits  # counts successive bits
@@ -264,11 +264,11 @@ class mdf3(dict):
                             if precedingNumberOfBits != 0:  # There was bits in previous channel
                                 precedingNumberOfBits = 0
                             dataRecordName.append(str(info['CNBlock'][dataGroup][channelGroup][channel]['signalName']))
-                            numpyDataRecordFormat.append((dataRecordName[-1], self.arrayformat3(signalDataType, numberOfBits )))
+                            numpyDataRecordFormat.append((dataRecordName[-1], arrayformat3(signalDataType, numberOfBits )))
 
                     if numberOfBits < 8: # last channel in record is bit inside byte unit8
                         dataRecordName.append(str(info['CNBlock'][dataGroup][channelGroup][channel]['signalName']))
-                        numpyDataRecordFormat.append((dataRecordName[-1], self.arrayformat3(signalDataType, numberOfBits)))
+                        numpyDataRecordFormat.append((dataRecordName[-1], arrayformat3(signalDataType, numberOfBits)))
                         precedingNumberOfBits = 0
                     # Offset of record id at the end of record
                     if numberOfRecordIDs == 2:
@@ -298,13 +298,14 @@ class mdf3(dict):
                     numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
                     if numberOfRecords != 0 :
                         channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-                        if channelName in channelTime:  # assumes first channel is time
+                        if channelName in channelTime:  # time channel
                             channelName = 'time' + str(dataGroup)
-                            if channelName in L and len(L[channelName]) != 0:
-                                self.masterChannelList.append(channelName)
                         if channelName in L and len(L[channelName]) != 0:
+                            if ('time' + str(dataGroup)) not in list(self.masterChannelList.keys()):
+                                self.masterChannelList['time' + str(dataGroup)] = []
+                            self.masterChannelList['time' + str(dataGroup)].append(channelName)
                             self[channelName] = {}
-                            self[channelName]['time'] = 'time' + str(dataGroup)
+                            self[channelName]['master'] = 'time' + str(dataGroup) # master channel of channel
                             self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
                             self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription']
                             self[channelName]['data'] = L[channelName]
@@ -327,15 +328,15 @@ class mdf3(dict):
         UINT64 = 'Q'
         #INT64 = 'q'
         
-        # rediscover mdf class structure
-        rasters = {}
-        for master in self.masterChannelList:
-            rasters[master] = []
-        if 'time' in self.keys(): # Resampled signals
-            rasters['time']=self.keys()
-        else:
-            for channel in self.keys():
-                rasters[self[channel]['time']].append(channel)  # group channels by master channel = datagroup&channelgroup
+        # put master channel in first position for each datagroup if not already the case
+        for master in list(self.masterChannelList.keys()):
+            masterList = self.masterChannelList[master]
+            masterPosition = masterList.index(master)
+            masterList.sort() # alphabetically sort the channel names
+            masterList.pop(masterPosition) # remove  master channel
+            masterList.insert(0, master) # insert at first position master channel
+            self.masterChannelList[master] = masterList
+        
         pointers = {}  # records pointers of blocks when writing
         
         # writes characters 
@@ -346,13 +347,14 @@ class mdf3(dict):
                 if len(value) > size:
                     temp = value[:size]
                 else:
-                    temp = value+' '*(size-len(value))
+                    temp = value+'\0'*(size-len(value))
                 temp += '\0'
             if PythonVersion<3:
                 f.write(pack('<'+CHAR*len(temp), *temp))
             else:
-                temp.encode('latin1', 'replace')
-                f.write(pack('<'+CHAR*len(temp), *temp))
+                temp=temp.encode('latin1', 'replace')
+                print('<'+'s'*len(temp), temp)
+                f.write(pack('<'+'s'*len(temp), *temp))
 
         # write pointer of block and come back to current stream position
         def writePointer(f, pointer, value):
@@ -382,7 +384,8 @@ class mdf3(dict):
         fid.write(pack(LINK, 0))  # pointer to TX Block file comment
         pointers['HD']['PR'] = fid.tell()
         fid.write(pack(LINK, 0))  # pointer to PR Block
-        fid.write(pack(UINT16, len(self.masterChannelList)))  # number of data groups
+        ndataGroup = len(self.masterChannelList)
+        fid.write(pack(UINT16, ndataGroup))  # number of data groups
         writeChar(fid, time.strftime("%d:%m:%Y"))  # date
         writeChar(fid, time.strftime("%H:%M:%S"))  # time
         if self.author is not None:
@@ -410,7 +413,7 @@ class mdf3(dict):
         pointers['DG'] = {}
         pointers['CG'] = {}
         pointers['CN'] = {}
-        ndataGroup = len(self.masterChannelList)
+        
         for dataGroup in range(ndataGroup):
             # writes dataGroup Block
             pointers['DG'][dataGroup] = {}
@@ -446,15 +449,15 @@ class mdf3(dict):
             pointers['CG'][dataGroup]['TX'] = fid.tell()
             fid.write(pack(LINK, 0))  # pointer to TX block
             fid.write(pack(UINT16, 0))  # No record ID no need for sorted data
-            masterChannel = self.masterChannelList[dataGroup]
-            numChannels = len(rasters[masterChannel])
+            masterChannel = list(self.masterChannelList.keys())[dataGroup]
+            numChannels = len(self.masterChannelList[masterChannel])
             fid.write(pack(UINT16, numChannels))  # Number of channels
             pointers['CG'][dataGroup]['dataRecordSize'] = fid.tell()
             fid.write(pack(UINT16, 0))  # Size of data record
-            nRecords = len(self[self.masterChannelList[dataGroup]]['data'])
+            nRecords = len(self[masterChannel]['data'])
             fid.write(pack(UINT32, nRecords))  # Number of records
             fid.write(pack(LINK, 0))  # pointer to sample reduction block, not used
-            sampling = numpy.average(numpy.diff(self[self.masterChannelList[dataGroup]]['data']))            
+            sampling = numpy.average(numpy.diff(self[masterChannel]['data']))            
             
             # Channel blocks writing
             pointers['CN'][dataGroup] = {}
@@ -463,7 +466,7 @@ class mdf3(dict):
             recordNumberOfBits = 0
             preceedingChannel = None
             writePointer(fid, pointers['CG'][dataGroup]['firstCN'], fid.tell())  # first channel bock pointer from CG
-            for channel in rasters[masterChannel]:
+            for channel in self.masterChannelList[masterChannel]:
                 pointers['CN'][dataGroup][channel] = {}
                 pointers['CN'][dataGroup][channel]['beginCN'] = fid.tell()
                 writeChar(fid, 'CN')
@@ -480,7 +483,7 @@ class mdf3(dict):
                 pointers['CN'][dataGroup][channel]['TX'] = fid.tell()
                 fid.write(pack(LINK, 0))  # pointer to comment TX, no comment
                 # check if master channel
-                if channel not in self.masterChannelList:
+                if channel not in list(self.masterChannelList.keys()):
                     fid.write(pack(UINT16, 0))  # data channel
                 else:
                     fid.write(pack(UINT16, 1))  # master channel
@@ -574,94 +577,94 @@ class mdf3(dict):
         #print(pointers)
         fid.close()
         
-    @staticmethod
-    def datatypeformat3(signalDataType, numberOfBits):
-        # DATATYPEFORMAT Data type format precision to give to fread
-        #   datatypeformat3(SIGNALDATATYPE,NUMBEROFBITS) is the precision string to
-        #   give to fread for reading the data type specified by SIGNALDATATYPE and
-        #   NUMBEROFBITS
+    
+def datatypeformat3(signalDataType, numberOfBits):
+    # DATATYPEFORMAT Data type format precision to give to fread
+    #   datatypeformat3(SIGNALDATATYPE,NUMBEROFBITS) is the precision string to
+    #   give to fread for reading the data type specified by SIGNALDATATYPE and
+    #   NUMBEROFBITS
 
-        if signalDataType in (0, 9, 10, 11):  # unsigned
-            if numberOfBits == 8:
-                dataType = 'B'
-            elif numberOfBits == 16:
-                dataType = 'H'
-            elif numberOfBits == 32:
-                dataType = 'I'
-            elif numberOfBits == 1:
-                dataType = 'ubit1'  # not directly processed
-            elif numberOfBits == 2:
-                dataType = 'ubit2'  # not directly processed
-            else:
-                print(('Unsupported number of bits for unsigned int ' + str(signalDataType)))
-
-        elif signalDataType == 1:  # signed int
-            if numberOfBits == 8:
-                dataType = 'b'
-            elif numberOfBits == 16:
-                dataType = 'h'
-            elif numberOfBits == 32:
-                dataType = 'i'
-            else:
-                print(('Unsupported number of bits for signed int ' + str(signalDataType)))
-
-        elif signalDataType in (2, 3):  # floating point
-            if numberOfBits == 32:
-                dataType = 'f'
-            elif numberOfBits == 64:
-                dataType = 'd'
-            else:
-                print(('Unsupported number of bit for floating point ' + str(signalDataType)))
-
-        elif signalDataType == 7:  # string
-            dataType = 's'
-        elif signalDataType == 8:  # array of bytes
-            dataType = 'B'  # take unit8 as default ?
+    if signalDataType in (0, 9, 10, 11):  # unsigned
+        if numberOfBits == 8:
+            dataType = 'B'
+        elif numberOfBits == 16:
+            dataType = 'H'
+        elif numberOfBits == 32:
+            dataType = 'I'
+        elif numberOfBits == 1:
+            dataType = 'ubit1'  # not directly processed
+        elif numberOfBits == 2:
+            dataType = 'ubit2'  # not directly processed
         else:
-            print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
-        return dataType
+            print(('Unsupported number of bits for unsigned int ' + str(signalDataType)))
 
-    @staticmethod
-    def arrayformat3(signalDataType, numberOfBits):
-
-        # Formats used by numpy
-
-        if signalDataType in (0, 9, 10, 11):  # unsigned
-            if numberOfBits == 8:
-                dataType = 'uint8'
-            elif numberOfBits == 16:
-                dataType = 'uint16'
-            elif numberOfBits == 32:
-                dataType = 'uint32'
-            elif numberOfBits == 1:
-                dataType = 'uint8'  # not directly processed
-            elif numberOfBits == 2:
-                dataType = 'uint8'  # not directly processed
-            else:
-                print(('Unsupported number of bits for unsigned int ' + str(signalDataType)))
-
-        elif signalDataType == 1:  # signed int
-            if numberOfBits == 8:
-                dataType = 'int8'
-            elif numberOfBits == 16:
-                dataType = 'int16'
-            elif numberOfBits == 32:
-                dataType = 'int32'
-            else:
-                print(('Unsupported number of bits for signed int ' + str(signalDataType)))
-
-        elif signalDataType in (2, 3):  # floating point
-            if numberOfBits == 32:
-                dataType = 'float32'
-            elif numberOfBits == 64:
-                dataType = 'float64'
-            else:
-                print(('Unsupported number of bit for floating point ' + str(signalDataType)))
-
-        elif signalDataType == 7:  # string
-            dataType = 'str'  # not directly processed
-        elif signalDataType == 8:  # array of bytes
-            dataType = 'buffer'  # not directly processed
+    elif signalDataType == 1:  # signed int
+        if numberOfBits == 8:
+            dataType = 'b'
+        elif numberOfBits == 16:
+            dataType = 'h'
+        elif numberOfBits == 32:
+            dataType = 'i'
         else:
-            print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
-        return dataType
+            print(('Unsupported number of bits for signed int ' + str(signalDataType)))
+
+    elif signalDataType in (2, 3):  # floating point
+        if numberOfBits == 32:
+            dataType = 'f'
+        elif numberOfBits == 64:
+            dataType = 'd'
+        else:
+            print(('Unsupported number of bit for floating point ' + str(signalDataType)))
+
+    elif signalDataType == 7:  # string
+        dataType = 's'
+    elif signalDataType == 8:  # array of bytes
+        dataType = 'B'  # take unit8 as default ?
+    else:
+        print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
+    return dataType
+
+
+def arrayformat3(signalDataType, numberOfBits):
+
+    # Formats used by numpy
+
+    if signalDataType in (0, 9, 10, 11):  # unsigned
+        if numberOfBits == 8:
+            dataType = 'uint8'
+        elif numberOfBits == 16:
+            dataType = 'uint16'
+        elif numberOfBits == 32:
+            dataType = 'uint32'
+        elif numberOfBits == 1:
+            dataType = 'uint8'  # not directly processed
+        elif numberOfBits == 2:
+            dataType = 'uint8'  # not directly processed
+        else:
+            print(('Unsupported number of bits for unsigned int ' + str(signalDataType)))
+
+    elif signalDataType == 1:  # signed int
+        if numberOfBits == 8:
+            dataType = 'int8'
+        elif numberOfBits == 16:
+            dataType = 'int16'
+        elif numberOfBits == 32:
+            dataType = 'int32'
+        else:
+            print(('Unsupported number of bits for signed int ' + str(signalDataType)))
+
+    elif signalDataType in (2, 3):  # floating point
+        if numberOfBits == 32:
+            dataType = 'float32'
+        elif numberOfBits == 64:
+            dataType = 'float64'
+        else:
+            print(('Unsupported number of bit for floating point ' + str(signalDataType)))
+
+    elif signalDataType == 7:  # string
+        dataType = 'str'  # not directly processed
+    elif signalDataType == 8:  # array of bytes
+        dataType = 'buffer'  # not directly processed
+    else:
+        print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
+    return dataType
