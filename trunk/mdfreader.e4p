@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Project SYSTEM "Project-5.1.dtd">
 <!-- eric5 project file for project mdfreader -->
-<!-- Saved: 2014-03-27, 21:42:32 -->
+<!-- Saved: 2014-04-03, 22:31:01 -->
 <!-- Copyright (C) 2014 Aymeric Rateau, aymeric.rateau@gmail.com -->
 <Project version="5.1">
   <Language>en</Language>
@@ -31,7 +31,9 @@
   <Translations/>
   <Resources/>
   <Interfaces/>
-  <Others/>
+  <Others>
+    <Other>.issues</Other>
+  </Others>
   <MainScript>mdfconverter.py</MainScript>
   <Vcs>
     <VcsType>Subversion</VcsType>

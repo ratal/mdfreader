@@ -139,12 +139,12 @@ class mdfinfo( dict):
         if VersionNumber<400: # up to version 3.x not compatible with version 4.x
             from mdfinfo3 import info3
             channelNameList=info3()
-            channelNameList.listChannels3(fileName)
+            nameList=channelNameList.listChannels3(fileName)
         else:
             from mdfinfo4 import info4
             channelNameList=info4()
-            channelNameList.listChannels4(fileName)
-        return channelNameList
+            nameList=channelNameList.listChannels4(fileName)
+        return nameList
 
 class mdf( mdf3,  mdf4 ):
     """ mdf file class
