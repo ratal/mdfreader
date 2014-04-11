@@ -316,7 +316,7 @@ class mdf3(dict):
     def write3(self, fileName=None):
         # write data in sorted format: 1 datagroup for 1  channel group and many channel with same sampling
         LINK = 'I'
-        CHAR = 'c'
+        #CHAR = 'c'
         REAL = 'd'
         BOOL = 'h'
         #UINT8 = 'B'
@@ -349,12 +349,9 @@ class mdf3(dict):
                 else:
                     temp = value+'\0'*(size-len(value))
                 temp += '\0'
-            if PythonVersion<3:
-                f.write(pack('<'+CHAR*len(temp), *temp))
-            else:
+            if PythonVersion>=3:
                 temp=temp.encode('latin1', 'replace')
-                print('<'+'s'*len(temp), temp)
-                f.write(pack('<'+'s'*len(temp), *temp))
+            f.write(pack('<'+str(len(temp))+'s', temp))
 
         # write pointer of block and come back to current stream position
         def writePointer(f, pointer, value):
@@ -494,7 +491,10 @@ class mdf3(dict):
                 writeChar(fid, desc, size=127)  # channel description
                 fid.write(pack(UINT16, 0))  # no offset
                 data = self[channel]['data']  # channel data
-                dataList = dataList+(data, )
+                temp=data
+                if PythonVersion>=3 and data.dtype.kind in ['S', 'U']:
+                    temp=temp.encode('latin1', 'replace')
+                dataList = dataList+(temp, )
 
                 if data.dtype in ('float64', 'int64', 'uint64'):
                     numberOfBits = 64
@@ -520,16 +520,19 @@ class mdf3(dict):
                     dataType = 7
                 else:
                     print('Not recognized dtype')
+                    print('Not recognized dtype')
                     raise
                 if not data.dtype.kind in ['S', 'U']: 
                     dataTypeList += data.dtype.char
                 else:
-                    dataTypeList += 's'
+                    dataTypeList += str(data.dtype.itemsize)+'s'
                 fid.write(pack(UINT16, dataType))  # Signal data type
                 if not data.dtype.kind in ['S', 'U']:
                     fid.write(pack(BOOL, 1))  # Value range valid
-                    fid.write(pack(REAL, min(data)))  # Min value
-                    fid.write(pack(REAL, max(data)))  # Max value
+                    maximum=numpy.max(data)
+                    minimum=numpy.min(data)
+                    fid.write(pack(REAL, minimum))  # Min value
+                    fid.write(pack(REAL, maximum))  # Max value
                 else:
                     fid.write(pack(BOOL, 0))  # No value range valid
                     fid.write(pack(REAL, 0))  # Min value
@@ -552,8 +555,8 @@ class mdf3(dict):
                 fid.write(pack(UINT16, 46))  # CC block size
                 if not data.dtype.kind in ['S', 'U']:
                     fid.write(pack(BOOL, 1))  # Value range valid
-                    fid.write(pack(REAL, min(data)))  # Min value
-                    fid.write(pack(REAL, max(data)))  # Max value
+                    fid.write(pack(REAL, minimum))  # Min value
+                    fid.write(pack(REAL, maximum))  # Max value
                 else:
                     fid.write(pack(BOOL, 0))  # No value range valid
                     fid.write(pack(REAL, 0))  # Min value
@@ -564,14 +567,14 @@ class mdf3(dict):
             # number of channels in CG
             currentPosition = fid.tell()
             fid.seek(pointers['CG'][dataGroup]['dataRecordSize'])
-            fid.write(pack(UINT16, recordNumberOfBits/8))  # Size of data record
+            fid.write(pack(UINT16, int(recordNumberOfBits/8)))  # Size of data record
             fid.seek(currentPosition)
             
             # data writing
             # write data pointer in datagroup
             writePointer(fid, pointers['DG'][dataGroup]['data'], fid.tell())
             records = numpy.array(dataList, object).T
-            records = numpy.reshape(records, (1, len(dataTypeList)*nRecords), order='C')[0]  # flatten the matrix
+            records = numpy.reshape(records, (1, len(self.masterChannelList[masterChannel])*nRecords), order='C')[0]  # flatten the matrix
             fid.write(pack('<'+dataTypeList*nRecords, *records))  # dumps data vector from numpy
                 
         #print(pointers)

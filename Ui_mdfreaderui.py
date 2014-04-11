@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file '/home/ratal/workspace/mdfreader/mdfreaderui.ui'
 #
-# Created: Tue Feb  5 21:46:15 2013
+# Created: Sat Apr 12 00:13:31 2014
 #      by: PyQt4 UI code generator 4.9.3
 #
 # WARNING! All changes made in this file will be lost!
@@ -17,7 +17,7 @@ except AttributeError:
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName(_fromUtf8("MainWindow"))
-        MainWindow.resize(800, 600)
+        MainWindow.resize(800, 653)
         self.TopLayout = QtGui.QWidget(MainWindow)
         self.TopLayout.setObjectName(_fromUtf8("TopLayout"))
         self.gridLayout = QtGui.QGridLayout(self.TopLayout)
@@ -131,6 +131,9 @@ class Ui_MainWindow(object):
         self.excel2010 = QtGui.QRadioButton(self.verticalLayoutWidget)
         self.excel2010.setObjectName(_fromUtf8("excel2010"))
         self.ConvertSelect.addWidget(self.excel2010)
+        self.mdf3 = QtGui.QRadioButton(self.verticalLayoutWidget)
+        self.mdf3.setObjectName(_fromUtf8("mdf3"))
+        self.ConvertSelect.addWidget(self.mdf3)
         self.horizontalLayoutWidget = QtGui.QWidget(self.splitter)
         self.horizontalLayoutWidget.setObjectName(_fromUtf8("horizontalLayoutWidget"))
         self.Resample = QtGui.QVBoxLayout(self.horizontalLayoutWidget)
@@ -199,6 +202,7 @@ class Ui_MainWindow(object):
         self.csv.setText(QtGui.QApplication.translate("MainWindow", "CSV", None, QtGui.QApplication.UnicodeUTF8))
         self.excel.setText(QtGui.QApplication.translate("MainWindow", "Excel 2003", None, QtGui.QApplication.UnicodeUTF8))
         self.excel2010.setText(QtGui.QApplication.translate("MainWindow", "Excel 2010", None, QtGui.QApplication.UnicodeUTF8))
+        self.mdf3.setText(QtGui.QApplication.translate("MainWindow", "MDF3.3", None, QtGui.QApplication.UnicodeUTF8))
         self.resample.setWhatsThis(QtGui.QApplication.translate("MainWindow", "Click to resample according to below sampling time in seconds", None, QtGui.QApplication.UnicodeUTF8))
         self.resample.setText(QtGui.QApplication.translate("MainWindow", "Resample", None, QtGui.QApplication.UnicodeUTF8))
         self.resampleValue.setWhatsThis(QtGui.QApplication.translate("MainWindow", "Resampling time in seconds", None, QtGui.QApplication.UnicodeUTF8))

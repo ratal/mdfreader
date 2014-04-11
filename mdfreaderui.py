@@ -153,6 +153,8 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                     self.mdfClass.exportToExcel()
                 elif self.convertSelection=='excel2010':
                     self.mdfClass.exportToXlsx()
+                elif self.convertSelection=='mdf3':
+                    self.mdfClass.write(fileName)
                 self.cleanChannelList()
                 print('File list merged :')
                 for file in fileNameList: # prints files merged for checking
@@ -213,6 +215,13 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         Selects excel conversion.
         """
         self.convertSelection='excel2010'
+        
+    @pyqtSignature("bool")
+    def on_mdf3_clicked(self, checked):
+        """
+        Selects MDF3.3 conversion.
+        """
+        self.convertSelection='mdf3'
 
     @pyqtSignature("")
     def on_LabFileBrowse_clicked(self):
@@ -302,6 +311,8 @@ def processMDF(fileName,channelist,resampleFlag,resampleValue,convertFlag,conver
             yop.exportToExcel()
         elif convertSelection=='excel2010':
             yop.exportToXlsx()
+        elif convertSelection=='mdf3':
+            yop.write(fileName)
     yopPicklable={} # picklable dict and not object
     for channel in list(yop.keys()):
         yopPicklable[channel]=yop[channel]

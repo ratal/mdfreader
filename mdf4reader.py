@@ -122,7 +122,7 @@ class mdf4(dict):
             self.fileName=info.fileName
         else:
             self.fileName=fileName
-        self.read(self.fileName, info, multiProc, channelList)
+        self.read4(self.fileName, info, multiProc, channelList)
 
     ## reads mdf file
     def read4( self, fileName=None, info = None, multiProc = False, channelList=None):
