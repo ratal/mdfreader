@@ -28,7 +28,7 @@ class DATABlock(MDFBlock):
     def __init__(self, fid,  pointer, numpyDataRecordFormat, numberOfRecords , dataRecordName, zip_type=None, channelList=None):
         # block header
         self.loadHeader(fid, pointer)
-        if self['id']=='##DT' or self['id']=='##RD': # normal data block
+        if self['id'] in ('##DT', '##RD', b'##DT', b'##RD'): # normal data block
             if channelList==None: # reads all blocks
                 self['data']=numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = numberOfRecords , names=dataRecordName)
             else: # channelList defined
@@ -43,10 +43,10 @@ class DATABlock(MDFBlock):
                             buf.append(numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = 1 , names=name,  offset=None ))
                 self['data']=buf
                 
-        elif self['id']=='##SD': # Signal Data Block
+        elif self['id'] in ('##SD', b'##SD'): # Signal Data Block
             unpack('uint32', fid.read(4)) # length of data
             
-        elif self['id']=='##DZ': # zipped data block
+        elif self['id'] in ('##DZ', b'##DZ'): # zipped data block
             self['dz_org_block_type']=self.mdfblockreadCHAR(fid, 2)
             self['dz_zip_type']=self.mdfblockread(fid, UINT8, 1)
             if zip_type==None: # HLBlock used
@@ -81,9 +81,9 @@ class DATA(MDFBlock):
     def __init__(self, fid,  pointer, numpyDataRecordFormat, numberOfRecords , dataRecordName, zip=None, nameList=None):
         # block header
         self.loadHeader(fid, pointer)
-        if not self['id']=='##DL' and not self['id']=='##HL':
+        if not self['id'] in ('##DL', '##HL', b'##DL', b'##HL'):
             self=DATABlock(fid, pointer, numpyDataRecordFormat, numberOfRecords , dataRecordName, zip_type=zip, channelList=nameList)
-        elif self['id']=='##DL': # data list block
+        elif self['id'] in ('##DL', b'##DL'): # data list block
             # link section
             self['dl_dl_next']=self.mdfblockread(fid, LINK, 1)
             self['dl_data']=self.mdfblockread(fid, LINK, self['link_count']-1)
@@ -99,7 +99,7 @@ class DATA(MDFBlock):
             else:
                 self['data']=numpy.vstack([DATABlock(fid, self['dl_data'][dl], numpyDataRecordFormat, numberOfRecords , dataRecordName, channelList=nameList) for dl in range(self['dl_count'])])
             
-        elif self['id']=='##HL': # header list block, if DZBlock used
+        elif self['id'] in ('##HL', b'##HL'): # header list block, if DZBlock used
             # link section
             self['hl_dl_first']=self.mdfblockread(fid, LINK, 1)
             # data section
@@ -114,7 +114,7 @@ class mdf4(dict):
     To use : yop= mdfreader.mdf('FileName.mf4')"""
     
     def __init__( self, fileName = None, info=None,multiProc = False,  channelList=None):
-        self.masterChannelList = []
+        self.masterChannelList = {}
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         # clears class from previous reading and avoid to mess up
         self.clear()
@@ -237,22 +237,22 @@ class mdf4(dict):
 
         # After all processing of channels,
         # prepare final class data with all its keys
-        for dataGroup in info['DGBlock'].keys():
+        for dataGroup in list(info['DGBlock'].keys()):
             self.masterChannelList[masterDataGroup[dataGroup]]=[]
-            for channelGroup in info['CGBlock'][dataGroup].keys():
-                for channel in info['CNBlock'][dataGroup][channelGroup].keys():
+            for channelGroup in list(info['CGBlock'][dataGroup].keys()):
+                for channel in list(info['CNBlock'][dataGroup][channelGroup].keys()):
                     channelName = info['CNBlock'][dataGroup][channelGroup][channel]['name']
                     if channelName in L and len( L[channelName] ) != 0:
                         self.masterChannelList[masterDataGroup[dataGroup]].append(channelName)
                         self[channelName] = {}
                         self[channelName]['master'] = masterDataGroup[dataGroup]
-                        if info['CCBlock'][dataGroup][channelGroup][channel].has_key('unit'):
+                        if 'unit' in list(info['CCBlock'][dataGroup][channelGroup][channel].keys()):
                             self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['unit']
-                        elif info['CNBlock'][dataGroup][channelGroup][channel].has_key('unit'):
+                        elif 'unit' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
                             self[channelName]['unit'] = info['CNBlock'][dataGroup][channelGroup][channel]['unit']
                         else:
                             self[channelName]['unit'] = ''
-                        if info['CNBlock'][dataGroup][channelGroup][channel].has_key('Comment'):
+                        if 'Comment' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
                             self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['Comment']
                         else:
                             self[channelName]['description'] = ''
