@@ -50,10 +50,10 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         Will open a dialog to browse for files
         """
         if self.defaultPath==None:
-            self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files",filter=("MDF file (*.dat *.mdf)"))
+            self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files",filter=("MDF file (*.dat *.mdf *.mf4)"))
             self.defaultPath=path.dirname(str(self.fileNames[0]))
         else:
-            self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files",self.defaultPath, filter=("MDF file (*.dat *.mdf)"))
+            self.fileNames=QFileDialog.getOpenFileNames(self, "Select Measurement Files",self.defaultPath, filter=("MDF file (*.dat *.mdf *.mf4)"))
         if not len(self.fileNames)==0:
             self.FileList.addItems(self.fileNames)
             self.mdfinfoClass.__init__()
@@ -154,7 +154,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                 elif self.convertSelection=='excel2010':
                     self.mdfClass.exportToXlsx()
                 elif self.convertSelection=='mdf3':
-                    self.mdfClass.write(fileName)
+                    self.mdfClass.write(fileName+'_new')
                 self.cleanChannelList()
                 print('File list merged :')
                 for file in fileNameList: # prints files merged for checking
@@ -312,7 +312,7 @@ def processMDF(fileName,channelist,resampleFlag,resampleValue,convertFlag,conver
         elif convertSelection=='excel2010':
             yop.exportToXlsx()
         elif convertSelection=='mdf3':
-            yop.write(fileName)
+            yop.write(fileName+'_new')
     yopPicklable={} # picklable dict and not object
     for channel in list(yop.keys()):
         yopPicklable[channel]=yop[channel]
