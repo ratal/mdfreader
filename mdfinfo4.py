@@ -84,7 +84,9 @@ class MDFBlock(dict):
     def mdfblockreadBYTE( fid, count ):
         # UTF-8 encoded bytes
         value=fid.read( count )
-        value.decode('UTF-8', 'replace').replace('\x00', '') 
+        if PythonVersion<3:
+            value=value.decode('UTF-8', 'replace')
+        value=value.replace(b'\x00', b'') 
         return value
         
 class IDBlock(MDFBlock):
@@ -163,7 +165,7 @@ class CommentBlock(MDFBlock):
             self.loadHeader(fid, pointer)
             if self['id'] in ('##MD',b'##MD'):
                 # Metadata block
-                self['Comment']=self.mdfblockreadBYTE(fid, self['length']-24)[:-1] # removes 0 end 
+                self['Comment']=self.mdfblockreadBYTE(fid, self['length']-24) #[:-1] # removes normal 0 at end
                 import xml.etree.ElementTree as ET
                 utf8parser = ET.XMLParser(encoding="utf-8")
                 self['xml_tree']=ET.XML(self['Comment'], parser=utf8parser)
@@ -209,9 +211,9 @@ class CommentBlock(MDFBlock):
 
             elif self['id'] in ('##TX',b'##TX'):
                 if MDType=='CN': # channel comment
-                    self['name']=str(self.mdfblockreadBYTE(fid, self['length']-24)).replace('\x00', '')
+                    self['name']=self.mdfblockreadBYTE(fid, self['length']-24).replace(b'\x00', b'')
                 else:
-                    self['Comment']=str(self.mdfblockreadBYTE(fid, self['length']-24)).replace('\x00', '')
+                    self['Comment']=self.mdfblockreadBYTE(fid, self['length']-24).replace(b'\x00', b'')
     
     def extractXmlField(self,  xml_tree, field):
         return xml_tree.findtext(self.namespace+field)
@@ -574,7 +576,7 @@ class info4(dict):
             try:
                 fid = open( self.fileName, 'rb' )
             except IOError:
-                print('Can not find file'+self.fileName)
+                print('Can not find file '+self.fileName)
                 raise
             self.readinfo( fid )
             # Close the file
@@ -596,7 +598,8 @@ class info4(dict):
         self['FHBlock'][fh] = {}
         self['FHBlock'][fh] .update(FHBlock(fid, self['HDBlock']['hd_fh_first']))
         while self['FHBlock'][fh]['fh_fh_next']:
-            self['FHBlock'][fh] .update(FHBlock(fid, self['FHBlock'][fh]['fh_fh_next']))
+            self['FHBlock'][fh+1]={}
+            self['FHBlock'][fh+1] .update(FHBlock(fid, self['FHBlock'][fh]['fh_fh_next']))
             fh+=1
         
         # reads Channel Hierarchy blocks

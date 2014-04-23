@@ -10,6 +10,9 @@ from struct import unpack
 from sys import platform
 from mdfinfo4 import info4, MDFBlock
 from collections import OrderedDict
+from sys import version_info
+PythonVersion=version_info
+PythonVersion=PythonVersion[0]
 
 LINK='<Q' 
 REAL='<d'
@@ -82,7 +85,7 @@ class DATA(MDFBlock):
         # block header
         self.loadHeader(fid, pointer)
         if not self['id'] in ('##DL', '##HL', b'##DL', b'##HL'):
-            self=DATABlock(fid, pointer, numpyDataRecordFormat, numberOfRecords , dataRecordName, zip_type=zip, channelList=nameList)
+            self['data']=DATABlock(fid, pointer, numpyDataRecordFormat, numberOfRecords , dataRecordName, zip_type=zip, channelList=nameList)
         elif self['id'] in ('##DL', b'##DL'): # data list block
             # link section
             self['dl_dl_next']=self.mdfblockread(fid, LINK, 1)
@@ -200,11 +203,11 @@ class mdf4(dict):
                             masterDataGroup[dataGroup]=channelName
                         if channelList is not None:
                             channelListByte[channelName]=channelByteOffset
-
+                            
                         if numberOfBits < 8: # adding bit format, ubit1 or ubit2
                             if precedingNumberOfBits == 8: # 8 bit make a byte
                                 dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                                numpyDataRecordFormat.append( ( dataRecordName[-1], arrayformat4( signalDataType, numberOfBits ) ) )
+                                numpyDataRecordFormat.append( ( (dataRecordName[-1], convertName(dataRecordName[-1])), arrayformat4( signalDataType, numberOfBits ) ) )
                                 precedingNumberOfBits = 0
                             else:
                                 precedingNumberOfBits += numberOfBits # counts successive bits
@@ -213,11 +216,11 @@ class mdf4(dict):
                             if precedingNumberOfBits != 0: # There was bits in previous channel
                                 precedingNumberOfBits = 0
                             dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                            numpyDataRecordFormat.append( ( dataRecordName[-1], arrayformat4( signalDataType, numberOfBits ) ) )
+                            numpyDataRecordFormat.append( ( (dataRecordName[-1], convertName(dataRecordName[-1])), arrayformat4( signalDataType, numberOfBits ) ) )
 
                     if numberOfBits < 8: # last channel in record is bit inside byte unit8
                         dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                        numpyDataRecordFormat.append( ( dataRecordName[-1], arrayformat4( signalDataType, numberOfBits ) ) )
+                        numpyDataRecordFormat.append( ( (dataRecordName[-1], convertName(dataRecordName[-1])), arrayformat4( signalDataType, numberOfBits ) ) )
                         precedingNumberOfBits = 0
                 
                 # converts channel group records into channels
@@ -262,6 +265,12 @@ class mdf4(dict):
             self.keepChannels(channelList)
         #print( 'Finished in ' + str( time.clock() - inttime ) )
 
+def convertName(channelName):
+    if PythonVersion<3:
+        channelIdentifier=channelName.encode('ASCII')+'_title'
+    else:
+        channelIdentifier=str(channelName)
+    return channelIdentifier
 
 def arrayformat4( signalDataType, numberOfBits ):
 
