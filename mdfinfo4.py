@@ -752,10 +752,10 @@ class info4(dict):
         # reads Data Group, channel groups and channel Blocks  recursively but not the other metadata block
         self.readDGBlock(fid, True)
         
-        for dg in self['DGBlock'].keys():
-            for cg in self['CGBlock'][dg].keys():
-                for cn in self['CNBlock'][dg][cg].keys():
-                    channelNameList.append(self['CNBlock'][dg][cg][cn]['name']['name'])
+        for dg in list(self['DGBlock'].keys()):
+            for cg in list(self['CGBlock'][dg].keys()):
+                for cn in list(self['CNBlock'][dg][cg].keys()):
+                    channelNameList.append(self['CNBlock'][dg][cg][cn]['name'])
         
         # CLose the file
         fid.close()

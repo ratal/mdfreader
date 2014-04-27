@@ -58,6 +58,7 @@ from mdf4reader import mdf4
 import numpy
 
 from sys import version_info
+from os.path import splitext
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 
@@ -139,11 +140,11 @@ class mdfinfo( dict):
         if VersionNumber<400: # up to version 3.x not compatible with version 4.x
             from mdfinfo3 import info3
             channelNameList=info3()
-            nameList=channelNameList.listChannels3(fileName)
+            nameList=channelNameList.listChannels3(self.fileName)
         else:
             from mdfinfo4 import info4
             channelNameList=info4()
-            nameList=channelNameList.listChannels4(fileName)
+            nameList=channelNameList.listChannels4(self.fileName)
         return nameList
 
 class mdf( mdf3,  mdf4 ):
@@ -159,6 +160,13 @@ class mdf( mdf3,  mdf4 ):
         self.fileName = None
         self.VersionNumber=None
         self.masterChannelList = {}
+        self.author=''
+        self.organisation=''
+        self.project=''
+        self.subject=''
+        self.comment=''
+        self.time=''
+        self.date=''
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         # clears class from previous reading and avoid to mess up
         self.clear()
@@ -286,8 +294,7 @@ class mdf( mdf3,  mdf4 ):
         import csv
         self.resample( sampling )
         if filename == None:
-            filename = self.fileName.replace( '.dat', '' )
-            filename = filename.replace( '.DAT', '' )
+            filename = splitext(self.fileName)[0]
             filename = filename + '.csv'
         if PythonVersion <3:
             f = open( filename, "wb")
@@ -320,18 +327,16 @@ class mdf( mdf3,  mdf4 ):
         if sampling != None:
             self.resample( sampling )
         if filename == None:
-            filename = self.fileName.replace( '.dat', '' )
-            filename = filename.replace( '.DAT', '' )
+            filename = splitext(self.fileName)[0]
             filename = filename + '.nc'
         f = NetCDF.NetCDFFile( filename, 'w' )
-        info = mdfinfo( self.fileName ) # info for the metadata
-        setattr( f, 'Author',( info['HDBlock']['Author']))
-        setattr( f, 'Date', (info['HDBlock']['Date']))
-        setattr( f, 'Time', (info['HDBlock']['Time']))
-        setattr( f, 'Organization', (info['HDBlock']['Organization']))
-        setattr( f, 'ProjectName', (info['HDBlock']['ProjectName']))
-        setattr( f, 'Subject', (info['HDBlock']['Subject']))
-        setattr( f, 'Comment', (info['HDBlock']['TXBlock']['Text']))
+        setattr( f, 'Author',(self.author))
+        setattr( f, 'Date', (self.date))
+        setattr( f, 'Time', (self.time))
+        setattr( f, 'Organization', (self.organisation))
+        setattr( f, 'ProjectName', (self.project))
+        setattr( f, 'Subject', (self.subject))
+        setattr( f, 'Comment', (self.comment))
         # Create dimensions having name of all time channels
         for time in list(self.masterChannelList.keys()):
             f.createDimension( time, len( self[time]['data'] ) )
@@ -355,7 +360,7 @@ class mdf( mdf3,  mdf4 ):
             if len( list(self.masterChannelList.keys()) ) == 1: # mdf resampled
                 var[name] = f.createVariable( CleanedName, type, ( list(self.masterChannelList.keys())[0], ) )
             else: # not resampled
-                var[name] = f.createVariable( CleanedName, type, ( self[name]['master'], ) )
+                var[name] = f.createVariable( CleanedName, type, ( str(self[name]['master']), ) )
             # Create attributes
             setattr( var[name], 'title', CleanedName )
             setattr( var[name], 'units', self[name]['unit'])
@@ -381,20 +386,18 @@ class mdf( mdf3,  mdf4 ):
         if sampling != None:
             self.resample( sampling )
         if filename == None:
-            filename = self.fileName.replace( '.dat', '' )
-            filename = filename.replace( '.DAT', '' )
+            filename = splitext(self.fileName)[0]
             filename = filename + '.hdf'
-        info = mdfinfo( self.fileName ) # info for the metadata
         f = h5py.File( filename, 'w' ) # create hdf5 file
         filegroup=f.create_group(os.path.basename(filename)) # create group in root associated to file
         attr = h5py.AttributeManager( filegroup ) # adds group/file metadata
-        attr.create('Author',( info['HDBlock']['Author']))
-        attr.create('Date', (info['HDBlock']['Date']))
-        attr.create('Time', (info['HDBlock']['Time']))
-        attr.create('Organization', (info['HDBlock']['Organization']))
-        attr.create('ProjectName', (info['HDBlock']['ProjectName']))
-        attr.create('Subject', (info['HDBlock']['Subject']))
-        attr.create('Comment', (info['HDBlock']['TXBlock']['Text']))
+        attr.create('Author',(self.author))
+        attr.create('Date', (self.date))
+        attr.create('Time', (self.time))
+        attr.create('Organization', (self.organisation))
+        attr.create('ProjectName', (self.project))
+        attr.create('Subject', (self.subject))
+        attr.create('Comment', (self.comment))
         if len( list(self.masterChannelList.keys()) ) > 1:
             # if several time groups of channels, not resampled
             groups = {}
@@ -427,8 +430,7 @@ class mdf( mdf3,  mdf4 ):
             print( 'scipy module not found' )
             raise
         if filename == None:
-            filename = self.fileName.replace( '.dat', '' )
-            filename = filename.replace( '.DAT', '' )
+            filename = splitext(self.fileName)[0]
             filename = filename + '.mat'
         # convert self into simple dict without and metadata
         temp = {}
@@ -454,8 +456,7 @@ class mdf( mdf3,  mdf4 ):
             print( 'xlwt module missing' )
             raise
         if filename == None:
-            filename = self.fileName.replace( '.dat', '' )
-            filename = filename.replace( '.DAT', '' )
+            filename = filename = splitext(self.fileName)[0]
             filename = filename + '.xls'
         styleText = xlwt.easyxf( 'font: name Times New Roman, color-index black, bold off' )
         coding='utf-8'
@@ -512,8 +513,7 @@ class mdf( mdf3,  mdf4 ):
             print('Module openpyxl missing')
             raise
         if filename == None:
-            filename = self.fileName.replace( '.dat', '' )
-            filename = filename.replace( '.DAT', '' )
+            filename = splitext(self.fileName)[0]
             filename = filename + '.xlsx'
         channels=list(self.keys())
         maxRows=max([len(self[channel]['data']) for channel in list(self.keys())]) # find max column length
@@ -625,31 +625,30 @@ class mdf( mdf3,  mdf4 ):
             raise
         if sampling is not None:
             self.resample(sampling)
-        info=mdfinfo(self.fileName)
-        datetimeInfo=numpy.datetime64(info['HDBlock']['Date'].replace(':','-')+' '+info['HDBlock']['Time'])
+        datetimeInfo=numpy.datetime64(self.date.replace(':','-')+' '+self.time)
         originalKeys=self.keys()   
         # first find groups of channels sharing same time vector
         # initialise frame description
-        frame={}
-        for group in list(self.masterChannelList.keys()):
-            frame[group]=[]
+        #frame={}
+        #for group in list(self.masterChannelList.keys()):
+         #   frame[group]=[]
         # create list of channel for each time group
-        [frame[self[channel]['master']].append(channel) for channel in self.keys()]
+        #[frame[self[channel]['master']].append(channel) for channel in self.keys()]
         # create frames
-        for group in frame.keys():
+        for group in list(self.masterChannelList.keys()):
             temp={}
             # convert time channel into timedelta
             time=datetimeInfo+numpy.array(self[group]['data']*10E6, dtype='timedelta64[us]')
-            for channel in frame[group]:
+            for channel in self.masterChannelList[group]:
                 temp[channel]=pd.Series(self[channel]['data'], index=time)
             self[group+'_group']=pd.DataFrame(temp)
             self[group+'_group'].pop(group) # delete time channel, no need anymore
         # clean rest of self from data and time channel information
         [self[channel].pop('data') for channel in originalKeys]
         [self[channel].pop('master') for channel in originalKeys]
+        self.masterGroups=[] # save time groups name in list
+        [self.masterGroups.append(group+'_group') for group in list(self.masterChannelList.keys())]
         self.masterChannelList={}
-        self.timeGroups=[] # save time groups name in list
-        [self.timeGroups.append(group+'_group') for group in frame.keys()]
 
 if __name__ == "__main__":
     try:
