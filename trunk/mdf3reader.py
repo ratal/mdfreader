@@ -163,10 +163,13 @@ class mdf3(dict):
     def __init__( self, fileName=None, info=None,multiProc=False,  channelList=None):
         self.masterChannelList = {}
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
-        self.author=None
-        self.organisation=None
-        self.project=None
-        self.subject=None
+        self.author=''
+        self.organisation=''
+        self.project=''
+        self.subject=''
+        self.comment=''
+        self.time=''
+        self.date=''
         # clears class from previous reading and avoid to mess up
         self.clear()
         if fileName is None and info is not None:
@@ -203,6 +206,9 @@ class mdf3(dict):
         self.organisation=info['HDBlock']['Organization']
         self.project=info['HDBlock']['ProjectName']
         self.subject=info['HDBlock']['Subject']
+        self.comment=info['HDBlock']['TXBlock']['Text']
+        self.time=info['HDBlock']['Time']
+        self.date=info['HDBlock']['Date']
 
         try:
             fid = open(self.fileName, 'rb')
@@ -349,9 +355,13 @@ class mdf3(dict):
                 else:
                     temp = value+'\0'*(size-len(value))
                 temp += '\0'
-            if PythonVersion>=3:
+            if self.VersionNumber<400:
+                if PythonVersion>=3:
+                    temp=temp.encode('latin1', 'replace')
+                f.write(pack('<'+str(len(temp))+'s', temp))
+            else:
                 temp=temp.encode('latin1', 'replace')
-            f.write(pack('<'+str(len(temp))+'s', temp))
+                f.write(pack('<'+str(len(temp))+'s', temp))
 
         # write pointer of block and come back to current stream position
         def writePointer(f, pointer, value):

@@ -11,6 +11,7 @@ from sys import platform
 from mdfinfo4 import info4, MDFBlock
 from collections import OrderedDict
 from sys import version_info
+from time import gmtime, strftime
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 
@@ -119,6 +120,13 @@ class mdf4(dict):
     def __init__( self, fileName = None, info=None,multiProc = False,  channelList=None):
         self.masterChannelList = {}
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
+        self.author=''
+        self.organisation=''
+        self.project=''
+        self.subject=''
+        self.comment=''
+        self.time=''
+        self.date=''
         # clears class from previous reading and avoid to mess up
         self.clear()
         if fileName == None and info!=None:
@@ -148,6 +156,22 @@ class mdf4(dict):
         ## Read information block from file
         if info==None:
             info = info4( self.fileName,  None )
+
+        # reads metadata
+        fileDateTime=gmtime(info['HDBlock']['hd_start_time_ns']/1000000000)
+        self.date=strftime('%d:%m:%Y', fileDateTime)
+        self.time=strftime('%H:%M:%S', fileDateTime)
+        if 'Comment' in list(info['HDBlock'].keys()):
+            if 'author' in list(info['HDBlock']['Comment'].keys()):
+                self.author=info['HDBlock']['Comment']['author']
+            if 'department' in list(info['HDBlock']['Comment'].keys()):
+                self.organisation=info['HDBlock']['Comment']['department']
+            if 'project' in list(info['HDBlock']['Comment'].keys()):
+                self.project=info['HDBlock']['Comment']['project']
+            if 'subject' in list(info['HDBlock']['Comment'].keys()):
+                self.subject=info['HDBlock']['Comment']['subject']
+            if 'TX' in list(info['HDBlock']['Comment'].keys()):
+                self.comment=info['HDBlock']['Comment']['TX']
 
         try:
             fid = open( self.fileName, 'rb' )
