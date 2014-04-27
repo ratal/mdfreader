@@ -269,7 +269,7 @@ def convertName(channelName):
     if PythonVersion<3:
         channelIdentifier=channelName.encode('ASCII')+'_title'
     else:
-        channelIdentifier=str(channelName)
+        channelIdentifier=str(channelName)+'_title'
     return channelIdentifier
 
 def arrayformat4( signalDataType, numberOfBits ):

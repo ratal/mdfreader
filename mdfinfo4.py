@@ -84,9 +84,11 @@ class MDFBlock(dict):
     def mdfblockreadBYTE( fid, count ):
         # UTF-8 encoded bytes
         value=fid.read( count )
+        value=value.decode('UTF-8', 'ignore')
         if PythonVersion<3:
-            value=value.decode('UTF-8', 'replace')
-        value=value.replace(b'\x00', b'') 
+            value=value.replace(b'\x00', b'') 
+        else:
+            value=value.replace('\x00', '') 
         return value
         
 class IDBlock(MDFBlock):
@@ -211,9 +213,9 @@ class CommentBlock(MDFBlock):
 
             elif self['id'] in ('##TX',b'##TX'):
                 if MDType=='CN': # channel comment
-                    self['name']=self.mdfblockreadBYTE(fid, self['length']-24).replace(b'\x00', b'')
+                    self['name']=self.mdfblockreadBYTE(fid, self['length']-24)
                 else:
-                    self['Comment']=self.mdfblockreadBYTE(fid, self['length']-24).replace(b'\x00', b'')
+                    self['Comment']=self.mdfblockreadBYTE(fid, self['length']-24)
     
     def extractXmlField(self,  xml_tree, field):
         return xml_tree.findtext(self.namespace+field)
