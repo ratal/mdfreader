@@ -315,9 +315,9 @@ class mdf( mdf3,  mdf4 ):
     def exportToNetCDF( self, filename = None, sampling = None ):
         # Export mdf file into netcdf file
         try:
-            from Scientific.IO import NetCDF
+            from scipy.io import netcdf
         except:
-            print( 'Scientific.IO module not found' )
+            print( 'scipy.io module not found' )
             raise
         def cleanName( name ):
             output = name.replace( '$', '' )
@@ -329,7 +329,7 @@ class mdf( mdf3,  mdf4 ):
         if filename == None:
             filename = splitext(self.fileName)[0]
             filename = filename + '.nc'
-        f = NetCDF.NetCDFFile( filename, 'w' )
+        f = netcdf.netcdf_file( filename, 'w' )
         setattr( f, 'Author',(self.author))
         setattr( f, 'Date', (self.date))
         setattr( f, 'Time', (self.time))
@@ -343,24 +343,12 @@ class mdf( mdf3,  mdf4 ):
         # Create variables definition, dimension and attributes
         var = {}
         for name in list(self.keys()):
-            if self[name]['data'].dtype == 'float64':
-                type = 'd'
-            elif self[name]['data'].dtype == 'float32':
-                type = 'f'
-            elif self[name]['data'].dtype in ['int8', 'int16', 'uint8', 'uint16']:
-                type = 'i'
-            elif self[name]['data'].dtype in ['int32', 'uint32']:
-                type = 'l'
-            elif self[name]['data'].dtype.kind in ['S', 'U'] :
-                type = 'c'
-            else:
-                print(( 'Can not process numpy type ' + str(self[name]['data'].dtype) + ' of channel' ))
             # create variable
             CleanedName = cleanName( name )
             if len( list(self.masterChannelList.keys()) ) == 1: # mdf resampled
-                var[name] = f.createVariable( CleanedName, type, ( list(self.masterChannelList.keys())[0], ) )
+                var[name] = f.createVariable( CleanedName, self[name]['data'].dtype, ( list(self.masterChannelList.keys())[0], ) )
             else: # not resampled
-                var[name] = f.createVariable( CleanedName, type, ( str(self[name]['master']), ) )
+                var[name] = f.createVariable( CleanedName, self[name]['data'].dtype, ( str(self[name]['master']), ) )
             # Create attributes
             setattr( var[name], 'title', CleanedName )
             setattr( var[name], 'units', self[name]['unit'])
@@ -390,14 +378,13 @@ class mdf( mdf3,  mdf4 ):
             filename = filename + '.hdf'
         f = h5py.File( filename, 'w' ) # create hdf5 file
         filegroup=f.create_group(os.path.basename(filename)) # create group in root associated to file
-        attr = h5py.AttributeManager( filegroup ) # adds group/file metadata
-        attr.create('Author',(self.author))
-        attr.create('Date', (self.date))
-        attr.create('Time', (self.time))
-        attr.create('Organization', (self.organisation))
-        attr.create('ProjectName', (self.project))
-        attr.create('Subject', (self.subject))
-        attr.create('Comment', (self.comment))
+        filegroup.attrs['Author']=self.author
+        filegroup.attrs['Date']=self.date
+        filegroup.attrs['Time']= self.time 
+        filegroup.attrs['Organization']=self.organisation
+        filegroup.attrs['ProjectName']=self.project
+        filegroup.attrs['Subject']=self.subject
+        filegroup.attrs['Comment']=self.comment
         if len( list(self.masterChannelList.keys()) ) > 1:
             # if several time groups of channels, not resampled
             groups = {}
@@ -410,16 +397,14 @@ class mdf( mdf3,  mdf4 ):
                     groups[self[channel]['master'] ] = ngroups
                     grp[ngroups] = filegroup.create_group( self[channel]['master'] )
                 dset = grp[groups[self[channel]['master'] ]].create_dataset( channel, data = self[channel]['data'] )
-                attr = h5py.AttributeManager( dset )
-                attr.create( 'unit', (self[channel]['unit'] ))
-                attr.create( 'description', (self[channel]['description']))
+                dset.attrs[ 'unit']=self[channel]['unit'] 
+                dset.attrs['description']=self[channel]['description']
         else: # resampled or only one time for all channels : no groups
             for channel in list(self.keys()):
                 channelName=convertMatlabName(channel)
                 dset = filegroup.create_dataset( channelName, data = self[channel]['data'] )
-                attr = h5py.AttributeManager( dset )
-                attr.create( 'unit', (self[channel]['unit'] ))
-                attr.create( 'description', (self[channel]['description'] ))
+                dset.attrs[ 'unit']=self[channel]['unit'] 
+                dset.attrs['description']=self[channel]['description']
         f.close()
 
     def exportToMatlab( self, filename = None ):
