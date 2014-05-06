@@ -324,40 +324,57 @@ class mdf( mdf3,  mdf4 ):
             ouput = output.replace( '[', '' )
             ouput = output.replace( ']', '' )
             return output
+        def setAttribute(f, name, value):
+            if len(value)>0: # netcdf does not allow empty strings...
+                setattr( f, name, value)
+            else:
+                pass
         if sampling != None:
             self.resample( sampling )
         if filename == None:
             filename = splitext(self.fileName)[0]
             filename = filename + '.nc'
         f = netcdf.netcdf_file( filename, 'w' )
-        setattr( f, 'Author',(self.author))
-        setattr( f, 'Date', (self.date))
-        setattr( f, 'Time', (self.time))
-        setattr( f, 'Organization', (self.organisation))
-        setattr( f, 'ProjectName', (self.project))
-        setattr( f, 'Subject', (self.subject))
-        setattr( f, 'Comment', (self.comment))
+        setAttribute( f, 'Date', (self.date))
+        setAttribute( f, 'Time', (self.time))
+        setAttribute(f, 'Author', self.author)
+        setAttribute( f, 'Organization', (self.organisation))
+        setAttribute( f, 'ProjectName', (self.project))
+        setAttribute( f, 'Subject', (self.subject))
+        setAttribute( f, 'Comment', (self.comment))
         # Create dimensions having name of all time channels
         for time in list(self.masterChannelList.keys()):
             f.createDimension( time, len( self[time]['data'] ) )
         # Create variables definition, dimension and attributes
         var = {}
         for name in list(self.keys()):
+            if self[name]['data'].dtype == 'float64':
+                type = 'd'
+            elif self[name]['data'].dtype == 'float32':
+                type = 'f'
+            elif self[name]['data'].dtype in ['int8', 'int16', 'uint8', 'uint16']:
+                type = 'h'
+            elif self[name]['data'].dtype in ['int32', 'uint32']:
+                type = 'i'
+            elif self[name]['data'].dtype.kind in ['S', 'U'] :
+                type = 'c'
+            else:
+                print(( 'Can not process numpy type ' + str(self[name]['data'].dtype) + ' of channel' ))
             # create variable
             CleanedName = cleanName( name )
             if len( list(self.masterChannelList.keys()) ) == 1: # mdf resampled
-                var[name] = f.createVariable( CleanedName, self[name]['data'].dtype, ( list(self.masterChannelList.keys())[0], ) )
+                var[name] = f.createVariable( CleanedName, type, ( list(self.masterChannelList.keys())[0], ) )
             else: # not resampled
-                var[name] = f.createVariable( CleanedName, self[name]['data'].dtype, ( str(self[name]['master']), ) )
+                var[name] = f.createVariable( CleanedName, type, ( self[name]['master'], ) )
             # Create attributes
-            setattr( var[name], 'title', CleanedName )
-            setattr( var[name], 'units', self[name]['unit'])
-            setattr( var[name], 'Description', self[name]['description'])
+            setAttribute( var[name], 'title', CleanedName )
+            setAttribute( var[name], 'units', self[name]['unit'])
+            setAttribute( var[name], 'Description', self[name]['description'])
             if name in list(self.masterChannelList.keys()):
-                setattr( var[name], 'Type', 'Time Channel' )
-                setattr( var[name], 'datatype', 'time' )
+                setAttribute( var[name], 'Type', 'Master Channel' )
+                setAttribute( var[name], 'datatype', 'master' )
             else:
-                setattr( var[name], 'Type', 'Data Channel' )
+                setAttribute( var[name], 'Type', 'Data Channel' )
         # put data in variables
         for name in list(self.keys()):
             var[name] = self[name]['data']
@@ -610,16 +627,8 @@ class mdf( mdf3,  mdf4 ):
             raise
         if sampling is not None:
             self.resample(sampling)
-        datetimeInfo=numpy.datetime64(self.date.replace(':','-')+' '+self.time)
-        originalKeys=self.keys()   
-        # first find groups of channels sharing same time vector
-        # initialise frame description
-        #frame={}
-        #for group in list(self.masterChannelList.keys()):
-         #   frame[group]=[]
-        # create list of channel for each time group
-        #[frame[self[channel]['master']].append(channel) for channel in self.keys()]
-        # create frames
+        datetimeInfo=numpy.datetime64(self.date.replace(':','-')+'T'+self.time)
+        originalKeys=list(self.keys())
         for group in list(self.masterChannelList.keys()):
             temp={}
             # convert time channel into timedelta
