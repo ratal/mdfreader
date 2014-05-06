@@ -209,6 +209,9 @@ class mdf3(dict):
         self.comment=info['HDBlock']['TXBlock']['Text']
         self.time=info['HDBlock']['Time']
         self.date=info['HDBlock']['Date']
+        # converts date to be compatible with ISO8601
+        day, month, year=self.date.split(':')
+        self.date=year+'-'+month+'-'+day
 
         try:
             fid = open(self.fileName, 'rb')

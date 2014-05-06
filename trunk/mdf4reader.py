@@ -159,7 +159,7 @@ class mdf4(dict):
 
         # reads metadata
         fileDateTime=gmtime(info['HDBlock']['hd_start_time_ns']/1000000000)
-        self.date=strftime('%d:%m:%Y', fileDateTime)
+        self.date=strftime('%Y-%m-%d', fileDateTime)
         self.time=strftime('%H:%M:%S', fileDateTime)
         if 'Comment' in list(info['HDBlock'].keys()):
             if 'author' in list(info['HDBlock']['Comment'].keys()):
