@@ -15,7 +15,7 @@ from sys import version_info
 from os import path
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
-MultiProc=True # multiprocess switch, for debug purpose
+MultiProc=True # multiprocess switch, for debug purpose put False
 
 class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
     """

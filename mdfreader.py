@@ -254,15 +254,18 @@ class mdf( mdf3,  mdf4 ):
                 masterChannelName='master'
             self[masterChannelName] = {}
             unit = ''
+            masterType = 1 # time by default
             for master in list(self.masterChannelList.keys()):
                 if master in self and len( self[master]['data'] ) > 5: # consider groups having minimum size 
                     minTime.append( self[master]['data'][0] )
                     maxTime.append( self[master]['data'][len( self[master]['data'] ) - 1] )
-                    if self[master]['unit'] != '':
+                    if len(self[master]['unit'])>1 :
                         unit = self[master]['unit']
+                        masterType = self[master]['masterType']
             self[masterChannelName]['data'] = numpy.arange( min( minTime ),max( maxTime ),samplingTime )
             self[masterChannelName]['unit'] = unit
             self[masterChannelName]['description'] = 'Unique master channel'
+            self[masterChannelName]['masterType'] = masterType
 
             # Interpolate channels
             timevect=[]
@@ -283,7 +286,7 @@ class mdf( mdf3,  mdf4 ):
             for ind in list(self.masterChannelList.keys()):
                 del self[ind]
             self.masterChannelList = {} # empty dict
-            self.masterChannelList[masterChannelName] = list(self.keys()) 
+            self.masterChannelList[masterChannelName] = list(self.keys())
         else:
             pass
 

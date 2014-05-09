@@ -33,19 +33,19 @@ class DATABlock(MDFBlock):
         # block header
         self.loadHeader(fid, pointer)
         if self['id'] in ('##DT', '##RD', b'##DT', b'##RD'): # normal data block
-            if channelList==None: # reads all blocks
-                self['data']=numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = numberOfRecords , names=dataRecordName)
-            else: # channelList defined
-                # reads only the channels using offset functions, channel by channel
-                buf={}
-                # order offsets and names based on offset value
-                channelList=OrderedDict(sorted(channelList.items(), key=lambda t: t[1]))
-                for record in range(numberOfRecords):
-                    for name in dataRecordName:
-                        if name in channelList.keys(): 
-                            fid.seek()
-                            buf.append(numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = 1 , names=name,  offset=None ))
-                self['data']=buf
+#            if channelList==None: # reads all blocks
+            self['data']=numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = numberOfRecords , names=dataRecordName)
+#            else: # channelList defined
+#                # reads only the channels using offset functions, channel by channel
+#                buf={}
+#                # order offsets and names based on offset value
+#                channelList=OrderedDict(sorted(channelList.items(), key=lambda t: t[1]))
+#                for record in range(numberOfRecords):
+#                    for name in dataRecordName:
+#                        if name in channelList.keys(): 
+#                            fid.seek()
+#                            buf.append(numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = 1 , names=name,  offset=None ))
+#                self['data']=buf
                 
         elif self['id'] in ('##SD', b'##SD'): # Signal Data Block
             unpack('uint32', fid.read(4)) # length of data
@@ -211,7 +211,7 @@ class mdf4(dict):
                     if info['CGBlock'][dataGroup][channelGroup]['cg_cn_first']==0 or info['CGBlock'][dataGroup][channelGroup]['cg_flags']&1:
                         print('VLSD ChannelGroup, not really implemented yet')
                     numberOfRecords=info['CGBlock'][dataGroup][channelGroup]['cg_cycle_count']
-                    channelListByte=[]
+                    #channelListByte=[]
                     #dataBytes=info['CGBlock'][dataGroup][channelGroup]['cg_dataBytes']
                     #invalidBytes=info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bytes']
                     #invalidBit=info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bit_pos']
@@ -220,13 +220,13 @@ class mdf4(dict):
                         signalDataType = info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type']
                         # Corresponding number of bits for this format
                         numberOfBits = info['CNBlock'][dataGroup][channelGroup][channel]['cn_bit_count']
-                        channelByteOffset= info['CNBlock'][dataGroup][channelGroup][channel]['cn_byte_offset']+info['DGBlock'][dataGroup]['dg_rec_id_size']
+                        #channelByteOffset= info['CNBlock'][dataGroup][channelGroup][channel]['cn_byte_offset']+info['DGBlock'][dataGroup]['dg_rec_id_size']
                         channelName=info['CNBlock'][dataGroup][channelGroup][channel]['name']
                         # is it a master channel for the group
                         if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in (2, 3, 4): # master channel
                             masterDataGroup[dataGroup]=channelName
-                        if channelList is not None:
-                            channelListByte[channelName]=channelByteOffset
+                        #if channelList is not None:
+                         #   channelListByte[channelName]=channelByteOffset
                             
                         if numberOfBits < 8: # adding bit format, ubit1 or ubit2
                             if precedingNumberOfBits == 8: # 8 bit make a byte
@@ -273,6 +273,8 @@ class mdf4(dict):
                         self.masterChannelList[masterDataGroup[dataGroup]].append(channelName)
                         self[channelName] = {}
                         self[channelName]['master'] = masterDataGroup[dataGroup]
+                        # sync_types : 0 data, 1 time (sec), 2 angle (radians), 4 index
+                        self[channelName]['masterType'] = info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
                         if 'unit' in list(info['CCBlock'][dataGroup][channelGroup][channel].keys()):
                             self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['unit']
                         elif 'unit' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
