@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from sys import version_info
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]

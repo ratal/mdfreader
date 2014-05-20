@@ -99,8 +99,10 @@ class mdfinfo( dict):
 
     def __init__( self, fileName = None ):
         self.fileName = fileName
+        self.mdfversion = 0
         if fileName != None:
             self.readinfo( fileName )
+        
     ## Reads block informations inside file
     def readinfo( self, fileName = None ):
         # Read MDF file and extract its complete structure
@@ -114,9 +116,9 @@ class mdfinfo( dict):
             raise
         # read Identifier block
         fid.seek(28)
-        VersionNumber=unpack( '<H', fid.read( 2 ) )
-        VersionNumber=VersionNumber[0]
-        if VersionNumber<400: # up to version 3.x not compatible with version 4.x
+        VersionNumber = unpack( '<H', fid.read( 2 ) )
+        self.mdfversion = VersionNumber[0]
+        if self.mdfversion < 400: # up to version 3.x not compatible with version 4.x
             from mdfinfo3 import info3
             self.update(info3(None, fid))
         else: #MDF version 4.x
@@ -136,8 +138,8 @@ class mdfinfo( dict):
         # read Identifier block
         fid.seek(28)
         VersionNumber=unpack( '<H', fid.read( 2 ) )
-        VersionNumber=VersionNumber[0]
-        if VersionNumber<400: # up to version 3.x not compatible with version 4.x
+        self.mdfversion = VersionNumber[0]
+        if self.mdfversion < 400: # up to version 3.x not compatible with version 4.x
             from mdfinfo3 import info3
             channelNameList=info3()
             nameList=channelNameList.listChannels3(self.fileName)
@@ -184,7 +186,7 @@ class mdf( mdf3,  mdf4 ):
         # read file blocks
         info=mdfinfo(self.fileName)
         
-        self.VersionNumber=info['IDBlock']['id_ver']
+        self.VersionNumber=info.mdfversion
         if self.VersionNumber<400: # up to version 3.x not compatible with version 4.x
             self.read3(self.fileName, info, multiProc, channelList)
         else: #MDF version 4.x
