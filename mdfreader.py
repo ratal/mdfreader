@@ -153,8 +153,8 @@ class mdf( mdf3,  mdf4 ):
     """ mdf file class
     To use : yop= mdfreader.mdf('FileName.dat')
     Some additional useful methods:
-    Resample : yop.resample(SamplingRate_in_secs)
-    plot a specific channel : yop.plot('ChannelName')
+    Resample : yop.resample(SamplingRate)
+    plot channels : yop.plot({'ChannelName','ChannelName2'})
     export to csv file : yop.exportCSV() , specific filename can be input
     export to netcdf : yop.exportNetCDF() """
     
@@ -325,10 +325,13 @@ class mdf( mdf3,  mdf4 ):
             print( 'scipy.io module not found' )
             raise
         def cleanName( name ):
-            output = name.replace( '$', '' )
-            ouput = output.replace( '[', '' )
-            ouput = output.replace( ']', '' )
-            return output
+            allowedStr=' ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-+_.@'
+            buf=''
+            for c in name:
+                if c in allowedStr:
+                    buf+=c
+            return buf
+
         def setAttribute(f, name, value):
             if len(value)>0: # netcdf does not allow empty strings...
                 setattr( f, name, value)
@@ -373,8 +376,8 @@ class mdf( mdf3,  mdf4 ):
                 var[name] = f.createVariable( CleanedName, type, ( self[name]['master'], ) )
             # Create attributes
             setAttribute( var[name], 'title', CleanedName )
-            setAttribute( var[name], 'units', self[name]['unit'])
-            setAttribute( var[name], 'Description', self[name]['description'])
+            setAttribute( var[name], 'units', cleanName(self[name]['unit']))
+            setAttribute( var[name], 'Description', cleanName(self[name]['description']))
             if name in list(self.masterChannelList.keys()):
                 setAttribute( var[name], 'Type', 'Master Channel' )
                 setAttribute( var[name], 'datatype', 'master' )
