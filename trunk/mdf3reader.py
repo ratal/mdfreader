@@ -95,7 +95,7 @@ def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                 P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P4']
                 P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P5']
                 P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P6']
-                L[channelName] = (P2 - P4 * (L[channelName]['data'] - P5 - P6)) / (P3 * (L[channelName] - P5 - P6) - P1)
+                L[channelName] = (P2 - P4 * (L[channelName] - P5 - P6)) / (P3 * (L[channelName] - P5 - P6) - P1)
             elif conversionFormulaIdentifier == 7:  # Exponential
                 P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
                 P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
