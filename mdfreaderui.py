@@ -61,6 +61,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
             self.cleanSelectedChannelList()
             ChannelList=convertChannelList(self.mdfinfoClass.listChannels(str(self.fileNames[0])))
             self.SelectedChannelList.addItems(ChannelList)
+            self.FileList.setItemSelected(self.FileList.item(0), True)
     
     def cleanSelectedChannelList(self):
         # remove all items from list
