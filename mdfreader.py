@@ -273,12 +273,15 @@ class mdf( mdf3,  mdf4 ):
             timevect=[]
             for Name in channelNames:
                 try:
-                    if Name not in list(self.masterChannelList.keys()):
+                    if Name not in list(self.masterChannelList.keys()): # not a master channel
                         timevect = self[self[Name]['master']]['data']
                         if not self[Name]['data'].dtype.kind in ('S', 'U'): # if channel not array of string
                             self[Name]['data'] = numpy.interp( self[masterChannelName]['data'], timevect, self[Name]['data'] )
                             if masterChannelName in self[Name]:
                                 del self[Name][masterChannelName]
+                        else: # can not interpolate strings, remove channel containing string
+                            self.masterChannelList[self[Name]['master']].remove(Name)
+                            self.pop(Name)
                 except:
                     if len( timevect ) != len( self[Name]['data'] ):
                         print(( Name + ' and time channel ' + self[Name][masterChannelName] + ' do not have same length' ))
