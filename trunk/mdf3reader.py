@@ -7,12 +7,10 @@ Created on Thu Dec 9 12:57:28 2014
 """
 import numpy
 from math import log, exp
-from sys import platform
+from sys import platform, version_info
 import time
 from struct import pack
 from mdfinfo3 import info3
-channelTime = {'time', 'TIME'}  # possible channel time writing, adjust if necessary
-from sys import version_info
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 
@@ -403,7 +401,7 @@ class mdf3(dict):
         else:
             writeChar(fid, ' ',  size=31)  # Author
         if self.organisation is not None:
-            writeChar(fid, self.organisation,  size=31)  # Organisation
+            writeChar(fid, self.organisation,  size=31)  # Organization
         else:
             writeChar(fid, ' ',  size=31)  
         if self.project is not None:
@@ -467,7 +465,9 @@ class mdf3(dict):
             nRecords = len(self[masterChannel]['data'])
             fid.write(pack(UINT32, nRecords))  # Number of records
             fid.write(pack(LINK, 0))  # pointer to sample reduction block, not used
-            sampling = numpy.average(numpy.diff(self[masterChannel]['data']))            
+            sampling = 0
+            if self[masterChannel]['data'] is not None and len(self[masterChannel]['data'])>0 and self[masterChannel]['data'].dtype.kind not in ['S', 'U']:
+                sampling = numpy.average(numpy.diff(self[masterChannel]['data']))            
             
             # Channel blocks writing
             pointers['CN'][dataGroup] = {}
@@ -542,8 +542,12 @@ class mdf3(dict):
                 fid.write(pack(UINT16, dataType))  # Signal data type
                 if not data.dtype.kind in ['S', 'U']:
                     fid.write(pack(BOOL, 1))  # Value range valid
-                    maximum=numpy.max(data)
-                    minimum=numpy.min(data)
+                    if len(data)>0:
+                        maximum=numpy.max(data)
+                        minimum=numpy.min(data)
+                    else:
+                        maximum=0
+                        minimum=0
                     fid.write(pack(REAL, minimum))  # Min value
                     fid.write(pack(REAL, maximum))  # Max value
                 else:
