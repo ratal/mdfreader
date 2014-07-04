@@ -34,6 +34,7 @@ class DATABlock(MDFBlock):
         self.loadHeader(fid, pointer)
         if self['id'] in ('##DT', '##RD', b'##DT', b'##RD'): # normal data block
 #            if channelList==None: # reads all blocks
+            #print(numpyDataRecordFormat, dataRecordName) # for debug purpose
             self['data']=numpy.core.records.fromfile( fid, dtype = numpyDataRecordFormat, shape = numberOfRecords , names=dataRecordName)
 #            else: # channelList defined
 #                # reads only the channels using offset functions, channel by channel
@@ -304,53 +305,53 @@ def arrayformat4( signalDataType, numberOfBits ):
 
     if signalDataType in (0, 1): # unsigned
         if numberOfBits <= 8:
-            dataType = 'uint8'
+            dataType = 'u1'
         elif numberOfBits == 16:
-            dataType = 'uint16';
+            dataType = 'u2';
         elif numberOfBits == 32:
-            dataType = 'uint32'
+            dataType = 'u4'
         elif numberOfBits == 64:
-            dataType = 'uint64'
+            dataType = 'u8'
         else:
             print(( 'Unsupported number of bits for unsigned int ' + str( numberOfBits) ))
 
     elif signalDataType in (2, 3): # signed int
         if numberOfBits <= 8:
-            dataType = 'int8'
+            dataType = 'i1'
         elif numberOfBits == 16:
-            dataType = 'int16'
+            dataType = 'i2'
         elif numberOfBits == 32:
-            dataType = 'int32'
+            dataType = 'i4'
         elif numberOfBits == 64:
-            dataType = 'int64'
+            dataType = 'i8'
         else:
             print(( 'Unsupported number of bits for signed int ' + str( numberOfBits ) ))
 
     elif signalDataType in ( 4, 5 ): # floating point
         if numberOfBits == 32:
-            dataType = 'float32'
+            dataType = 'f4'
         elif numberOfBits == 64:
-            dataType = 'float64'
+            dataType = 'f8'
         else:
             print(( 'Unsupported number of bit for floating point ' + str( numberOfBits ) ))
     
     elif signalDataType == 6: # string ISO-8859-1 Latin
         dataType = 'str' # not directly processed
     elif signalDataType == 7: # UTF-8
-        dataType = 'unicode' # not directly processed
+        dataType = 'U2' # not directly processed
     elif signalDataType == (8, 9): # UTF-16
-        dataType = 'unicode16' # not directly processed
+        dataType = 'U4' # not directly processed
     elif signalDataType == 10: # bytes array
         dataType = 'buffer' # not directly processed
     elif signalDataType in (11, 12): # MIME sample or MIME stream
-        dataType = ('unint16', 'unint8', 'unint8', 'unint8', 'unint8', 'unint8') # 7 Byte Date data structure
+        dataType = ('u2', 'u1', 'u1', 'u1', 'u1', 'u1') # 7 Byte Date data structure
     elif signalDataType in (13, 14): # CANopen date and time
-        dataType = ('unint32',  'unint16') # 6 Byte time data structure
+        dataType = ('u4',  'u2') # 6 Byte time data structure
     else:
         print(( 'Unsupported Signal Data Type ' + str( signalDataType ) + ' ', numberOfBits ))
         
     # deal with byte order
-    if signalDataType in (1, 3, 5, 9):
+    if signalDataType in (1, 3, 5, 9): # by default low endian, but here big endian
         dataType='>'+dataType
     
     return dataType
