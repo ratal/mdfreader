@@ -209,7 +209,9 @@ class CommentBlock(MDFBlock):
                     self['ho:COMPU_METHOD']=self.extractXmlField(self['xml_tree'], 'ho:COMPU_METHOD')
                     self['formula']=self.extractXmlField(self['xml_tree'], 'formula')
                 else:
-                    print('No recognized MDType')
+                    if MDType is not None:
+                        print('No recognized MDType')
+                        print(MDType)
 
             elif self['id'] in ('##TX',b'##TX'):
                 if MDType=='CN': # channel comment
@@ -721,8 +723,8 @@ class info4(dict):
         # reads Sample Reduction Blocks
         if pointer>0:
             sr=0
-            srBlocks={}
-            srBlocks[sr].update(SRBlock(fid, pointer))
+            srBlocks=[]
+            srBlocks.append(SRBlock(fid, pointer))
             while srBlocks[sr]['sr_sr_next']>0:
                 srBlocks[sr].update(SRBlock(fid, srBlocks[sr]['sr_sr_next']))
                 sr+=1
@@ -732,8 +734,8 @@ class info4(dict):
         # reads Attachment blocks
         if pointer >0:
             at=0
-            atBlocks={}
-            atBlocks[at].update(ATBlock(fid, pointer))
+            atBlocks=[]
+            atBlocks.append(ATBlock(fid, pointer))
             while atBlocks[at]['at_at_next']>0:
                 atBlocks[at].update(ATBlock(fid, atBlocks[at]['at_at_next']))
                 at+=1
