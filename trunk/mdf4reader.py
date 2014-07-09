@@ -7,10 +7,9 @@ Created on Thu Dec 10 12:57:28 2013
 """
 import numpy
 from struct import unpack
-from sys import platform
+from sys import platform, version_info
 from mdfinfo4 import info4, MDFBlock
 from collections import OrderedDict
-from sys import version_info
 from time import gmtime, strftime
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
@@ -140,7 +139,7 @@ class mdf4(dict):
     def read4( self, fileName=None, info = None, multiProc = False, channelList=None):
         # read mdf file
         self.multiProc = multiProc
-        if platform=='win32':
+        if platform in ('win32', 'win64'):
             self.multiProc=False # no multiprocessing for windows platform
         try:
             from multiprocessing import Queue, Process

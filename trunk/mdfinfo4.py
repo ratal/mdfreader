@@ -7,6 +7,7 @@ Created on Sun Dec 15 12:57:28 2013
 """
 from struct import calcsize, unpack, unpack_from
 from sys import version_info
+from numpy import array, sort
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 
@@ -676,6 +677,29 @@ class info4(dict):
                 # reads Channel Block
                 self.readCNBlock(fid, dg, cg, channelNameList)
                 
+              # reorder channel blocks and related blocks(CC, SI, AT, CA) based on byte offset
+              # this reorder is meant to improve performance while parsing records using core.records.fromfile
+              # as it will not use cn_byte_offset
+              # first, calculate new mapping/order
+            Map = []
+            nChannel=len(self['CNBlock'][dg][cg])
+            [Map.append((cn, self['CNBlock'][dg][cg][cn]['cn_byte_offset'])) for cn in range(nChannel)]
+            dtype=[('index','u4'), ('byte_offset', 'u4')]
+            Map=array(Map, dtype=dtype)
+            orderedMap=sort(Map, order='byte_offset')
+            
+            toChangeIndex=Map==orderedMap
+            for cn in range(nChannel):
+                if not toChangeIndex[cn]:
+                    # offset all indexes of indexes to be moved
+                    self['CNBlock'][dg][cg][cn+nChannel]=self['CNBlock'][dg][cg].pop(cn)
+                    self['CCBlock'][dg][cg][cn+nChannel]=self['CCBlock'][dg][cg].pop(cn)
+            for cn in range(nChannel):
+                if not toChangeIndex[cn]:
+                    # change to ordered index
+                    self['CNBlock'][dg][cg][orderedMap[cn][0]]=self['CNBlock'][dg][cg].pop(cn+nChannel)
+                    self['CCBlock'][dg][cg][orderedMap[cn][0]]=self['CCBlock'][dg][cg].pop(cn+nChannel)
+
     def readCNBlock(self, fid, dg, cg, channelNameList=False):
         # reads Channel Block
             cn=0
