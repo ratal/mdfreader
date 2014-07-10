@@ -239,8 +239,27 @@ class mdf4(dict):
                         else: # adding bytes
                             if precedingNumberOfBits != 0: # There was bits in previous channel
                                 precedingNumberOfBits = 0
-                            dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                            numpyDataRecordFormat.append( ( (dataRecordName[-1], convertName(dataRecordName[-1])), arrayformat4( signalDataType, numberOfBits ) ) )
+                            if signalDataType not in (13, 14):
+                                dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
+                                numpyDataRecordFormat.append( ( (dataRecordName[-1], convertName(dataRecordName[-1])), arrayformat4( signalDataType, numberOfBits ) ) )
+                            elif signalDataType == 13:
+                                dataRecordName.append( 'ms' )
+                                numpyDataRecordFormat.append( ( ('ms', 'ms_title'), '<u2') ) 
+                                dataRecordName.append( 'min' )
+                                numpyDataRecordFormat.append( ( ('min', 'min_title'), '<u1') ) 
+                                dataRecordName.append( 'hour' )
+                                numpyDataRecordFormat.append( ( ('hour', 'hour_title'), '<u1') ) 
+                                dataRecordName.append( 'day' )
+                                numpyDataRecordFormat.append( ( ('day', 'day_title'), '<u1') ) 
+                                dataRecordName.append( 'month' )
+                                numpyDataRecordFormat.append( ( ('month', 'month_title'), '<u1') )
+                                dataRecordName.append( 'year' )
+                                numpyDataRecordFormat.append( ( ('year', 'year_title'), '<u1') )
+                            elif signalDataType == 14:
+                                dataRecordName.append( 'ms' )
+                                numpyDataRecordFormat.append( ( ('ms', 'ms_title'), '<u4') ) 
+                                dataRecordName.append( 'days' )
+                                numpyDataRecordFormat.append( ( ('days', 'days_title'), '<u2') )
 
                     if numberOfBits < 8: # last channel in record is bit inside byte unit8
                         dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
@@ -338,14 +357,14 @@ def arrayformat4( signalDataType, numberOfBits ):
         dataType = 'str' # not directly processed
     elif signalDataType == 7: # UTF-8
         dataType = 'U2' # not directly processed
-    elif signalDataType == (8, 9): # UTF-16
+    elif signalDataType in (8, 9): # UTF-16
         dataType = 'U4' # not directly processed
     elif signalDataType == 10: # bytes array
-        dataType = 'buffer' # not directly processed
+        dataType = 'V'+str(int(numberOfBits/8)) # not directly processed
     elif signalDataType in (11, 12): # MIME sample or MIME stream
-        dataType = ('u2', 'u1', 'u1', 'u1', 'u1', 'u1') # 7 Byte Date data structure
-    elif signalDataType in (13, 14): # CANopen date and time
-        dataType = ('u4',  'u2') # 6 Byte time data structure
+        dataType = 'V'+str(int(numberOfBits/8)) # not directly processed
+    elif signalDataType in (13, 14): # CANOpen date or time
+        print('not supported in this section')
     else:
         print(( 'Unsupported Signal Data Type ' + str( signalDataType ) + ' ', numberOfBits ))
         
