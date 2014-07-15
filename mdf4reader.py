@@ -443,28 +443,37 @@ def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                 P6 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [5]
                 L[channelName] = (P1*L[channelName] *L[channelName] +P2*L[channelName] +P3)/(P4*L[channelName] *L[channelName] +P5*L[channelName] +P6)
             elif conversionFormulaIdentifier == 3: #  Algebraic conversion, needs simpy
-                pass # not yet implemented
-                print(info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']) # formulae
+                try:
+                    from sympy import lambdify, symbols
+                    X=symbols('X')
+                    expr=lambdify(X, info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']['Comment'], 'numpy')
+                    L[channelName] = expr(L[channelName])
+                except:
+                    print('Please install simpy to convert cannel '+channelName)
+                    print('Had problem to convert '+channelName+' formulae '+info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref'])
             elif conversionFormulaIdentifier in (4, 5): # value to value table with or without interpolation
-                val_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /2
+                val_count=2*int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /2)
                 cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
-                intVal = cc_val[range(0, val_count, 2)]
-                physVal = cc_val[range(1, val_count, 2)]
+                intVal = [cc_val[i][0] for i in range(0, val_count, 2)]
+                physVal = [cc_val[i][0] for i in range(1, val_count, 2)]
                 if numpy.all( numpy.diff( intVal ) > 0 ):
                     if conversionFormulaIdentifier == 4:
                         L[channelName] = numpy.interp( L[channelName], intVal, physVal ) # with interpolation
                     else:
-                        from scipy import interpolate
+                        try:
+                            from scipy import interpolate
+                        except:
+                            raise('Please install scipy to convert channel'+channelName)
                         f = interpolate.interp1d( intVal, physVal , kind='nearest', bounds_error=False) # nearest
                         L[channelName] =  f(L[channelName]) # fill with Nan out of bounds while should be bounds
                 else:
                     print(( 'X values for interpolation of channel ' + channelName + ' are not increasing' ))
             elif conversionFormulaIdentifier == 6: # Value range to value table
-                val_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /3
+                val_count=int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /3)
                 cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
-                key_min = cc_val[range(0, val_count, 3)]
-                key_max = cc_val[range(1, val_count, 3)]
-                value = cc_val[range(1, val_count, 3)]
+                key_min = [cc_val[i][0] for i in range(0, 3*val_count+1, 3)]
+                key_max = [cc_val[i][0] for i in range(1, 3*val_count+1, 3)]
+                value = [cc_val[i][0] for i in range(2, 3*val_count+1, 3)]
                 # look up in range keys
                 for Lindex in range(len(L[channelName] )):
                     key_index=0 # default index if not found
@@ -472,51 +481,58 @@ def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                         if  key_min[i] < L[channelName] [Lindex] < key_max[i]:
                             key_index=i
                             break
-                    L[channelName] [Lindex]=value[key_index]
+                    L[channelName][Lindex]=value[key_index]
             elif conversionFormulaIdentifier == 7: # Value to text / scale conversion table
-                val_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] 
+                val_count=int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] )
                 cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
+                value=info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']
+                temp=[]
                 for Lindex in range(len(L[channelName] )):
-                    key_index=0 # default index if not found
+                    key_index=val_count # default index if not found
                     for i in range(val_count):
                         if  L[channelName] [Lindex] == cc_val[i]:
                             key_index=i
                             break
-                    L[channelName] [Lindex]=value[key_index]
+                    temp.append(value[key_index])
+                L[channelName]=temp
             elif conversionFormulaIdentifier == 8: # Value range to Text / Scale conversion Table
-                val_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /2
+                val_count=int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /2)
                 cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
-                key_min = cc_val[range(0, val_count, 2)]
-                key_max = cc_val[range(1, val_count, 2)]
+                key_min = [cc_val[i][0] for i in range(0, 2*val_count, 2)]
+                key_max = [cc_val[i][0] for i in range(1, 2*val_count, 2)]
                 # look up in range keys
+                temp=[]
                 for Lindex in range(len(L[channelName] )):
-                    key_index=0 # default index if not found
+                    key_index=val_count # default index if not found
                     for i in range(val_count):
                         if  key_min[i] < L[channelName] [Lindex] < key_max[i]:
                             key_index=i
                             break
-                    L[channelName] [Lindex]=info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref'][key_index]
+                    temp.append(info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref'][key_index])
+                L[channelName]=temp
             elif conversionFormulaIdentifier == 9: # Text to value table
-                val_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] 
+                ref_count=int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref_count'] )
                 cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
                 cc_ref=info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']
+                temp=[]
                 for Lindex in range(len(L[channelName] )):
-                    key_index=0 # default index if not found
-                    for i in range(val_count):
+                    key_index=ref_count # default index if not found
+                    for i in range(ref_count):
                         if  L[channelName] [Lindex] == cc_ref[i]:
                             key_index=i
                             break
-                    L[channelName] [Lindex]=cc_val[key_index]
+                    temp.append(cc_val[key_index])
+                L[channelName]=temp
             elif conversionFormulaIdentifier == 10: # Text to text table
-                ref_count=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /2
+                val_count=int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] )
                 cc_ref=info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']
                 for Lindex in range(len(L[channelName] )):
-                    key_index=0 # default index if not found
-                    for i in range(0, ref_count, 2):
+                    key_index=val_count+1 # default index if not found
+                    for i in range(0, val_count, 2):
                         if  L[channelName] [Lindex] == cc_ref[i]:
                             key_index=i
                             break
-                    L[channelName] [Lindex]=cc_ref[key_index+1]
+                    L[channelName] [Lindex]=cc_ref[key_index]
             else:
                 print('Unrecognized conversion type')
     if multiProc:

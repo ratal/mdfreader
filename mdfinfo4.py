@@ -366,8 +366,11 @@ class CCBlock(MDFBlock):
                 self['cc_ref']=CommentBlock(fid, self['cc_ref'])
             elif self['cc_type']in (7, 8, 9, 10): # text list
                 for i in range(self['cc_ref_count']):
-                    temp=CommentBlock(fid, self['cc_ref'][i])
-                    self['cc_ref'][i]=temp['name']
+                    temp=CommentBlock(fid, self['cc_ref'][i][0])
+                    try:
+                        self['cc_ref'][i]=temp['Comment']
+                    except:
+                        pass
             if self['cc_md_comment']: # comments exist
                 self['Comment']=CommentBlock(fid, self['cc_md_comment'], MDType='CC')
             if self['cc_md_unit']: # comments exist
