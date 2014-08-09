@@ -198,7 +198,7 @@ class info3(dict):
                         elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 10: #  Text Formula
 
                             # Read data Channel Conversion parameters info into structure
-                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula10' ), fid, currentPosition )
+                            self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3( self.blockformats3( 'CCFormatFormula10' ), fid, currentPosition,  removeTrailing0=False )
 
                         elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 11: #  Text table
 
@@ -336,7 +336,9 @@ class info3(dict):
         #INT32 = '<i'
         UINT64 = '<Q'
         #INT64 = '<q'
-
+        
+        formats = ()
+        
         if block == 'TXFormat':
             formats = (
                 ( CHAR, 2, 'BlockType' ),
@@ -384,7 +386,7 @@ class info3(dict):
                 ( REAL, 1, 'phys' ) )
         elif block == 'CCFormatFormula10':
             formats = ( # Text formula
-                ( CHAR , 256, 'textFormula' ) )
+                ( CHAR , 256, 'textFormula' ),  )
         elif block == 'CCFormatFormula11':
             formats = ( # ASAM-MCD2 text table
                 ( REAL, 1, 'int' ),
@@ -486,7 +488,7 @@ class info3(dict):
 
     #######mdfblockread3####################
     @staticmethod
-    def mdfblockread3( blockFormat, fid, pointer ):
+    def mdfblockread3( blockFormat, fid, pointer,  removeTrailing0=True ):
         # mdfblockread3 Extract block of data from MDF file in original data types
         #   Block=mdfblockread3(BLOCKFORMAT, FID, OFFSET) returns a
         #   dictionary with keys specified in data structure BLOCKFORMAT, fid
@@ -517,9 +519,15 @@ class info3(dict):
                     elif not Block['BlockSize'] :
                         value=''
                     if PythonVersion<3:
-                        Block[fieldName] = value.replace('\x00', '')
+                        if removeTrailing0:
+                            Block[fieldName] = value.replace('\x00', '')
+                        else:
+                            Block[fieldName] = value
                     else:
-                        Block[fieldName] = value.decode('latin1', 'replace').replace('\x00', '') # decode bytes
+                        if removeTrailing0:
+                            Block[fieldName] = value.decode('latin1', 'replace').replace('\x00', '') # decode bytes
+                        else:
+                            Block[fieldName] = value.decode('latin1', 'replace')
                 else: # numeric
                     formatSize = calcsize( fieldFormat )
                     number=fid.read( formatSize * fieldNumber )
