@@ -133,9 +133,21 @@ def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                 P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P6']
                 L[channelName] = (P1*L[channelName] * L[channelName] + P2*L[channelName] + P3)/(P4*L[channelName] * L[channelName] + P5 * L[channelName] + P6)
             elif conversionFormulaIdentifier == 10:  # Text Formula, not really supported yet
-                print(('Conversion of formula : ' + str(info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula']) + 'not yet supported'))
+                try:
+                    from sympy import lambdify, symbols
+                    X = symbols('X') # variable is X
+                    formula = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula']
+                    formula=formula[:formula.find('\x00')] # remove trailing text after 0
+                    formula = formula.replace('pow(', 'power(') # adapt ASAM-MCD2 syntax to sympy
+                    expr = lambdify(X,formula , 'numpy') # formula to function for evaluation
+                    L[channelName] = expr(L[channelName])
+                except:
+                    print('Please install sympy to convert channel '+channelName)
+                    print('Failed to convert '+channelName+' formulae '+info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula'])
             elif conversionFormulaIdentifier == 11:  # Text Table, not really supported yet
-                pass # considers number representative enough, no need to convert into string, more complex
+                # considers number representative enough, no need to convert into string, more complex
+                print(('Conversion of text table : not yet supported'))
+                pass
             elif conversionFormulaIdentifier == 12:  # Text Range Table, not really supported yet
                 print('Not supported text range tables')
                 pass # Not yet supported, practically not used format

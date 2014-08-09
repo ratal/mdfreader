@@ -449,7 +449,7 @@ def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                     expr=lambdify(X, info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']['Comment'], 'numpy')
                     L[channelName] = expr(L[channelName])
                 except:
-                    print('Please install simpy to convert cannel '+channelName)
+                    print('Please install sympy to convert channel '+channelName)
                     print('Had problem to convert '+channelName+' formulae '+info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref'])
             elif conversionFormulaIdentifier in (4, 5): # value to value table with or without interpolation
                 val_count=2*int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /2)
