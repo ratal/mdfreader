@@ -149,8 +149,22 @@ def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                 print(('Conversion of text table : not yet supported'))
                 pass
             elif conversionFormulaIdentifier == 12:  # Text Range Table, not really supported yet
-                print('Not supported text range tables')
-                pass # Not yet supported, practically not used format
+                try:
+                    npair=len(info['CCBlock'][dataGroup][channelGroup][channel]['conversion'])
+                    lower=[info['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['lowerRange'] for pair in range(npair)]
+                    upper=[info['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['upperRange'] for pair in range(npair)]
+                    text=[info['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['Textrange'] for pair in range(npair)]
+                    temp=[]
+                    for Lindex in range(len(L[channelName] )):
+                        value = text[0] # default value
+                        for pair in range(1, npair):
+                            if lower[pair] <= L[channelName] [Lindex] <= lower[pair]:
+                                value = text[pair]
+                                break
+                        temp.append(value)
+                    L[channelName] = temp
+                except:
+                    print('Failed to convert '+channelName)
             elif conversionFormulaIdentifier == 132:  # date, not really supported yet
                 pass
             elif conversionFormulaIdentifier == 133:  # time, not really supported yet
