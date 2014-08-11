@@ -45,8 +45,8 @@ def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
             if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:  # time channel
                 channelName = 'time' + str(dataGroup)
             # Process concatenated bits inside unint8
-            if signalDataType not in (1, 2, 3, 8):
-                if signalDataType == 0:
+            if signalDataType in (0, 9, 13): # if data is unsigned integer
+                if signalDataType in (0, 13): # little endian
                     if numberOfBits == 1:  # One bit, considered Boolean in numpy
                         mask = 1 << isBitInUnit8  # masks isBitUnit8
                         temp = [((int(temp[record]) & mask) >> (isBitInUnit8)) for record in range(numberOfRecords)]
@@ -58,7 +58,7 @@ def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                         temp = [((int(temp[record]) & mask) >> ( isBitInUnit8 )) for record in range(numberOfRecords)]
                         L[channelName] = numpy.array(temp, dtype='uint8')
                         isBitInUnit8 += 2
-                    else:
+                    else: # big endians, not implemented because of missing examples
                         L[channelName] = temp
                         isBitInUnit8 = 0  # Initialize Bit counter
                 else:
@@ -158,7 +158,7 @@ def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                     for Lindex in range(len(L[channelName] )):
                         value = text[0] # default value
                         for pair in range(1, npair):
-                            if lower[pair] <= L[channelName] [Lindex] <= lower[pair]:
+                            if lower[pair] <= L[channelName] [Lindex] <= upper[pair]:
                                 value = text[pair]
                                 break
                         temp.append(value)

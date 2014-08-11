@@ -284,14 +284,19 @@ class mdf4(dict):
         # After all processing of channels,
         # prepare final class data with all its keys
         for dataGroup in list(info['DGBlock'].keys()):
-            self.masterChannelList[masterDataGroup[dataGroup]]=[]
+            if masterDataGroup: #master channel exist
+                self.masterChannelList[masterDataGroup[dataGroup]]=[]
             for channelGroup in list(info['CGBlock'][dataGroup].keys()):
                 for channel in list(info['CNBlock'][dataGroup][channelGroup].keys()):
                     channelName = info['CNBlock'][dataGroup][channelGroup][channel]['name']
                     if channelName in L and len( L[channelName] ) != 0:
-                        self.masterChannelList[masterDataGroup[dataGroup]].append(channelName)
+                        if masterDataGroup: #master channel exist
+                            self.masterChannelList[masterDataGroup[dataGroup]].append(channelName)
                         self[channelName] = {}
-                        self[channelName]['master'] = masterDataGroup[dataGroup]
+                        if masterDataGroup: #master channel exist
+                            self[channelName]['master'] = masterDataGroup[dataGroup]
+                        else:
+                            self[channelName]['master'] = ''
                         # sync_types : 0 data, 1 time (sec), 2 angle (radians), 4 index
                         self[channelName]['masterType'] = info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
                         if 'unit' in list(info['CCBlock'][dataGroup][channelGroup][channel].keys()):
@@ -394,17 +399,21 @@ def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 
             cName = info['CNBlock'][dataGroup][channelGroup][channel]['name']
             channelName=cName
-            try:
+            
+            if numberOfBits==0: # virtual channel
+                temp=numpy.array(range(info['CGBlock'][dataGroup][channelGroup]['cg_cycle_count']), 'uint64')
+                
+            if hasattr(buf['data']['data'], str(cName)):
                 temp = buf['data']['data'].__getattribute__( str(cName)) # extract channel vector
                 previousChannelName=cName
-            except: # if tempChannelName not in buf -> bits in unit8
+            elif hasattr(buf['data']['data'], str(previousChannelName)): # if tempChannelName not in buf -> bits in unit8
                 temp = buf['data']['data'].__getattribute__( str(previousChannelName) ) # extract channel vector
 
             if info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type'] in (2, 3, 4):# master channel 
                 channelName = 'time' + str( dataGroup )
             # Process concatenated bits inside unint8
-            if signalDataType not in ( 1, 2, 3, 8 ):
-                if signalDataType == 0:
+            if signalDataType in ( 0, 1 ): # if data is unsigned integer
+                if signalDataType == 0: # little endian
                     if numberOfBits == 1: # One bit, considered Boolean in numpy
                         mask = 1 << isBitInUnit8 # masks isBitUnit8
                         temp = [( ( int( temp[record] ) & mask ) >> ( isBitInUnit8 ) ) for record in range( numberOfRecords )]
@@ -419,7 +428,7 @@ def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                     else:
                         L[channelName] = temp
                         isBitInUnit8 = 0 # Initialize Bit counter
-                else:
+                else: # big endian, To be adjusted/considered later
                     L[channelName] = temp
                     isBitInUnit8 = 0 # Initialize Bit counter
             else:
