@@ -216,6 +216,7 @@ class mdf4(dict):
                     #invalidBytes=info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bytes']
                     #invalidBit=info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bit_pos']
                     for channel in info['CNBlock'][dataGroup][channelGroup].keys():
+                        channelType = info['CNBlock'][dataGroup][channelGroup][channel]['cn_type']
                         # Type of channel data, signed, unsigned, floating or string
                         signalDataType = info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type']
                         # Corresponding number of bits for this format
@@ -227,41 +228,44 @@ class mdf4(dict):
                             masterDataGroup[dataGroup]=channelName
                         #if channelList is not None:
                          #   channelListByte[channelName]=channelByteOffset
-                            
-                        if numberOfBits < 8: # adding bit format, ubit1 or ubit2
-                            if precedingNumberOfBits == 8: # 8 bit make a byte
-                                dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                                numpyDataRecordFormat.append( ( (dataRecordName[-1], convertName(dataRecordName[-1])), arrayformat4( signalDataType, numberOfBits ) ) )
-                                precedingNumberOfBits = 0
-                            else:
-                                precedingNumberOfBits += numberOfBits # counts successive bits
+                        
+                        if not channelType==6: # virtual channel
+                            if numberOfBits < 8: # adding bit format, ubit1 or ubit2
+                                if precedingNumberOfBits == 8: # 8 bit make a byte
+                                    dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
+                                    numpyDataRecordFormat.append( ( (dataRecordName[-1], convertName(dataRecordName[-1])), arrayformat4( signalDataType, numberOfBits ) ) )
+                                    precedingNumberOfBits = 0
+                                else:
+                                    precedingNumberOfBits += numberOfBits # counts successive bits
+    
+                            else: # adding bytes
+                                if precedingNumberOfBits != 0: # There was bits in previous channel
+                                    precedingNumberOfBits = 0
+                                if signalDataType not in (13, 14):
+                                    dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
+                                    numpyDataRecordFormat.append( ( (dataRecordName[-1], convertName(dataRecordName[-1])), arrayformat4( signalDataType, numberOfBits ) ) )
+                                elif signalDataType == 13:
+                                    dataRecordName.append( 'ms' )
+                                    numpyDataRecordFormat.append( ( ('ms', 'ms_title'), '<u2') ) 
+                                    dataRecordName.append( 'min' )
+                                    numpyDataRecordFormat.append( ( ('min', 'min_title'), '<u1') ) 
+                                    dataRecordName.append( 'hour' )
+                                    numpyDataRecordFormat.append( ( ('hour', 'hour_title'), '<u1') ) 
+                                    dataRecordName.append( 'day' )
+                                    numpyDataRecordFormat.append( ( ('day', 'day_title'), '<u1') ) 
+                                    dataRecordName.append( 'month' )
+                                    numpyDataRecordFormat.append( ( ('month', 'month_title'), '<u1') )
+                                    dataRecordName.append( 'year' )
+                                    numpyDataRecordFormat.append( ( ('year', 'year_title'), '<u1') )
+                                elif signalDataType == 14:
+                                    dataRecordName.append( 'ms' )
+                                    numpyDataRecordFormat.append( ( ('ms', 'ms_title'), '<u4') ) 
+                                    dataRecordName.append( 'days' )
+                                    numpyDataRecordFormat.append( ( ('days', 'days_title'), '<u2') )
+                        else: # virtual channel
+                            pass
 
-                        else: # adding bytes
-                            if precedingNumberOfBits != 0: # There was bits in previous channel
-                                precedingNumberOfBits = 0
-                            if signalDataType not in (13, 14):
-                                dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
-                                numpyDataRecordFormat.append( ( (dataRecordName[-1], convertName(dataRecordName[-1])), arrayformat4( signalDataType, numberOfBits ) ) )
-                            elif signalDataType == 13:
-                                dataRecordName.append( 'ms' )
-                                numpyDataRecordFormat.append( ( ('ms', 'ms_title'), '<u2') ) 
-                                dataRecordName.append( 'min' )
-                                numpyDataRecordFormat.append( ( ('min', 'min_title'), '<u1') ) 
-                                dataRecordName.append( 'hour' )
-                                numpyDataRecordFormat.append( ( ('hour', 'hour_title'), '<u1') ) 
-                                dataRecordName.append( 'day' )
-                                numpyDataRecordFormat.append( ( ('day', 'day_title'), '<u1') ) 
-                                dataRecordName.append( 'month' )
-                                numpyDataRecordFormat.append( ( ('month', 'month_title'), '<u1') )
-                                dataRecordName.append( 'year' )
-                                numpyDataRecordFormat.append( ( ('year', 'year_title'), '<u1') )
-                            elif signalDataType == 14:
-                                dataRecordName.append( 'ms' )
-                                numpyDataRecordFormat.append( ( ('ms', 'ms_title'), '<u4') ) 
-                                dataRecordName.append( 'days' )
-                                numpyDataRecordFormat.append( ( ('days', 'days_title'), '<u2') )
-
-                    if numberOfBits < 8: # last channel in record is bit inside byte unit8
+                    if numberOfBits < 8 and not channelType==6: # last channel in record is bit inside byte uint8
                         dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
                         numpyDataRecordFormat.append( ( (dataRecordName[-1], convertName(dataRecordName[-1])), arrayformat4( signalDataType, numberOfBits ) ) )
                         precedingNumberOfBits = 0
@@ -411,7 +415,7 @@ def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
 
             if info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type'] in (2, 3, 4):# master channel 
                 channelName = 'time' + str( dataGroup )
-            # Process concatenated bits inside unint8
+            # Process concatenated bits inside uint8
             if signalDataType in ( 0, 1 ): # if data is unsigned integer
                 if signalDataType == 0: # little endian
                     if numberOfBits == 1: # One bit, considered Boolean in numpy
