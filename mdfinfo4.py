@@ -287,7 +287,7 @@ class CGBlock(MDFBlock):
         
 class CNBlock(MDFBlock):
     def __init__(self, fid,  pointer,  attachmentNumber=None):
-        if pointer != 0 and not pointer == None:
+        if pointer != 0 and pointer is not None:
             fid.seek( pointer )
             self['id']=self.mdfblockreadCHAR(fid, 4)
             self['reserved']=self.mdfblockreadBYTE(fid, 4)
@@ -672,10 +672,10 @@ class info4(dict):
                 self['CGBlock'][dg][cg].update(CGBlock(fid, self['CGBlock'][dg][cg-1]['cg_cg_next']))
                 if not channelNameList:
                     # reads Source Information Block
-                    self['CGBlock'][dg][cg]['SIBlock'].update(SIBlock(fid, self['CGBlock'][dg][cg]['cg_si_acq_source']))
+                    self['CGBlock'][dg][cg]['SIBlock']=SIBlock(fid, self['CGBlock'][dg][cg]['cg_si_acq_source'])
                     
                     # reads Sample Reduction Block
-                    self['CGBlock'][dg][cg]['SRBlock'].update(self.readSRBlock(fid, self['CGBlock'][dg][cg]['cg_sr_first']))
+                    self['CGBlock'][dg][cg]['SRBlock']=self.readSRBlock(fid, self['CGBlock'][dg][cg]['cg_sr_first'])
                 
                 # reads Channel Block
                 self.readCNBlock(fid, dg, cg, channelNameList)
@@ -705,15 +705,16 @@ class info4(dict):
 
     def readCNBlock(self, fid, dg, cg, channelNameList=False):
         # reads Channel Block
-            cn=0
-            self['CNBlock'][dg] = {}
-            self['CNBlock'][dg][cg] = {}
-            self['CNBlock'][dg][cg][cn] = {}
-            self['CCBlock'][dg] = {}
-            self['CCBlock'][dg][cg] = {}
-            self['CCBlock'][dg][cg][cn] = {}
-            self['CNBlock'][dg][cg][cn].update(CNBlock(fid, self['CGBlock'][dg][cg]['cg_cn_first']))
-            
+        cn=0
+        self['CNBlock'][dg] = {}
+        self['CNBlock'][dg][cg] = {}
+        self['CNBlock'][dg][cg][cn] = {}
+        self['CCBlock'][dg] = {}
+        self['CCBlock'][dg][cg] = {}
+        self['CCBlock'][dg][cg][cn] = {}
+        self['CNBlock'][dg][cg][cn].update(CNBlock(fid, self['CGBlock'][dg][cg]['cg_cn_first']))
+        
+        if self['CGBlock'][dg][cg]['cg_cn_first']: # Can be NIL for VLSD
             if not channelNameList:
                 # reads Channel Source Information
                 self['CNBlock'][dg][cg][cn]['SIBlock']=SIBlock(fid, self['CNBlock'][dg][cg][cn]['cn_si_source'])
@@ -745,7 +746,10 @@ class info4(dict):
                     
                     # reads Channel Conversion Block
                     self['CCBlock'][dg][cg][cn]=CCBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
-    
+        elif self['CNBlock'][dg][cg][cn]['cn_type']: #VLSD channel
+            import mdf4reader
+            self['CNBlock'][dg][cg][cn]=mdf4reader.DATA(fid, self['CNBlock'][dg][cg][cn]['cn_data'])
+            
     def readSRBlock(self, fid, pointer):
         # reads Sample Reduction Blocks
         if pointer>0:
