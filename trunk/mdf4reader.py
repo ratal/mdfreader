@@ -53,23 +53,26 @@ class DATABlock(MDFBlock):
         elif self['id'] in ('##DZ', b'##DZ'): # zipped data block
             self['dz_org_block_type']=self.mdfblockreadCHAR(fid, 2)
             self['dz_zip_type']=self.mdfblockread(fid, UINT8, 1)
-            if zip_type==None: # HLBlock used
+            if zip_type is not None: # HLBlock used
                 self['dz_zip_type']=zip_type
             self['dz_reserved']=self.mdfblockreadBYTE(fid, 1)
             self['dz_zip_parameter']=self.mdfblockread(fid, UINT32, 1)
             self['dz_org_data_length']=self.mdfblockread(fid, UINT64, 1)
             self['dz_data_length']=self.mdfblockread(fid, UINT64, 1)
-            self['data']=self.mdfblockreadBYTE(fid, self['link_count']-24)
+            self['data']=fid.read( self['dz_data_length'] )
             # uncompress data
             try:
                 from zlib import decompress
-                if self['dz_zip_type']==0:
-                    self['data']=decompress(self['data'])
-                elif self['dz_zip_type']==1: # data transposed
-                    pass # not yet implemented
             except:
-                print('zlib module not found or error while uncompressing')
-            if channelList==None: # reads all blocks
+                raise('zlib module not found or error while uncompressing')
+            self['data']=decompress(self['data']) # decompress data
+            if self['dz_zip_type']==1: # data bytes transposed
+                N = self['dz_zip_parameter']
+                M = self['dz_org_data_length']%N 
+                temp=numpy.frombuffer(self['data'][:M*N])
+                temp.reshape(M, N).T.reshape(1, M*N)
+                self['data']=numpy.getbuffer(temp)+self['data'][M*N:]
+            if channelList is None: # reads all blocks
                 self['data']=numpy.core.records.fromstring(self['data'] , dtype = numpyDataRecordFormat, shape = numberOfRecords , names=dataRecordName)
             else:
                 # reads only the channels using offset functions, channel by channel
@@ -85,7 +88,7 @@ class DATA(MDFBlock):
     def __init__(self, fid,  pointer, numpyDataRecordFormat, numberOfRecords , dataRecordName, zip=None, nameList=None):
         # block header
         self.loadHeader(fid, pointer)
-        if not self['id'] in ('##DL', '##HL', b'##DL', b'##HL'):
+        if not self['id'] in ('##DL', '##HL', b'##DL', b'##HL','##SD', b'##SD'):
             self['data']=DATABlock(fid, pointer, numpyDataRecordFormat, numberOfRecords , dataRecordName, zip_type=zip, channelList=nameList)
         elif self['id'] in ('##DL', b'##DL'): # data list block
             # link section
