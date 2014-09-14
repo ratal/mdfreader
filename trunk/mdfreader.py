@@ -206,6 +206,8 @@ class mdf( mdf3,  mdf4 ):
         except:
             print('matplotlib not found' )
             raise
+        if type(channels) is str:
+            channels={channels}
         for channelName in channels:
             if channelName in self:
                 if not self[channelName]['data'].dtype.kind in ['S', 'U']: # if channel not a string
@@ -501,7 +503,10 @@ class mdf( mdf3,  mdf4 ):
                         [ws.row( row + 2 ).set_cell_number( col - workbook * maxCols, vect[row] ) for row in list(range( len( vect ) ))]
                     else: # it's a string, cannot write for the moment
                         if PythonVersion <3:
-                            vect=vect.encode(coding)
+                            try:
+                                vect=vect.encode(coding)
+                            except:
+                                pass
                         [ws.row( row + 2 ).set_cell_text( col - workbook * maxCols, vect[row]) for row in list(range( len( vect ) ))]
                 else: # channel too long, written until max Excel line limit
                     if vect.dtype.kind not in ['S', 'U']: # if not a string
