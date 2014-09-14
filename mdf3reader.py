@@ -146,7 +146,7 @@ def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                     print('Failed to convert '+channelName+' formulae '+info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula'])
             elif conversionFormulaIdentifier == 11:  # Text Table, not really supported yet
                 # considers number representative enough, no need to convert into string, more complex
-                print(('Conversion of text table : not yet supported'))
+                #print(('Conversion of text table : not yet supported'))
                 pass
             elif conversionFormulaIdentifier == 12:  # Text Range Table, not really supported yet
                 try:
@@ -162,6 +162,10 @@ def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                                 value = text[pair]
                                 break
                         temp.append(value)
+                    try:
+                        temp=numpy.asarray(temp) # try to convert to numpy 
+                    except:
+                        pass
                     L[channelName] = temp
                 except:
                     print('Failed to convert '+channelName)
