@@ -97,29 +97,30 @@ class DATA(MDFBlock):
             self['dl_flags']=self.mdfblockread(fid, UINT8, 1)
             self['dl_reserved']=self.mdfblockreadBYTE(fid, 3)
             self['dl_count']=self.mdfblockread(fid, UINT32, 1)
-            if self['dl_flags']:
-                self['dl_equal_length']=self.mdfblockread(fid, UINT64, 1)
-            else:
-                self['dl_offset']=self.mdfblockread(fid, UINT64, self['dl_count'])
-            # read data list
-            if self['dl_count']==1:
-                self['data']=DATABlock(fid, self['dl_data'][0], numpyDataRecordFormat, numberOfRecords, recordLength, dataRecordName, channelList=nameList)
-            elif self['dl_count']==0:
-                raise('empty datalist')
-            else:
-                # define size of each block to be read
-                if self['dl_flags']: # equal length DT blocks
-                    DTsize=[self['dl_equal_length'] for i in range(self['dl_count'])]
+            if self['dl_count']:
+                if self['dl_flags']:
+                    self['dl_equal_length']=self.mdfblockread(fid, UINT64, 1)
                 else:
-                    DTsize=[self['dl_offset'][i] for i in range(self['dl_count'])]
-                self['data']={}
-                self['data']['data']=[]
-                self['data']['data']=[DATABlock(fid, self['dl_data'][dl], numpyDataRecordFormat, DTsize[dl], recordLength, dataRecordName, channelList=nameList)['data'] for dl in range(self['dl_count'])]
-                if self['dl_dl_next']:
-                     self['data']['data'].append(DATA(fid, self['dl_dl_next'],  numpyDataRecordFormat, numberOfRecords, recordLength, dataRecordName, zip, nameList)['data']['data'])
-                #Concatenate all data
-                self['data']['data']=numpy.hstack(self['data']['data']) # concatenate data list
-                self['data']['data']=self['data']['data'].view(numpy.recarray) # vstack output ndarray instead of recarray
+                    self['dl_offset']=self.mdfblockread(fid, UINT64, self['dl_count'])
+                # read data list
+                if self['dl_count']==1:
+                    self['data']=DATABlock(fid, self['dl_data'][0], numpyDataRecordFormat, numberOfRecords, recordLength, dataRecordName, channelList=nameList)
+                elif self['dl_count']==0:
+                    raise('empty datalist')
+                else:
+                    # define size of each block to be read
+                    if self['dl_flags']: # equal length DT blocks
+                        DTsize=[self['dl_equal_length'] for i in range(self['dl_count'])]
+                    else:
+                        DTsize=[self['dl_offset'][i] for i in range(self['dl_count'])]
+                    self['data']={}
+                    self['data']['data']=[]
+                    self['data']['data']=[DATABlock(fid, self['dl_data'][dl], numpyDataRecordFormat, DTsize[dl], recordLength, dataRecordName, channelList=nameList)['data'] for dl in range(self['dl_count'])]
+                    if self['dl_dl_next']:
+                         self['data']['data'].append(DATA(fid, self['dl_dl_next'],  numpyDataRecordFormat, numberOfRecords, recordLength, dataRecordName, zip, nameList)['data']['data'])
+                    #Concatenate all data
+                    self['data']['data']=numpy.hstack(self['data']['data']) # concatenate data list
+                    self['data']['data']=self['data']['data'].view(numpy.recarray) # vstack output ndarray instead of recarray
         elif self['id'] in ('##HL', b'##HL'): # header list block for DZBlock 
             # link section
             self['hl_dl_first']=self.mdfblockread(fid, LINK, 1)
@@ -291,7 +292,7 @@ class mdf4(dict):
                         recordLength =info['CGBlock'][dataGroup][channelGroup]['cg_data_bytes']+info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bytes']
                         # converts channel group records into channels
                         buf = DATA(fid, pointerToData, numpyDataRecordFormat, numberOfRecords, recordLength, dataRecordName, nameList=channelList)
-                    elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_type']==1: #VLSD channel
+                    elif info['CGBlock'][dataGroup][channelGroup]['cg_flags']==1: #VLSD channel
                         buf=DATA(fid, self['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
                         buf=buf['data']
                     elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_type']==4: #synchronization channel
@@ -301,15 +302,17 @@ class mdf4(dict):
                     else:
                         raise('Channel type error')
                 # Convert channels to physical values
-                if self.multiProc: 
+                if self.multiProc and 'data' in buf: 
                     proc.append( Process( target = processDataBlocks4, args = ( Q, buf, info, numberOfRecords, dataGroup , self.multiProc) ) )
                     proc[-1].start()
-                else: # for debugging purpose, can switch off multiprocessing
+                elif 'data' in buf: # for debugging purpose, can switch off multiprocessing
                     L.update(processDataBlocks4( None, buf, info, numberOfRecords, dataGroup,  self.multiProc))
+                else:
+                    print('No data in data group '+ str(dataGroup))
 
         fid.close() # close file
 
-        if self.multiProc:
+        if self.multiProc and 'data' in buf:
             for i in proc:
                 L.update(Q.get()) # concatenate results of processes in dict
 
