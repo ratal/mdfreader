@@ -625,11 +625,11 @@ class info4(dict):
         # reads Event Block
         if self['HDBlock']['hd_ev_first']:
             ev=0
-            self['EVBlock'][ev] = {}
-            self['EVBlock'][ev] .update(EVBlock(fid, self['HDBlock']['hd_ev_first']))
+            self['EVBlock']={}
+            self['EVBlock'][ev]=EVBlock(fid, self['HDBlock']['hd_ev_first'])
             while self['EVBlock'][ev]['ev_ev_next']:
-                self['EVBlock'][ev] .update(EVBlock(fid, self['EVBlock'][ev]['ev_ev_next']))
                 ev+=1
+                self['EVBlock'][ev]=EVBlock(fid, self['EVBlock'][ev-1]['ev_ev_next'])
         
         # reads Data Group Blocks and recursively the other related blocks
         self.readDGBlock(fid)
@@ -761,22 +761,22 @@ class info4(dict):
         # reads Sample Reduction Blocks
         if pointer>0:
             sr=0
-            srBlocks=[]
-            srBlocks.append(SRBlock(fid, pointer))
+            srBlocks={}
+            srBlocks[0]=SRBlock(fid, pointer)
             while srBlocks[sr]['sr_sr_next']>0:
-                srBlocks[sr].update(SRBlock(fid, srBlocks[sr]['sr_sr_next']))
                 sr+=1
+                srBlocks[sr]=SRBlock(fid, srBlocks[sr-1]['sr_sr_next'])
             return srBlocks
             
     def readATBlock(selfself, fid, pointer):
         # reads Attachment blocks
         if pointer >0:
             at=0
-            atBlocks=[]
-            atBlocks.append(ATBlock(fid, pointer))
+            atBlocks={}
+            atBlocks[0]=ATBlock(fid, pointer)
             while atBlocks[at]['at_at_next']>0:
-                atBlocks[at].update(ATBlock(fid, atBlocks[at]['at_at_next']))
                 at+=1
+                atBlocks[at]=(ATBlock(fid, atBlocks[at-1]['at_at_next']))
             return atBlocks
     
     def listChannels4( self, fileName = None ):
