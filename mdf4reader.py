@@ -365,11 +365,11 @@ def arrayformat4( signalDataType, numberOfBits ):
     if signalDataType in (0, 1): # unsigned
         if numberOfBits <= 8:
             dataType = 'u1'
-        elif numberOfBits == 16:
+        elif numberOfBits <= 16:
             dataType = 'u2';
-        elif numberOfBits == 32:
+        elif numberOfBits <= 32:
             dataType = 'u4'
-        elif numberOfBits == 64:
+        elif numberOfBits <= 64:
             dataType = 'u8'
         else:
             print(( 'Unsupported number of bits for unsigned int ' + str( numberOfBits) ))
@@ -377,11 +377,11 @@ def arrayformat4( signalDataType, numberOfBits ):
     elif signalDataType in (2, 3): # signed int
         if numberOfBits <= 8:
             dataType = 'i1'
-        elif numberOfBits == 16:
+        elif numberOfBits <= 16:
             dataType = 'i2'
-        elif numberOfBits == 32:
+        elif numberOfBits <= 32:
             dataType = 'i4'
-        elif numberOfBits == 64:
+        elif numberOfBits <= 64:
             dataType = 'i8'
         else:
             print(( 'Unsupported number of bits for signed int ' + str( numberOfBits ) ))
