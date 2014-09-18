@@ -59,6 +59,7 @@ class DATABlock(MDFBlock):
             self['dz_reserved']=self.mdfblockreadBYTE(fid, 1)
             self['dz_zip_parameter']=self.mdfblockread(fid, UINT32, 1)
             self['dz_org_data_length']=self.mdfblockread(fid, UINT64, 1)
+            numberOfRecords = self['dz_org_data_length'] // recordLength
             self['dz_data_length']=self.mdfblockread(fid, UINT64, 1)
             self['data']=fid.read( self['dz_data_length'] )
             # uncompress data
@@ -76,7 +77,7 @@ class DATABlock(MDFBlock):
             if channelList is None: # reads all blocks
                 self['data']=numpy.core.records.fromstring(self['data'] , dtype = numpyDataRecordFormat, shape = numberOfRecords , names=dataRecordName)
             else:
-                # reads only the channels using offset functions, channel by channel
+                # reads only the channels using offset functions, channel by channel. Not yet ready
                 buf={}
                 # order offsets and names based on offset value
                 channelList=OrderedDict(sorted(channelList.items(), key=lambda t: t[1]))
@@ -98,9 +99,9 @@ class DATA(MDFBlock):
             self['dl_reserved']=self.mdfblockreadBYTE(fid, 3)
             self['dl_count']=self.mdfblockread(fid, UINT32, 1)
             if self['dl_count']:
-                if self['dl_flags']:
+                if self['dl_flags']: # equal length datalist
                     self['dl_equal_length']=self.mdfblockread(fid, UINT64, 1)
-                else:
+                else: # datalist defined by byte offset
                     self['dl_offset']=self.mdfblockread(fid, UINT64, self['dl_count'])
                 # read data list
                 if self['dl_count']==1:
@@ -128,7 +129,7 @@ class DATA(MDFBlock):
             self['hl_flags']=self.mdfblockread(fid, UINT16, 1)
             self['hl_zip_type']=self.mdfblockread(fid, UINT8, 1)
             self['hl_reserved']=self.mdfblockreadBYTE(fid, 5)
-            self['data']=DATA(fid, self['hl_dl_first'], numpyDataRecordFormat, numberOfRecords, recordLength, dataRecordName, zip=self['hl_zip_type'], nameList=None)
+            self['data']=DATA(fid, self['hl_dl_first'], numpyDataRecordFormat, numberOfRecords, recordLength, dataRecordName, zip=self['hl_zip_type'], nameList=None)['data']
         else:
             self['data']=DATABlock(fid, pointer, numpyDataRecordFormat, numberOfRecords, recordLength, dataRecordName, zip_type=zip, channelList=nameList)
 
@@ -442,8 +443,6 @@ def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                 previousChannelName = str(cName)+'_title'
             elif previousChannelName in buf['data']['data']: # if tempChannelName not in buf -> bits in unit8
                 temp = buf['data']['data'].__getattribute__( previousChannelName ) # extract channel vector
-            else:
-                raise('Channel missing')
 
             if info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type'] in (2, 3, 4):# master channel 
                 channelName = 'time' + str( dataGroup )
