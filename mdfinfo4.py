@@ -366,11 +366,14 @@ class CCBlock(MDFBlock):
                 self['cc_ref']=CommentBlock(fid, self['cc_ref'])
             elif self['cc_type']in (7, 8, 9, 10): # text list
                 for i in range(self['cc_ref_count']):
-                    temp=CommentBlock(fid, self['cc_ref'][i][0])
-                    try:
+                    fid.seek( self['cc_ref'][i][0] )
+                    ID=self.mdfblockreadCHAR(fid, 4) # find if TX/MD or another CCBlock
+                    if ID in ('##TX', '##MD', b'##TX', b'##MD'): # for algebraic formulae
+                        temp=CommentBlock(fid, self['cc_ref'][i][0])
                         self['cc_ref'][i]=temp['Comment']
-                    except:
-                        pass
+                    elif ID in ('##CC', b'##CC'): # for table conversion
+                        # much more complicated nesting conversions !!!
+                        self['cc_ref'][i]=CCBlock(fid, self['cc_ref'][i][0])['name']['Comment']
             if self['cc_md_comment']: # comments exist
                 self['Comment']=CommentBlock(fid, self['cc_md_comment'], MDType='CC')
             if self['cc_md_unit']: # comments exist
