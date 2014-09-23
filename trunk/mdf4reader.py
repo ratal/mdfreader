@@ -210,24 +210,26 @@ class mdf4(dict):
         for dataGroup in info['DGBlock'].keys():
             if not info['DGBlock'][dataGroup]['dg_data']==0: # data exists
                 precedingNumberOfBits = 0
+                recordLength = 0
                 numpyDataRecordFormat = []
                 dataRecordName = []
                 #Pointer to data block
                 pointerToData =info['DGBlock'][dataGroup]['dg_data']
-                # defines record ID if any
-                if info['DGBlock'][dataGroup]['dg_rec_id_size']==0: # no record ID
-                    pass
-                elif info['DGBlock'][dataGroup]['dg_rec_id_size']==1:
-                    numpyDataRecordFormat.append( ( 'RecordID', 'uint8' ) )
-                elif info['DGBlock'][dataGroup]['dg_rec_id_size']==2:
-                    numpyDataRecordFormat.append( ( 'RecordID', 'uint16' ) )
-                elif info['DGBlock'][dataGroup]['dg_rec_id_size']==3:
-                    numpyDataRecordFormat.append( ( 'RecordID', 'uint16' ) )
-                elif info['DGBlock'][dataGroup]['dg_rec_id_size']==4:
-                    numpyDataRecordFormat.append( ( 'RecordID', 'uint64' ) )
                 
                 # defines data record for each channel group 
                 for channelGroup in info['CGBlock'][dataGroup].keys():
+                    # defines record ID if any
+                    if info['DGBlock'][dataGroup]['dg_rec_id_size']==0: # no record ID
+                        pass
+                    elif info['DGBlock'][dataGroup]['dg_rec_id_size']==1:
+                        numpyDataRecordFormat.append( ( 'RecordID'+str(channelGroup), 'uint8' ) )
+                    elif info['DGBlock'][dataGroup]['dg_rec_id_size']==2:
+                        numpyDataRecordFormat.append( ( 'RecordID'+str(channelGroup), 'uint16' ) )
+                    elif info['DGBlock'][dataGroup]['dg_rec_id_size']==3:
+                        numpyDataRecordFormat.append( ( 'RecordID'+str(channelGroup), 'uint32' ) )
+                    elif info['DGBlock'][dataGroup]['dg_rec_id_size']==4:
+                        numpyDataRecordFormat.append( ( 'RecordID'+str(channelGroup), 'uint64' ) )
+                        
                     # check if this is a VLSD ChannelGroup
                     if not info['CGBlock'][dataGroup][channelGroup]['cg_cn_first']==0: # if not a VLSD channel
                         numberOfRecords=info['CGBlock'][dataGroup][channelGroup]['cg_cycle_count']
@@ -249,7 +251,7 @@ class mdf4(dict):
                             #if channelList is not None:
                              #   channelListByte[channelName]=channelByteOffset
                             
-                            if not channelType==6: # virtual channel
+                            if channelType in (0, 2): # virtual channel
                                 if numberOfBits < 8: # adding bit format, ubit1 or ubit2
                                     if precedingNumberOfBits == 8: # 8 bit make a byte
                                         dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
@@ -282,26 +284,31 @@ class mdf4(dict):
                                         numpyDataRecordFormat.append( ( ('ms', 'ms_title'), '<u4') ) 
                                         dataRecordName.append( 'days' )
                                         numpyDataRecordFormat.append( ( ('days', 'days_title'), '<u2') )
-                            else: # virtual channel
-                                pass
+                            elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_type']==4: #synchronization channel
+                                self[channelName]={}
+                                self[channelName]['Attachment']=ATBlock(fid, info['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
+                            elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_type']==5: #maximum length data channel
+                                self[channelName]={}
+                                self[channelName]['MLSD']=CNBlock(fid, info['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
+                            elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in (3, 6): # virtual channel
+                                pass # channel calculated based on record index later in conversion function
     
                         if numberOfBits < 8 and not channelType==6: # last channel in record is bit inside byte uint8
                             dataRecordName.append(info['CNBlock'][dataGroup][channelGroup][channel]['name'])
                             numpyDataRecordFormat.append( ( (dataRecordName[-1], convertName(dataRecordName[-1])), arrayformat4( signalDataType, numberOfBits ) ) )
                             precedingNumberOfBits = 0
-                        # calculate record length in tbytes
-                        recordLength =info['CGBlock'][dataGroup][channelGroup]['cg_data_bytes']+info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bytes']
-                        # converts channel group records into channels
-                        buf = DATA(fid, pointerToData, numpyDataRecordFormat, numberOfRecords, recordLength, dataRecordName, nameList=channelList)
+                        # calculate record length in bytes
+                        recordLength += info['CGBlock'][dataGroup][channelGroup]['cg_data_bytes']+info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bytes']
+
                     elif info['CGBlock'][dataGroup][channelGroup]['cg_flags']==1: #VLSD channel
-                        buf=DATA(fid, self['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
-                        buf=buf['data']
-                    elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_type']==4: #synchronization channel
-                        buf=ATBlock(fid, self['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
-                    elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_type']==5: #maximum length data channel
-                        buf=CNBlock(fid, self['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
+                        buf=DATA(fid, info['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
+                        L[info['CNBlock'][dataGroup][channelGroup][channel]['name']]=buf['data']
                     else:
                         raise('Channel type error')
+                        
+                # reads data from DTBlock
+                buf = DATA(fid, pointerToData, numpyDataRecordFormat, numberOfRecords, recordLength, dataRecordName, nameList=channelList)
+                
                 # Convert channels to physical values
                 if self.multiProc and 'data' in buf: 
                     proc.append( Process( target = processDataBlocks4, args = ( Q, buf, info, numberOfRecords, dataGroup , self.multiProc) ) )
@@ -443,9 +450,12 @@ def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                 previousChannelName = str(cName)+'_title'
             elif previousChannelName in buf['data']['data']: # if tempChannelName not in buf -> bits in unit8
                 temp = buf['data']['data'].__getattribute__( previousChannelName ) # extract channel vector
-
+            elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in (3, 6):# virtual channel 
+                temp=numpy.arange(numberOfRecords)
+                
             if info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type'] in (2, 3, 4):# master channel 
                 channelName = 'time' + str( dataGroup )
+
             # Process concatenated bits inside uint8
             if signalDataType in ( 0, 1 ): # if data is unsigned integer
                 if signalDataType == 0: # little endian
@@ -475,23 +485,12 @@ def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
             if conversionFormulaIdentifier == 0: # 1:1 conversion
                 pass
             elif conversionFormulaIdentifier == 1: # Parametric, Linear: Physical =Integer*P2 + P1
-                P1 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [0]
-                P2 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [1]
-                L[channelName] = L[channelName] * P2 + P1
+                L[channelName] = linearConv(L[channelName], info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'])
             elif conversionFormulaIdentifier == 2: # rationnal
-                P1 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [0]
-                P2 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [1]
-                P3 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [2]
-                P4 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [3]
-                P5 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [4]
-                P6 = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'] [5]
-                L[channelName] = (P1*L[channelName] *L[channelName] +P2*L[channelName] +P3)/(P4*L[channelName] *L[channelName] +P5*L[channelName] +P6)
+                L[channelName] = rationalConv(L[channelName], info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'])
             elif conversionFormulaIdentifier == 3: #  Algebraic conversion, needs simpy
                 try:
-                    from sympy import lambdify, symbols
-                    X=symbols('X')
-                    expr=lambdify(X, info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']['Comment'], 'numpy')
-                    L[channelName] = expr(L[channelName])
+                    L[channelName] = formulaConv(L[channelName], info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']['Comment'])
                 except:
                     print('Please install sympy to convert channel '+channelName)
                     print('Had problem to convert '+channelName+' formulae '+info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref'])
@@ -584,3 +583,20 @@ def processDataBlocks4( Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
     else:
         return L
         #print( 'Process ' + str( dataGroup ) + ' Finished ' + str( time.clock() - procTime ) )
+def linearConv(vect, cc_val):
+    P1 = cc_val[0]
+    P2 = cc_val[1]
+    return vect* P2 + P1
+def rationalConv(vect,  cc_val):
+    P1 = cc_val[0]
+    P2 = cc_val[1]
+    P3 = cc_val[2]
+    P4 = cc_val[3]
+    P5 = cc_val[4]
+    P6 = cc_val[5]
+    return (P1*vect *vect +P2*vect +P3)/(P4*vect *vect +P5*vect +P6)
+def formulaConv(vect, formula):
+    from sympy import lambdify, symbols
+    X=symbols('X')
+    expr=lambdify(X, formula, 'numpy')
+    return expr(vect) 
