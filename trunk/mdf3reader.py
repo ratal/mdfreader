@@ -234,7 +234,10 @@ class mdf3(dict):
         self.organisation=info['HDBlock']['Organization']
         self.project=info['HDBlock']['ProjectName']
         self.subject=info['HDBlock']['Subject']
-        self.comment=info['HDBlock']['TXBlock']['Text']
+        try:
+            self.comment=info['HDBlock']['TXBlock']['Text']
+        except:
+            pass
         self.time=info['HDBlock']['Time']
         self.date=info['HDBlock']['Date']
         # converts date to be compatible with ISO8601
@@ -346,8 +349,6 @@ class mdf3(dict):
                             self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
                             self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription']
                             self[channelName]['data'] = L[channelName]
-        if channelList is not None and len(channelList) > 0:
-            self.keepChannels(channelList)
         #print( 'Finished in ' + str( time.clock() - inttime ) )
 
     def write3(self, fileName=None):
