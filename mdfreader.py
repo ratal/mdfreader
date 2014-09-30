@@ -158,7 +158,7 @@ class mdf( mdf3,  mdf4 ):
     export to csv file : yop.exportCSV() , specific filename can be input
     export to netcdf : yop.exportNetCDF() """
     
-    def __init__( self, fileName = None ):
+    def __init__( self, fileName = None,  channelList=None ):
         self.fileName = None
         self.VersionNumber=None
         self.masterChannelList = {}
@@ -173,7 +173,7 @@ class mdf( mdf3,  mdf4 ):
         # clears class from previous reading and avoid to mess up
         self.clear()
         if not fileName == None:
-            self.read( fileName )
+            self.read( fileName, channelList=channelList )
 
     ## reads mdf file
     def read( self, fileName = None, multiProc = False, channelList=None):
@@ -188,8 +188,11 @@ class mdf( mdf3,  mdf4 ):
         
         self.VersionNumber=info.mdfversion
         if self.VersionNumber<400: # up to version 3.x not compatible with version 4.x
-            self.read3(self.fileName, info, multiProc, channelList)
-        else: #MDF version 4.x
+            self.read3(self.fileName, info, multiProc)
+            # keeps only listed channels if necessary. No channel by channel reading
+            if channelList is not None and len(channelList) > 0:
+                self.keepChannels(channelList)
+        else: #MDF version 4.x. Channel by channel reading implemented
             self.read4(self.fileName, info, multiProc, channelList)
     
     def write(self, fileName=None):
