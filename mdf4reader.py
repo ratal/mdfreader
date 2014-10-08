@@ -9,7 +9,7 @@ import numpy
 from struct import unpack
 from math import pow
 from sys import platform, version_info
-from mdfinfo4 import info4, MDFBlock,  ATBlock, CNBlock
+from mdfinfo4 import info4, MDFBlock#,  ATBlock, CNBlock
 from collections import OrderedDict
 from time import gmtime, strftime
 PythonVersion=version_info
@@ -58,13 +58,15 @@ class DATABlock(MDFBlock):
             self['data']=decompress(self['data']) # decompress data
             if self['dz_zip_type']==1: # data bytes transposed
                 N = self['dz_zip_parameter']
-                M = self['dz_org_data_length']%N 
-                temp=numpy.frombuffer(self['data'][:M*N])
-                temp.reshape(M, N).T.reshape(1, M*N)
+                M = self['dz_org_data_length']%N
                 if PythonVersion<3:
+                    temp=numpy.frombuffer(self['data'][:M*N])
+                    temp.reshape(M, N).T.reshape(1, M*N)
                     self['data']=numpy.getbuffer(temp)+self['data'][M*N:]
                 else:
-                    raise('to implement in python3')
+                    temp=numpy.asarray(self['data'][:M*N])
+                    temp.reshape(M, N).T.reshape(1, M*N)
+                    self['data']=numpy.getbuffer(temp)+self['data'][M*N:]
             if channelList is None: # reads all blocks
                 self['data']=numpy.core.records.fromstring(self['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
             else:
@@ -125,6 +127,8 @@ class DATA(dict):
                     #Concatenate all data
                     temps['data']['data']=numpy.hstack(temps['data']['data']) # concatenate data list
                     temps['data']['data']=temps['data']['data'].view(numpy.recarray) # vstack output ndarray instead of recarray
+            else: # empty datalist
+                temps['data']=None
         elif temps['id'] in ('##HL', b'##HL'): # header list block for DZBlock 
             # link section
             temps['hl_dl_first']=temps.mdfblockread(self.fid, LINK, 1)
@@ -133,7 +137,7 @@ class DATA(dict):
             temps['hl_zip_type']=temps.mdfblockread(self.fid, UINT8, 1)
             temps['hl_reserved']=temps.mdfblockreadBYTE(self.fid, 5)
             self.pointerTodata= temps['hl_dl_first']
-            temps['data']=self.load(record, zip=temps['hl_zip_type'], nameList=nameList)['data']#, record, zip=temps['hl_zip_type'], nameList=nameList)
+            temps['data']=self.load(record, zip=temps['hl_zip_type'], nameList=nameList)#, record, zip=temps['hl_zip_type'], nameList=nameList)
         else:
             temps['data']=DATABlock(self.fid, self.pointerTodata, record, zip_type=zip, channelList=nameList)
         return temps['data']
@@ -150,6 +154,8 @@ class recordChannel():
         self.byteOffset=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_byte_offset']
         self.RecordFormat=((self.name, convertName(self.name)),  self.dataFormat)
         self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_type']
+        if self.channelType in (1, 4, 5):
+            self.data=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data']
 
 class record(list):
     def __init__(self, dataGroup, channelGroup):
@@ -193,7 +199,7 @@ class record(list):
             if channel.channelType in (0, 2): # not virtual channel
                 self.append(channel)
                 if len(self)>1 and channel.byteOffset==self[-2].byteOffset: # several channels in one byte, ubit1 or ubit2
-                    self.recordToChannelMatching[channel.name]=self[-2].name
+                    self.recordToChannelMatching[channel.name]=self.recordToChannelMatching[list(self.recordToChannelMatching.keys())[-1]]#self[-2].name
                 else: # adding bytes
                     self.recordToChannelMatching[channel.name]=channel.name
                     if channel.signalDataType not in (13, 14):
@@ -327,10 +333,11 @@ class mdf4(dict):
                 buf.read(channelList)
 
                 # Convert channels to physical values
-                if self.multiProc and 'data' in buf: 
+                OkBuf=len(buf)>0 and 'data' in buf[list(buf.keys())[0]] and buf[list(buf.keys())[0]]['data'] is not None
+                if self.multiProc and OkBuf: 
                     proc.append( Process( target = processDataBlocks4, args = ( Q, buf, info, dataGroup, channelList, self.multiProc) ) )
                     proc[-1].start()
-                elif len(buf)>0 and 'data' in buf[list(buf.keys())[0]]: # for debugging purpose, can switch off multiprocessing
+                elif OkBuf: # for debugging purpose, can switch off multiprocessing
                     L.update(processDataBlocks4( None, buf, info, dataGroup, channelList, self.multiProc))
                 else:
                     print('No data in dataGroup '+ str(dataGroup))
@@ -473,11 +480,10 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
         channelGroup=buf[recordID]['record'].channelGroup
         for chan in buf[recordID]['record']:
             channelName=chan.name
-            if (allChannel or chan.name in channelList) and chan.signalDataType not in (13, 14):
+            if (allChannel or channelName in channelList) and chan.signalDataType not in (13, 14):
                 channel=chan.channelNumber
                 recordName=buf[recordID]['record'].recordToChannelMatching[channelName] # in case record is used for several channels
-                
-                if not chan.channelType in (3, 6):
+                if not chan.channelType in (3, 6): # not virtual channel
                     temp = buf[recordID]['data']['data'].__getattribute__( str(recordName)+'_title') # extract channel vector
                 else :# virtual channel 
                     temp=numpy.arange(buf[recordID]['record'].numberOfRecords)
