@@ -89,12 +89,64 @@ class DATA(dict):
     def read(self, channelList, zip=None):
         if len(self)==1: #sorted dataGroup
             recordID=list(self.keys())[0]
-            self[recordID]['data']=self.load( self[recordID]['record'], zip=None, nameList=channelList)
+            self[recordID]['data']=self.loadSorted( self[recordID]['record'], zip=None, nameList=channelList)
         else: # unsorted DataGroup
-            print('Unsorted group reading')
-            pass # to implement unsorted reading
+            self.load( zip=None, nameList=channelList)
             
+    def loadSorted(self, record, zip=None, nameList=None): # reads sorted data
+        temps=MDFBlock()
+        # block header
+        temps.loadHeader(self.fid, self.pointerTodata)
+        if temps['id'] in ('##DL', b'##DL'): # data list block
+            # link section
+            temps['dl_dl_next']=temps.mdfblockread(self.fid, LINK, 1)
+            temps['dl_data']=[temps.mdfblockread(self.fid, LINK, 1) for Link in range(temps['link_count']-1)]
+            # data section
+            temps['dl_flags']=temps.mdfblockread(self.fid, UINT8, 1)
+            temps['dl_reserved']=temps.mdfblockreadBYTE(self.fid, 3)
+            temps['dl_count']=temps.mdfblockread(self.fid, UINT32, 1)
+            if temps['dl_count']:
+                if temps['dl_flags']: # equal length datalist
+                    temps['dl_equal_length']=temps.mdfblockread(self.fid, UINT64, 1)
+                else: # datalist defined by byte offset
+                    temps['dl_offset']=temps.mdfblockread(self.fid, UINT64, temps['dl_count'])
+                # read data list
+                if temps['dl_count']==1:
+                    temps['data']=DATABlock(self.fid, temps['dl_data'][0], record, channelList=nameList)
+                elif temps['dl_count']==0:
+                    raise('empty datalist')
+                else:
+                    # define size of each block to be read
+                    temps['data']={}
+                    temps['data']['data']=[]
+                    temps['data']['data']=[DATABlock(self.fid, temps['dl_data'][dl], record, zip, channelList=nameList)['data'] for dl in range(temps['dl_count'])]
+                    if temps['dl_dl_next']:
+                         self.pointerTodata=temps['dl_dl_next']
+                         temps['data']['data'].append(self.loadSorted(record, zip, nameList)['data'])
+                    #Concatenate all data
+                    temps['data']['data']=numpy.hstack(temps['data']['data']) # concatenate data list
+                    temps['data']['data']=temps['data']['data'].view(numpy.recarray) # vstack output ndarray instead of recarray
+            else: # empty datalist
+                temps['data']=None
+        elif temps['id'] in ('##HL', b'##HL'): # header list block for DZBlock 
+            # link section
+            temps['hl_dl_first']=temps.mdfblockread(self.fid, LINK, 1)
+            # data section
+            temps['hl_flags']=temps.mdfblockread(self.fid, UINT16, 1)
+            temps['hl_zip_type']=temps.mdfblockread(self.fid, UINT8, 1)
+            temps['hl_reserved']=temps.mdfblockreadBYTE(self.fid, 5)
+            self.pointerTodata= temps['hl_dl_first']
+            temps['data']=self.loadSorted(record, zip=temps['hl_zip_type'], nameList=nameList)#, record, zip=temps['hl_zip_type'], nameList=nameList)
+        else:
+            temps['data']=DATABlock(self.fid, self.pointerTodata, record, zip_type=zip, channelList=nameList)
+        return temps['data']
+    
     def load(self, record, zip=None, nameList=None):
+        # read unsorted records in Datablock
+        # identify record channels in buffer
+        # iterate in buffer
+        # identify record ID
+        # reads the channels from record
         temps=MDFBlock()
         # block header
         temps.loadHeader(self.fid, self.pointerTodata)
@@ -141,21 +193,23 @@ class DATA(dict):
         else:
             temps['data']=DATABlock(self.fid, self.pointerTodata, record, zip_type=zip, channelList=nameList)
         return temps['data']
-
+        
 class recordChannel():
-    def __init__(self, info, dataGroup, channelGroup, channelNumber):
+    def __init__(self, info, dataGroup, channelGroup, channelNumber, recordIDsize):
         self.name=info['CNBlock'][dataGroup][channelGroup][channelNumber]['name']
         self.channelNumber=channelNumber
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data_type']
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_count']
         self.dataFormat=arrayformat4( self.signalDataType, self.bitCount )
-        self.nBytes=self.bitCount // 8
+        self.nBytes=self.bitCount // 8+1 
         self.bitOffset=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_offset']
         self.byteOffset=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_byte_offset']
         self.RecordFormat=((self.name, convertName(self.name)),  self.dataFormat)
         self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_type']
         if self.channelType in (1, 4, 5):
             self.data=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data']
+        self.posBeg=recordIDsize+self.byteOffset
+        self.posEnd=recordIDsize+self.byteOffset+self.nBytes
 
 class record(list):
     def __init__(self, dataGroup, channelGroup):
@@ -171,7 +225,7 @@ class record(list):
         self.VLSDFlag=0
         self.recordToChannelMatching={}
     def addChannel(self, info, channelNumber):
-        self.append(recordChannel(info, self.dataGroup, self.channelGroup, channelNumber))
+        self.append(recordChannel(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize))
     def loadInfo(self, info):
         # gathers records related from info class
         self.recordIDsize=info['DGBlock'][self.dataGroup]['dg_rec_id_size']
@@ -192,7 +246,7 @@ class record(list):
         self.numberOfRecords=info['CGBlock'][self.dataGroup][self.channelGroup]['cg_cycle_count']
         self.VLSDFlag=info['CGBlock'][self.dataGroup][self.channelGroup]['cg_flags']
         for channelNumber in list(info['CNBlock'][self.dataGroup][self.channelGroup].keys()):
-            channel=recordChannel(info, self.dataGroup, self.channelGroup, channelNumber)
+            channel=recordChannel(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize)
             if channel.channelType in (2, 3): # master channel found
                 self.master['name']=channel.name
                 self.master['number']=channelNumber
@@ -231,16 +285,34 @@ class record(list):
         if channelList is None: # reads all, quickest but memory consuming
             return numpy.core.records.fromfile( fid, dtype = self.numpyDataRecordFormat, shape = self.numberOfRecords, names=self.dataRecordName)
         else: # reads only some channels from a sorted data block
+            # memory efficient but takes time
             # check if master channel is in the list
             if not self.master['name'] in channelList:
                 channelList.append(self.master['name']) # adds master channel
             rec={}
-            for i in len(self): # for each channel
-                if self[i].name in channelList:
-                    offs=self.recordIDsize+self[i].byteOffset
-                    rec.append(rec, numpy.core.records.fromfile( fid, dtype = self[i].RecordFormat, shape = self.numberOfRecords, offset=offs,  names=self[i].name))
+            recChan=[]
+            for channel in channelList: # initialise data structure
+                rec[channel]=[0]*self.numberOfRecords
+            for channel in self: # list of recordChannels from channelList
+                if channel.name in channelList:
+                    recChan.append(channel)
+            recordLength=self.recordIDsize+self.recordLength
+            for r in range(self.numberOfRecords): # for each record,
+                buf=fid.read(recordLength)
+                for channel in recChan:
+                    rec[channel.name][r]=buf[channel.posBeg:channel.posEnd]
+            # unpack bytes
+            for channel in rec:
+                rec[channel]=unpack(, rec[channel])
             rec=numpy.recarray(rec)
             return rec.view(numpy.recarray)
+            
+    def readUnsortedRecord(self, buf, channelList=None):
+        pass
+        
+    def readVLSDCGBlock(self, fid, cg_data_bytes):
+        VLSDLength=unpack('<u4', fid.read(4))
+        return fid.read(VLSDLength)
             
 class mdf4(dict):
     """ mdf file class
