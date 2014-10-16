@@ -6,7 +6,7 @@ Created on Thu Dec 10 12:57:28 2013
 
 """
 import numpy
-from struct import unpack
+from struct import unpack, Struct
 from math import pow
 from sys import platform, version_info
 from mdfinfo4 import info4, MDFBlock#,  ATBlock, CNBlock
@@ -201,7 +201,11 @@ class recordChannel():
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data_type']
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_count']
         self.dataFormat=arrayformat4( self.signalDataType, self.bitCount )
-        self.nBytes=self.bitCount // 8+1 
+        self.CFormat=Struct(datatypeformat4( self.signalDataType, self.bitCount ))
+        if self.bitCount%8==0:
+            self.nBytes=self.bitCount // 8
+        else:
+            self.nBytes=self.bitCount // 8 + 1
         self.bitOffset=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_offset']
         self.byteOffset=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_byte_offset']
         self.RecordFormat=((self.name, convertName(self.name)),  self.dataFormat)
@@ -224,8 +228,10 @@ class record(list):
         self.master={}
         self.VLSDFlag=0
         self.recordToChannelMatching={}
+        self.channelNames=[]
     def addChannel(self, info, channelNumber):
         self.append(recordChannel(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize))
+        self.channelNames.append(self[-1].name)
     def loadInfo(self, info):
         # gathers records related from info class
         self.recordIDsize=info['DGBlock'][self.dataGroup]['dg_rec_id_size']
@@ -252,6 +258,7 @@ class record(list):
                 self.master['number']=channelNumber
             if channel.channelType in (0, 2): # not virtual channel
                 self.append(channel)
+                self.channelNames.append(channel.name)
                 if len(self)>1 and channel.byteOffset==self[-2].byteOffset: # several channels in one byte, ubit1 or ubit2
                     self.recordToChannelMatching[channel.name]=self.recordToChannelMatching[list(self.recordToChannelMatching.keys())[-1]]#self[-2].name
                 else: # adding bytes
@@ -286,26 +293,26 @@ class record(list):
             return numpy.core.records.fromfile( fid, dtype = self.numpyDataRecordFormat, shape = self.numberOfRecords, names=self.dataRecordName)
         else: # reads only some channels from a sorted data block
             # memory efficient but takes time
-            # check if master channel is in the list
-            if not self.master['name'] in channelList:
-                channelList.append(self.master['name']) # adds master channel
-            rec={}
-            recChan=[]
-            for channel in channelList: # initialise data structure
-                rec[channel]=[0]*self.numberOfRecords
-            for channel in self: # list of recordChannels from channelList
-                if channel.name in channelList:
-                    recChan.append(channel)
-            recordLength=self.recordIDsize+self.recordLength
-            for r in range(self.numberOfRecords): # for each record,
-                buf=fid.read(recordLength)
-                for channel in recChan:
-                    rec[channel.name][r]=buf[channel.posBeg:channel.posEnd]
-            # unpack bytes
-            for channel in rec:
-                rec[channel]=unpack(, rec[channel])
-            rec=numpy.recarray(rec)
-            return rec.view(numpy.recarray)
+            if len(list(set(channelList)&set(self.channelNames)))>0: # are channelList in this dataGroup
+                # check if master channel is in the list
+                if not self.master['name'] in channelList:
+                    channelList.append(self.master['name']) # adds master channel
+                rec={}
+                recChan=[]
+                numpyDataRecordFormat=[]
+                for channel in channelList: # initialise data structure
+                    rec[channel]=0
+                for channel in self: # list of recordChannels from channelList
+                    if channel.name in channelList:
+                        recChan.append(channel)
+                        numpyDataRecordFormat.append(channel.RecordFormat)
+                rec=numpy.zeros((self.numberOfRecords, ), dtype=numpyDataRecordFormat)
+                recordLength=self.recordIDsize+self.recordLength
+                for r in range(self.numberOfRecords): # for each record,
+                    buf=fid.read(recordLength)
+                    for channel in recChan:
+                        rec[channel.name][r]=channel.CFormat.unpack(buf[channel.posBeg:channel.posEnd])[0]
+                return rec.view(numpy.recarray)
             
     def readUnsortedRecord(self, buf, channelList=None):
         pass
@@ -534,7 +541,55 @@ def arrayformat4( signalDataType, numberOfBits ):
         dataType='>'+dataType
     
     return dataType
+    
+def datatypeformat4(signalDataType, numberOfBits):
+    # DATATYPEFORMAT Data type format precision to give to fread
+    #   datatypeformat4(SIGNALDATATYPE,NUMBEROFBITS) is the precision string to
+    #   give to fread for reading the data type specified by SIGNALDATATYPE and
+    #   NUMBEROFBITS
 
+    if signalDataType in (0, 1):  # unsigned int
+        if numberOfBits <= 8:
+            dataType = 'B'
+        elif numberOfBits <= 16:
+            dataType = 'H'
+        elif numberOfBits <= 32:
+            dataType = 'I'
+        elif numberOfBits <= 64:
+            dataType = 'L'  
+        else:
+            print(('Unsupported number of bits for unsigned int ' + str(signalDataType)))
+
+    elif signalDataType in (2, 3):  # signed int
+        if numberOfBits <= 8:
+            dataType = 'b'
+        elif numberOfBits <= 16:
+            dataType = 'h'
+        elif numberOfBits <= 32:
+            dataType = 'i'
+        elif numberOfBits <= 64:
+            dataType = 'l'
+        else:
+            print(('Unsupported number of bits for signed int ' + str(signalDataType)))
+
+    elif signalDataType in (4, 5):  # floating point
+        if numberOfBits == 32:
+            dataType = 'f'
+        elif numberOfBits == 64:
+            dataType = 'd'
+        else:
+            print(('Unsupported number of bit for floating point ' + str(signalDataType)))
+
+    elif signalDataType in (6, 7, 8, 9, 10, 11, 12):  # string/bytes
+        dataType = 's'
+    else:
+        print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
+    # deal with byte order
+    if signalDataType in (1, 3, 5, 9): # by default low endian, but here big endian
+        dataType='>'+dataType
+    
+    return dataType
+    
 def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
     ## Processes recorded data blocks
     # Outside of class to allow multiprocessing
