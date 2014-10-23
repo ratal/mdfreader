@@ -201,7 +201,8 @@ class recordChannel():
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data_type']
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_count']
         self.dataFormat=arrayformat4( self.signalDataType, self.bitCount )
-        self.CFormat=Struct(datatypeformat4( self.signalDataType, self.bitCount ))
+        if not self.signalDataType in (13, 14): # processed by several channels
+            self.CFormat=Struct(datatypeformat4( self.signalDataType, self.bitCount ))
         if self.bitCount%8==0:
             self.nBytes=self.bitCount // 8
         else:
@@ -210,11 +211,20 @@ class recordChannel():
         self.byteOffset=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_byte_offset']
         self.RecordFormat=((self.name, convertName(self.name)),  self.dataFormat)
         self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_type']
-        if self.channelType in (1, 4, 5):
+        if self.channelType in (1, 4, 5): # if VSLD or sync or max length channel
             self.data=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data']
         self.posBeg=recordIDsize+self.byteOffset
         self.posEnd=recordIDsize+self.byteOffset+self.nBytes
-
+    def __str__(self):
+        output=str(self.channelNumber) + ' '
+        output+=self.name+' '
+        output+=str(self.signalDataType)+' '
+        output+=str(self.channelType)+' '
+        output+=str(self.RecordFormat)+' '
+        output+=str(self.bitOffset)+' '
+        output+=str(self.byteOffset)
+        return output
+        
 class record(list):
     def __init__(self, dataGroup, channelGroup):
         self.recordLength=0
@@ -236,8 +246,8 @@ class record(list):
         # gathers records related from info class
         self.recordIDsize=info['DGBlock'][self.dataGroup]['dg_rec_id_size']
         if not self.recordIDsize==0: # no record ID
-            self.dataRecordName = 'RecordID'+str(self.channelGroup)
-            format=(self.dataRecordName, convertName(self.dataRecordName))
+            self.dataRecordName.append('RecordID'+str(self.channelGroup))
+            format=(self.dataRecordName[-1], convertName(self.dataRecordName[-1]))
             if self.recordIDsize==1:
                 self.numpyDataRecordFormat.append( ( format, 'uint8' ) )
             elif self.recordIDsize==2:
@@ -289,6 +299,7 @@ class record(list):
 
     def readSortedRecord(self, fid, pointer, channelList=None):
         # reads record, only one channel group per datagroup
+        fid.seek(pointer)
         if channelList is None: # reads all, quickest but memory consuming
             return numpy.core.records.fromfile( fid, dtype = self.numpyDataRecordFormat, shape = self.numberOfRecords, names=self.dataRecordName)
         else: # reads only some channels from a sorted data block
@@ -315,6 +326,7 @@ class record(list):
                 return rec.view(numpy.recarray)
             
     def readUnsortedRecord(self, buf, channelList=None):
+        # read stream of record bytes
         pass
         
     def readVLSDCGBlock(self, fid, cg_data_bytes):

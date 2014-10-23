@@ -9,71 +9,56 @@ import numpy
 from math import log, exp
 from sys import platform, version_info
 import time
-from struct import pack
+from struct import pack, Struct
 from mdfinfo3 import info3
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 
-def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
+def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc ):
     ## Processes recorded data blocks
     # Outside of class to allow multiprocessing
-    #numberOfRecordIDs = info['DGBlock'][dataGroup]['numberOfRecordIDs']
     #procTime = time.clock()
     #print( 'Start process ' + str( dataGroup ) )
     #print( ' Number of Channels ' + str( info['CGBlock'][dataGroup][0]['numberOfChannels'] ) )
     #print( ' of length ' + str( len( buf ) ) + ' ' + str( time.clock() ) )
     L = {}
-    isBitInUnit8 = 0  # Initialize Bit counter
-    previousChannelName = info['CNBlock'][0][0][0]['signalName']  # initialise channelName
 
+    if channelList is None:
+        allChannel=True
+    else:
+        allChannel=False
     ## Processes Bits, metadata and conversion
-    for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
-        for channel in range(info['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
-            # Type of channel data, signed, unsigned, floating or string
-            signalDataType = info['CNBlock'][dataGroup][channelGroup][channel]['signalDataType']
-            # Corresponding number of bits for this format
-            numberOfBits = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
+    for recordID in buf.keys():
+        channelGroup=buf[recordID]['record'].channelGroup
+        for chan in buf[recordID]['record']:
+            channelName=chan.name
+            if (allChannel or channelName in channelList) and chan.signalDataType not in (132, 133):
+                channel=chan.channelNumber
+                recordName=buf[recordID]['record'].recordToChannelMatching[channelName] # in case record is used for several channels
+                temp = buf[recordID]['data'].__getattribute__( str(recordName)+'_title') # extract channel vector
+                    
+                if chan.channelType ==1: # master channel 
+                    channelName = 'master' + str( dataGroup )
 
-            cName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-            channelName=cName
-            try:
-                temp = buf.__getattribute__( str(cName))  # extract channel vector
-                previousChannelName = cName
-            except:  # if tempChannelName not in buf -> bits in unit8
-                temp = buf.__getattribute__(str(previousChannelName))  # extract channel vector
-
-            if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:  # time channel
-                channelName = 'time' + str(dataGroup)
-            # Process concatenated bits inside unint8
-            if signalDataType in (0, 9, 13): # if data is unsigned integer
-                if signalDataType in (0, 13): # little endian
-                    if numberOfBits == 1:  # One bit, considered Boolean in numpy
-                        mask = 1 << isBitInUnit8  # masks isBitUnit8
-                        temp = [((int(temp[record]) & mask) >> (isBitInUnit8)) for record in range(numberOfRecords)]
-                        L[channelName] = numpy.array( temp, dtype='uint8')
-                        isBitInUnit8 += 1
-                    elif numberOfBits == 2:
-                        mask = 1 << isBitInUnit8
-                        mask = mask | ( 1 << (isBitInUnit8+1))  # adds second bit in mask
-                        temp = [((int(temp[record]) & mask) >> ( isBitInUnit8 )) for record in range(numberOfRecords)]
-                        L[channelName] = numpy.array(temp, dtype='uint8')
-                        isBitInUnit8 += 2
-                    else: # big endians, not implemented because of missing examples
+                # Process concatenated bits inside uint8
+                if not chan.bitCount//8.0==chan.bitCount/8.0: # if channel data do not use complete bytes
+                    mask = int(pow(2, chan.bitCount+1)-1) # masks isBitUnit8
+                    if chan.signalDataType in (0,1, 9, 10, 13, 14): # integers
+                        temp =  numpy.right_shift(temp,  chan.bitOffset)
+                        temp =  numpy.bitwise_and(temp,  mask )
                         L[channelName] = temp
-                        isBitInUnit8 = 0  # Initialize Bit counter
-                else:
+                    else: # should not happen
+                        print('bit count and offset not applied to correct data type')
+                        L[channelName] = temp
+                else: #data using bull bytes
                     L[channelName] = temp
-                    isBitInUnit8 = 0  # Initialize Bit counter
-            else:
-                L[channelName] = temp
-                isBitInUnit8 = 0  # Initialize Bit counter
 
             ## Process Conversion
             conversionFormulaIdentifier = info['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier']
             if conversionFormulaIdentifier == 0:  # Parametric, Linear: Physical =Integer*P2 + P1
                 P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
                 P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
-                L[channelName] = (L[channelName] * P2 + P1)  # .astype(L[channelName].dtype)
+                L[channelName] = (L[channelName] * P2 + P1) 
             elif conversionFormulaIdentifier == 1:  # Tabular with interpolation
                 intVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['int']
                 physVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['phys']
@@ -177,11 +162,138 @@ def processDataBlocks(Q, buf, info, numberOfRecords, dataGroup,  multiProc ):
                 pass
             else:
                 print('Unrecognized conversion type')
+
     if multiProc:
         Q.put(L)
     else:
         return L
         #print( 'Process ' + str( dataGroup ) + ' Finished ' + str( time.clock() - procTime ) )
+
+class recordChannel():
+    def __init__(self, info, dataGroup, channelGroup, channelNumber, recordIDsize):
+        self.name=info['CNBlock'][dataGroup][channelGroup][channelNumber]['signalName']
+        self.channelNumber=channelNumber
+        self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['signalDataType']
+        self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfBits']
+        self.dataFormat=arrayformat3( self.signalDataType, self.bitCount )
+        self.CFormat=Struct(datatypeformat3( self.signalDataType, self.bitCount ))
+        self.nBytes=self.bitCount // 8+1
+        if self.bitCount%8==0:
+            self.nBytes-= 1
+        if self.bitCount<8:
+            print('ubit '+ str(self.bitCount)+self.name)
+        recordbitOffset=info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfTheFirstBits']
+        self.byteOffset=recordbitOffset // 8
+        self.bitOffset=recordbitOffset % 8
+        self.RecordFormat=((self.name, self.name+'_title'),  self.dataFormat)
+        self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['channelType']
+        self.posBeg=recordIDsize+self.byteOffset
+        self.posEnd=recordIDsize+self.byteOffset+self.nBytes
+    def __str__(self):
+        output=str(self.channelNumber) + ' '
+        output+=self.name+' '
+        output+=str(self.signalDataType)+' '
+        output+=str(self.channelType)+' '
+        output+=str(self.RecordFormat)+' '
+        output+=str(self.bitOffset)+' '
+        output+=str(self.byteOffset)
+        return output
+
+class record(list):
+    def __init__(self, dataGroup, channelGroup):
+        self.recordLength=0
+        self.numberOfRecords=0
+        self.recordID=0
+        self.recordIDsize=0
+        self.dataGroup=dataGroup
+        self.channelGroup=channelGroup
+        self.numpyDataRecordFormat=[]
+        self.dataRecordName=[]
+        self.master={}
+        self.recordToChannelMatching={}
+        self.channelNames=[]
+    def addChannel(self, info, channelNumber):
+        self.append(recordChannel(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize))
+        self.channelNames.append(self[-1].name)
+    def loadInfo(self, info):
+        # gathers records related from info class
+        self.recordIDsize=info['DGBlock'][self.dataGroup]['numberOfRecordIDs']
+        self.recordID=info['CGBlock'][self.dataGroup][self.channelGroup]['recordID']
+        if not self.recordIDsize==0: # record ID existing
+            self.dataRecordName.append('RecordID'+str(self.channelGroup))
+            format=(self.dataRecordName[-1], self.dataRecordName[-1]+'_title')
+            self.numpyDataRecordFormat.append( ( format, 'uint8' ) )
+        self.recordLength=info['CGBlock'][self.dataGroup][self.channelGroup]['dataRecordSize']
+        self.numberOfRecords=info['CGBlock'][self.dataGroup][self.channelGroup]['numberOfRecords']
+        for channelNumber in list(info['CNBlock'][self.dataGroup][self.channelGroup].keys()):
+            channel=recordChannel(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize)
+            if channel.channelType==1: # master channel found
+                self.master['name']=channel.name
+                self.master['number']=channelNumber
+            self.append(channel)
+            self.channelNames.append(channel.name)
+            if len(self)>1 and channel.byteOffset==self[-2].byteOffset: # several channels in one byte, ubit1 or ubit2
+                self.recordToChannelMatching[channel.name]=self.recordToChannelMatching[list(self.recordToChannelMatching.keys())[-1]]#self[-2].name
+            else: # adding bytes
+                self.recordToChannelMatching[channel.name]=channel.name
+                self.numpyDataRecordFormat.append(channel.RecordFormat)
+                self.dataRecordName.append(channel.name)
+        if self.recordIDsize==2: # second record ID at end of record
+            self.dataRecordName.append('RecordID'+str(self.channelGroup)+'_2')
+            format=(self.dataRecordName[-1], self.dataRecordName[-1]+'_title')
+            self.numpyDataRecordFormat.append( ( format, 'uint8' ) )
+
+    def readSortedRecord(self, fid, pointer, channelList=None):
+        # reads record, only one channel group per datagroup
+        fid.seek(pointer)
+        if channelList is None: # reads all, quickest but memory consuming
+            return numpy.core.records.fromfile( fid, dtype = self.numpyDataRecordFormat, shape = self.numberOfRecords, names=self.dataRecordName)
+        else: # reads only some channels from a sorted data block
+            # memory efficient but takes time
+            if len(list(set(channelList)&set(self.channelNames)))>0: # are channelList in this dataGroup
+                # check if master channel is in the list
+                if not self.master['name'] in channelList:
+                    channelList.append(self.master['name']) # adds master channel
+                rec={}
+                recChan=[]
+                numpyDataRecordFormat=[]
+                for channel in channelList: # initialise data structure
+                    rec[channel]=0
+                for channel in self: # list of recordChannels from channelList
+                    if channel.name in channelList:
+                        recChan.append(channel)
+                        numpyDataRecordFormat.append(channel.RecordFormat)
+                rec=numpy.zeros((self.numberOfRecords, ), dtype=numpyDataRecordFormat)
+                recordLength=self.recordIDsize+self.recordLength
+                for r in range(self.numberOfRecords): # for each record,
+                    buf=fid.read(recordLength)
+                    for channel in recChan:
+                        rec[channel.name][r]=channel.CFormat.unpack(buf[channel.posBeg:channel.posEnd])[0]
+                return rec.view(numpy.recarray)
+            
+    def readUnsortedRecord(self, buf, channelList=None):
+        pass
+
+class DATA(dict):
+    def __init__(self, fid, pointer):
+        self.fid=fid
+        self.pointerToData=pointer
+    def addRecord(self, record):
+        self[record.recordID]={}
+        self[record.recordID]['record']=record
+    def read(self, channelList, zip=None):
+        if len(self)==1: #sorted dataGroup
+            recordID=list(self.keys())[0]
+            self[recordID]['data']=self.loadSorted( self[recordID]['record'], zip=None, nameList=channelList)
+        else: # unsorted DataGroup
+            self.load( nameList=channelList)
+            
+    def loadSorted(self, record, zip=None, nameList=None): # reads sorted data
+        return record.readSortedRecord(self.fid, self.pointerToData, nameList)
+    
+    def load(self, nameList=None):
+        # not yet implemented
+        return None
 
 class mdf3(dict):
     """ mdf file class
@@ -261,68 +373,32 @@ class mdf3(dict):
             proc = []
             Q = Queue()
         L = {}
+        masterDataGroup={}  # datagroup name correspondence with its master channel
         ## Defines record format
         for dataGroup in sortedDataGroup:
-            # Number for records before and after the data records
-            numberOfRecordIDs = info['DGBlock'][dataGroup]['numberOfRecordIDs']
-            #Pointer to data block
-            pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
-            fid.seek(pointerToData)
-            # initialize counter of bits
-            precedingNumberOfBits = 0
-            numpyDataRecordFormat = []
-            dataRecordName = []
-            
-            if numberOfRecordIDs >= 1:
-                # start first with uint8
-                numpyDataRecordFormat.append(('firstRecordID', 'uint8'))
+            if info['DGBlock'][dataGroup]['numberOfChannelGroups']>0: # data exists
+                #Pointer to data block
+                pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
+                buf=DATA(fid, pointerToData)
 
-            for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
-                # Reads size of each channel
-                #dataRecordSize = info['CGBlock'][dataGroup][channelGroup]['dataRecordSize']
-                # Number of samples recorded
-                numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
+                for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
+                    temp=record(dataGroup, channelGroup) # create record class
+                    temp.loadInfo(info) # load all info related to record
 
-                if numberOfRecords != 0:  # continue if there are at least some records
-                    for channel in range(info['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
-                        # Type of channel data, signed, unsigned, floating or string
-                        signalDataType = info['CNBlock'][dataGroup][channelGroup][channel]['signalDataType']
-                        # Corresponding number of bits for this format
-                        numberOfBits = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
-                        # Defines data format
-                        #datatype = self.datatypeformat3( signalDataType, numberOfBits )
-                       
-                        if numberOfBits < 8:  # adding bit format, ubit1 or ubit2
-                            if precedingNumberOfBits == 8:  # 8 bit make a byte
-                                dataRecordName.append(str(info['CNBlock'][dataGroup][channelGroup][channel]['signalName']))
-                                numpyDataRecordFormat.append((dataRecordName[-1], arrayformat3(signalDataType, numberOfBits)))
-                                precedingNumberOfBits = 0
-                            else:
-                                precedingNumberOfBits += numberOfBits  # counts successive bits
+                    if temp.numberOfRecords != 0:  # continue if there are at least some records
+                        buf.addRecord(temp)
+                        for channel in range(info['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
+                            if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] ==1:
+                                masterDataGroup[dataGroup]=info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
+       
+                buf.read(channelList)
 
-                        else: # adding bytes
-                            if precedingNumberOfBits != 0:  # There was bits in previous channel
-                                precedingNumberOfBits = 0
-                            dataRecordName.append(str(info['CNBlock'][dataGroup][channelGroup][channel]['signalName']))
-                            numpyDataRecordFormat.append((dataRecordName[-1], arrayformat3(signalDataType, numberOfBits )))
-
-                    if numberOfBits < 8: # last channel in record is bit inside byte unit8
-                        dataRecordName.append(str(info['CNBlock'][dataGroup][channelGroup][channel]['signalName']))
-                        numpyDataRecordFormat.append((dataRecordName[-1], arrayformat3(signalDataType, numberOfBits)))
-                        precedingNumberOfBits = 0
-                    # Offset of record id at the end of record
-                    if numberOfRecordIDs == 2:
-                        numpyDataRecordFormat.append(('secondRecordID', 'uint8'))
-                    #print( 'Group ' + str( dataGroup ) + ' ' + str( time.clock() - inttime ) )
-                    ## reads the records
-                    buf = numpy.core.records.fromfile(fid, dtype=numpyDataRecordFormat, shape=numberOfRecords, names=dataRecordName)
-
-                    if self.multiProc:
-                        proc.append(Process(target=processDataBlocks,
-                            args=(Q, buf, info, numberOfRecords, dataGroup, self.multiProc)))
-                        proc[-1].start()
-                    else:  # for debugging purpose, can switch off multiprocessing
-                        L.update(processDataBlocks( None, buf, info, numberOfRecords, dataGroup,  self.multiProc))
+                if self.multiProc:
+                    proc.append(Process(target=processDataBlocks,
+                        args=(Q, buf, info, dataGroup, channelList, self.multiProc)))
+                    proc[-1].start()
+                else:  # for debugging purpose, can switch off multiprocessing
+                    L.update(processDataBlocks( None, buf, info, dataGroup,  channelList, self.multiProc))
 
         fid.close()  # close file
 
@@ -339,13 +415,13 @@ class mdf3(dict):
                     if numberOfRecords != 0 :
                         channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
                         if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:  # time channel
-                            channelName = 'time' + str(dataGroup)
+                            channelName = 'master' + str(dataGroup)
                         if channelName in L and len(L[channelName]) != 0:
-                            if ('time' + str(dataGroup)) not in list(self.masterChannelList.keys()):
-                                self.masterChannelList['time' + str(dataGroup)] = []
-                            self.masterChannelList['time' + str(dataGroup)].append(channelName)
+                            if ('master' + str(dataGroup)) not in list(self.masterChannelList.keys()):
+                                self.masterChannelList['master' + str(dataGroup)] = []
+                            self.masterChannelList['master' + str(dataGroup)].append(channelName)
                             self[channelName] = {}
-                            self[channelName]['master'] = 'time' + str(dataGroup) # master channel of channel
+                            self[channelName]['master'] = 'master' + str(dataGroup) # master channel of channel
                             self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
                             self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription']
                             self[channelName]['data'] = L[channelName]
@@ -636,25 +712,21 @@ def datatypeformat3(signalDataType, numberOfBits):
     #   NUMBEROFBITS
 
     if signalDataType in (0, 9, 10, 11):  # unsigned
-        if numberOfBits == 8:
+        if numberOfBits <= 8:
             dataType = 'B'
-        elif numberOfBits == 16:
+        elif numberOfBits <= 16:
             dataType = 'H'
-        elif numberOfBits == 32:
+        elif numberOfBits <= 32:
             dataType = 'I'
-        elif numberOfBits == 1:
-            dataType = 'ubit1'  # not directly processed
-        elif numberOfBits == 2:
-            dataType = 'ubit2'  # not directly processed
         else:
             print(('Unsupported number of bits for unsigned int ' + str(signalDataType)))
 
     elif signalDataType == 1:  # signed int
-        if numberOfBits == 8:
+        if numberOfBits <= 8:
             dataType = 'b'
-        elif numberOfBits == 16:
+        elif numberOfBits <= 16:
             dataType = 'h'
-        elif numberOfBits == 32:
+        elif numberOfBits <= 32:
             dataType = 'i'
         else:
             print(('Unsupported number of bits for signed int ' + str(signalDataType)))
@@ -681,7 +753,7 @@ def arrayformat3(signalDataType, numberOfBits):
     # Formats used by numpy
 
     if signalDataType in (0, 9, 10, 11):  # unsigned
-        if numberOfBits == 8:
+        if numberOfBits <= 8:
             dataType = 'uint8'
         elif numberOfBits == 16:
             dataType = 'uint16'
@@ -695,7 +767,7 @@ def arrayformat3(signalDataType, numberOfBits):
             print(('Unsupported number of bits for unsigned int ' + str(signalDataType)))
 
     elif signalDataType == 1:  # signed int
-        if numberOfBits == 8:
+        if numberOfBits <= 8:
             dataType = 'int8'
         elif numberOfBits == 16:
             dataType = 'int16'
