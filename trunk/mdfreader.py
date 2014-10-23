@@ -9,7 +9,7 @@ First class mdfinfo is meant to extract all blocks in file, giving like metadata
     Method read() will read file and add in the class all Blocks info as defined in MDF specification
     "Format Specification MDF Format Version 3.0", 14/11/2002
 
-:Version: 2013.12.16 r21
+:Version: 2014.10.21 r107
 
 Second class mdf reads file and add dict type data
     Each channel is identified by its name the dict key.
@@ -25,8 +25,10 @@ Second class mdf reads file and add dict type data
 Requirements
 ------------
 
-* `Python >2.6 <http://www.python.org>`__
+* `Python >2.6, 3.x <http://www.python.org>`__
 * `Numpy >1.6 <http://numpy.scipy.org>`__
+* `Sympy to convert channels with formula
+Optionals :
 * `Matplotlib >1.0 <http://matplotlib.sourceforge.net>`__
 * 'NetCDF
 * 'h5py for the HDF5 export
@@ -156,7 +158,10 @@ class mdf( mdf3,  mdf4 ):
     Resample : yop.resample(SamplingRate)
     plot channels : yop.plot({'ChannelName','ChannelName2'})
     export to csv file : yop.exportCSV() , specific filename can be input
-    export to netcdf : yop.exportNetCDF() """
+    export to netcdf : yop.exportNetCDF() 
+    If using channelList argument, channels will be read record by record
+    saving memory on the detriment of performance, allowing to read big files
+    """
     
     def __init__( self, fileName = None,  channelList=None ):
         self.fileName = None
@@ -188,10 +193,7 @@ class mdf( mdf3,  mdf4 ):
         
         self.VersionNumber=info.mdfversion
         if self.VersionNumber<400: # up to version 3.x not compatible with version 4.x
-            self.read3(self.fileName, info, multiProc)
-            # keeps only listed channels if necessary. No channel by channel reading
-            if channelList is not None and len(channelList) > 0:
-                self.keepChannels(channelList)
+            self.read3(self.fileName, info, multiProc, channelList)
         else: #MDF version 4.x. Channel by channel reading implemented
             self.read4(self.fileName, info, multiProc, channelList)
     
@@ -217,8 +219,8 @@ class mdf( mdf3,  mdf4 ):
                     self.fig = plt.figure()
                     # plot using matplotlib the channel versus master channel
                     if len(list(self.masterChannelList.keys()))==1: # Resampled signals
-                        masterName = self.masterChannelList.keys()
-                        if masterName == '': # resampled channels, only one time channel most probably called 'master'
+                        masterName = self.masterChannelList.keys()[0]
+                        if not masterName: # resampled channels, only one time channel most probably called 'master'
                             masterName ='master'
                         if masterName in list(self.keys()): # time channel properly defined
                             plt.plot( self[masterName]['data'], self[channelName]['data'] )

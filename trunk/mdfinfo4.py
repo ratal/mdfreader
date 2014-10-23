@@ -46,7 +46,7 @@ class MDFBlock(dict):
     
     def loadHeader(self, fid,  pointer):
         #All blocks have the same header
-        if pointer != 0 and not pointer == None:
+        if pointer != 0 and pointer is not None:
             fid.seek(pointer)
             self['id']=self.mdfblockreadCHAR(fid, 4)
             self['reserved']=self.mdfblockreadBYTE(fid, 4)
