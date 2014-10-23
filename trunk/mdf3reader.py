@@ -180,8 +180,6 @@ class recordChannel():
         self.nBytes=self.bitCount // 8+1
         if self.bitCount%8==0:
             self.nBytes-= 1
-        if self.bitCount<8:
-            print('ubit '+ str(self.bitCount)+self.name)
         recordbitOffset=info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfTheFirstBits']
         self.byteOffset=recordbitOffset // 8
         self.bitOffset=recordbitOffset % 8
@@ -233,7 +231,7 @@ class record(list):
             self.append(channel)
             self.channelNames.append(channel.name)
             if len(self)>1 and channel.byteOffset==self[-2].byteOffset: # several channels in one byte, ubit1 or ubit2
-                self.recordToChannelMatching[channel.name]=self.recordToChannelMatching[list(self.recordToChannelMatching.keys())[-1]]#self[-2].name
+                self.recordToChannelMatching[channel.name]=self.recordToChannelMatching[self[-2].name]
             else: # adding bytes
                 self.recordToChannelMatching[channel.name]=channel.name
                 self.numpyDataRecordFormat.append(channel.RecordFormat)
@@ -390,7 +388,7 @@ class mdf3(dict):
                         for channel in range(info['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
                             if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] ==1:
                                 masterDataGroup[dataGroup]=info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-       
+
                 buf.read(channelList)
 
                 if self.multiProc:
