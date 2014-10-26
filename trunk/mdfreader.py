@@ -59,6 +59,7 @@ from mdf3reader import mdf3
 from mdf4reader import mdf4
 import numpy
 
+from argparse import ArgumentParser
 from sys import version_info
 from os.path import splitext
 PythonVersion=version_info
@@ -671,5 +672,7 @@ if __name__ == "__main__":
         freeze_support()
     except:
         None
-    mdf()
-
+    parser=ArgumentParser(prog='mdfreader', description='reads mdf file')
+    parser.add_argument('fileName')
+    args = parser.parse_args()
+    mdf(fileName=args.fileName)
