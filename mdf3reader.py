@@ -53,115 +53,115 @@ def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc ):
                 else: #data using bull bytes
                     L[channelName] = temp
 
-            ## Process Conversion
-            conversionFormulaIdentifier = info['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier']
-            if conversionFormulaIdentifier == 0:  # Parametric, Linear: Physical =Integer*P2 + P1
-                P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
-                P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
-                L[channelName] = (L[channelName] * P2 + P1) 
-            elif conversionFormulaIdentifier == 1:  # Tabular with interpolation
-                intVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['int']
-                physVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['phys']
-                if numpy.all(numpy.diff(intVal) > 0):
-                    L[channelName] = numpy.interp(L[channelName], intVal, physVal)
-                else:
-                    print(( 'X values for interpolation of channel ' + channelName + ' are not increasing'))
-            elif conversionFormulaIdentifier == 2:  # Tabular
-                intVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['int']
-                physVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['phys']
-                if numpy.all(numpy.diff(intVal) > 0):
-                    L[channelName] = numpy.interp(L[channelName], intVal, physVal)
-                else:
-                    print(('X values for interpolation of channel ' + str(channelName) + ' are not increasing'))
-            elif conversionFormulaIdentifier == 6:  # Polynomial
-                P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
-                P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
-                P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P3']
-                P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P4']
-                P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P5']
-                P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P6']
-                L[channelName] = (P2 - P4 * (L[channelName] - P5 - P6)) / (P3 * (L[channelName] - P5 - P6) - P1)
-            elif conversionFormulaIdentifier == 7:  # Exponential
-                P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
-                P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
-                P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P3']
-                P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P4']
-                P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P5']
-                P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P6']
-                P7 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P7']
-                if P4 == 0 and P1 != 0 and P2 != 0:
-                    L[channelName]['data'] = log(((L[channelName] - P7) * P6 - P3) / P1) / P2
-                elif P1 == 0 and P4 != 0 and P5 != 0:
-                    L[channelName] = log((P3 / (L[channelName] - P7) - P6) / P4) / P5
-                else:
-                    print(('Non possible conversion parameters for channel ' + str(channelName)))
-            elif conversionFormulaIdentifier == 8:  # Logarithmic
-                P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
-                P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
-                P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P3']
-                P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P4']
-                P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P5']
-                P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P6']
-                P7 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P7']
-                if P4 == 0 and P1 != 0 and P2 != 0:
-                    L[channelName] = exp(((L[channelName] - P7) * P6 - P3) / P1) / P2
-                elif P1 == 0 and P4 != 0 and P5 != 0:
-                    L[channelName] = exp((P3 / (L[channelName] - P7) - P6) / P4) / P5
-                else:
-                    print(('Non possible conversion parameters for channel ' + str(channelName)))
-            elif conversionFormulaIdentifier == 9:  # rationnal
-                P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
-                P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
-                P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P3']
-                P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P4']
-                P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P5']
-                P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P6']
-                L[channelName] = (P1*L[channelName] * L[channelName] + P2*L[channelName] + P3)/(P4*L[channelName] * L[channelName] + P5 * L[channelName] + P6)
-            elif conversionFormulaIdentifier == 10:  # Text Formula, not really supported yet
-                try:
-                    from sympy import lambdify, symbols
-                    X = symbols('X') # variable is X
-                    formula = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula']
-                    formula=formula[:formula.find('\x00')] # remove trailing text after 0
-                    formula = formula.replace('pow(', 'power(') # adapt ASAM-MCD2 syntax to sympy
-                    expr = lambdify(X,formula , 'numpy') # formula to function for evaluation
-                    L[channelName] = expr(L[channelName])
-                except:
-                    print('Please install sympy to convert channel '+channelName)
-                    print('Failed to convert '+channelName+' formulae '+info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula'])
-            elif conversionFormulaIdentifier == 11:  # Text Table, not really supported yet
-                # considers number representative enough, no need to convert into string, more complex
-                #print(('Conversion of text table : not yet supported'))
-                pass
-            elif conversionFormulaIdentifier == 12:  # Text Range Table, not really supported yet
-                try:
-                    npair=len(info['CCBlock'][dataGroup][channelGroup][channel]['conversion'])
-                    lower=[info['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['lowerRange'] for pair in range(npair)]
-                    upper=[info['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['upperRange'] for pair in range(npair)]
-                    text=[info['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['Textrange'] for pair in range(npair)]
-                    temp=[]
-                    for Lindex in range(len(L[channelName] )):
-                        value = text[0] # default value
-                        for pair in range(1, npair):
-                            if lower[pair] <= L[channelName] [Lindex] <= upper[pair]:
-                                value = text[pair]
-                                break
-                        temp.append(value)
+                ## Process Conversion
+                conversionFormulaIdentifier = info['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier']
+                if conversionFormulaIdentifier == 0:  # Parametric, Linear: Physical =Integer*P2 + P1
+                    P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
+                    P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
+                    L[channelName] = (L[channelName] * P2 + P1) 
+                elif conversionFormulaIdentifier == 1:  # Tabular with interpolation
+                    intVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['int']
+                    physVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['phys']
+                    if numpy.all(numpy.diff(intVal) > 0):
+                        L[channelName] = numpy.interp(L[channelName], intVal, physVal)
+                    else:
+                        print(( 'X values for interpolation of channel ' + channelName + ' are not increasing'))
+                elif conversionFormulaIdentifier == 2:  # Tabular
+                    intVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['int']
+                    physVal = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['phys']
+                    if numpy.all(numpy.diff(intVal) > 0):
+                        L[channelName] = numpy.interp(L[channelName], intVal, physVal)
+                    else:
+                        print(('X values for interpolation of channel ' + str(channelName) + ' are not increasing'))
+                elif conversionFormulaIdentifier == 6:  # Polynomial
+                    P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
+                    P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
+                    P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P3']
+                    P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P4']
+                    P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P5']
+                    P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P6']
+                    L[channelName] = (P2 - P4 * (L[channelName] - P5 - P6)) / (P3 * (L[channelName] - P5 - P6) - P1)
+                elif conversionFormulaIdentifier == 7:  # Exponential
+                    P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
+                    P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
+                    P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P3']
+                    P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P4']
+                    P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P5']
+                    P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P6']
+                    P7 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P7']
+                    if P4 == 0 and P1 != 0 and P2 != 0:
+                        L[channelName]['data'] = log(((L[channelName] - P7) * P6 - P3) / P1) / P2
+                    elif P1 == 0 and P4 != 0 and P5 != 0:
+                        L[channelName] = log((P3 / (L[channelName] - P7) - P6) / P4) / P5
+                    else:
+                        print(('Non possible conversion parameters for channel ' + str(channelName)))
+                elif conversionFormulaIdentifier == 8:  # Logarithmic
+                    P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
+                    P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
+                    P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P3']
+                    P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P4']
+                    P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P5']
+                    P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P6']
+                    P7 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P7']
+                    if P4 == 0 and P1 != 0 and P2 != 0:
+                        L[channelName] = exp(((L[channelName] - P7) * P6 - P3) / P1) / P2
+                    elif P1 == 0 and P4 != 0 and P5 != 0:
+                        L[channelName] = exp((P3 / (L[channelName] - P7) - P6) / P4) / P5
+                    else:
+                        print(('Non possible conversion parameters for channel ' + str(channelName)))
+                elif conversionFormulaIdentifier == 9:  # rationnal
+                    P1 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P1']
+                    P2 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P2']
+                    P3 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P3']
+                    P4 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P4']
+                    P5 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P5']
+                    P6 = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['P6']
+                    L[channelName] = (P1*L[channelName] * L[channelName] + P2*L[channelName] + P3)/(P4*L[channelName] * L[channelName] + P5 * L[channelName] + P6)
+                elif conversionFormulaIdentifier == 10:  # Text Formula, not really supported yet
                     try:
-                        temp=numpy.asarray(temp) # try to convert to numpy 
+                        from sympy import lambdify, symbols
+                        X = symbols('X') # variable is X
+                        formula = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula']
+                        formula=formula[:formula.find('\x00')] # remove trailing text after 0
+                        formula = formula.replace('pow(', 'power(') # adapt ASAM-MCD2 syntax to sympy
+                        expr = lambdify(X,formula , 'numpy') # formula to function for evaluation
+                        L[channelName] = expr(L[channelName])
                     except:
-                        pass
-                    L[channelName] = temp
-                except:
-                    print('Failed to convert '+channelName)
-            elif conversionFormulaIdentifier == 132:  # date, not really supported yet
-                pass
-            elif conversionFormulaIdentifier == 133:  # time, not really supported yet
-                pass
-            elif conversionFormulaIdentifier == 65535:  # No conversion, keep data
-                pass
-            else:
-                print('Unrecognized conversion type')
+                        print('Please install sympy to convert channel '+channelName)
+                        print('Failed to convert '+channelName+' formulae '+info['CCBlock'][dataGroup][channelGroup][channel]['conversion']['textFormula'])
+                elif conversionFormulaIdentifier == 11:  # Text Table, not really supported yet
+                    # considers number representative enough, no need to convert into string, more complex
+                    #print(('Conversion of text table : not yet supported'))
+                    pass
+                elif conversionFormulaIdentifier == 12:  # Text Range Table, not really supported yet
+                    try:
+                        npair=len(info['CCBlock'][dataGroup][channelGroup][channel]['conversion'])
+                        lower=[info['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['lowerRange'] for pair in range(npair)]
+                        upper=[info['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['upperRange'] for pair in range(npair)]
+                        text=[info['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['Textrange'] for pair in range(npair)]
+                        temp=[]
+                        for Lindex in range(len(L[channelName] )):
+                            value = text[0] # default value
+                            for pair in range(1, npair):
+                                if lower[pair] <= L[channelName] [Lindex] <= upper[pair]:
+                                    value = text[pair]
+                                    break
+                            temp.append(value)
+                        try:
+                            temp=numpy.asarray(temp) # try to convert to numpy 
+                        except:
+                            pass
+                        L[channelName] = temp
+                    except:
+                        print('Failed to convert '+channelName)
+                elif conversionFormulaIdentifier == 132:  # date, not really supported yet
+                    pass
+                elif conversionFormulaIdentifier == 133:  # time, not really supported yet
+                    pass
+                elif conversionFormulaIdentifier == 65535:  # No conversion, keep data
+                    pass
+                else:
+                    print('Unrecognized conversion type')
 
     if multiProc:
         Q.put(L)
@@ -279,6 +279,7 @@ class DATA(dict):
     def addRecord(self, record):
         self[record.recordID]={}
         self[record.recordID]['record']=record
+
     def read(self, channelList, zip=None):
         if len(self)==1: #sorted dataGroup
             recordID=list(self.keys())[0]
@@ -365,7 +366,7 @@ class mdf3(dict):
         for dataGroup in list(dataGroupList.keys()):
             dataGroupList[dataGroup] = info['CGBlock'][dataGroup][0]['numberOfRecords']
         sortedDataGroup = sorted(dataGroupList, key=dataGroupList.__getitem__, reverse=True)
-
+        
         if self.multiProc:
             # prepare multiprocessing of dataGroups
             proc = []
@@ -397,6 +398,7 @@ class mdf3(dict):
                     proc[-1].start()
                 else:  # for debugging purpose, can switch off multiprocessing
                     L.update(processDataBlocks( None, buf, info, dataGroup,  channelList, self.multiProc))
+                del buf # free memory
 
         fid.close()  # close file
 
@@ -423,6 +425,7 @@ class mdf3(dict):
                             self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
                             self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription']
                             self[channelName]['data'] = L[channelName]
+                            L.pop(channelName, None) # free memory
         #print( 'Finished in ' + str( time.clock() - inttime ) )
 
     def write3(self, fileName=None):

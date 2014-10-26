@@ -115,7 +115,9 @@ class info3(dict):
                     signalname = signalname.split( '\\' )
                     if len(signalname) > 1:
                         self['CNBlock'][dataGroup][channelGroup][channel]['deviceName'] = signalname[1]
-                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname[0]
+                    signalname = signalname[0]
+                    signalname = signalname.split('.')[-1]
+                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
                     #self.channelNameList.append( signalname )
 
                     # Read channel description
@@ -309,7 +311,9 @@ class info3(dict):
                     else:
                         signalname = shortSignalName
                     signalname = signalname.split( '\\' )
-                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname[0]
+                    signalname = signalname[0]
+                    signalname = signalname.split('.')[-1]
+                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
                     channelNameList.append( signalname[0] )
 
         # CLose the file
