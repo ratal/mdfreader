@@ -176,13 +176,14 @@ class mdf( mdf3,  mdf4 ):
         self.time=''
         self.date=''
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
+        self.convertAfterRead = True # converts after reading
         # clears class from previous reading and avoid to mess up
         self.clear()
         if not fileName == None:
             self.read( fileName, channelList=channelList )
 
     ## reads mdf file
-    def read( self, fileName = None, multiProc = False, channelList=None):
+    def read( self, fileName = None, multiProc = False, channelList=None, convertAfterRead=True):
         # read mdf file
         if self.fileName == None:
             self.fileName = fileName
@@ -194,7 +195,7 @@ class mdf( mdf3,  mdf4 ):
         
         self.VersionNumber=info.mdfversion
         if self.VersionNumber<400: # up to version 3.x not compatible with version 4.x
-            self.read3(self.fileName, info, multiProc, channelList)
+            self.read3(self.fileName, info, multiProc, channelList, convertAfterRead)
         else: #MDF version 4.x. Channel by channel reading implemented
             self.read4(self.fileName, info, multiProc, channelList)
     

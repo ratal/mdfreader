@@ -9,6 +9,7 @@ import numpy
 from struct import unpack, Struct
 from math import pow
 from sys import platform, version_info
+from io import open # for python 3 and 2 consistency
 from mdfinfo4 import info4, MDFBlock#,  ATBlock, CNBlock
 from collections import OrderedDict
 from time import gmtime, strftime
