@@ -296,6 +296,7 @@ def processMDF(fileName,channelist,resampleFlag,resampleValue,convertFlag,conver
     # Will process file according to defined options
     yop=mdf()
     yop.multiProc=False # already multiprocessed
+    yop.convertAfterRead = True
     yop.read(fileName) # reads complete file
     yop.keepChannels(channelist) # removes unnecessary channels
     if resampleFlag:

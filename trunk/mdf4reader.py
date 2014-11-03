@@ -339,7 +339,7 @@ class mdf4(dict):
     It imports mdf files version 4.1
     To use : yop= mdfreader.mdf('FileName.mf4')"""
     
-    def __init__( self, fileName = None, info=None,multiProc = False,  channelList=None):
+    def __init__( self, fileName = None, info=None,multiProc = False,  channelList=None, convertAfterRead=True):
         self.masterChannelList = {}
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         self.author=''
@@ -349,6 +349,7 @@ class mdf4(dict):
         self.comment=''
         self.time=''
         self.date=''
+        self.convertAfterRead=True
         # clears class from previous reading and avoid to mess up
         self.clear()
         if fileName == None and info!=None:
@@ -358,7 +359,7 @@ class mdf4(dict):
         self.read4(self.fileName, info, multiProc, channelList)
 
     ## reads mdf file
-    def read4( self, fileName=None, info = None, multiProc = False, channelList=None):
+    def read4( self, fileName=None, info = None, multiProc = False, channelList=None, convertAfterRead=True):
         # read mdf file
         self.multiProc = multiProc
         if platform in ('win32', 'win64'):
@@ -469,6 +470,16 @@ class mdf4(dict):
                         else:
                             self[channelName]['description'] = ''
                         self[channelName]['data'] = L[channelName]
+                        L.pop(channelName, None) # free memory
+                        convType = info['CCBlock'][dataGroup][channelGroup][channel]['cc_type']
+                        if convType in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10): # needs conversion
+                            self[channelName]['conversion'] = {}
+                            self[channelName]['conversion']['parameters'] = {}
+                            self[channelName]['conversion']['type'] = convType
+                            if 'cc_val' in info['CCBlock'][dataGroup][channelGroup][channel]:
+                                self[channelName]['conversion']['parameters']['cc_val'] = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
+                            if 'cc_ref' in info['CCBlock'][dataGroup][channelGroup][channel]:
+                                self[channelName]['conversion']['parameters']['cc_ref'] = info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']
                     elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type']==13: #CANopen date
                         identifier=['ms', 'min', 'hour', 'day', 'month', 'year']
                         for name in identifier:
@@ -489,7 +500,53 @@ class mdf4(dict):
                             self[name]['masterType']=info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
                             if masterDataGroup: #master channel exist
                                 self.masterChannelList[masterDataGroup[dataGroup]].append(name)
+        if self.convertAfterRead: 
+            self.convertAllChannel4()
         #print( 'Finished in ' + str( time.clock() - inttime ) )
+
+    def getChannelData4(self, channelName):
+        # returns data of channel
+        if channelName in self:
+            return self.convert4(channelName)
+        else:
+            raise('Channel not in dictionary')
+    
+    def convert4(self, channelName):
+        # returns data converted if necessary
+        if 'conversion' in self[channelName]: # there is conversion property
+            if self[channelName]['conversion']['type'] == 1:
+                return linearConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
+            elif self[channelName]['conversion']['type'] == 2:
+                return rationalConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
+            elif self[channelName]['conversion']['type'] == 3:
+                return formulaConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_ref']['Comment'])
+            elif self[channelName]['conversion']['type'] == 4:
+                return valueToValueTableWInterpConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
+            elif self[channelName]['conversion']['type'] == 5:
+                return valueToValueTableWOInterpConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
+            elif self[channelName]['conversion']['type'] == 6:
+                return valueRangeToValueTableConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
+            elif self[channelName]['conversion']['type'] == 7:
+                return valueToTextConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'], self[channelName]['conversion']['parameters']['cc_ref'])
+            elif self[channelName]['conversion']['type'] == 8:
+                return valueRangeToTextConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'], self[channelName]['conversion']['parameters']['cc_ref'])
+            elif self[channelName]['conversion']['type'] == 9:
+                return textToValueConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'], self[channelName]['conversion']['parameters']['cc_ref'])
+            elif self[channelName]['conversion']['type'] == 10:
+                return textToTextConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_ref'])
+            else:
+                return self[channelName]['data']
+        else:
+            return self[channelName]['data']
+    
+    def convertChannel4(self, channelName):
+        self[channelName]['data'] = self.convert4(channelName)
+        if 'conversion' in self[channelName]:
+            self[channelName].pop('conversion')
+    
+    def convertAllChannel4(self):
+        for channel in self:
+            self.convertChannel4(channel)
 
 def convertName(channelName):
     if PythonVersion<3:
@@ -643,105 +700,7 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                         L[channelName] = temp
                 else: #data using bull bytes
                     L[channelName] = temp
-
-                ## Process Conversion
-                conversionFormulaIdentifier = info['CCBlock'][dataGroup][channelGroup][channel]['cc_type']
-                if conversionFormulaIdentifier == 0: # 1:1 conversion
-                    pass
-                elif conversionFormulaIdentifier == 1: # Parametric, Linear: Physical =Integer*P2 + P1
-                    L[channelName] = linearConv(L[channelName], info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'])
-                elif conversionFormulaIdentifier == 2: # rationnal
-                    L[channelName] = rationalConv(L[channelName], info['CCBlock'][dataGroup][channelGroup][channel]['cc_val'])
-                elif conversionFormulaIdentifier == 3: #  Algebraic conversion, needs simpy
-                    try:
-                        L[channelName] = formulaConv(L[channelName], info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']['Comment'])
-                    except:
-                        print('Please install sympy to convert channel '+channelName)
-                        print('Had problem to convert '+channelName+' formulae '+info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref'])
-                elif conversionFormulaIdentifier in (4, 5): # value to value table with or without interpolation
-                    val_count=2*int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /2)
-                    cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
-                    intVal = [cc_val[i][0] for i in range(0, val_count, 2)]
-                    physVal = [cc_val[i][0] for i in range(1, val_count, 2)]
-                    if numpy.all( numpy.diff( intVal ) > 0 ):
-                        if conversionFormulaIdentifier == 4:
-                            L[channelName] = numpy.interp( L[channelName], intVal, physVal ) # with interpolation
-                        else:
-                            try:
-                                from scipy import interpolate
-                            except:
-                                raise('Please install scipy to convert channel'+channelName)
-                            f = interpolate.interp1d( intVal, physVal , kind='nearest', bounds_error=False) # nearest
-                            L[channelName] =  f(L[channelName]) # fill with Nan out of bounds while should be bounds
-                    else:
-                        print(( 'X values for interpolation of channel ' + channelName + ' are not increasing' ))
-                elif conversionFormulaIdentifier == 6: # Value range to value table
-                    val_count=int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /3)
-                    cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
-                    key_min = [cc_val[i][0] for i in range(0, 3*val_count+1, 3)]
-                    key_max = [cc_val[i][0] for i in range(1, 3*val_count+1, 3)]
-                    value = [cc_val[i][0] for i in range(2, 3*val_count+1, 3)]
-                    # look up in range keys
-                    for Lindex in range(len(L[channelName] )):
-                        key_index=0 # default index if not found
-                        for i in range(val_count):
-                            if  key_min[i] < L[channelName] [Lindex] < key_max[i]:
-                                key_index=i
-                                break
-                        L[channelName][Lindex]=value[key_index]
-                elif conversionFormulaIdentifier == 7: # Value to text / scale conversion table
-                    val_count=int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] )
-                    cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
-                    value=info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']
-                    temp=[]
-                    for Lindex in range(len(L[channelName] )):
-                        key_index=val_count # default index if not found
-                        for i in range(val_count):
-                            if  L[channelName] [Lindex] == cc_val[i]:
-                                key_index=i
-                                break
-                        temp.append(value[key_index])
-                    L[channelName]=temp
-                elif conversionFormulaIdentifier == 8: # Value range to Text / Scale conversion Table
-                    val_count=int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] /2)
-                    cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
-                    key_min = [cc_val[i][0] for i in range(0, 2*val_count, 2)]
-                    key_max = [cc_val[i][0] for i in range(1, 2*val_count, 2)]
-                    # look up in range keys
-                    temp=[]
-                    for Lindex in range(len(L[channelName] )):
-                        key_index=val_count # default index if not found
-                        for i in range(val_count):
-                            if  key_min[i] < L[channelName] [Lindex] < key_max[i]:
-                                key_index=i
-                                break
-                        temp.append(info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref'][key_index])
-                    L[channelName]=temp
-                elif conversionFormulaIdentifier == 9: # Text to value table
-                    ref_count=int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref_count'] )
-                    cc_val=info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
-                    cc_ref=info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']
-                    temp=[]
-                    for Lindex in range(len(L[channelName] )):
-                        key_index=ref_count # default index if not found
-                        for i in range(ref_count):
-                            if  L[channelName] [Lindex] == cc_ref[i]:
-                                key_index=i
-                                break
-                        temp.append(cc_val[key_index])
-                    L[channelName]=temp
-                elif conversionFormulaIdentifier == 10: # Text to text table
-                    val_count=int(info['CCBlock'][dataGroup][channelGroup][channel]['cc_val_count'] )
-                    cc_ref=info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']
-                    for Lindex in range(len(L[channelName] )):
-                        key_index=val_count+1 # default index if not found
-                        for i in range(0, val_count, 2):
-                            if  L[channelName] [Lindex] == cc_ref[i]:
-                                key_index=i
-                                break
-                        L[channelName] [Lindex]=cc_ref[key_index]
-                else:
-                    print('Unrecognized conversion type')
+                    
             elif chan.signalDataType==13:
                 L['ms']=buf[recordID]['data']['data'].__getattribute__( 'ms_title') 
                 L['min']=buf[recordID]['data']['data'].__getattribute__( 'min_title') 
@@ -770,7 +729,97 @@ def rationalConv(vect,  cc_val):
     P6 = cc_val[5]
     return (P1*vect *vect +P2*vect +P3)/(P4*vect *vect +P5*vect +P6)
 def formulaConv(vect, formula):
-    from sympy import lambdify, symbols
+    try:
+        from sympy import lambdify, symbols
+    except:
+        print('Please install sympy to convert channel ')
     X=symbols('X')
     expr=lambdify(X, formula, 'numpy')
     return expr(vect) 
+
+def valueToValueTableWOInterpConv(vect, cc_val):
+    val_count=2*int(len(cc_val) /2)
+    intVal = [cc_val[i][0] for i in range(0, val_count, 2)]
+    physVal = [cc_val[i][0] for i in range(1, val_count, 2)]
+    if numpy.all( numpy.diff( intVal ) > 0 ):
+        try:
+            from scipy import interpolate
+        except:
+            raise('Please install scipy to convert channel')
+        f = interpolate.interp1d( intVal, physVal , kind='nearest', bounds_error=False) # nearest
+        return f(vect) # fill with Nan out of bounds while should be bounds
+    else:
+        print(( 'X values for interpolation of channel are not increasing' ))
+
+def valueToValueTableWInterpConv(vect, cc_val):
+    val_count=2*int(len(cc_val) /2)
+    intVal = [cc_val[i][0] for i in range(0, val_count, 2)]
+    physVal = [cc_val[i][0] for i in range(1, val_count, 2)]
+    if numpy.all( numpy.diff( intVal ) > 0 ):
+        return numpy.interp( vect, intVal, physVal ) # with interpolation
+    else:
+        print(( 'X values for interpolation of channel are not increasing' ))
+
+def valueRangeToValueTableConv(vect, cc_val):
+    val_count=int(len(cc_val) /3)
+    key_min = [cc_val[i][0] for i in range(0, 3*val_count+1, 3)]
+    key_max = [cc_val[i][0] for i in range(1, 3*val_count+1, 3)]
+    value = [cc_val[i][0] for i in range(2, 3*val_count+1, 3)]
+    # look up in range keys
+    for Lindex in range(len(vect )):
+        key_index=0 # default index if not found
+        for i in range(val_count):
+            if  key_min[i] < vect[Lindex] < key_max[i]:
+                key_index=i
+                break
+        vect[Lindex]=value[key_index]
+    return vect
+def valueToTextConv(vect, cc_val, cc_ref):
+    val_count=int(len(cc_val))
+    temp=[]
+    for Lindex in range(len(vect )):
+        key_index=val_count # default index if not found
+        for i in range(val_count):
+            if  vect[Lindex] == cc_val[i]:
+                key_index=i
+                break
+        temp.append(cc_ref[key_index])
+    return temp
+    
+def valueRangeToTextConv(vect, cc_val, cc_ref):
+    val_count=int(len(cc_val) /2)
+    key_min = [cc_val[i][0] for i in range(0, 2*val_count, 2)]
+    key_max = [cc_val[i][0] for i in range(1, 2*val_count, 2)]
+    # look up in range keys
+    temp=[]
+    for Lindex in range(len(vect)):
+        key_index=val_count # default index if not found
+        for i in range(val_count):
+            if  key_min[i] < vect[Lindex] < key_max[i]:
+                key_index=i
+                break
+        temp.append(cc_ref[key_index])
+    return temp
+    
+def textToValueConv(vect, cc_val, cc_ref):
+    ref_count=len(cc_ref)
+    temp=[]
+    for Lindex in range(len(vect)):
+        key_index=ref_count # default index if not found
+        for i in range(ref_count):
+            if  vect[Lindex] == cc_ref[i]:
+                key_index=i
+                break
+        temp.append(cc_val[key_index])
+    return temp
+
+def textToTextConv(vect, cc_ref):
+    ref_count=len(cc_ref)-2
+    for Lindex in range(len(vect)):
+        key_index=ref_count+1 # default index if not found
+        for i in range(0, ref_count, 2):
+            if  vect[Lindex] == cc_ref[i]:
+                key_index=i
+                break
+        vect[Lindex]=cc_ref[key_index]
+    return vect

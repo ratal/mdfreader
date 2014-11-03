@@ -259,7 +259,7 @@ class mdf3(dict):
     It imports mdf files version 3.0 to 3.3
     To use : yop= mdfreader.mdf('FileName.dat') """
     
-    def __init__( self, fileName=None, info=None,multiProc=False,  channelList=None):
+    def __init__( self, fileName=None, info=None, multiProc=False,  channelList=None, convertAfterRead=True):
         self.masterChannelList = {}
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         self.author=''
@@ -269,6 +269,7 @@ class mdf3(dict):
         self.comment=''
         self.time=''
         self.date=''
+        self.convertAfterRead=True
         # clears class from previous reading and avoid to mess up
         self.clear()
         if fileName is None and info is not None:
@@ -396,21 +397,17 @@ class mdf3(dict):
                                 self[channelName].pop('conversion')
         
         if self.convertAfterRead: 
-            self.convertAllChannel()
+            self.convertAllChannel3()
         #print( 'Finished in ' + str( time.clock() - inttime ) )
     
-    def getChannelData(self, channelName):
+    def getChannelData3(self, channelName):
         # returns data of channel
         if channelName in self:
-            return self.convert(channelName)
+            return self.convert3(channelName)
         else:
             raise('Channel not in dictionary')
     
-    def getChannelUnit(self, channelName):
-        # return channel unit
-        return self[channelName]['unit']
-    
-    def convert(self, channelName):
+    def convert3(self, channelName):
         # returns data converted if necessary
         if 'conversion' in self[channelName]: # there is conversion property
             if self[channelName]['conversion']['type'] == 0:
@@ -436,14 +433,14 @@ class mdf3(dict):
         else:
             return self[channelName]['data']
             
-    def convertChannel(self, channelName):
-        self[channelName]['data'] = self.convert(channelName)
+    def convertChannel3(self, channelName):
+        self[channelName]['data'] = self.convert3(channelName)
         if 'conversion' in self[channelName]:
             self[channelName].pop('conversion')
                 
-    def convertAllChannel(self):
+    def convertAllChannel3(self):
         for channel in self:
-            self.convertChannel(channel)
+            self.convertChannel3(channel)
 
     def write3(self, fileName=None):
         # write data in sorted format: 1 datagroup for 1  channel group and many channel with same sampling
