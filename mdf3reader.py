@@ -127,7 +127,7 @@ def textRangeTableConv(data, conv): # 12 Text range table
             pass
         return temp
     except:
-        print('Failed to convert ')
+        print('Failed to convert text to range table')
 
 class recordChannel():
     def __init__(self, info, dataGroup, channelGroup, channelNumber, recordIDsize):
@@ -259,7 +259,7 @@ class mdf3(dict):
     It imports mdf files version 3.0 to 3.3
     To use : yop= mdfreader.mdf('FileName.dat') """
     
-    def __init__( self, fileName=None, info=None, multiProc=False,  channelList=None, convertAfterRead=True):
+    def __init__( self, fileName=None, info=None, multiProc=False,  channelList=None, convertAfterRead=True, filterChannelNames=False):
         self.masterChannelList = {}
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         self.author=''
@@ -270,6 +270,7 @@ class mdf3(dict):
         self.time=''
         self.date=''
         self.convertAfterRead=True
+        self.filterChannelNames=False
         # clears class from previous reading and avoid to mess up
         self.clear()
         if fileName is None and info is not None:
@@ -300,7 +301,7 @@ class mdf3(dict):
         # inttime = time.clock()
         ## Read information block from file
         if info is None:
-            info = info3(self.fileName,  None)
+            info = info3(self.fileName,  None,  self.filterChannelNames)
             
         # reads metadata
         self.author=info['HDBlock']['Author']

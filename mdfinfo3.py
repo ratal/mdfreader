@@ -19,13 +19,14 @@ class info3(dict):
     #  mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
     #  mdfinfo['CNBlock'][dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
     #  mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information"""
-    def __init__(self, fileName=None, fid=None):
+    def __init__(self, fileName=None, fid=None,  filterChannelNames = False):
         self['IDBlock'] = {} # Identifier Block
         self['HDBlock'] = {} # Header Block
         self['DGBlock']= {} # Data Group Block
         self['CGBlock'] = {} # Channel Group Block
         self['CNBlock'] = {}# Channel Block
         self['CCBlock'] = {} # Conversion block
+        self.filterChannelNames = filterChannelNames
         self.fileName = fileName
         if fileName != None and fid==None:
             try:
@@ -116,7 +117,8 @@ class info3(dict):
                     if len(signalname) > 1:
                         self['CNBlock'][dataGroup][channelGroup][channel]['deviceName'] = signalname[1]
                     signalname = signalname[0]
-                    signalname = signalname.split('.')[-1]
+                    if self.filterChannelNames:
+                        signalname = signalname.split('.')[-1] #filters channels modules
                     self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
                     #self.channelNameList.append( signalname )
 
@@ -312,7 +314,8 @@ class info3(dict):
                         signalname = shortSignalName
                     signalname = signalname.split( '\\' )
                     signalname = signalname[0]
-                    signalname = signalname.split('.')[-1]
+                    if self.filterChannelNames:
+                        signalname = signalname.split('.')[-1]
                     self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
                     channelNameList.append( signalname[0] )
 
