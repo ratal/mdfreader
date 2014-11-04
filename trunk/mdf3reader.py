@@ -112,12 +112,12 @@ def textRangeTableConv(data, conv): # 12 Text range table
         npair=len(conv)
         lower=[conv[pair]['lowerRange'] for pair in range(npair)]
         upper=[conv[pair]['upperRange'] for pair in range(npair)]
-        text=[conv['conversion'][pair]['Textrange'] for pair in range(npair)]
+        text=[conv[pair]['Textrange'] for pair in range(npair)]
         temp=[]
         for Lindex in range(len(data)):
             value = text[0] # default value
             for pair in range(1, npair):
-                if lower[pair] <= data [Lindex] <= upper[pair]:
+                if lower[pair] <= data[Lindex] <= upper[pair]:
                     value = text[pair]
                     break
             temp.append(value)
