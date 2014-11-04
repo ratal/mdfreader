@@ -41,15 +41,18 @@ Examples
 >>> import mdfreader
 >>> yop=mdfreader.mdf('NameOfFile')
 >>> yop.keys() # list channels names
+>>> yop.masterChannelList() # list channels grouped by raster
 >>> yop.plot('channelName')
->>> yop.resample(0.1)
+>>> yop.resample(0.1) or yop.resample(channelName='master3')
 >>> yop.exportoCSV(sampling=0.01)
 >>> yop.exportNetCDF()
 >>> yop.exporttoHDF5()
 >>> yop.exporttoMatlab()
 >>> yop.exporttoExcel()
 >>> yop.exporttoXlsx()
+>>> yop.convertToPandas()
 >>> yop.keepChannels(ChannelListToKeep)
+>>> yop.getChannelData('channelName') # returns numpy array
 
 """
 from io import open
@@ -100,14 +103,14 @@ class mdfinfo( dict):
     #  mdfinfo['CNBlock'][dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
     #  mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information"""
 
-    def __init__( self, fileName = None ):
+    def __init__( self, fileName = None, filterChannelNames = False ):
         self.fileName = fileName
         self.mdfversion = 0
         if fileName != None:
-            self.readinfo( fileName )
+            self.readinfo( fileName, filterChannelNames )
         
     ## Reads block informations inside file
-    def readinfo( self, fileName = None ):
+    def readinfo( self, fileName = None, filterChannelNames=False ):
         # Read MDF file and extract its complete structure
         if self.fileName == None:
             self.fileName = fileName
@@ -123,7 +126,7 @@ class mdfinfo( dict):
         self.mdfversion = VersionNumber[0]
         if self.mdfversion < 400: # up to version 3.x not compatible with version 4.x
             from mdfinfo3 import info3
-            self.update(info3(None, fid))
+            self.update(info3(None, fid, filterChannelNames))
         else: #MDF version 4.x
             from mdfinfo4 import info4
             self.update(info4(None, fid))
@@ -164,7 +167,7 @@ class mdf( mdf3,  mdf4 ):
     saving memory on the detriment of performance, allowing to read big files
     """
     
-    def __init__( self, fileName = None,  channelList=None, convertAfterRead=True):
+    def __init__( self, fileName = None,  channelList=None, convertAfterRead=True, filterChannelNames=False):
         self.fileName = None
         self.VersionNumber=None
         self.masterChannelList = {}
@@ -177,13 +180,14 @@ class mdf( mdf3,  mdf4 ):
         self.date=''
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         self.convertAfterRead = True # converts after reading
+        self.filterChannelNames = False
         # clears class from previous reading and avoid to mess up
         self.clear()
         if not fileName == None:
-            self.read( fileName, channelList=channelList )
+            self.read( fileName, channelList=channelList, convertAfterRead=self.convertAfterRead, filterChannelNames=self.filterChannelNames )
 
     ## reads mdf file
-    def read( self, fileName = None, multiProc = False, channelList=None, convertAfterRead=True):
+    def read( self, fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False):
         # read mdf file
         if self.fileName == None:
             self.fileName = fileName
@@ -191,7 +195,7 @@ class mdf( mdf3,  mdf4 ):
         print(self.fileName)
         
         # read file blocks
-        info=mdfinfo(self.fileName)
+        info=mdfinfo(self.fileName, filterChannelNames)
         
         self.VersionNumber=info.mdfversion
         if self.VersionNumber<400: # up to version 3.x not compatible with version 4.x
@@ -238,7 +242,7 @@ class mdf( mdf3,  mdf4 ):
                     self.fig = plt.figure()
                     # plot using matplotlib the channel versus master channel
                     if len(list(self.masterChannelList.keys()))==1: # Resampled signals
-                        masterName = self.masterChannelList.keys()[0]
+                        masterName = list(self.masterChannelList.keys())[0]
                         if not masterName: # resampled channels, only one time channel most probably called 'master'
                             masterName ='master'
                         if masterName in list(self.keys()): # time channel properly defined
@@ -272,31 +276,38 @@ class mdf( mdf3,  mdf4 ):
             except:
                 print( Name )
 
-    def resample( self, samplingTime = 0.1, masterChannelName=None ):
-        """ Resamples mdf channels inside object for one single time"""
+    def resample( self, samplingTime = 0.1, masterChannel=None ):
+        """ Resamples mdf channels inside object to a single master channel
+        You can specify resampling time, like 0.1sec (default) or 100m
+        You can also apply one master channel to all the other datagroups by specifying
+        argument masterChannel= 'NameOfMasterChannel'
+        """
         # must make sure all channels are converted
         self.convertAllChannel()
         # resample all channels to one sampling time vector
         if len(list(self.masterChannelList.keys()))>1: # Not yet resampled
             channelNames = list(self.keys())
             minTime = maxTime = []
-            if masterChannelName is None:
+            if masterChannel is None: # create master channel if not proposed
                 masterChannelName='master'
-            self[masterChannelName] = {}
-            unit = ''
-            masterType = 1 # time by default
-            for master in list(self.masterChannelList.keys()):
-                masterData = self.getChannelData(master)
-                if master in self and len( masterData ) > 5: # consider groups having minimum size 
-                    minTime.append( masterData[0] )
-                    maxTime.append( masterData[len( masterData ) - 1] )
-                    if len(self.getChannelUnit(master))>1 :
-                        unit = self.getChannelUnit(master)
-                        masterType = self[master]['masterType']
-            self[masterChannelName]['data'] = numpy.arange( min( minTime ),max( maxTime ),samplingTime )
-            self[masterChannelName]['unit'] = unit
-            self[masterChannelName]['description'] = 'Unique master channel'
-            self[masterChannelName]['masterType'] = masterType
+                self[masterChannelName] = {}
+                unit = ''
+                masterType = 1 # time by default
+                
+                for master in list(self.masterChannelList.keys()):
+                    masterData = self.getChannelData(master)
+                    if master in self and len( masterData ) > 5: # consider groups having minimum size 
+                        minTime.append( masterData[0] )
+                        maxTime.append( masterData[len( masterData ) - 1] )
+                        if len(self.getChannelUnit(master))>1 :
+                            unit = self.getChannelUnit(master)
+                            masterType = self[master]['masterType']
+                self[masterChannelName]['data'] = numpy.arange( min( minTime ),max( maxTime ),samplingTime )
+                self[masterChannelName]['unit'] = unit
+                self[masterChannelName]['description'] = 'Unique master channel'
+                self[masterChannelName]['masterType'] = masterType
+            else:
+                masterChannelName=masterChannel
 
             # Interpolate channels
             timevect=[]
@@ -322,7 +333,7 @@ class mdf( mdf3,  mdf4 ):
             self.masterChannelList = {} # empty dict
             self.masterChannelList[masterChannelName] = list(self.keys())
         else:
-            pass
+            print('Already resampled')
 
     def exportToCSV( self, filename = None, sampling = 0.1 ):
         # Export mdf file into csv
@@ -701,6 +712,10 @@ if __name__ == "__main__":
     except:
         None
     parser=ArgumentParser(prog='mdfreader', description='reads mdf file')
-    parser.add_argument('fileName')
+    parser.add_argument('--convertAfterRead', default=True)
+    parser.add_argument('--filterChannelNames', default=False)
+    parser.add_argument('fileName',  help='mdf file name', required=True)
+    parser.add_argumetn('--channelList', dest='channelList', type=list, default=None, help = 'list of channels to read')
+    
     args = parser.parse_args()
-    mdf(fileName=args.fileName)
+    mdf(fileName=args.fileName, channelList=args.channelList, converAfterRead=args.convertAfterRead, filterChannelNames=args.filterChannelNames)
