@@ -269,6 +269,7 @@ class mdf3(dict):
         self.comment=''
         self.time=''
         self.date=''
+        self.VersionNumber=300
         self.convertAfterRead=True
         self.filterChannelNames=False
         # clears class from previous reading and avoid to mess up
@@ -598,6 +599,7 @@ class mdf3(dict):
             dataTypeList = ''
             recordNumberOfBits = 0
             preceedingChannel = None
+            bitOffset=0
             writePointer(fid, pointers['CG'][dataGroup]['firstCN'], fid.tell())  # first channel bock pointer from CG
             for channel in self.masterChannelList[masterChannel]:
                 pointers['CN'][dataGroup][channel] = {}
@@ -625,7 +627,7 @@ class mdf3(dict):
                 # channel description
                 desc = self[channel]['description']
                 writeChar(fid, desc, size=127)  # channel description
-                fid.write(pack(UINT16, 0))  # no offset
+                fid.write(pack(UINT16, bitOffset))  # bit position
                 data = self[channel]['data']  # channel data
                 temp=data
                 if PythonVersion>=3 and data.dtype.kind in ['S', 'U']:
@@ -644,6 +646,7 @@ class mdf3(dict):
                     numberOfBits = 8  # if string, not considered
                 recordNumberOfBits += numberOfBits
                 fid.write(pack(UINT16, numberOfBits))  # Number of bits
+                bitOffset += numberOfBits
                 if data.dtype == 'float64':
                     dataType = 3
                 elif data.dtype in ('uint8', 'uint16', 'uint32', 'uint64'):
@@ -655,7 +658,6 @@ class mdf3(dict):
                 elif data.dtype.kind in ['S', 'U']: 
                     dataType = 7
                 else:
-                    print('Not recognized dtype')
                     print('Not recognized dtype')
                     raise
                 if not data.dtype.kind in ['S', 'U']: 

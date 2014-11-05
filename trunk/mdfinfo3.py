@@ -317,7 +317,7 @@ class info3(dict):
                     if self.filterChannelNames:
                         signalname = signalname.split('.')[-1]
                     self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
-                    channelNameList.append( signalname[0] )
+                    channelNameList.append( signalname )
 
         # CLose the file
         fid.close()

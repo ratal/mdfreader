@@ -209,6 +209,8 @@ class mdf( mdf3,  mdf4 ):
             self.fileName = fileName
         else:
             print('Please provide filename')
+        # makes sure all channels are converted
+        self.convertAllChannel()
         self.write3(fileName)
 
     def getChannelData(self, channelName):
