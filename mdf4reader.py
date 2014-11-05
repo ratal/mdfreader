@@ -65,9 +65,9 @@ class DATABlock(MDFBlock):
                     temp.reshape(M, N).T.reshape(1, M*N)
                     self['data']=numpy.getbuffer(temp)+self['data'][M*N:]
                 else:
-                    temp=numpy.asarray(self['data'][:M*N])
+                    temp=numpy.array(memoryview(self['data'][:M*N]))
                     temp.reshape(M, N).T.reshape(1, M*N)
-                    self['data']=numpy.getbuffer(temp)+self['data'][M*N:]
+                    self['data']=memoryview(temp)+self['data'][M*N:]
             if channelList is None: # reads all blocks
                 self['data']=numpy.core.records.fromstring(self['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
             else:
