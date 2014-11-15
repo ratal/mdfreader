@@ -59,15 +59,13 @@ class DATABlock(MDFBlock):
             self['data']=decompress(self['data']) # decompress data
             if self['dz_zip_type']==1: # data bytes transposed
                 N = self['dz_zip_parameter']
-                M = self['dz_org_data_length']%N
-                if PythonVersion<3:
-                    temp=numpy.frombuffer(self['data'][:M*N])
-                    temp.reshape(M, N).T.reshape(1, M*N)
-                    self['data']=numpy.getbuffer(temp)+self['data'][M*N:]
-                else:
-                    temp=numpy.array(memoryview(self['data'][:M*N]))
-                    temp.reshape(M, N).T.reshape(1, M*N)
-                    self['data']=memoryview(temp)+self['data'][M*N:]
+                M = self['dz_org_data_length']//N
+                temp=numpy.array(memoryview(self['data'][:M*N]), dtype=numpy.dtype('a1'))
+                tail=numpy.array(memoryview(self['data'][M*N:]), dtype=numpy.dtype('a1'))
+                temp=temp.reshape(M, N).T.ravel()
+                if len(tail)>0:
+                    temp=numpy.concatenate(temp, numpy.array(memoryview(self['data'][M*N:])))
+                self['data']=temp
             if channelList is None: # reads all blocks
                 self['data']=numpy.core.records.fromstring(self['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
             else:
@@ -113,7 +111,7 @@ class DATA(dict):
                     temps['dl_offset']=temps.mdfblockread(self.fid, UINT64, temps['dl_count'])
                 # read data list
                 if temps['dl_count']==1:
-                    temps['data']=DATABlock(self.fid, temps['dl_data'][0], record, channelList=nameList)
+                    temps['data']=DATABlock(self.fid, temps['dl_data'][0], record, zip, channelList=nameList)
                 elif temps['dl_count']==0:
                     raise('empty datalist')
                 else:
@@ -326,10 +324,16 @@ class record(list):
                         rec[channel.name][r]=channel.CFormat.unpack(buf[channel.posBeg:channel.posEnd])[0]
                 return rec.view(numpy.recarray)
             
-    def readUnsortedRecord(self, buf, channelList=None):
+    def readRecordBuf(self, buf, channelList=None):
         # read stream of record bytes
-        pass
-        
+        temp={}
+        if channelList is None:
+            channelList = self.channelNames
+        for channel in self: # list of recordChannels from channelList
+            if channel.name in channelList:
+                temp[channel.name] = channel.CFormat.unpack(buf[channel.posBeg:channel.posEnd])[0]
+        return temp # returns dictionary of channel with its corresponding values
+
     def readVLSDCGBlock(self, fid, cg_data_bytes):
         VLSDLength=unpack('<u4', fid.read(4))
         return fid.read(VLSDLength)
@@ -550,7 +554,7 @@ class mdf4(dict):
 
 def convertName(channelName):
     if PythonVersion<3:
-        channelIdentifier=channelName.encode('ASCII')+'_title'
+        channelIdentifier=channelName.encode('utf-8')+'_title'
     else:
         channelIdentifier=str(channelName)+'_title'
     return channelIdentifier
@@ -681,7 +685,7 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                 channel=chan.channelNumber
                 recordName=buf[recordID]['record'].recordToChannelMatching[channelName] # in case record is used for several channels
                 if not chan.channelType in (3, 6): # not virtual channel
-                    temp = buf[recordID]['data']['data'].__getattribute__( str(recordName)+'_title') # extract channel vector
+                    temp = buf[recordID]['data']['data'].__getattribute__( convertName(recordName) ) # extract channel vector
                 else :# virtual channel 
                     temp=numpy.arange(buf[recordID]['record'].numberOfRecords)
                     
