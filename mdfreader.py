@@ -3,13 +3,12 @@
 Created on Sun Oct 10 12:57:28 2010
 
 :Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
+:Version: 2014.11.15 r116
 
 This module contains 2 classes :
 First class mdfinfo is meant to extract all blocks in file, giving like metadata of measurement channels
     Method read() will read file and add in the class all Blocks info as defined in MDF specification
     "Format Specification MDF Format Version 3.0", 14/11/2002
-
-:Version: 2014.10.21 r107
 
 Second class mdf reads file and add dict type data
     Each channel is identified by its name the dict key.
@@ -69,7 +68,7 @@ PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 
 def convertMatlabName(channel):
-# removes non allowed characters for a matlab variable name
+    # removes non allowed characters for a matlab variable name
     if PythonVersion<3:
         channel=channel.decode('utf-8')
     channelName=channel.replace('[', '_ls_')
@@ -714,8 +713,8 @@ if __name__ == "__main__":
     except:
         None
     parser=ArgumentParser(prog='mdfreader', description='reads mdf file')
-    parser.add_argument('--convertAfterRead', default=True)
-    parser.add_argument('--filterChannelNames', default=False)
+    parser.add_argument('--convertAfterRead', default=True, help = 'True by default, flag to convert raw channel data to physical values just after reading. Deactivate if you have memory concerns')
+    parser.add_argument('--filterChannelNames', default=False,  help = 'False by default, activates channel name filtering, removes modules names separated by a point character')
     parser.add_argument('fileName',  help='mdf file name', required=True)
     parser.add_argumetn('--channelList', dest='channelList', type=list, default=None, help = 'list of channels to read')
     

@@ -171,7 +171,7 @@ class CommentBlock(MDFBlock):
                 self['Comment']=self.mdfblockreadBYTE(fid, self['length']-24) #[:-1] # removes normal 0 at end
                 import xml.etree.ElementTree as ET
                 utf8parser = ET.XMLParser(encoding="utf-8")
-                self['xml_tree']=ET.XML(self['Comment'], parser=utf8parser)
+                self['xml_tree']=ET.XML(self['Comment'].encode('utf-8'), parser=utf8parser)
                 self['xml']=elementTreeToDict(self['xml_tree'])
                 # specific action per comment block type, extracts specific tags from xml
                 if MDType=='CN': # channel comment
@@ -642,7 +642,7 @@ class info4(dict):
         if self['HDBlock']['hd_dg_first']:
             dg=0
             self['DGBlock'][dg] = {}
-            self['DGBlock'][dg] .update(DGBlock(fid,self['HDBlock']['hd_dg_first']))
+            self['DGBlock'][dg].update(DGBlock(fid,self['HDBlock']['hd_dg_first']))
             # reads Channel Group blocks
             self.readCGBlock(fid, dg, channelNameList)
             while self['DGBlock'][dg]['dg_dg_next']:
@@ -670,41 +670,42 @@ class info4(dict):
             if not self['CGBlock'][dg][cg]['cg_flags'] & 0b1: # if not a VLSD channel group
                 # reads Channel Block
                 self.readCNBlock(fid, dg, cg, channelNameList)
-                while self['CGBlock'][dg][cg]['cg_cg_next']:
-                    cg+=1
-                    self['CGBlock'][dg][cg]={}
-                    self['CGBlock'][dg][cg].update(CGBlock(fid, self['CGBlock'][dg][cg-1]['cg_cg_next']))
-                    if not channelNameList:
-                        # reads Source Information Block
-                        self['CGBlock'][dg][cg]['SIBlock']=SIBlock(fid, self['CGBlock'][dg][cg]['cg_si_acq_source'])
-                        
-                        # reads Sample Reduction Block
-                        self['CGBlock'][dg][cg]['SRBlock']=self.readSRBlock(fid, self['CGBlock'][dg][cg]['cg_sr_first'])
+            while self['CGBlock'][dg][cg]['cg_cg_next']:
+                cg+=1
+                self['CGBlock'][dg][cg]={}
+                self['CGBlock'][dg][cg].update(CGBlock(fid, self['CGBlock'][dg][cg-1]['cg_cg_next']))
+                if not channelNameList:
+                    # reads Source Information Block
+                    self['CGBlock'][dg][cg]['SIBlock']=SIBlock(fid, self['CGBlock'][dg][cg]['cg_si_acq_source'])
                     
+                    # reads Sample Reduction Block
+                    self['CGBlock'][dg][cg]['SRBlock']=self.readSRBlock(fid, self['CGBlock'][dg][cg]['cg_sr_first'])
+                    
+                if not self['CGBlock'][dg][cg]['cg_flags'] & 0b1: # if not a VLSD channel group
                     # reads Channel Block
                     self.readCNBlock(fid, dg, cg, channelNameList)
-                    
-                  # reorder channel blocks and related blocks(CC, SI, AT, CA) based on byte offset
-                  # this reorder is meant to improve performance while parsing records using core.records.fromfile
-                  # as it will not use cn_byte_offset
-                  # first, calculate new mapping/order
-                nChannel=len(self['CNBlock'][dg][cg])
-                Map = zeros(shape=len(self['CNBlock'][dg][cg]), dtype=[('index','u4'), ('byte_offset', 'u4')])
-                for cn in range(nChannel):
-                    Map[cn]=(cn, self['CNBlock'][dg][cg][cn]['cn_byte_offset'])
-                orderedMap=sort(Map, order='byte_offset')
                 
-                toChangeIndex=Map==orderedMap
-                for cn in range(nChannel):
-                    if not toChangeIndex[cn]:
-                        # offset all indexes of indexes to be moved
-                        self['CNBlock'][dg][cg][cn+nChannel]=self['CNBlock'][dg][cg].pop(cn)
-                        self['CCBlock'][dg][cg][cn+nChannel]=self['CCBlock'][dg][cg].pop(cn)
-                for cn in range(nChannel):
-                    if not toChangeIndex[cn]:
-                        # change to ordered index
-                        self['CNBlock'][dg][cg][cn]=self['CNBlock'][dg][cg].pop(orderedMap[cn][0]+nChannel)
-                        self['CCBlock'][dg][cg][cn]=self['CCBlock'][dg][cg].pop(orderedMap[cn][0]+nChannel)
+              # reorder channel blocks and related blocks(CC, SI, AT, CA) based on byte offset
+              # this reorder is meant to improve performance while parsing records using core.records.fromfile
+              # as it will not use cn_byte_offset
+              # first, calculate new mapping/order
+            nChannel=len(self['CNBlock'][dg][cg])
+            Map = zeros(shape=len(self['CNBlock'][dg][cg]), dtype=[('index','u4'), ('byte_offset', 'u4')])
+            for cn in range(nChannel):
+                Map[cn]=(cn, self['CNBlock'][dg][cg][cn]['cn_byte_offset'])
+            orderedMap=sort(Map, order='byte_offset')
+            
+            toChangeIndex=Map==orderedMap
+            for cn in range(nChannel):
+                if not toChangeIndex[cn]:
+                    # offset all indexes of indexes to be moved
+                    self['CNBlock'][dg][cg][cn+nChannel]=self['CNBlock'][dg][cg].pop(cn)
+                    self['CCBlock'][dg][cg][cn+nChannel]=self['CCBlock'][dg][cg].pop(cn)
+            for cn in range(nChannel):
+                if not toChangeIndex[cn]:
+                    # change to ordered index
+                    self['CNBlock'][dg][cg][cn]=self['CNBlock'][dg][cg].pop(orderedMap[cn][0]+nChannel)
+                    self['CCBlock'][dg][cg][cn]=self['CCBlock'][dg][cg].pop(orderedMap[cn][0]+nChannel)
 
     def readCNBlock(self, fid, dg, cg, channelNameList=False):
         # reads Channel Block
