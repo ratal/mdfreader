@@ -656,6 +656,10 @@ class info4(dict):
         # reads Channel Group blocks
         if self['DGBlock'][dg] ['dg_cg_first']:
             cg=0
+            self['CNBlock'][dg] = {}
+            self['CNBlock'][dg][cg] = {}
+            self['CCBlock'][dg] = {}
+            self['CCBlock'][dg][cg] = {}
             self['CGBlock'][dg] = {}
             self['CGBlock'][dg] [cg]={}
             self['CGBlock'][dg][cg].update(CGBlock(fid, self['DGBlock'][dg]['dg_cg_first']))
@@ -670,10 +674,13 @@ class info4(dict):
             if not self['CGBlock'][dg][cg]['cg_flags'] & 0b1: # if not a VLSD channel group
                 # reads Channel Block
                 self.readCNBlock(fid, dg, cg, channelNameList)
+
             while self['CGBlock'][dg][cg]['cg_cg_next']:
                 cg+=1
                 self['CGBlock'][dg][cg]={}
                 self['CGBlock'][dg][cg].update(CGBlock(fid, self['CGBlock'][dg][cg-1]['cg_cg_next']))
+                self['CNBlock'][dg][cg] = {}
+                self['CCBlock'][dg][cg] = {}
                 if not channelNameList:
                     # reads Source Information Block
                     self['CGBlock'][dg][cg]['SIBlock']=SIBlock(fid, self['CGBlock'][dg][cg]['cg_si_acq_source'])
@@ -684,7 +691,7 @@ class info4(dict):
                 if not self['CGBlock'][dg][cg]['cg_flags'] & 0b1: # if not a VLSD channel group
                     # reads Channel Block
                     self.readCNBlock(fid, dg, cg, channelNameList)
-                
+            
               # reorder channel blocks and related blocks(CC, SI, AT, CA) based on byte offset
               # this reorder is meant to improve performance while parsing records using core.records.fromfile
               # as it will not use cn_byte_offset
@@ -710,13 +717,9 @@ class info4(dict):
     def readCNBlock(self, fid, dg, cg, channelNameList=False):
         # reads Channel Block
         cn=0
-        self['CNBlock'][dg] = {}
-        self['CNBlock'][dg][cg] = {}
         self['CNBlock'][dg][cg][cn] = {}
-        self['CCBlock'][dg] = {}
-        self['CCBlock'][dg][cg] = {}
         self['CCBlock'][dg][cg][cn] = {}
-        self['CNBlock'][dg][cg][cn].update(CNBlock(fid, self['CGBlock'][dg][cg]['cg_cn_first']))
+        self['CNBlock'][dg][cg][cn]=CNBlock(fid, self['CGBlock'][dg][cg]['cg_cn_first'])
         
         if self['CGBlock'][dg][cg]['cg_cn_first']: # Can be NIL for VLSD
             if not channelNameList:
@@ -734,9 +737,8 @@ class info4(dict):
                 self['CCBlock'][dg][cg][cn]=CCBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
             while self['CNBlock'][dg][cg][cn]['cn_cn_next']:
                 cn=cn+1
-                self['CNBlock'][dg][cg][cn]={}
-                self['CNBlock'][dg][cg][cn].update(CNBlock(fid, self['CNBlock'][dg][cg][cn-1]['cn_cn_next']))
-                
+                self['CNBlock'][dg][cg][cn]=CNBlock(fid, self['CNBlock'][dg][cg][cn-1]['cn_cn_next'])
+
                 if not channelNameList:
                     # reads Channel Source Information
                     self['CNBlock'][dg][cg][cn]['SIBlock']=SIBlock(fid, self['CNBlock'][dg][cg][cn]['cn_si_source'])

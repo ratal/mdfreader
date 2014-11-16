@@ -30,12 +30,15 @@ INT64='<q'
 CHAR='<c'
 
 class DATABlock(MDFBlock):
-    def __init__(self, fid,  pointer, record, zip_type=None, channelList=None):
+    def __init__(self, fid,  pointer, record, zip_type=None, channelList=None, sortedFlag=True):
         # block header
         self.loadHeader(fid, pointer)
         if self['id'] in ('##DT', '##RD', b'##DT', b'##RD'): # normal data block
-            record.numberOfRecords = (self['length']-24) // record.recordLength
-            self['data']=record.readSortedRecord(fid, pointer, channelList)
+            if sortedFlag:
+                record.numberOfRecords = (self['length']-24) // record.recordLength
+                self['data']=record.readSortedRecord(fid, pointer, channelList)
+            else: # unsorted reading
+                print('not implemented yes unsorted data block reading') # to be implemented
                 
         elif self['id'] in ('##SD', b'##SD'): # Signal Data Block
             unpack('uint32', fid.read(4)) # length of data
@@ -48,7 +51,6 @@ class DATABlock(MDFBlock):
             self['dz_reserved']=self.mdfblockreadBYTE(fid, 1)
             self['dz_zip_parameter']=self.mdfblockread(fid, UINT32, 1)
             self['dz_org_data_length']=self.mdfblockread(fid, UINT64, 1)
-            record.numberOfRecords = self['dz_org_data_length'] // record.recordLength
             self['dz_data_length']=self.mdfblockread(fid, UINT64, 1)
             self['data']=fid.read( self['dz_data_length'] )
             # uncompress data
@@ -66,16 +68,16 @@ class DATABlock(MDFBlock):
                 if len(tail)>0:
                     temp=numpy.concatenate(temp, numpy.array(memoryview(self['data'][M*N:])))
                 self['data']=temp
-            if channelList is None: # reads all blocks
+            if channelList is None and sortedFlag: # reads all blocks if sorted block and no channelList defined
+                record.numberOfRecords = self['dz_org_data_length'] // record.recordLength
                 self['data']=numpy.core.records.fromstring(self['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
-            else:
+            else: # unsorted reading
                 # reads only the channels using offset functions, channel by channel. Not yet ready
-                buf={}
-                # order offsets and names based on offset value
-                channelList=OrderedDict(sorted(channelList.items(), key=lambda t: t[1]))
+                buf=[]
                 for name in record.dataRecordName:
                     if name in list(channelList.keys()):
                         buf.append(numpy.core.records.fromstring(self['data'], dtype = record.numpyDataRecordFormat, shape = 1 , names=name,  offset=None ))
+                        
                 self['data']=buf
      
 class DATA(dict):
@@ -90,7 +92,7 @@ class DATA(dict):
             recordID=list(self.keys())[0]
             self[recordID]['data']=self.loadSorted( self[recordID]['record'], zip=None, nameList=channelList)
         else: # unsorted DataGroup
-            self.load( zip=None, nameList=channelList)
+            self.loadUnsorted( zip=None, nameList=channelList)
             
     def loadSorted(self, record, zip=None, nameList=None): # reads sorted data
         temps=MDFBlock()
@@ -140,7 +142,7 @@ class DATA(dict):
             temps['data']=DATABlock(self.fid, self.pointerTodata, record, zip_type=zip, channelList=nameList)
         return temps['data']
     
-    def load(self, record, zip=None, nameList=None):
+    def loadUnsorted(self, zip=None, nameList=None):
         # read unsorted records in Datablock
         # identify record channels in buffer
         # iterate in buffer
@@ -164,17 +166,17 @@ class DATA(dict):
                     temps['dl_offset']=temps.mdfblockread(self.fid, UINT64, temps['dl_count'])
                 # read data list
                 if temps['dl_count']==1:
-                    temps['data']=DATABlock(self.fid, temps['dl_data'][0], record, nameList)
+                    temps['data']=DATABlock(self.fid, temps['dl_data'][0], self, nameList, sortedFlag=False)
                 elif temps['dl_count']==0:
                     raise('empty datalist')
                 else:
                     # define size of each block to be read
                     temps['data']={}
                     temps['data']['data']=[]
-                    temps['data']['data']=[DATABlock(self.fid, temps['dl_data'][dl], record, zip, nameList)['data'] for dl in range(temps['dl_count'])]
+                    temps['data']['data']=[DATABlock(self.fid, temps['dl_data'][dl], self, zip, nameList, sortedFlag=False)['data'] for dl in range(temps['dl_count'])]
                     if temps['dl_dl_next']:
                          self.pointerTodata=temps['dl_dl_next']
-                         temps['data']['data'].append(self.load(record, zip, nameList)['data'])
+                         temps['data']['data'].append(self.loadUnsorted(record, zip, nameList)['data'])
                     #Concatenate all data
                     temps['data']['data']=numpy.hstack(temps['data']['data']) # concatenate data list
                     temps['data']['data']=temps['data']['data'].view(numpy.recarray) # vstack output ndarray instead of recarray
@@ -188,10 +190,12 @@ class DATA(dict):
             temps['hl_zip_type']=temps.mdfblockread(self.fid, UINT8, 1)
             temps['hl_reserved']=temps.mdfblockreadBYTE(self.fid, 5)
             self.pointerTodata= temps['hl_dl_first']
-            temps['data']=self.load(record, zip=temps['hl_zip_type'], nameList=nameList)#, record, zip=temps['hl_zip_type'], nameList=nameList)
+            temps['data']=self.loadUnsorted(record, zip=temps['hl_zip_type'], nameList=nameList)#, record, zip=temps['hl_zip_type'], nameList=nameList)
         else:
-            temps['data']=DATABlock(self.fid, self.pointerTodata, record, zip_type=zip, channelList=nameList)
+            temps['data']=DATABlock(self.fid, self.pointerTodata, self, zip_type=zip, channelList=nameList, sortedFlag=False)
         return temps['data']
+    def readRecord(self, recordID, buf, channelList=None):
+        return self[recordID]['record'].readRecordBuf(buf, channelList)
         
 class recordChannel():
     def __init__(self, info, dataGroup, channelGroup, channelNumber, recordIDsize):
