@@ -43,6 +43,7 @@ class MDFBlock(dict):
         self['reserved']={}
         self['length']={}
         self['link_count']={}
+        self['pointer']=0
     
     def loadHeader(self, fid,  pointer):
         #All blocks have the same header
@@ -52,6 +53,7 @@ class MDFBlock(dict):
             self['reserved']=self.mdfblockreadBYTE(fid, 4)
             self['length']=self.mdfblockread(fid, UINT64, 1)
             self['link_count']=self.mdfblockread(fid, UINT64, 1)
+            self['pointer']=pointer
         
     @staticmethod
     def mdfblockread( fid, type,  count ):
@@ -289,6 +291,7 @@ class CNBlock(MDFBlock):
     def __init__(self, fid,  pointer,  attachmentNumber=None):
         if pointer != 0 and pointer is not None:
             fid.seek( pointer )
+            self['pointer']=pointer
             self['id']=self.mdfblockreadCHAR(fid, 4)
             self['reserved']=self.mdfblockreadBYTE(fid, 4)
             self['length']=self.mdfblockread(fid, UINT64, 1)
@@ -570,7 +573,7 @@ class SIBlock(MDFBlock):
             self['source_name']=CommentBlock(fid, self['si_tx_name'])
             self['source_path']=CommentBlock(fid, self['si_tx_path'])
             self['comment']=CommentBlock(fid, self['si_md_comment'], MDType='SI')
-            
+
 class info4(dict):
     def __init__(self, fileName=None, fid=None):
         self['IDBlock'] = {} # Identifier Block
@@ -663,6 +666,7 @@ class info4(dict):
             self['CGBlock'][dg] = {}
             self['CGBlock'][dg] [cg]={}
             self['CGBlock'][dg][cg].update(CGBlock(fid, self['DGBlock'][dg]['dg_cg_first']))
+            VLSDCGBlock=[]
             
             if not channelNameList:
                 # reads Source Information Block
@@ -674,6 +678,8 @@ class info4(dict):
             if not self['CGBlock'][dg][cg]['cg_flags'] & 0b1: # if not a VLSD channel group
                 # reads Channel Block
                 self.readCNBlock(fid, dg, cg, channelNameList)
+            else:
+                VLSDCGBlock.append(cg)
 
             while self['CGBlock'][dg][cg]['cg_cg_next']:
                 cg+=1
@@ -691,6 +697,23 @@ class info4(dict):
                 if not self['CGBlock'][dg][cg]['cg_flags'] & 0b1: # if not a VLSD channel group
                     # reads Channel Block
                     self.readCNBlock(fid, dg, cg, channelNameList)
+                else:
+                    VLSDCGBlock.append(cg)
+            
+            if VLSDCGBlock: #VLSD CG Block exiting
+                self['VLSD_CG']={}
+            # Matching VLSD CGBlock with corresponding channel
+            for VLSDcg in VLSDCGBlock:
+                VLSDCGBlockAdress=self['CGBlock'][dg][VLSDcg]['pointer']
+                for cg in self['CGBlock'][dg]:
+                    if cg not in VLSDCGBlock:
+                        for cn in self['CNBlock'][dg][cg]:
+                            if VLSDCGBlockAdress==self['CNBlock'][dg][cg][cn]['cn_data']:
+                                # found matching channel with VLSD CGBlock
+                                temp={}
+                                temp['cg_cn']=(cg, cn)
+                                self['VLSD_CG'][self['CGBlock'][dg][VLSDcg]['cg_record_id']]=temp
+                                break
             
               # reorder channel blocks and related blocks(CC, SI, AT, CA) based on byte offset
               # this reorder is meant to improve performance while parsing records using core.records.fromfile
@@ -720,6 +743,16 @@ class info4(dict):
         self['CNBlock'][dg][cg][cn] = {}
         self['CCBlock'][dg][cg][cn] = {}
         self['CNBlock'][dg][cg][cn]=CNBlock(fid, self['CGBlock'][dg][cg]['cg_cn_first'])
+        MLSDChannels=[]
+        # check for MLSD
+        if self['CNBlock'][dg][cg][cn]['cn_type']==5:
+            MLSDChannels.append(cn)
+        # check if already existing channel name
+        for cgp in self['CNBlock'][dg]:
+            for chan in self['CNBlock'][dg][cgp]:
+                if not chan==cn and self['CNBlock'][dg][cgp][chan]['name']==self['CNBlock'][dg][cg][cn]['name']: 
+                    self['CNBlock'][dg][cg][cn]['name']=self['CNBlock'][dg][cg][cn]['name']+str(cg)
+                    break
         
         if self['CGBlock'][dg][cg]['cg_cn_first']: # Can be NIL for VLSD
             if not channelNameList:
@@ -738,11 +771,20 @@ class info4(dict):
             while self['CNBlock'][dg][cg][cn]['cn_cn_next']:
                 cn=cn+1
                 self['CNBlock'][dg][cg][cn]=CNBlock(fid, self['CNBlock'][dg][cg][cn-1]['cn_cn_next'])
-
+                # check for MLSD
+                if self['CNBlock'][dg][cg][cn]['cn_type']==5:
+                    MLSDChannels.append(cn)
                 if not channelNameList:
                     # reads Channel Source Information
                     self['CNBlock'][dg][cg][cn]['SIBlock']=SIBlock(fid, self['CNBlock'][dg][cg][cn]['cn_si_source'])
                     
+                    # check if already existing channel name
+                    for cgp in self['CNBlock'][dg]:
+                        for chan in self['CNBlock'][dg][cgp]:
+                            if not chan==cn and self['CNBlock'][dg][cgp][chan]['name']==self['CNBlock'][dg][cg][cn]['name']: 
+                                self['CNBlock'][dg][cg][cn]['name']=self['CNBlock'][dg][cg][cn]['name']+str(cg)
+                                break
+                                
                     # reads Channel Array Block
                     
                     # reads Attachment Block
@@ -752,17 +794,17 @@ class info4(dict):
                     
                     # reads Channel Conversion Block
                     self['CCBlock'][dg][cg][cn]=CCBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
-        
-        elif self['CNBlock'][dg][cg][cn]['cn_type']==1: #VLSD channel
-            pass
-            #self['CNBlock'][dg][cg][cn]=DATA(fid, self['CNBlock'][dg][cg][cn]['cn_data'])
-        elif self['CNBlock'][dg][cg][cn]['cn_type']==4: #synchronization channel
-            pass
-        elif self['CNBlock'][dg][cg][cn]['cn_type']==5: #maximum length data channel
-            pass
-        else:
-            raise('Channel type error')
-            
+
+        if MLSDChannels:
+            self['MLSD']={}
+            self['MLSD'][dg]={}
+            self['MLSD'][dg][cg]={}
+        for MLSDcn in MLSDChannels:
+            for cn in self['CNBlock'][dg][cg]:
+                if self['CNBlock'][dg][cg][cn]['pointer']==self['CNBlock'][dg][cg][MLSDcn]['cn_data']:
+                    self['MLSD'][dg][cg][MLSDcn]=cn
+                    break
+                    
     def readSRBlock(self, fid, pointer):
         # reads Sample Reduction Blocks
         if pointer>0:
