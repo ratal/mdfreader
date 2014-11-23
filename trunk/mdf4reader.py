@@ -10,8 +10,7 @@ from struct import unpack, Struct
 from math import pow
 from sys import platform, version_info
 from io import open # for python 3 and 2 consistency
-from mdfinfo4 import info4, MDFBlock#,  ATBlock, CNBlock
-from collections import OrderedDict
+from mdfinfo4 import info4, MDFBlock,  ATBlock#, CNBlock
 from time import gmtime, strftime
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
@@ -37,12 +36,32 @@ class DATABlock(MDFBlock):
             if sortedFlag:
                 record.numberOfRecords = (self['length']-24) // record.recordLength
                 self['data']=record.readSortedRecord(fid, pointer, channelList)
+                for cn in record.VLSD:
+                    if channelList is None or record[cn].name in channelList:
+                        temp=DATA(fid,  record[cn].data)
+                        temp=temp.loadSorted(record[cn], zip=None, nameList=channelList)
+                        print(self['data'])
+                        print(temp)
+                        self['data'][record[cn].name]=temp['data'][record[cn].name]
             else: # unsorted reading
-                print('not implemented yes unsorted data block reading') # to be implemented
-                
-        elif self['id'] in ('##SD', b'##SD'): # Signal Data Block
-            unpack('uint32', fid.read(4)) # length of data
-            
+                print('not implemented yet unsorted data block reading') # to be implemented
+        
+        elif self['id'] in ('##SD', b'##SD'): # 
+            if record.signalDataType==6:
+                format='ISO8859'
+            elif record.signalDataType==7:
+                format='utf-8'
+            elif record.signalDataType==8:
+                format='utf-16'
+            pointer=0
+            buf=[]
+            while pointer<self['length']-24:
+                VLSDLen=unpack('I', fid.read(4))[0] # length of data
+                buf.append(fid.read(VLSDLen).decode(format))
+                pointer+=VLSDLen+4
+            buf=tuple(buf)
+            self['data']=numpy.array(buf, dtype={'names':[record.name],'formats':[object]})
+        
         elif self['id'] in ('##DZ', b'##DZ'): # zipped data block
             self['dz_org_block_type']=self.mdfblockreadCHAR(fid, 2)
             self['dz_zip_type']=self.mdfblockread(fid, UINT8, 1)
@@ -71,14 +90,44 @@ class DATABlock(MDFBlock):
             if channelList is None and sortedFlag: # reads all blocks if sorted block and no channelList defined
                 record.numberOfRecords = self['dz_org_data_length'] // record.recordLength
                 self['data']=numpy.core.records.fromstring(self['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
+            elif channelList is not None and sortedFlag: # sorted data but channel list requested
+                print('not implemented yet sorted compressed data block reading with channelList') # to be implemented
+                
             else: # unsorted reading
                 # reads only the channels using offset functions, channel by channel. Not yet ready
-                buf=[]
-                for name in record.dataRecordName:
-                    if name in list(channelList.keys()):
-                        buf.append(numpy.core.records.fromstring(self['data'], dtype = record.numpyDataRecordFormat, shape = 1 , names=name,  offset=None ))
-                        
-                self['data']=buf
+                buf={}
+                position=0
+                recordIdCFormat=record[list(record.keys())[0]]['record'].recordIDCFormat
+                recordIDsize=record[list(record.keys())[0]]['record'].recordIDsize
+                VLSDStruct=Struct('I')
+                # initialise data structure
+                for recordID in record:
+                    for channelName in record[recordID]['record'].channelNames:
+                        buf[channelName]=[]
+                # read data
+                while position<len(self['data']):
+                    recordID=recordIdCFormat.unpack(self['data'][position:position+recordIDsize])[0]
+                    print(recordID, position)
+                    if not record[recordID]['record'].Flags & 0b1: # not VLSD CG
+                        temp=record.readRecord(recordID, self['data'][position+recordIDsize:position+record[recordID]['record'].recordLength], channelList)
+                        position += record[recordID]['record'].recordLength
+                        for channelName in temp:
+                            buf[channelName].append(temp[channelName])
+                    else: # VLSD CG
+                        position+=recordIDsize
+                        VLSDLen=VLSDStruct.unpack(self['data'][position:position+4])[0] # VLSD length
+                        position+=4
+                        temp=self['data'][position:position+VLSDLen-1]
+                        if record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==6:
+                            temp=temp.decode('ISO8859')
+                        elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==7:
+                            temp=temp.decode('utf-8')
+                        elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==8:
+                            temp=temp.decode('utf-16')
+                        buf[record[recordID]['record'].VLSD_CG[recordID]['channelName']].append(temp)
+                        position += VLSDLen
+                        print(buf)
+                self['data']=numpy.recarray(buf)
      
 class DATA(dict):
     def __init__(self, fid, pointer):
@@ -87,6 +136,9 @@ class DATA(dict):
     def addRecord(self, record):
         self[record.recordID]={}
         self[record.recordID]['record']=record
+        # detects VLSD CG
+        for recordID in self[record.recordID]['record'].VLSD_CG:
+            self[recordID]['record'].VLSD_CG=self[record.recordID]['record'].VLSD_CG
     def read(self, channelList, zip=None):
         if len(self)==1: #sorted dataGroup
             recordID=list(self.keys())[0]
@@ -124,6 +176,7 @@ class DATA(dict):
                     if temps['dl_dl_next']:
                          self.pointerTodata=temps['dl_dl_next']
                          temps['data']['data'].append(self.loadSorted(record, zip, nameList)['data'])
+                    
                     #Concatenate all data
                     temps['data']['data']=numpy.hstack(temps['data']['data']) # concatenate data list
                     temps['data']['data']=temps['data']['data'].view(numpy.recarray) # vstack output ndarray instead of recarray
@@ -203,21 +256,25 @@ class recordChannel():
         self.channelNumber=channelNumber
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data_type']
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_count']
+        self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_type']
         self.dataFormat=arrayformat4( self.signalDataType, self.bitCount )
+        if self.channelType in (1, 4, 5): # if VSLD or sync or max length channel
+            self.data=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data']
+            #if self.channelType in (1, 5): # if VSLD or max length channel, strings
+              #  self.dataFormat=numpy.void
+        self.RecordFormat=((self.name, convertName(self.name)),  self.dataFormat)
         if not self.signalDataType in (13, 14): # processed by several channels
-            self.CFormat=Struct(datatypeformat4( self.signalDataType, self.bitCount ))
+            self.Format=datatypeformat4( self.signalDataType, self.bitCount )
+            self.CFormat=Struct(self.Format)
         if self.bitCount%8==0:
             self.nBytes=self.bitCount // 8
         else:
             self.nBytes=self.bitCount // 8 + 1
         self.bitOffset=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_offset']
         self.byteOffset=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_byte_offset']
-        self.RecordFormat=((self.name, convertName(self.name)),  self.dataFormat)
-        self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_type']
-        if self.channelType in (1, 4, 5): # if VSLD or sync or max length channel
-            self.data=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data']
         self.posBeg=recordIDsize+self.byteOffset
         self.posEnd=recordIDsize+self.byteOffset+self.nBytes
+        self.VLSD_CG_Flag=False
     def __str__(self):
         output=str(self.channelNumber) + ' '
         output+=self.name+' '
@@ -234,12 +291,16 @@ class record(list):
         self.numberOfRecords=0
         self.recordID=0
         self.recordIDsize=0
+        self.recordIDCFormat=''
         self.dataGroup=dataGroup
         self.channelGroup=channelGroup
         self.numpyDataRecordFormat=[]
         self.dataRecordName=[]
         self.master={}
-        self.VLSDFlag=0
+        self.Flags=0
+        self.VLSD_CG={}
+        self.VLSD=[]
+        self.MLSD={}
         self.recordToChannelMatching={}
         self.channelNames=[]
     def addChannel(self, info, channelNumber):
@@ -253,23 +314,30 @@ class record(list):
             format=(self.dataRecordName[-1], convertName(self.dataRecordName[-1]))
             if self.recordIDsize==1:
                 self.numpyDataRecordFormat.append( ( format, 'uint8' ) )
+                self.recordIDCFormat=Struct('B')
             elif self.recordIDsize==2:
                 self.numpyDataRecordFormat.append( ( format, 'uint16' ) )
+                self.recordIDCFormat='H'
             elif self.recordIDsize==3:
                 self.numpyDataRecordFormat.append( ( format, 'uint32' ) )
+                self.recordIDCFormat='I'
             elif self.recordIDsize==4:
                 self.numpyDataRecordFormat.append( ( format, 'uint64' ) )
+                self.recordIDCFormat='L'
         self.recordID=info['CGBlock'][self.dataGroup][self.channelGroup]['cg_record_id']
         self.recordLength=info['CGBlock'][self.dataGroup][self.channelGroup]['cg_data_bytes']
         self.recordLength+= info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
         self.numberOfRecords=info['CGBlock'][self.dataGroup][self.channelGroup]['cg_cycle_count']
-        self.VLSDFlag=info['CGBlock'][self.dataGroup][self.channelGroup]['cg_flags']
+        self.Flags=info['CGBlock'][self.dataGroup][self.channelGroup]['cg_flags']
+        if 'MLSD' in info:
+            self.MLSD=info['MLSD']
+
         for channelNumber in list(info['CNBlock'][self.dataGroup][self.channelGroup].keys()):
             channel=recordChannel(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize)
             if channel.channelType in (2, 3): # master channel found
                 self.master['name']=channel.name
                 self.master['number']=channelNumber
-            if channel.channelType in (0, 2): # not virtual channel
+            if channel.channelType in (0, 1, 2, 4, 5): # not virtual channel
                 self.append(channel)
                 self.channelNames.append(channel.name)
                 if len(self)>1 and channel.byteOffset==self[-2].byteOffset: # several channels in one byte, ubit1 or ubit2
@@ -297,6 +365,16 @@ class record(list):
                         self.numpyDataRecordFormat.append( ( ('ms', 'ms_title'), '<u4') ) 
                         self.dataRecordName.append( 'days' )
                         self.numpyDataRecordFormat.append( ( ('days', 'days_title'), '<u2') )
+                if 'VLSD_CG' in info: # is there VLSD CG
+                    for recordID in info['VLSD_CG']:# look for VLSD CG Channel
+                        if info['VLSD_CG'][recordID]['cg_cn']==(self.channelGroup, channelNumber):
+                            self.VLSD_CG[recordID]=info['VLSD_CG'][recordID]
+                            self.VLSD_CG[recordID]['channel']=channel
+                            self.VLSD_CG[recordID]['channelName']=channel.name
+                            self[-1].VLSD_CG_Flag=True
+                            break
+                if channel.channelType==1:
+                    self.VLSD.append(channel.channelNumber)
             elif channel.channelType in (3, 6): # virtual channel
                 pass # channel calculated based on record index later in conversion function
 
@@ -334,13 +412,9 @@ class record(list):
         if channelList is None:
             channelList = self.channelNames
         for channel in self: # list of recordChannels from channelList
-            if channel.name in channelList:
+            if channel.name in channelList and not channel.VLSD_CG_Flag:
                 temp[channel.name] = channel.CFormat.unpack(buf[channel.posBeg:channel.posEnd])[0]
         return temp # returns dictionary of channel with its corresponding values
-
-    def readVLSDCGBlock(self, fid, cg_data_bytes):
-        VLSDLength=unpack('<u4', fid.read(4))
-        return fid.read(VLSDLength)
             
 class mdf4(dict):
     """ mdf file class
@@ -428,7 +502,7 @@ class mdf4(dict):
                     temp.loadInfo(info) # load all info related to record
                     buf.addRecord(temp)
                     for channel in info['CNBlock'][dataGroup][channelGroup].keys():
-                        if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in (2, 3, 4):
+                        if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in (2, 3):
                             masterDataGroup[dataGroup]=info['CNBlock'][dataGroup][channelGroup][channel]['name']
 
                 buf.read(channelList)
@@ -442,8 +516,6 @@ class mdf4(dict):
                     L.update(processDataBlocks4( None, buf, info, dataGroup, channelList, self.multiProc))
                 else:
                     print('No data in dataGroup '+ str(dataGroup))
-
-        fid.close() # close file
 
         if self.multiProc and 'data' in buf:
             for i in proc:
@@ -479,6 +551,9 @@ class mdf4(dict):
                             self[channelName]['description'] = ''
                         self[channelName]['data'] = L[channelName]
                         L.pop(channelName, None) # free memory
+                        if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type']==4: # sync channel
+                            # attach stream to be synchronised
+                            self[channelName]['attachment']=ATBlock(fid, info['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
                         convType = info['CCBlock'][dataGroup][channelGroup][channel]['cc_type']
                         if convType in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10): # needs conversion
                             self[channelName]['conversion'] = {}
@@ -508,6 +583,9 @@ class mdf4(dict):
                             self[name]['masterType']=info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
                             if masterDataGroup: #master channel exist
                                 self.masterChannelList[masterDataGroup[dataGroup]].append(name)
+        
+        fid.close() # close file
+        
         if self.convertAfterRead: 
             self.convertAllChannel4()
         #print( 'Finished in ' + str( time.clock() - inttime ) )
@@ -600,13 +678,13 @@ def arrayformat4( signalDataType, numberOfBits ):
             print(( 'Unsupported number of bit for floating point ' + str( numberOfBits ) ))
     
     elif signalDataType == 6: # string ISO-8859-1 Latin
-        dataType = 'str' # not directly processed
+        dataType = 'S'+str(numberOfBits//8) # not directly processed
     elif signalDataType == 7: # UTF-8
-        dataType = 'U2' # not directly processed
+        dataType = 'U'+str(numberOfBits//8) # not directly processed
     elif signalDataType in (8, 9): # UTF-16
-        dataType = 'U4' # not directly processed
+        dataType = 'U'+str(numberOfBits//8) # not directly processed
     elif signalDataType == 10: # bytes array
-        dataType = 'V'+str(int(numberOfBits/8)) # not directly processed
+        dataType = 'V'+str(numberOfBits//8) # not directly processed
     elif signalDataType in (11, 12): # MIME sample or MIME stream
         dataType = 'V'+str(int(numberOfBits/8)) # not directly processed
     elif signalDataType in (13, 14): # CANOpen date or time
@@ -659,7 +737,7 @@ def datatypeformat4(signalDataType, numberOfBits):
             print(('Unsupported number of bit for floating point ' + str(signalDataType)))
 
     elif signalDataType in (6, 7, 8, 9, 10, 11, 12):  # string/bytes
-        dataType = 's'
+        dataType = 's'+str(numberOfBits//8)
     else:
         print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
     # deal with byte order
@@ -708,7 +786,10 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                         L[channelName] = temp
                 else: #data using bull bytes
                     L[channelName] = temp
-                    
+                
+                # MLSD
+                if chan.channelType==5:
+                    print('MLSD masking needed')
             elif chan.signalDataType==13:
                 L['ms']=buf[recordID]['data']['data'].__getattribute__( 'ms_title') 
                 L['min']=buf[recordID]['data']['data'].__getattribute__( 'min_title') 
