@@ -40,8 +40,7 @@ class DATABlock(MDFBlock):
                     if channelList is None or record[cn].name in channelList:
                         temp=DATA(fid,  record[cn].data)
                         temp=temp.loadSorted(record[cn], zip=None, nameList=channelList)
-                        print(self['data'])
-                        print(temp)
+                        self['data'][record[cn].name].astype(temp['data'][record[cn].name].dtype) # resize container
                         self['data'][record[cn].name]=temp['data'][record[cn].name]
             else: # unsorted reading
                 print('not implemented yet unsorted data block reading') # to be implemented
@@ -57,10 +56,10 @@ class DATABlock(MDFBlock):
             buf=[]
             while pointer<self['length']-24:
                 VLSDLen=unpack('I', fid.read(4))[0] # length of data
-                buf.append(fid.read(VLSDLen).decode(format))
+                buf.append(fid.read(VLSDLen).decode(format)[:-1])
                 pointer+=VLSDLen+4
-            buf=tuple(buf)
-            self['data']=numpy.array(buf, dtype={'names':[record.name],'formats':[object]})
+            maxlen=len(max(buf, key=len))
+            self['data']=numpy.core.records.fromrecords(buf, names=str(record.name), formats=record.dataFormat+str(maxlen))
         
         elif self['id'] in ('##DZ', b'##DZ'): # zipped data block
             self['dz_org_block_type']=self.mdfblockreadCHAR(fid, 2)
@@ -126,7 +125,6 @@ class DATABlock(MDFBlock):
                             temp=temp.decode('utf-16')
                         buf[record[recordID]['record'].VLSD_CG[recordID]['channelName']].append(temp)
                         position += VLSDLen
-                        print(buf)
                 self['data']=numpy.recarray(buf)
      
 class DATA(dict):
@@ -380,7 +378,6 @@ class record(list):
 
     def readSortedRecord(self, fid, pointer, channelList=None):
         # reads record, only one channel group per datagroup
-        fid.seek(pointer)
         if channelList is None: # reads all, quickest but memory consuming
             return numpy.core.records.fromfile( fid, dtype = self.numpyDataRecordFormat, shape = self.numberOfRecords, names=self.dataRecordName)
         else: # reads only some channels from a sorted data block
@@ -680,9 +677,9 @@ def arrayformat4( signalDataType, numberOfBits ):
     elif signalDataType == 6: # string ISO-8859-1 Latin
         dataType = 'S'+str(numberOfBits//8) # not directly processed
     elif signalDataType == 7: # UTF-8
-        dataType = 'U'+str(numberOfBits//8) # not directly processed
+        dataType = 'U' # not directly processed
     elif signalDataType in (8, 9): # UTF-16
-        dataType = 'U'+str(numberOfBits//8) # not directly processed
+        dataType = 'U' # not directly processed
     elif signalDataType == 10: # bytes array
         dataType = 'V'+str(numberOfBits//8) # not directly processed
     elif signalDataType in (11, 12): # MIME sample or MIME stream
@@ -737,7 +734,7 @@ def datatypeformat4(signalDataType, numberOfBits):
             print(('Unsupported number of bit for floating point ' + str(signalDataType)))
 
     elif signalDataType in (6, 7, 8, 9, 10, 11, 12):  # string/bytes
-        dataType = 's'+str(numberOfBits//8)
+        dataType = str(numberOfBits//8)+'s'
     else:
         print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
     # deal with byte order
@@ -789,7 +786,7 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                 
                 # MLSD
                 if chan.channelType==5:
-                    print('MLSD masking needed')
+                    pass #print('MLSD masking needed')
             elif chan.signalDataType==13:
                 L['ms']=buf[recordID]['data']['data'].__getattribute__( 'ms_title') 
                 L['min']=buf[recordID]['data']['data'].__getattribute__( 'min_title') 
