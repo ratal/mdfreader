@@ -36,12 +36,6 @@ class DATABlock(MDFBlock):
             if sortedFlag:
                 record.numberOfRecords = (self['length']-24) // record.recordLength
                 self['data']=record.readSortedRecord(fid, pointer, channelList)
-                for cn in record.VLSD:
-                    if channelList is None or record[cn].name in channelList:
-                        temp=DATA(fid,  record[cn].data)
-                        temp=temp.loadSorted(record[cn], zip=None, nameList=channelList)
-                        self['data'][record[cn].name].astype(temp['data'][record[cn].name].dtype) # resize container
-                        self['data'][record[cn].name]=temp['data'][record[cn].name]
             else: # unsorted reading
                 print('not implemented yet unsorted data block reading') # to be implemented
         
@@ -51,15 +45,22 @@ class DATABlock(MDFBlock):
             elif record.signalDataType==7:
                 format='utf-8'
             elif record.signalDataType==8:
-                format='utf-16'
+                format='<utf-16'
+            elif record.signalDataType==9:
+                format='>utf-16'
             pointer=0
             buf=[]
+            nElement=0
             while pointer<self['length']-24:
                 VLSDLen=unpack('I', fid.read(4))[0] # length of data
-                buf.append(fid.read(VLSDLen).decode(format)[:-1])
+                buf.append(fid.read(VLSDLen).decode(format).rstrip('\x00'))
                 pointer+=VLSDLen+4
-            maxlen=len(max(buf, key=len))
-            self['data']=numpy.core.records.fromrecords(buf, names=str(record.name), formats=record.dataFormat+str(maxlen))
+                nElement+=1
+            if nElement>1:
+                buf=equalizeStringLength(buf)
+                self['data']=numpy.core.records.fromrecords(buf, names=str(record.name))
+            else: # only one data
+                self['data']=buf
         
         elif self['id'] in ('##DZ', b'##DZ'): # zipped data block
             self['dz_org_block_type']=self.mdfblockreadCHAR(fid, 2)
@@ -106,10 +107,9 @@ class DATABlock(MDFBlock):
                 # read data
                 while position<len(self['data']):
                     recordID=recordIdCFormat.unpack(self['data'][position:position+recordIDsize])[0]
-                    print(recordID, position)
-                    if not record[recordID]['record'].Flags & 0b1: # not VLSD CG
-                        temp=record.readRecord(recordID, self['data'][position+recordIDsize:position+record[recordID]['record'].recordLength], channelList)
-                        position += record[recordID]['record'].recordLength
+                    if not record[recordID]['record'].Flags & 0b1: # not VLSD CG)
+                        temp=record.readRecord(recordID, self['data'][position:position+record[recordID]['record'].recordLength+1], channelList)
+                        position += record[recordID]['record'].recordLength+1
                         for channelName in temp:
                             buf[channelName].append(temp[channelName])
                     else: # VLSD CG
@@ -122,15 +122,48 @@ class DATABlock(MDFBlock):
                         elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==7:
                             temp=temp.decode('utf-8')
                         elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==8:
-                            temp=temp.decode('utf-16')
+                            temp=temp.decode('<utf-16')
+                        elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==9:
+                            temp=temp.decode('>utf-16')
                         buf[record[recordID]['record'].VLSD_CG[recordID]['channelName']].append(temp)
                         position += VLSDLen
-                self['data']=numpy.recarray(buf)
-     
+                # convert list to array
+                for chan in buf:
+                    buf[chan]=numpy.array(buf[chan])
+                self['data']=buf
+
+def equalizeStringLength(buf):
+    maxlen=len(max(buf, key=len))
+    for i in range(len(buf)): # resize string to same length, numpy constrain
+        buf[i]+=' '*(maxlen-len(buf[i]))
+    return buf
+
+def append_field(rec, name, arr, dtype=None):
+    arr = numpy.asarray(arr)
+    if dtype is None:
+        dtype = arr.dtype
+    newdtype = numpy.dtype(rec.dtype.descr + [(name, dtype)])
+    newrec = numpy.empty(rec.shape, dtype=newdtype)
+    for field in rec.dtype.fields:
+        newrec[field] = rec[field]
+    newrec[name] = arr
+    return newrec
+    
+def change_field_name(arr, old_name, new_name):
+    names=list(arr.dtype.names)
+    for n in range(len(names)):
+        if names[n]==old_name:
+            break
+    names[n]=new_name
+    names=tuple(names)
+    arr.dtype.names=names
+    return arr
+
 class DATA(dict):
     def __init__(self, fid, pointer):
         self.fid=fid
         self.pointerTodata=pointer
+        self.type='sorted'
     def addRecord(self, record):
         self[record.recordID]={}
         self[record.recordID]['record']=record
@@ -140,9 +173,19 @@ class DATA(dict):
     def read(self, channelList, zip=None):
         if len(self)==1: #sorted dataGroup
             recordID=list(self.keys())[0]
-            self[recordID]['data']=self.loadSorted( self[recordID]['record'], zip=None, nameList=channelList)
+            record=self[recordID]['record']
+            self[recordID]['data']=self.loadSorted( record, zip=None, nameList=channelList)
+            for cn in record.VLSD: # VLSD channels
+                if channelList is None or record[cn].name in channelList:
+                    temp=DATA(self.fid,  record[cn].data)
+                    temp=temp.loadSorted(record[cn], zip=None, nameList=channelList)
+                    rec=self[recordID]['data']['data']
+                    rec=change_field_name(rec, convertName(record[cn].name), convertName(record[cn].name)+'_offset')
+                    rec=append_field(rec, convertName(record[cn].name), temp['data'])
+                    self[recordID]['data']['data']=rec.view(numpy.recarray)
         else: # unsorted DataGroup
-            self.loadUnsorted( zip=None, nameList=channelList)
+            self.type='unsorted'
+            self['data']=self.loadUnsorted( zip=None, nameList=channelList)
             
     def loadSorted(self, record, zip=None, nameList=None): # reads sorted data
         temps=MDFBlock()
@@ -258,11 +301,14 @@ class recordChannel():
         self.dataFormat=arrayformat4( self.signalDataType, self.bitCount )
         if self.channelType in (1, 4, 5): # if VSLD or sync or max length channel
             self.data=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data']
-            #if self.channelType in (1, 5): # if VSLD or max length channel, strings
-              #  self.dataFormat=numpy.void
+            if self.channelType==1: # if VSLD
+                self.dataFormat=arrayformat4(0, self.bitCount )
         self.RecordFormat=((self.name, convertName(self.name)),  self.dataFormat)
         if not self.signalDataType in (13, 14): # processed by several channels
-            self.Format=datatypeformat4( self.signalDataType, self.bitCount )
+            if not self.channelType==1: # if VSLD
+                self.Format=datatypeformat4( self.signalDataType, self.bitCount )
+            else:
+                self.Format=datatypeformat4( 0, self.bitCount )
             self.CFormat=Struct(self.Format)
         if self.bitCount%8==0:
             self.nBytes=self.bitCount // 8
@@ -273,6 +319,7 @@ class recordChannel():
         self.posBeg=recordIDsize+self.byteOffset
         self.posEnd=recordIDsize+self.byteOffset+self.nBytes
         self.VLSD_CG_Flag=False
+        
     def __str__(self):
         output=str(self.channelNumber) + ' '
         output+=self.name+' '
@@ -511,6 +558,8 @@ class mdf4(dict):
                     proc[-1].start()
                 elif OkBuf: # for debugging purpose, can switch off multiprocessing
                     L.update(processDataBlocks4( None, buf, info, dataGroup, channelList, self.multiProc))
+                elif buf.type=='unsorted':
+                    L=buf['data']['data']
                 else:
                     print('No data in dataGroup '+ str(dataGroup))
 
