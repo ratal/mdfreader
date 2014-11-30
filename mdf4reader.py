@@ -6,7 +6,7 @@ Created on Thu Dec 10 12:57:28 2013
 
 """
 from numpy.core.records import fromrecords, fromstring, fromfile
-from numpy import array, recarray, concatenate, asarray, empty, zeros, dtype
+from numpy import array, recarray, append, asarray, empty, zeros, dtype
 from numpy import hstack, arange, right_shift, bitwise_and, all, diff, interp
 from struct import unpack, Struct
 from math import pow
@@ -85,13 +85,12 @@ class DATABlock(MDFBlock):
                 M = self['dz_org_data_length']//N
                 temp=array(memoryview(self['data'][:M*N]))
                 tail=array(memoryview(self['data'][M*N:]))
-                temp=temp.reshape(M, N).T.ravel()
+                temp=temp.reshape(N, M).T.ravel()
                 if len(tail)>0:
-                    temp=concatenate(temp, array(memoryview(self['data'][M*N:])))
+                    temp=append(temp, tail)
                 self['data']=bytes(temp)
             if channelList is None and sortedFlag: # reads all blocks if sorted block and no channelList defined
                 record.numberOfRecords = self['dz_org_data_length'] // record.recordLength
-                print(type(self['data'] ))
                 self['data']=fromstring(self['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
             elif channelList is not None and sortedFlag: # sorted data but channel list requested
                 print('not implemented yet sorted compressed data block reading with channelList') # to be implemented
