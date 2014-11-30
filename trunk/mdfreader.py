@@ -3,7 +3,7 @@
 Created on Sun Oct 10 12:57:28 2010
 
 :Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
-:Version: 2014.11.15 r116
+:Version: 2014.11.30 r121
 
 This module contains 2 classes :
 First class mdfinfo is meant to extract all blocks in file, giving like metadata of measurement channels
@@ -59,7 +59,8 @@ from struct import unpack
 from math import ceil
 from mdf3reader import mdf3
 from mdf4reader import mdf4
-import numpy
+from numpy import arange, interp, all, diff, mean, vstack,hstack, float64, zeros, empty, delete
+from numpy import nan, datetime64, array
 
 from argparse import ArgumentParser
 from sys import version_info
@@ -303,7 +304,7 @@ class mdf( mdf3,  mdf4 ):
                         if len(self.getChannelUnit(master))>1 :
                             unit = self.getChannelUnit(master)
                             masterType = self[master]['masterType']
-                self[masterChannelName]['data'] = numpy.arange( min( minTime ),max( maxTime ),samplingTime )
+                self[masterChannelName]['data'] = arange( min( minTime ),max( maxTime ),samplingTime )
                 self[masterChannelName]['unit'] = unit
                 self[masterChannelName]['description'] = 'Unique master channel'
                 self[masterChannelName]['masterType'] = masterType
@@ -317,7 +318,7 @@ class mdf( mdf3,  mdf4 ):
                     if Name not in list(self.masterChannelList.keys()): # not a master channel
                         timevect = self.getChannelData(self[Name]['master'])
                         if not self.getChannelData(Name).dtype.kind in ('S', 'U'): # if channel not array of string
-                            self[Name]['data'] = numpy.interp( self.getChannelData(masterChannelName), timevect, self.getChannelData(Name) )
+                            self[Name]['data'] = interp( self.getChannelData(masterChannelName), timevect, self.getChannelData(Name) )
                             if masterChannelName in self[Name]:
                                 del self[Name][masterChannelName]
                         else: # can not interpolate strings, remove channel containing string
@@ -326,7 +327,7 @@ class mdf( mdf3,  mdf4 ):
                 except:
                     if len( timevect ) != len( self.getChannelData(Name) ):
                         print(( Name + ' and time channel ' + self[Name][masterChannelName] + ' do not have same length' ))
-                    elif not numpy.all( numpy.diff( timevect ) > 0 ):
+                    elif not all( diff( timevect ) > 0 ):
                         print(( Name + ' has non regularly increasing time channel ' + self[Name][masterChannelName] ))
             # remove time channels in masterChannelList
             for ind in list(self.masterChannelList.keys()):
@@ -354,7 +355,7 @@ class mdf( mdf3,  mdf4 ):
         writer.writerow( [name for name in list(self.keys()) if self.getChannelData(name).dtype in ('float64','float32')] ) # writes channel names
         writer.writerow( [(self.getChannelUnit(name)) for name in list(self.keys()) if self.getChannelData(name).dtype in ('float64','float32')] ) # writes units
         # concatenate all channels
-        buf = numpy.vstack( [self.getChannelData(name).transpose() for name in list(self.keys()) if self.getChannelData(name).dtype in ('float64','float32')] )
+        buf = vstack( [self.getChannelData(name).transpose() for name in list(self.keys()) if self.getChannelData(name).dtype in ('float64','float32')] )
         buf = buf.transpose()
         # Write all rows
         r, c = buf.shape
@@ -595,7 +596,7 @@ class mdf( mdf3,  mdf4 ):
                 data = self.getChannelData(channels[j])
                 if data.dtype  in ['int8', 'int16', 'uint8', 'uint16']:
                      for r in range(len(data)):
-                        ws.cell(row=r+2, column=j).value=numpy.float64(data[r])
+                        ws.cell(row=r+2, column=j).value=float64(data[r])
                 else:
                      for r in range(len(data)):
                         ws.cell(row=r+2, column=j).value=data[r]
@@ -608,7 +609,7 @@ class mdf( mdf3,  mdf4 ):
             # write data
             maxRows=max([len(self.getChannelData(channel)) for channel in list(self.keys())]) # find max column length
             maxCols=len(list(self.keys())) # number of columns
-            bigmat=numpy.zeros(maxRows) # create empty column
+            bigmat=zeros(maxRows) # create empty column
             buf=bigmat
             for col in range(maxCols):
                 data = self.getChannelData(channels[col])
@@ -617,13 +618,13 @@ class mdf( mdf3,  mdf4 ):
                     if chanlen<maxRows:
                         buf[:]=None
                         buf[0:chanlen]=data
-                        bigmat=numpy.vstack((bigmat, buf))
+                        bigmat=vstack((bigmat, buf))
                     else:
-                        bigmat=numpy.vstack((bigmat, data))
+                        bigmat=vstack((bigmat, data))
                 else:
                     buf[:]=None
-                    bigmat=numpy.vstack((bigmat, buf))
-            bigmat=numpy.delete(bigmat, 0, 0)
+                    bigmat=vstack((bigmat, buf))
+            bigmat=delete(bigmat, 0, 0)
             [ws.append(bigmat[:, row]) for row in range(maxRows)]
         print('Writing file, please wait')
         wb.save(filename)
@@ -665,20 +666,20 @@ class mdf( mdf3,  mdf4 ):
             mdfData = mdfClass.getChannelData(channel)
             if channel in mdfClass and channel in self: # channel exists in both class
                 if not channel=='master':
-                    self[channel]['data']=numpy.hstack((data, mdfData))
+                    self[channel]['data']=hstack((data, mdfData))
                 else:
-                    offset=numpy.mean(numpy.diff(mdfData)) # sampling
+                    offset=mean(diff(mdfData)) # sampling
                     offset=data[-1]+offset # time offset
-                    self[channel]['data']=numpy.hstack((data, mdfData+offset))
+                    self[channel]['data']=hstack((data, mdfData+offset))
             elif channel in mdfClass: # new channel for self from mdfClass
                 self[channel]=mdfClass[channel] # initialise all fields, units, descriptions, etc.
-                refill=numpy.empty(initialTimeSize)
-                refill.fil(numpy.nan) # fill with NANs
-                self[channel]['data']=numpy.hstack((refill,  mdfData)) # readjust against time
+                refill=empty(initialTimeSize)
+                refill.fil(nan) # fill with NANs
+                self[channel]['data']=hstack((refill,  mdfData)) # readjust against time
             else: #channel missing in mdfClass
-                refill=numpy.empty(len(mdfClass.getChannelData('master')))
-                refill.fill(numpy.nan) # fill with NANs
-                self[channel]['data']=numpy.hstack((data, refill))
+                refill=empty(len(mdfClass.getChannelData('master')))
+                refill.fill(nan) # fill with NANs
+                self[channel]['data']=hstack((data, refill))
 
     def convertToPandas(self, merging=False, sampling=None):
         # convert data structure into pandas module
@@ -689,12 +690,12 @@ class mdf( mdf3,  mdf4 ):
             raise
         if sampling is not None:
             self.resample(sampling)
-        datetimeInfo=numpy.datetime64(self.date.replace(':','-')+'T'+self.time)
+        datetimeInfo=datetime64(self.date.replace(':','-')+'T'+self.time)
         originalKeys=list(self.keys())
         for group in list(self.masterChannelList.keys()):
             temp={}
             # convert time channel into timedelta
-            time=datetimeInfo+numpy.array(self.getChannelData(group)*10E6, dtype='timedelta64[us]')
+            time=datetimeInfo+array(self.getChannelData(group)*10E6, dtype='timedelta64[us]')
             for channel in self.masterChannelList[group]:
                 temp[channel]=pd.Series(self.getChannelData(channel), index=time)
             self[group+'_group']=pd.DataFrame(temp)
