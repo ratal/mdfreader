@@ -5,10 +5,12 @@ Created on Thu Dec 9 12:57:28 2014
 :Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
 
 """
-import numpy
+from numpy import average, right_shift, bitwise_and, all, diff, max, min, interp
+from numpy import asarray, zeros, recarray, array, reshape
+from numpy.core.records import fromfile
 from math import log, exp
 from sys import platform, version_info
-import time
+from time import strftime, time
 from struct import pack, Struct
 from io import open # for python 3 and 2 consistency
 from mdfinfo3 import info3
@@ -45,8 +47,8 @@ def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc ):
                 if not chan.bitCount//8.0==chan.bitCount/8.0: # if channel data do not use complete bytes
                     mask = int(pow(2, chan.bitCount+1)-1) # masks isBitUnit8
                     if chan.signalDataType in (0,1, 9, 10, 13, 14): # integers
-                        temp =  numpy.right_shift(temp,  chan.bitOffset)
-                        temp =  numpy.bitwise_and(temp,  mask )
+                        temp =  right_shift(temp,  chan.bitOffset)
+                        temp =  bitwise_and(temp,  mask )
                         L[channelName] = temp
                     else: # should not happen
                         print('bit count and offset not applied to correct data type')
@@ -66,14 +68,14 @@ def linearConv(data, conv): # 0 Parametric, Linear: Physical =Integer*P2 + P1
     else:
         return data * conv['P2'] + conv['P1']
 def tabInterpConv(data, conv): # 1 Tabular with interpolation
-    if numpy.all(numpy.diff(conv['int']) > 0):
-        return numpy.interp(data, conv['int'], conv['phy'])
+    if all(diff(conv['int']) > 0):
+        return interp(data, conv['int'], conv['phy'])
     else:
         print(( 'X values for interpolation of channel are not increasing'))
         return data
 def tabConv(data, conv): # 2 Tabular
-    if numpy.all(numpy.diff(conv['int']) > 0):
-        return numpy.interp(data, conv['int'], conv['phy'])
+    if all(diff(conv['int']) > 0):
+        return interp(data, conv['int'], conv['phy'])
     else:
         print(( 'X values for interpolation of channel are not increasing'))
         return data
@@ -122,7 +124,7 @@ def textRangeTableConv(data, conv): # 12 Text range table
                     break
             temp.append(value)
         try:
-            temp=numpy.asarray(temp) # try to convert to numpy 
+            temp=asarray(temp) # try to convert to numpy 
         except:
             pass
         return temp
@@ -205,7 +207,7 @@ class record(list):
         # reads record, only one channel group per datagroup
         fid.seek(pointer)
         if channelList is None: # reads all, quickest but memory consuming
-            return numpy.core.records.fromfile( fid, dtype = self.numpyDataRecordFormat, shape = self.numberOfRecords, names=self.dataRecordName)
+            return fromfile( fid, dtype = self.numpyDataRecordFormat, shape = self.numberOfRecords, names=self.dataRecordName)
         else: # reads only some channels from a sorted data block
             # memory efficient but takes time
             if len(list(set(channelList)&set(self.channelNames)))>0: # are channelList in this dataGroup
@@ -221,13 +223,13 @@ class record(list):
                     if channel.name in channelList:
                         recChan.append(channel)
                         numpyDataRecordFormat.append(channel.RecordFormat)
-                rec=numpy.zeros((self.numberOfRecords, ), dtype=numpyDataRecordFormat)
+                rec=zeros((self.numberOfRecords, ), dtype=numpyDataRecordFormat)
                 recordLength=self.recordIDsize+self.recordLength
                 for r in range(self.numberOfRecords): # for each record,
                     buf=fid.read(recordLength)
                     for channel in recChan:
                         rec[channel.name][r]=channel.CFormat.unpack(buf[channel.posBeg:channel.posEnd])[0]
-                return rec.view(numpy.recarray)
+                return rec.view(recarray)
             
     def readUnsortedRecord(self, buf, channelList=None):
         pass
@@ -518,8 +520,8 @@ class mdf3(dict):
         fid.write(pack(LINK, 0))  # pointer to PR Block
         ndataGroup = len(self.masterChannelList)
         fid.write(pack(UINT16, ndataGroup))  # number of data groups
-        writeChar(fid, time.strftime("%d:%m:%Y"))  # date
-        writeChar(fid, time.strftime("%H:%M:%S"))  # time
+        writeChar(fid, strftime("%d:%m:%Y"))  # date
+        writeChar(fid, strftime("%H:%M:%S"))  # time
         if self.author is not None:
             writeChar(fid, self.author,  size=31)  # Author
         else:
@@ -536,7 +538,7 @@ class mdf3(dict):
             writeChar(fid, self.subject,  size=31)  # Subject
         else:
             writeChar(fid, ' ',  size=31)  
-        fid.write(pack(UINT64, int(time.time()*1000000000)))  # Time Stamp
+        fid.write(pack(UINT64, int(time()*1000000000)))  # Time Stamp
         fid.write(pack(INT16, 1))  # UTC time offset
         fid.write(pack(UINT16, 0))  # Time quality
         writeChar(fid, 'Local PC Reference Time         ')  # Timer identification
@@ -591,7 +593,7 @@ class mdf3(dict):
             fid.write(pack(LINK, 0))  # pointer to sample reduction block, not used
             sampling = 0
             if self[masterChannel]['data'] is not None and len(self[masterChannel]['data'])>0 and self[masterChannel]['data'].dtype.kind not in ['S', 'U']:
-                sampling = numpy.average(numpy.diff(self[masterChannel]['data']))            
+                sampling = average(diff(self[masterChannel]['data']))            
             
             # Channel blocks writing
             pointers['CN'][dataGroup] = {}
@@ -668,8 +670,8 @@ class mdf3(dict):
                 if not data.dtype.kind in ['S', 'U']:
                     fid.write(pack(BOOL, 1))  # Value range valid
                     if len(data)>0:
-                        maximum=numpy.max(data)
-                        minimum=numpy.min(data)
+                        maximum=max(data)
+                        minimum=min(data)
                     else:
                         maximum=0
                         minimum=0
@@ -715,8 +717,8 @@ class mdf3(dict):
             # data writing
             # write data pointer in datagroup
             writePointer(fid, pointers['DG'][dataGroup]['data'], fid.tell())
-            records = numpy.array(dataList, object).T
-            records = numpy.reshape(records, (1, len(self.masterChannelList[masterChannel])*nRecords), order='C')[0]  # flatten the matrix
+            records = array(dataList, object).T
+            records = reshape(records, (1, len(self.masterChannelList[masterChannel])*nRecords), order='C')[0]  # flatten the matrix
             fid.write(pack('<'+dataTypeList*nRecords, *records))  # dumps data vector from numpy
                 
         #print(pointers)

@@ -5,7 +5,9 @@ Created on Thu Dec 10 12:57:28 2013
 :Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
 
 """
-import numpy
+from numpy.core.records import fromrecords, fromstring, fromfile
+from numpy import array, recarray, concatenate, asarray, empty, zeros, dtype
+from numpy import hstack, arange, right_shift, bitwise_and, all, diff, interp
 from struct import unpack, Struct
 from math import pow
 from sys import platform, version_info
@@ -58,7 +60,7 @@ class DATABlock(MDFBlock):
                 nElement+=1
             if nElement>1:
                 buf=equalizeStringLength(buf)
-                self['data']=numpy.core.records.fromrecords(buf, names=str(record.name))
+                self['data']=fromrecords(buf, names=str(record.name))
             else: # only one data
                 self['data']=buf
         
@@ -81,15 +83,16 @@ class DATABlock(MDFBlock):
             if self['dz_zip_type']==1: # data bytes transposed
                 N = self['dz_zip_parameter']
                 M = self['dz_org_data_length']//N
-                temp=numpy.array(memoryview(self['data'][:M*N]), dtype=numpy.dtype('a1'))
-                tail=numpy.array(memoryview(self['data'][M*N:]), dtype=numpy.dtype('a1'))
+                temp=array(memoryview(self['data'][:M*N]))
+                tail=array(memoryview(self['data'][M*N:]))
                 temp=temp.reshape(M, N).T.ravel()
                 if len(tail)>0:
-                    temp=numpy.concatenate(temp, numpy.array(memoryview(self['data'][M*N:])))
-                self['data']=temp
+                    temp=concatenate(temp, array(memoryview(self['data'][M*N:])))
+                self['data']=bytes(temp)
             if channelList is None and sortedFlag: # reads all blocks if sorted block and no channelList defined
                 record.numberOfRecords = self['dz_org_data_length'] // record.recordLength
-                self['data']=numpy.core.records.fromstring(self['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
+                print(type(self['data'] ))
+                self['data']=fromstring(self['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
             elif channelList is not None and sortedFlag: # sorted data but channel list requested
                 print('not implemented yet sorted compressed data block reading with channelList') # to be implemented
                 
@@ -129,7 +132,7 @@ class DATABlock(MDFBlock):
                         position += VLSDLen
                 # convert list to array
                 for chan in buf:
-                    buf[chan]=numpy.array(buf[chan])
+                    buf[chan]=array(buf[chan])
                 self['data']=buf
 
 def equalizeStringLength(buf):
@@ -138,12 +141,12 @@ def equalizeStringLength(buf):
         buf[i]+=' '*(maxlen-len(buf[i]))
     return buf
 
-def append_field(rec, name, arr, dtype=None):
-    arr = numpy.asarray(arr)
-    if dtype is None:
-        dtype = arr.dtype
-    newdtype = numpy.dtype(rec.dtype.descr + [(name, dtype)])
-    newrec = numpy.empty(rec.shape, dtype=newdtype)
+def append_field(rec, name, arr, numpy_dtype=None):
+    arr = asarray(arr)
+    if numpy_dtype is None:
+        numpy_dtype = arr.dtype
+    newdtype = dtype(rec.dtype.descr + [(name, numpy_dtype)])
+    newrec = empty(rec.shape, dtype=newdtype)
     for field in rec.dtype.fields:
         newrec[field] = rec[field]
     newrec[name] = arr
@@ -182,7 +185,7 @@ class DATA(dict):
                     rec=self[recordID]['data']['data']
                     rec=change_field_name(rec, convertName(record[cn].name), convertName(record[cn].name)+'_offset')
                     rec=append_field(rec, convertName(record[cn].name), temp['data'])
-                    self[recordID]['data']['data']=rec.view(numpy.recarray)
+                    self[recordID]['data']['data']=rec.view(recarray)
         else: # unsorted DataGroup
             self.type='unsorted'
             self['data']=self.loadUnsorted( zip=None, nameList=channelList)
@@ -219,8 +222,8 @@ class DATA(dict):
                          temps['data']['data'].append(self.loadSorted(record, zip, nameList)['data'])
                     
                     #Concatenate all data
-                    temps['data']['data']=numpy.hstack(temps['data']['data']) # concatenate data list
-                    temps['data']['data']=temps['data']['data'].view(numpy.recarray) # vstack output ndarray instead of recarray
+                    temps['data']['data']=hstack(temps['data']['data']) # concatenate data list
+                    temps['data']['data']=temps['data']['data'].view(recarray) # vstack output ndarray instead of recarray
             else: # empty datalist
                 temps['data']=None
         elif temps['id'] in ('##HL', b'##HL'): # header list block for DZBlock 
@@ -272,8 +275,8 @@ class DATA(dict):
                          self.pointerTodata=temps['dl_dl_next']
                          temps['data']['data'].append(self.loadUnsorted(record, zip, nameList)['data'])
                     #Concatenate all data
-                    temps['data']['data']=numpy.hstack(temps['data']['data']) # concatenate data list
-                    temps['data']['data']=temps['data']['data'].view(numpy.recarray) # vstack output ndarray instead of recarray
+                    temps['data']['data']=hstack(temps['data']['data']) # concatenate data list
+                    temps['data']['data']=temps['data']['data'].view(recarray) # vstack output ndarray instead of recarray
             else: # empty datalist
                 temps['data']=None
         elif temps['id'] in ('##HL', b'##HL'): # header list block for DZBlock 
@@ -426,7 +429,7 @@ class record(list):
     def readSortedRecord(self, fid, pointer, channelList=None):
         # reads record, only one channel group per datagroup
         if channelList is None: # reads all, quickest but memory consuming
-            return numpy.core.records.fromfile( fid, dtype = self.numpyDataRecordFormat, shape = self.numberOfRecords, names=self.dataRecordName)
+            return fromfile( fid, dtype = self.numpyDataRecordFormat, shape = self.numberOfRecords, names=self.dataRecordName)
         else: # reads only some channels from a sorted data block
             # memory efficient but takes time
             if len(list(set(channelList)&set(self.channelNames)))>0: # are channelList in this dataGroup
@@ -442,13 +445,13 @@ class record(list):
                     if channel.name in channelList:
                         recChan.append(channel)
                         numpyDataRecordFormat.append(channel.RecordFormat)
-                rec=numpy.zeros((self.numberOfRecords, ), dtype=numpyDataRecordFormat)
+                rec=zeros((self.numberOfRecords, ), dtype=numpyDataRecordFormat)
                 recordLength=self.recordIDsize+self.recordLength
                 for r in range(self.numberOfRecords): # for each record,
                     buf=fid.read(recordLength)
                     for channel in recChan:
                         rec[channel.name][r]=channel.CFormat.unpack(buf[channel.posBeg:channel.posEnd])[0]
-                return rec.view(numpy.recarray)
+                return rec.view(recarray)
             
     def readRecordBuf(self, buf, channelList=None):
         # read stream of record bytes
@@ -815,7 +818,7 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                 if not chan.channelType in (3, 6): # not virtual channel
                     temp = buf[recordID]['data']['data'].__getattribute__( convertName(recordName) ) # extract channel vector
                 else :# virtual channel 
-                    temp=numpy.arange(buf[recordID]['record'].numberOfRecords)
+                    temp=arange(buf[recordID]['record'].numberOfRecords)
                     
                 if info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type'] in (2, 3, 4): # master channel 
                     channelName = 'master' + str( dataGroup )
@@ -824,8 +827,8 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                 if not chan.bitCount//8.0==chan.bitCount/8.0: # if channel data do not use complete bytes
                     mask = int(pow(2, chan.bitCount+1)-1) # masks isBitUnit8
                     if chan.signalDataType in (0,1, 2, 3): # integers
-                        temp =  numpy.right_shift(temp,  chan.bitOffset)
-                        temp =  numpy.bitwise_and(temp,  mask )
+                        temp =  right_shift(temp,  chan.bitOffset)
+                        temp =  bitwise_and(temp,  mask )
                         L[channelName] = temp
                     else: # should not happen
                         print('bit count and offset not applied to correct data type')
@@ -876,7 +879,7 @@ def valueToValueTableWOInterpConv(vect, cc_val):
     val_count=2*int(len(cc_val) /2)
     intVal = [cc_val[i][0] for i in range(0, val_count, 2)]
     physVal = [cc_val[i][0] for i in range(1, val_count, 2)]
-    if numpy.all( numpy.diff( intVal ) > 0 ):
+    if all( diff( intVal ) > 0 ):
         try:
             from scipy import interpolate
         except:
@@ -890,8 +893,8 @@ def valueToValueTableWInterpConv(vect, cc_val):
     val_count=2*int(len(cc_val) /2)
     intVal = [cc_val[i][0] for i in range(0, val_count, 2)]
     physVal = [cc_val[i][0] for i in range(1, val_count, 2)]
-    if numpy.all( numpy.diff( intVal ) > 0 ):
-        return numpy.interp( vect, intVal, physVal ) # with interpolation
+    if all( diff( intVal ) > 0 ):
+        return interp( vect, intVal, physVal ) # with interpolation
     else:
         print(( 'X values for interpolation of channel are not increasing' ))
 
