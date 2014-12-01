@@ -88,7 +88,7 @@ class DATABlock(MDFBlock):
                 temp=temp.reshape(N, M).T.ravel()
                 if len(tail)>0:
                     temp=append(temp, tail)
-                self['data']=bytes(temp)
+                self['data']=temp.tostring()
             if channelList is None and sortedFlag: # reads all blocks if sorted block and no channelList defined
                 record.numberOfRecords = self['dz_org_data_length'] // record.recordLength
                 self['data']=fromstring(self['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
