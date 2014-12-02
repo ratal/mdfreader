@@ -179,12 +179,11 @@ class mdf( mdf3,  mdf4 ):
         self.time=''
         self.date=''
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
-        self.convertAfterRead = True # converts after reading
-        self.filterChannelNames = False
         # clears class from previous reading and avoid to mess up
         self.clear()
         if not fileName == None:
-            self.read( fileName, channelList=channelList, convertAfterRead=self.convertAfterRead, filterChannelNames=self.filterChannelNames )
+            self.read( fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames )
+            self.fileName=fileName
 
     ## reads mdf file
     def read( self, fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False):
@@ -205,13 +204,14 @@ class mdf( mdf3,  mdf4 ):
     
     def write(self, fileName=None):
         #write mdf
-        if self.fileName is not None:
-            self.fileName = fileName
+        if fileName is None:
+            splitName=splitext(self.fileName)
+            self.fileName=splitName[-2]+'_New'+splitName[-1]
         else:
-            print('Please provide filename')
+            self.fileName=fileName
         # makes sure all channels are converted
         self.convertAllChannel()
-        self.write3(fileName)
+        self.write3(fileName=self.fileName)
 
     def getChannelData(self, channelName):
         if self.VersionNumber<400:

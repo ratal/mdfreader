@@ -438,8 +438,8 @@ class mdf3(dict):
             return self[channelName]['data']
             
     def convertChannel3(self, channelName):
-        self[channelName]['data'] = self.convert3(channelName)
         if 'conversion' in self[channelName]:
+            self[channelName]['data'] = self.convert3(channelName)
             self[channelName].pop('conversion')
                 
     def convertAllChannel3(self):

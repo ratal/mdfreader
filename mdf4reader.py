@@ -634,7 +634,7 @@ class mdf4(dict):
         
         fid.close() # close file
         
-        if self.convertAfterRead: 
+        if convertAfterRead: 
             self.convertAllChannel4()
         #print( 'Finished in ' + str( time.clock() - inttime ) )
 
