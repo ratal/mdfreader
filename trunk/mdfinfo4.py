@@ -327,8 +327,12 @@ class CNBlock(MDFBlock):
             self['cn_md_comment']=self.mdfblockread(fid, LINK, 1)
             if self['cn_attachment_count']>0:
                 self['cn_at_reference']=self.mdfblockread(fid, LINK, self['cn_attachment_count'])
-                for at in range(self['cn_attachment_count']):
-                    self['attachment'][at]=ATBlock(fid, self['cn_at_reference'][at])
+                self['attachment']={}
+                if self['cn_attachment_count']>1:
+                    for at in range(self['cn_attachment_count']):
+                        self['attachment'][at]=ATBlock(fid, self['cn_at_reference'][at])
+                else:
+                    self['attachment'][0]=ATBlock(fid, self['cn_at_reference'])
             if self['link_count']>(8+self['cn_attachment_count']):
                 self['cn_default_x']=self.mdfblockread(fid, LINK, 3)
             else:
@@ -790,10 +794,16 @@ class info4(dict):
                     # reads Attachment Block
                     if self['CNBlock'][dg][cg][cn-1]['cn_attachment_count']>0:
                         for at in range(self['CNBlock'][dg][cg][cn-1]['cn_attachment_count']):
-                            self['CNBlock'][dg][cg][cn-1]['attachment'][at].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn-1]['cn_at_reference'][at]))
+                            if self['CNBlock'][dg][cg][cn-1]['cn_attachment_count']>1:
+                                at_pointer = self['CNBlock'][dg][cg][cn-1]['cn_at_reference'][at]
+                            else:
+                                at_pointer = self['CNBlock'][dg][cg][cn-1]['cn_at_reference']
+                            self['CNBlock'][dg][cg][cn-1]['attachment'][at].update(self.readATBlock(fid, at_pointer))
                     
                     # reads Channel Conversion Block
                     self['CCBlock'][dg][cg][cn]=CCBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
+        
+        MLSDChannels=self.readComposition(fid, dg, cg, MLSDChannels, channelNameList=False)
 
         if MLSDChannels:
             self['MLSD']={}
@@ -804,7 +814,33 @@ class info4(dict):
                 if self['CNBlock'][dg][cg][cn]['pointer']==self['CNBlock'][dg][cg][MLSDcn]['cn_data']:
                     self['MLSD'][dg][cg][MLSDcn]=cn
                     break
-                    
+        
+    def readComposition(self, fid, dg, cg, MLSDChannels, channelNameList=False):
+        #check for composition of channels, arrays or structures
+        chan=list(self['CNBlock'][dg][cg].keys())[-1]+1
+        for cn in list(self['CNBlock'][dg][cg].keys()):
+            if self['CNBlock'][dg][cg][cn]['cn_composition']:
+                fid.seek(self['CNBlock'][dg][cg][cn]['cn_composition'])
+                ID=MDFBlock()
+                ID=ID.mdfblockreadCHAR(fid, 4)
+                if ID in ('##CN',b'##CN'):
+                    self['CNBlock'][dg][cg][chan]=CNBlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                    self['CCBlock'][dg][cg][chan]=CCBlock(fid, self['CNBlock'][dg][cg][chan]['cn_cc_conversion'])
+                    if self['CNBlock'][dg][cg][chan]['cn_type']==5:
+                        MLSDChannels.append(chan)
+                    while self['CNBlock'][dg][cg][chan]['cn_cn_next']:
+                        chan+=1
+                        self['CNBlock'][dg][cg][chan]=CNBlock(fid, self['CNBlock'][dg][cg][chan-1]['cn_cn_next'])
+                        self['CCBlock'][dg][cg][chan]=CCBlock(fid, self['CNBlock'][dg][cg][chan]['cn_cc_conversion'])
+                        if self['CNBlock'][dg][cg][chan]['cn_type']==5:
+                            MLSDChannels.append(chan)
+                    self['CNBlock'][dg][cg][cn]['cn_type']=6 # makes the channel virtual
+                elif ID in ('##CA',b'##CA'):
+                    print('channel array composition')
+                else:
+                    print('unknown channel composition')
+        return MLSDChannels
+        
     def readSRBlock(self, fid, pointer):
         # reads Sample Reduction Blocks
         if pointer>0:
