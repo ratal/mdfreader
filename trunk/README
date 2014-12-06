@@ -1,0 +1,60 @@
+MDFREADER
+*********
+
+Abstract:
+=========
+This Module imports MDF files (Measured Data Format V3.x and V4.x), typically from INCA (ETAS), CANape or CANOe. It is widely used in automotive industry to record data from ECUs. The main module mdfreader.py inherits from 2 modules (One pair for each MDF version X) : The first one to read the file's blocks descriptions (mdfinfoX) and the second (mdfXreader) to read the raw data from the file. It can optionally run multithreaded and I am proud to say I did not see any other tool reading faster this kind of files --> makes it suitable to process big amount of data in a batch, generally data from endurance evaluation. 
+
+The structure of the mdf dictionary, for each channel: mdf[channelName]
+=======================================================================
+- data: numpy vector
+- unit: unitName
+- master : vector name corresponding to master channel
+- masterType : type of master channel (time, angle, distance, etc.)
+- description : physical meaning of channel
+- conversion: (optinal) dictionnary describing how to convert raw data in data to meaningful/physical data
+
+Mdfreader module methods:
+=========================
+- re-sample channels to one sampling frequency
+- merge files
+- plot a simple or a list of channels
+It is also possible to export mdf data into:
+- CSV file (excel dialect by default)
+- NetCDF file for a compatibility with Uniplot for instance (needs netcdf4, Scientific.IO)
+- HDF5 (needs h5py)
+- Excel 95 to 2003 (needs xlwt, really slooow, be careful about data size)
+- Excel 2007/2010 (needs openpyxl, slow if not resampled data)
+- Matlab .mat (needs scipy.io)
+- MDF 3.3 simplified file. It allows you to modify data, units, description and save it again
+- Pandas dataframe(s) (only in command line). One dataframe per raster.
+
+Compatibility:
+==============
+This code is compatible for both python 2.6-7 and python 3.2+
+Evaluated for Windows and Linux platforms (x86 and AMD64)
+
+Requirements:
+=============
+Mdfreader is mostly relying on numpy/scipy/matplotlib.
+Reading channels defined by a formula will require sympy.
+Export requirements (optional): scipy, csv, h5py, xlwt(3), openpyxl, pandas
+Mdfconverter user interface requires pyQT
+
+User interface:
+===============
+User interface in PyQT(4.6) to convert batch of files is also written. You can launch it with command "python mdfconverter.py" By right clicking a channel in the interface list, you can plot it. You can also drag-drop channels between columns to tune import list. Channel list from a .lab text file can be imported. You can optionally merge several files into one and even resample all them.
+
+Others:
+=======
+In the case of big files and lack of memory, you can optionally:
+- Read only a channel list (slightly slower, argument channelList = ['channel', 'list'])
+- Keep raw data as stored in mdf, data type conversion (mdfreader argument convertAfterRead=False). Data will then be converted on the fly by the other functions (plot, exportTo..., getChannelData, etc.) but raw data will remain as in mdf file along with conversion information.
+
+Warning:
+========
+MDF 4.x specification is much complex compared to 3.x and file reading functionality is not yet fully complete (Working on composition of channels in structure or Channel Arrays), but you should be able to import simple files.
+
+For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
+
+Can be downloaded at this `link <https://drive.google.com/open?id=0B7B2LHSheZ5qdU9HaXJBMkpQQU0&authuser=0>`_

@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
-""" Measured Data Format file reader
+""" 
+.. module:: mdfreader (Measured Data Format file reader)
+    :platform: Unix, Windows
+    :synopsis: main mdf file reader
+
 Created on Sun Oct 10 12:57:28 2010
 
-:Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
-:Version: 2014.11.30 r121
+.. Module author:: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
+:Version: 2014.12.06 r125
 
 This module contains 2 classes :
 First class mdfinfo is meant to extract all blocks in file, giving like metadata of measurement channels
@@ -24,16 +28,16 @@ Second class mdf reads file and add dict type data
 Requirements
 ------------
 
-* `Python >2.6, 3.x <http://www.python.org>`__
-* `Numpy >1.6 <http://numpy.scipy.org>`__
-* `Sympy to convert channels with formula
+- `Python >2.6, 3.x <http://www.python.org>`__
+- `Numpy >1.6 <http://numpy.scipy.org>`__
+- `Sympy to convert channels with formula
 Optionals :
-* `Matplotlib >1.0 <http://matplotlib.sourceforge.net>`__
-* 'NetCDF
-* 'h5py for the HDF5 export
-* 'xlwt for the excel export (not existing for python3)
-* 'openpyxl for the excel 2007 export
-* 'scipy for the Matlab file conversion
+- `Matplotlib >1.0 <http://matplotlib.sourceforge.net>`__
+- 'NetCDF
+- 'h5py for the HDF5 export
+- 'xlwt for the excel export (not existing for python3)
+- 'openpyxl for the excel 2007 export
+- 'scipy for the Matlab file conversion
 
 Examples
 --------
@@ -69,7 +73,19 @@ PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 
 def convertMatlabName(channel):
-    # removes non allowed characters for a matlab variable name
+    """
+    convertMatlabName(channel)
+    ==================
+    Removes non allowed characters for a matlab variable name
+    
+    Args:
+    -------
+        channel (str): channel name
+        
+    Returns:
+    ------------
+        channelName (str): channel compatible for Matlab
+    """
     if PythonVersion<3:
         channel=channel.decode('utf-8')
     channelName=channel.replace('[', '_ls_')
@@ -89,21 +105,38 @@ def convertMatlabName(channel):
 
 class mdfinfo( dict):
     """ mdf file info class
-    # MDFINFO is a class information about an MDF (Measure Data Format) file
-    #   Based on following specification http://powertrainnvh.com/nvh/MDFspecificationv03.pdf
-    #   mdfinfo(FILENAME) contains a dict of structures, for
-    #   each data group, containing key information about all channels in each
-    #   group. FILENAME is a string that specifies the name of the MDF file.
-    #
-    #       mdfinfo.readinfo(FILENAME) will process Filename file
-    #  General dictionary structure is the following :
-    #  mdfinfo['HDBlock'] header block
-    #  mdfinfo['DGBlock'][dataGroup] Data Group block
-    #  mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
-    #  mdfinfo['CNBlock'][dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
-    #  mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information"""
+    MDFINFO is a class gathering information from block headers in a MDF (Measure Data Format) file
+    Based on following specification https://code.google.com/p/mdfreader/downloads/detail?name=mdf_specification_3.3.pdf&can=2&q=
+    mdfinfo(FILENAME) contains a dict of structures for
+    each data group, containing key information about all channels
+    FILENAME is a string that specifies the name of the MDF file.
+    
+    mdfinfo.readinfo(FILENAME) will process Filename file
+    General dictionary structure is the following :
+    mdfinfo['HDBlock'] header block
+    mdfinfo['DGBlock'][dataGroup] Data Group block
+    mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
+    mdfinfo['CNBlock'][dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
+    mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information
+    
+    You can use it the following way in ipython:
+    #>>> yop=mdfreader.mdfinfo(FILENAME)
+    or if you are just interested to have only list of channels
+    #>>> yop=mdfreader.mdfinfo()
+    #>>> yop=mdfreader.listChannels(FILENAME) # returns a simple list of channel names
+    """
 
     def __init__( self, fileName = None, filterChannelNames = False ):
+        """
+        mdfinfo( fileName = None, filterChannelNames = False )
+        ==================================
+        
+        Args:
+        -------
+            fileName (str): file name
+            filterChannelNames (bool): flag to filter long channel names including module names separated by a '.'
+            
+        """
         self.fileName = fileName
         self.mdfversion = 0
         if fileName != None:
@@ -111,7 +144,17 @@ class mdfinfo( dict):
         
     ## Reads block informations inside file
     def readinfo( self, fileName = None, filterChannelNames=False ):
-        # Read MDF file and extract its complete structure
+        """
+        mdfinfo.readinfo(fileName=None, filterChannelNames=False)
+        =====================================
+        Reads MDF file and extract its complete structure
+        
+        Args:
+        -------
+            fileName (str): file name
+            filterChannelNames (bool): flag to filter long channel names including module names separated by a '.'
+        
+        """
         if self.fileName == None:
             self.fileName = fileName
         # Open file
@@ -132,7 +175,18 @@ class mdfinfo( dict):
             self.update(info4(None, fid))
 
     def listChannels( self, fileName = None ):
-        # Read MDF file and extract its complete structure
+        """ 
+        mdfinfo.listChannels(fileName=None)
+        =======================
+        Read MDF file and extract its complete structure
+        
+        Args:
+        -------
+            fileName (str): file name
+            
+        Returns:
+            list of channel names
+        """
         if self.fileName == None:
             self.fileName = fileName
         # Open file
@@ -156,18 +210,45 @@ class mdfinfo( dict):
         return nameList
 
 class mdf( mdf3,  mdf4 ):
-    """ mdf file class
-    To use : yop= mdfreader.mdf('FileName.dat')
+    """
+    mdf class
+    ======
+    How to read a mdf file : yop= mdfreader.mdf('FileName.dat')
+    
     Some additional useful methods:
     Resample : yop.resample(SamplingRate)
     plot channels : yop.plot({'ChannelName','ChannelName2'})
     export to csv file : yop.exportCSV() , specific filename can be input
     export to netcdf : yop.exportNetCDF() 
-    If using channelList argument, channels will be read record by record
-    saving memory on the detriment of performance, allowing to read big files
+
     """
     
     def __init__( self, fileName = None,  channelList=None, convertAfterRead=True, filterChannelNames=False):
+        """
+        mdf(fileName = None,  channelList=None, convertAfterRead=True, filterChannelNames=False)
+        ======
+        
+        Args:
+        -------
+            fileName (str): file name
+            
+            channelList (list): list of channel names to be read
+            If you use channelList, reading might be much slower but it will save you memory. Can be used to read big files
+            
+            convertAfterRead (bool): flag to convert channel after read, True by default
+            If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
+            If many float are stored in file, you can gain from 3 to 4 times memory footprint
+            To calculate value from channel, you can then use method .getChannelData()
+            
+            filterChannelNames (bool): flag to filter long channel names from its module names separated by '.'
+            
+        .. note::
+            if you keep convertAfterRead to true, you can set attribute mdf.multiProc to activate channel conversion in multiprocessing.
+            Gain in reading time can be around 30% if file is big and using a lot of float channels
+            Warning: MultiProc use should be avoided when reading several files in a batch, it is not thread safe.
+            You should better multi process instances of mdf rather than using multiproc in mdf class (see implementation of mdfconverter)
+            
+        """
         self.fileName = None
         self.VersionNumber=None
         self.masterChannelList = {}
@@ -187,7 +268,26 @@ class mdf( mdf3,  mdf4 ):
 
     ## reads mdf file
     def read( self, fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False):
-        # read mdf file
+        """ 
+        mdf.read(fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False)
+        =======================================================================
+        reads mdf file
+        
+        Args:
+        -------
+            fileName (str): file name
+            
+            channelList (list): list of channel names to be read
+            If you use channelList, reading might be much slower but it will save you memory. Can be used to read big files
+            
+            convertAfterRead (bool): flag to convert channel after read, True by default
+            If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
+            If many float are stored in file, you can gain from 3 to 4 times memory footprint
+            To calculate value from channel, you can then use method .getChannelData()
+            
+            filterChannelNames (bool): flag to filter long channel names from its module names separated by '.'
+        
+        """
         if self.fileName == None:
             self.fileName = fileName
         
@@ -203,7 +303,17 @@ class mdf( mdf3,  mdf4 ):
             self.read4(self.fileName, info, multiProc, channelList, convertAfterRead)
     
     def write(self, fileName=None):
-        #write mdf
+        """
+        mdf.write(fileName=None)
+        ================
+        Writes mdf 3.0 file
+        
+        Args:
+        -------
+            fileName (str): file name
+            If file name is not input, written file name will be the one read with appended '_new' string before extension
+        
+        """
         if fileName is None:
             splitName=splitext(self.fileName)
             self.fileName=splitName[-2]+'_New'+splitName[-1]
@@ -214,22 +324,68 @@ class mdf( mdf3,  mdf4 ):
         self.write3(fileName=self.fileName)
 
     def getChannelData(self, channelName):
+        """
+        mdf.getChannelData(channelName)
+        ======================
+        
+        Args:
+        -------
+            channelName (str): channel name
+            
+        returns:
+        -----------
+            data: converted, if not already done, data corresponding to channel name
+            This is safest method to get channel data as numpy array from 'data' key might contain raw data
+        
+        """
         if self.VersionNumber<400:
             return self.getChannelData3(channelName)
         else:
             return self.getChannelData4(channelName)
     
     def convertAllChannel(self):
+        """
+        mdf.convertAllChannel()
+        ======================
+        Converts all channels from raw data to converted data.
+        Converted data will take more memory.
+        """
         if self.VersionNumber<400:
             return self.convertAllChannel3()
         else:
             return self.convertAllChannel4()
     
     def getChannelUnit(self, channelName):
-        # return channel unit
+        """
+        mdf.getChannelUnit()
+        ======================
+        Returns channel unit string
+        
+        Args:
+        -------
+            channelName (str): channel name
+            
+        returns:
+        -----------
+            unit (str): unit string description
+            Implemented for a future integration of pint
+        """
         return self[channelName]['unit']
 
     def plot( self, channels ):
+        """
+        mdf.plot(channels)
+        ======================
+        Returns channel unit string
+        
+        Args:
+        -------
+            channels (str of list of strings): channel name or list of channel names
+            
+        .. note:
+            description and unit will be tentatively displayed with axis labels
+            
+        """
         try:
             import matplotlib.pyplot as plt
         except:
@@ -279,10 +435,26 @@ class mdf( mdf3,  mdf4 ):
                 print( Name )
 
     def resample( self, samplingTime = 0.1, masterChannel=None ):
-        """ Resamples mdf channels inside object to a single master channel
-        You can specify resampling time, like 0.1sec (default) or 100m
-        You can also apply one master channel to all the other datagroups by specifying
-        argument masterChannel= 'NameOfMasterChannel'
+        """ 
+        mdf.resample(samplingTime = 0.1, masterChannel=None)
+        ===================================
+        
+        Args:
+        -------
+            samplingTime (float): resampling interval
+            **or**
+            masterChannel (str): master channel name used for all channels
+        
+        .. note:
+        1. resampling is relatively safe for mdf3 as it contains only time series.
+        However, mdf4 can contain also distance, angle, etc. It might make not sense 
+        to apply one resampling to several data groups that do not share same kind 
+        of master channel (like time resampling to distance or angle data groups)
+        If several kind of data groups are used, you should better use pandas to resample
+        
+        2. resampling will convert all your channels so be careful for big files
+        and memory consumption
+        
         """
         # must make sure all channels are converted
         self.convertAllChannel()
