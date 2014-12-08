@@ -3,6 +3,7 @@
 .. module:: mdfreader (Measured Data Format file reader)
     :platform: Unix, Windows
     :synopsis: main mdf file reader
+    :python versions: python 2.6+ and 3.2+
 
 Created on Sun Oct 10 12:57:28 2010
 
@@ -28,7 +29,7 @@ Second class mdf reads file and add dict type data
 Requirements
 ------------
 
-- `Python >2.6, 3.x <http://www.python.org>`__
+- `Python >2.6, >3.2 <http://www.python.org>`__
 - `Numpy >1.6 <http://numpy.scipy.org>`__
 - `Sympy to convert channels with formula
 Optionals :
@@ -185,6 +186,7 @@ class mdfinfo( dict):
             fileName (str): file name
             
         Returns:
+        ------------
             list of channel names
         """
         if self.fileName == None:
@@ -382,7 +384,7 @@ class mdf( mdf3,  mdf4 ):
         -------
             channels (str of list of strings): channel name or list of channel names
             
-        .. note:
+        .. note::
             description and unit will be tentatively displayed with axis labels
             
         """
@@ -445,7 +447,7 @@ class mdf( mdf3,  mdf4 ):
             **or**
             masterChannel (str): master channel name used for all channels
         
-        .. note:
+        .. note::
         1. resampling is relatively safe for mdf3 as it contains only time series.
         However, mdf4 can contain also distance, angle, etc. It might make not sense 
         to apply one resampling to several data groups that do not share same kind 
@@ -510,9 +512,24 @@ class mdf( mdf3,  mdf4 ):
             print('Already resampled')
 
     def exportToCSV( self, filename = None, sampling = 0.1 ):
-        # Export mdf file into csv
-        # If no name defined, it will use original mdf name and path
-        # By default, sampling is 0.1sec but can be changed
+        """
+        mdf.exportToCSV(filename=None, sampling=0.1)
+        =================
+        Exports mdf data into csv
+        
+        Args:
+        -------
+            filename (str): file name
+            If no name defined, it will use original mdf name and path
+            
+            sampling (float): sampling interval
+            By default, sampling is 0.1sec but can be changed
+            
+        .. note::
+            Data saved in CSV fille be automatically resampled as it is difficult to save in this format
+            data not sharing same master channel
+            Warning: this can be slow for big data, CSV is text format after all
+        """
         import csv
         self.resample( sampling )
         if filename == None:
@@ -535,7 +552,22 @@ class mdf( mdf3,  mdf4 ):
         f.close()
 
     def exportToNetCDF( self, filename = None, sampling = None ):
-        # Export mdf file into netcdf file
+        """
+        mdf.exportToNetCDF(filename=None, sampling=None)
+        =================
+        Exports mdf data into netcdf file
+        
+        Args:
+        -------
+            filename (str): file name
+            If no name defined, it will use original mdf name and path
+            
+            sampling (float): sampling interval
+            Not probationnary
+            
+        .. Dependency::
+            scipy
+        """
         try:
             from scipy.io import netcdf
         except:
@@ -607,7 +639,23 @@ class mdf( mdf3,  mdf4 ):
         f.close()
 
     def exportToHDF5( self, filename = None, sampling = None ):
-        # export class data structure into hdf5 file
+        """
+        mdf.exportToHDF5(filename=None, sampling=None)
+        =================
+        Exports mdf class data structure into hdf5 file
+        
+        Args:
+        -------
+            filename (str): file name
+            If no name defined, it will use original mdf name and path
+            
+            sampling (float): sampling interval
+            Not probationnary
+            
+        .. Dependency::
+            h5py
+        """
+        # 
         try:
             import h5py
             import os
@@ -651,6 +699,27 @@ class mdf( mdf3,  mdf4 ):
         f.close()
 
     def exportToMatlab( self, filename = None ):
+        """
+        mdf.exportToMatlab(filename=None)
+        =================
+        Export mdf data into Matlab file format 5, tentatively compressed
+        
+        Args:
+        -------
+            filename (str): file name
+            If no name defined, it will use original mdf name and path
+            
+            sampling (float): sampling interval
+            Not probationnary
+            
+        .. Dependency::
+            scipy
+            
+        .. note::
+            This method will dump all data into Matlab file but you will loose below information:
+                - unit and descriptions of channel
+                - data structure, what is corresponding master channel to a channel.
+        """
         # export class data struture into .mat file
         try:
             from scipy.io import savemat
@@ -673,9 +742,25 @@ class mdf( mdf3,  mdf4 ):
             savemat( filename , temp, long_field_names = True,format='5')
 
     def exportToExcel( self , filename = None ):
-        # export to excel 95 to 2003
-        # currently xlwt is not supporting python 3.x
-        # finally long to process, to be multiprocessed
+        """
+        mdf.exportToExcel(filename=None)
+        =================
+        Export mdf data into excel 95 to 2003 file
+        
+        Args:
+        -------
+            filename (str): file name
+            If no name defined, it will use original mdf name and path
+            
+        .. Dependency::
+            xlwt for python 2.6+
+            xlwt3 for python 3.2+
+            
+        .. Note::
+            xlwt is not fast for even for small files, consider other binary formats like HDF5 or Matlab
+            If there are more than 256 channels, data will be saved over different worksheets
+            Also Excel 203 is becoming rare these days
+        """
         try:
             if PythonVersion<3:
                 import xlwt
@@ -736,9 +821,22 @@ class mdf( mdf3,  mdf4 ):
             print( tooLongChannels )
 
     def exportToXlsx(self, filename=None):
-        # export to excel 2007&2010
-        # requires openpyxl
-        # It is recommended to export resampled data for performances
+        """
+        mdf.exportToXlsx(filename=None)
+        =================
+        Export mdf data into excel 2007 and 2010 file
+        
+        Args:
+        -------
+            filename (str): file name
+            If no name defined, it will use original mdf name and path
+            
+        .. Dependency::
+            openpyxl
+            
+        .. Note::
+            It is recommended to export resampled data for performances
+        """
         try:
             import openpyxl
         except:
@@ -802,19 +900,36 @@ class mdf( mdf3,  mdf4 ):
         wb.save(filename)
 
     def keepChannels(self, channelList):
-        # keep only list of channels and removes the rest
+        """
+        mdf.keepChannels(channelList)
+        =================
+        keep only list of channels and removes the rest
+        
+        Args:
+        -------
+            channelList (list of str): list of channel names
+
+        """
         channelList=[channel for channel in channelList]
         removeChannels=[]
         for channel in list(self.keys()):
             if channel not in channelList and not 'master' in channel and channel not in list(self.masterChannelList.keys()) :
-                # avoid to remove time channels otherwise problems with resample
+                # avoid to remove master channels otherwise problems with resample
                 removeChannels.append(channel)
         if not len(removeChannels)==0:
             [self.masterChannelList[self[channel]['master']].remove(channel) for channel in removeChannels]
             [self.pop(channel) for channel in removeChannels]
 
     def copy(self):
-        # copy a mdf class
+        """
+        mdf.copy()
+        =================
+        copy a mdf class
+            
+        Returns:
+        ------------
+            copy of a mdf class
+        """
         yop=mdf()
         yop.multiProc=self.multiProc
         yop.fileName=self.fileName
@@ -824,9 +939,19 @@ class mdf( mdf3,  mdf4 ):
         return yop
 
     def mergeMdf(self, mdfClass):
-        # merges data of 2 mdf classes
-        # both must have been ressampled, otherwise, impossible to know time vector to match
-        # create union of both lists
+        """
+        mdf.mergeMdf(mdfClass)
+        =================
+        merges data of 2 mdf classes
+        
+        Args:
+        -------
+            mdfClass (mdf): mdf class instance to be merge with
+            
+        .. Note::
+            both must have been resampled, otherwise, impossible to know master channel to match
+            create union of both channel lists
+        """
         self.convertAllChannel() # make sure all channels are converted
         unionedList=list(mdfClass.keys()) and list(self.keys())
         if not len(list(self.masterChannelList.keys()))==1:
@@ -853,7 +978,20 @@ class mdf( mdf3,  mdf4 ):
                 refill.fill(nan) # fill with NANs
                 self[channel]['data']=hstack((data, refill))
 
-    def convertToPandas(self, merging=False, sampling=None):
+    def convertToPandas(self, sampling=None):
+        """
+        mdf.convertToPandas(sampling=None)
+        =================
+        converts mdf data structure into pandas dataframe(s)
+        
+        Args:
+        -------
+            sampling (float): optional resampling interval
+            
+        .. Note::
+            One pandas dataframe is converted per data group
+            Not adapted yet for mdf4 as it considers only time master channels
+        """
         # convert data structure into pandas module
         try:
             import pandas as pd
