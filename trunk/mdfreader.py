@@ -1,63 +1,35 @@
 # -*- coding: utf-8 -*-
-""" 
-.. module:: mdfreader (Measured Data Format file reader)
-    :platform: Unix, Windows
-    :synopsis: main mdf file reader
-    :python versions: python 2.6+ and 3.2+
+""" Measured Data Format file reader main module
+
+Platform and python version
+----------------------------------------
+With Unix and Windows for python 2.6+ and 3.2+
+
+Author
+---------
+Aymeric Rateau <http://code.google.com/p/mdfreader/>
 
 Created on Sun Oct 10 12:57:28 2010
 
-.. Module author:: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
-:Version: 2014.12.06 r125
+Dependencies
+-------------------
+- Python >2.6, >3.2 <http://www.python.org>
+- Numpy >1.6 <http://numpy.scipy.org>
+- Sympy to convert channels with formula
+- Matplotlib >1.0 <http://matplotlib.sourceforge.net>
+- NetCDF
+- h5py for the HDF5 export
+- xlwt for the excel export (not existing for python3)
+- openpyxl for the excel 2007 export
+- scipy for the Matlab file conversion
 
-This module contains 2 classes :
-First class mdfinfo is meant to extract all blocks in file, giving like metadata of measurement channels
-    Method read() will read file and add in the class all Blocks info as defined in MDF specification
-    "Format Specification MDF Format Version 3.0", 14/11/2002
-
-Second class mdf reads file and add dict type data
-    Each channel is identified by its name the dict key.
-    At a higher level this dict contains other keys :
-        'data' : containing vector of data (numpy)
-        'unit' : unit (string)
-        'master' : master channel of channel (time, crank angle, etc.)
-        'description' : Description of channel
-
-    Method plot('channelName') will plot the channel versus corresponding time
-    Method resample(samplingTime) will resample all channels by interpolation and make only one master channel
-
-Requirements
-------------
-
-- `Python >2.6, >3.2 <http://www.python.org>`__
-- `Numpy >1.6 <http://numpy.scipy.org>`__
-- `Sympy to convert channels with formula
-Optionals :
-- `Matplotlib >1.0 <http://matplotlib.sourceforge.net>`__
-- 'NetCDF
-- 'h5py for the HDF5 export
-- 'xlwt for the excel export (not existing for python3)
-- 'openpyxl for the excel 2007 export
-- 'scipy for the Matlab file conversion
-
-Examples
---------
->>> import mdfreader
->>> yop=mdfreader.mdf('NameOfFile')
->>> yop.keys() # list channels names
->>> yop.masterChannelList() # list channels grouped by raster
->>> yop.plot('channelName')
->>> yop.resample(0.1) or yop.resample(channelName='master3')
->>> yop.exportoCSV(sampling=0.01)
->>> yop.exportNetCDF()
->>> yop.exporttoHDF5()
->>> yop.exporttoMatlab()
->>> yop.exporttoExcel()
->>> yop.exporttoXlsx()
->>> yop.convertToPandas()
->>> yop.keepChannels(ChannelListToKeep)
->>> yop.getChannelData('channelName') # returns numpy array
-
+Attributes
+--------------
+PythonVersion : float
+    Python version currently running, needed for compatibility of both python 2.6+ and 3.2+
+    
+mdfreader module
+--------------------------
 """
 from io import open
 from struct import unpack
@@ -74,18 +46,17 @@ PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 
 def convertMatlabName(channel):
-    """
-    convertMatlabName(channel)
-    ==================
-    Removes non allowed characters for a matlab variable name
+    """Removes non allowed characters for a Matlab variable name
     
-    Args:
-    -------
-        channel (str): channel name
+    Parameters
+    -----------------
+    channel : string
+        channel name
         
-    Returns:
-    ------------
-        channelName (str): channel compatible for Matlab
+    Returns
+    -----------
+    string
+        channel name compatible for Matlab
     """
     if PythonVersion<3:
         channel=channel.decode('utf-8')
@@ -105,38 +76,48 @@ def convertMatlabName(channel):
     return channelName
 
 class mdfinfo( dict):
-    """ mdf file info class
-    MDFINFO is a class gathering information from block headers in a MDF (Measure Data Format) file
-    Based on following specification https://code.google.com/p/mdfreader/downloads/detail?name=mdf_specification_3.3.pdf&can=2&q=
-    mdfinfo(FILENAME) contains a dict of structures for
-    each data group, containing key information about all channels
-    FILENAME is a string that specifies the name of the MDF file.
+    """MDFINFO is a class gathering information from block headers in a MDF (Measure Data Format) file
+        Structure: nested dicts. Primary key is Block type, then data group, channel group and channel number.
+        Examples of dicts:
+    - mdfinfo['HDBlock'] header block
+    - mdfinfo['DGBlock'][dataGroup] Data Group block
+    - mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
+    - mdfinfo['CNBlock'][dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
+    - mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information
     
-    mdfinfo.readinfo(FILENAME) will process Filename file
-    General dictionary structure is the following :
-    mdfinfo['HDBlock'] header block
-    mdfinfo['DGBlock'][dataGroup] Data Group block
-    mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
-    mdfinfo['CNBlock'][dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
-    mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information
+    Attributes
+    --------------
+    fileName : str
+        file name
+    mdfversion : int
+        mdf file version number
+        
+    Methods
+    ------------
+    readinfo( fileName = None, filterChannelNames=False )
+        Reads MDF file and extracts its complete structure
+    listChannels( fileName = None )
+        Read MDF file blocks and returns a list of contained channels
     
-    You can use it the following way in ipython:
-    #>>> yop=mdfreader.mdfinfo(FILENAME)
+    Examples
+    --------------
+    >>> import mdfreader
+    >>> FILENAME='toto.dat'
+    >>> yop=mdfreader.mdfinfo(FILENAME)
     or if you are just interested to have only list of channels
-    #>>> yop=mdfreader.mdfinfo()
-    #>>> yop=mdfreader.listChannels(FILENAME) # returns a simple list of channel names
+    >>> yop=mdfreader.mdfinfo() # creates new instance f mdfinfo class
+    >>> yop=mdfreader.listChannels(FILENAME) # returns a simple list of channel names
     """
 
     def __init__( self, fileName = None, filterChannelNames = False ):
-        """
-        mdfinfo( fileName = None, filterChannelNames = False )
-        ==================================
+        """ You can give optionally to constructor a file name that will be parsed
         
-        Args:
-        -------
-            fileName (str): file name
-            filterChannelNames (bool): flag to filter long channel names including module names separated by a '.'
-            
+        Parameters
+        ----------------
+        fileName : str, optional
+            file name
+        filterChannelNames : bool, optional
+            flag to filter long channel names including module names separated by a '.'
         """
         self.fileName = fileName
         self.mdfversion = 0
@@ -145,16 +126,14 @@ class mdfinfo( dict):
         
     ## Reads block informations inside file
     def readinfo( self, fileName = None, filterChannelNames=False ):
-        """
-        mdfinfo.readinfo(fileName=None, filterChannelNames=False)
-        =====================================
-        Reads MDF file and extract its complete structure
+        """ Reads MDF file and extracts its complete structure
         
-        Args:
-        -------
-            fileName (str): file name
-            filterChannelNames (bool): flag to filter long channel names including module names separated by a '.'
-        
+        Parameters
+        ----------------
+        fileName : str, optional
+            file name. If not input, uses fileName attribute
+        filterChannelNames : bool, optional
+            flag to filter long channel names including module names separated by a '.'
         """
         if self.fileName == None:
             self.fileName = fileName
@@ -176,17 +155,16 @@ class mdfinfo( dict):
             self.update(info4(None, fid))
 
     def listChannels( self, fileName = None ):
-        """ 
-        mdfinfo.listChannels(fileName=None)
-        =======================
-        Read MDF file and extract its complete structure
+        """ Read MDF file blocks and returns a list of contained channels
         
-        Args:
-        -------
-            fileName (str): file name
+        Parameters
+        ----------------
+        fileName : string
+            file name
             
-        Returns:
-        ------------
+        Returns
+        -----------
+        nameList : list of string
             list of channel names
         """
         if self.fileName == None:
@@ -212,44 +190,117 @@ class mdfinfo( dict):
         return nameList
 
 class mdf( mdf3,  mdf4 ):
-    """
-    mdf class
-    ======
-    How to read a mdf file : yop= mdfreader.mdf('FileName.dat')
+    """ mdf class
     
-    Some additional useful methods:
-    Resample : yop.resample(SamplingRate)
-    plot channels : yop.plot({'ChannelName','ChannelName2'})
-    export to csv file : yop.exportCSV() , specific filename can be input
-    export to netcdf : yop.exportNetCDF() 
-
+    Attributes
+    --------------
+    fileName : str
+        file name
+    VersionNumber : int
+        mdf file version number
+    masterChannelList : dict
+        Represents data structure: a key per master channel with corresponding value containing a list of channels
+        One key or master channel represents then a data group having same sampling interval.
+    multiProc : bool
+        Flag to request channel conversion multi processed for performance improvement.
+        One thread per data group.
+    author : str
+    organisation : str
+    project : str
+    subject : str
+    comment : str
+    time : str
+    date : str
+    
+    Methods
+    ------------
+    read( fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False )
+        reads mdf file version 3.x and 4.x
+    write( fileName=None )
+        writes simple mdf 3.3 file
+    getChannelData( channelName )
+        returns channel numpy array
+    convertAllChannel()
+        converts all channel data according to CCBlock information
+    getChannelUnit( channelName )
+        returns channel unit
+    plot( channels )
+        Plot channels with Matplotlib
+    resample( samplingTime = 0.1, masterChannel=None )
+        Resamples all data groups
+    exportToCSV( filename = None, sampling = 0.1 )
+        Exports mdf data into CSV file
+    exportToNetCDF( filename = None, sampling = None )
+        Exports mdf data into netcdf file
+    exportToHDF5( filename = None, sampling = None )
+        Exports mdf class data structure into hdf5 file
+    exportToMatlab( filename = None )
+        Exports mdf class data structure into Matlab file
+    exportToExcel( filename = None )
+        Exports mdf data into excel 95 to 2003 file
+    exportToXlsx( filename=None )
+        Exports mdf data into excel 2007 and 2010 file
+    convertToPandas( sampling=None )
+        converts mdf data structure into pandas dataframe(s)
+    keepChannels( channelList )
+        keeps only list of channels and removes the other channels
+    mergeMdf( mdfClass ):
+        Merges data of 2 mdf classes
+    copy()
+        copy a mdf class
+    
+    Notes
+    --------
+    mdf class is a nested dict
+    Channel name is the primary dict key of mdf class
+    At a higher level, each channel includes the following keys :
+        - 'data' : containing vector of data (numpy)
+        - 'unit' : unit (string)
+        - 'master' : master channel of channel (time, crank angle, etc.)
+        - 'description' : Description of channel
+        - 'conversion': mdfinfo nested dict for CCBlock.
+            Exist if channel not converted, used to convert with getChannelData method
+    
+    Examples
+    --------------
+    >>> import mdfreader
+    >>> yop=mdfreader.mdf('NameOfFile')
+    >>> yop.keys() # list channels names
+    >>> yop.masterChannelList() # list channels grouped by raster or master channel
+    >>> yop.plot('channelName') or yop.plot({'channel1','channel2'})
+    >>> yop.resample(0.1) or yop.resample(channelName='master3')
+    >>> yop.exportoCSV(sampling=0.01)
+    >>> yop.exportNetCDF()
+    >>> yop.exporttoHDF5()
+    >>> yop.exporttoMatlab()
+    >>> yop.exporttoExcel()
+    >>> yop.exporttoXlsx()
+    >>> yop.convertToPandas() # converts data groups into pandas dataframes
+    >>> yop.keepChannels({'channel1','channel2','channel3'}) # drops all the channels except the one in argument
+    >>> yop.getChannelData('channelName') # returns channel numpy array
     """
     
     def __init__( self, fileName = None,  channelList=None, convertAfterRead=True, filterChannelNames=False):
-        """
-        mdf(fileName = None,  channelList=None, convertAfterRead=True, filterChannelNames=False)
-        ======
+        """ mdf class constructor.
+        When mdf class is constructed, constructor can be called to directly reads file
         
-        Args:
-        -------
-            fileName (str): file name
-            
-            channelList (list): list of channel names to be read
+        Parameters
+        ----------------
+        fileName : str, optional
+            file name
+        
+        channelList : list of str, optional
+            list of channel names to be read
             If you use channelList, reading might be much slower but it will save you memory. Can be used to read big files
-            
-            convertAfterRead (bool): flag to convert channel after read, True by default
+        
+        convertAfterRead : bool, optional
+            flag to convert channel after read, True by default
             If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
             
-            filterChannelNames (bool): flag to filter long channel names from its module names separated by '.'
-            
-        .. note::
-            if you keep convertAfterRead to true, you can set attribute mdf.multiProc to activate channel conversion in multiprocessing.
-            Gain in reading time can be around 30% if file is big and using a lot of float channels
-            Warning: MultiProc use should be avoided when reading several files in a batch, it is not thread safe.
-            You should better multi process instances of mdf rather than using multiproc in mdf class (see implementation of mdfconverter)
-            
+        filterChannelNames : bool, optional
+            flag to filter long channel names from its module names separated by '.'
         """
         self.fileName = None
         self.VersionNumber=None
@@ -268,27 +319,36 @@ class mdf( mdf3,  mdf4 ):
             self.read( fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames )
             self.fileName=fileName
 
-    ## reads mdf file
     def read( self, fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False):
-        """ 
-        mdf.read(fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False)
-        =======================================================================
-        reads mdf file
+        """ reads mdf file version 3.x and 4.x
         
-        Args:
-        -------
-            fileName (str): file name
-            
-            channelList (list): list of channel names to be read
+        Parameters
+        ----------------
+        fileName : str, optional
+            file name
+        
+        channelList : list of str, optional
+            list of channel names to be read
             If you use channelList, reading might be much slower but it will save you memory. Can be used to read big files
-            
-            convertAfterRead (bool): flag to convert channel after read, True by default
+        
+        convertAfterRead : bool, optional
+            flag to convert channel after read, True by default
             If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
             
-            filterChannelNames (bool): flag to filter long channel names from its module names separated by '.'
+        filterChannelNames : bool, optional
+            flag to filter long channel names from its module names separated by '.'
         
+        Notes
+        --------
+        If you keep convertAfterRead to true, you can set attribute mdf.multiProc to activate channel conversion in multiprocessing.
+        Gain in reading time can be around 30% if file is big and using a lot of float channels
+        
+        Warning:
+        ------------
+        MultiProc use should be avoided when reading several files in a batch, it is not thread safe.
+        You should better multi process instances of mdf rather than using multiproc in mdf class (see implementation of mdfconverter)
         """
         if self.fileName == None:
             self.fileName = fileName
@@ -305,16 +365,17 @@ class mdf( mdf3,  mdf4 ):
             self.read4(self.fileName, info, multiProc, channelList, convertAfterRead)
     
     def write(self, fileName=None):
-        """
-        mdf.write(fileName=None)
-        ================
-        Writes mdf 3.0 file
+        """Writes simple mdf 3.3 file
         
-        Args:
-        -------
-            fileName (str): file name
+        Parameters
+        ----------------
+        fileName : str, optional
+            Name of file
             If file name is not input, written file name will be the one read with appended '_new' string before extension
         
+        Notes
+        --------
+        All channels will be converted, so size might be bigger than original file
         """
         if fileName is None:
             splitName=splitext(self.fileName)
@@ -326,19 +387,21 @@ class mdf( mdf3,  mdf4 ):
         self.write3(fileName=self.fileName)
 
     def getChannelData(self, channelName):
-        """
-        mdf.getChannelData(channelName)
-        ======================
+        """Return channel numpy array
         
-        Args:
-        -------
-            channelName (str): channel name
+        Parameters
+        ----------------
+        channelName : str
+            channel name
             
-        returns:
+        Returns:
         -----------
-            data: converted, if not already done, data corresponding to channel name
-            This is safest method to get channel data as numpy array from 'data' key might contain raw data
+        numpy array
+            converted, if not already done, data corresponding to channel name
         
+        Notes
+        ------
+        This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if self.VersionNumber<400:
             return self.getChannelData3(channelName)
@@ -346,10 +409,7 @@ class mdf( mdf3,  mdf4 ):
             return self.getChannelData4(channelName)
     
     def convertAllChannel(self):
-        """
-        mdf.convertAllChannel()
-        ======================
-        Converts all channels from raw data to converted data.
+        """Converts all channels from raw data to converted data according to CCBlock information
         Converted data will take more memory.
         """
         if self.VersionNumber<400:
@@ -358,35 +418,32 @@ class mdf( mdf3,  mdf4 ):
             return self.convertAllChannel4()
     
     def getChannelUnit(self, channelName):
-        """
-        mdf.getChannelUnit()
-        ======================
-        Returns channel unit string
+        """Returns channel unit string
+        Implemented for a future integration of pint
         
-        Args:
-        -------
-            channelName (str): channel name
+        Parameters
+        ----------------
+        channelName : str
+            channel name
             
-        returns:
+        Returns
         -----------
-            unit (str): unit string description
-            Implemented for a future integration of pint
+        str
+            unit string description
         """
         return self[channelName]['unit']
 
     def plot( self, channels ):
-        """
-        mdf.plot(channels)
-        ======================
-        Returns channel unit string
+        """Plot channels with Matplotlib
         
-        Args:
-        -------
-            channels (str of list of strings): channel name or list of channel names
+        Parameters
+        ----------------
+        channels : str or list of str
+            channel name or list of channel names
             
-        .. note::
-            description and unit will be tentatively displayed with axis labels
-            
+        Notes
+        ---------
+        Channel description and unit will be tentatively displayed with axis labels
         """
         try:
             import matplotlib.pyplot as plt
@@ -437,17 +494,19 @@ class mdf( mdf3,  mdf4 ):
                 print( Name )
 
     def resample( self, samplingTime = 0.1, masterChannel=None ):
-        """ 
-        mdf.resample(samplingTime = 0.1, masterChannel=None)
-        ===================================
+        """ Resamples all data groups into one data group having defined
+        sampling interval or sharing same master channel
         
-        Args:
-        -------
-            samplingTime (float): resampling interval
-            **or**
-            masterChannel (str): master channel name used for all channels
+        Parameters
+        ----------------
+        samplingTime : float
+            resampling interval
+        **or**
+        masterChannel : str
+            master channel name used for all channels
         
-        .. note::
+        Notes
+        --------
         1. resampling is relatively safe for mdf3 as it contains only time series.
         However, mdf4 can contain also distance, angle, etc. It might make not sense 
         to apply one resampling to several data groups that do not share same kind 
@@ -456,7 +515,6 @@ class mdf( mdf3,  mdf4 ):
         
         2. resampling will convert all your channels so be careful for big files
         and memory consumption
-        
         """
         # must make sure all channels are converted
         self.convertAllChannel()
@@ -512,23 +570,21 @@ class mdf( mdf3,  mdf4 ):
             print('Already resampled')
 
     def exportToCSV( self, filename = None, sampling = 0.1 ):
-        """
-        mdf.exportToCSV(filename=None, sampling=0.1)
-        =================
-        Exports mdf data into csv
+        """Exports mdf data into CSV file
         
-        Args:
-        -------
-            filename (str): file name
-            If no name defined, it will use original mdf name and path
+        Parameters
+        ----------------
+        filename : str, optional
+            file name. If no name defined, it will use original mdf name and path
+        
+        sampling : float, optional
+            sampling interval. By default, sampling is 0.1sec but can be changed
             
-            sampling (float): sampling interval
-            By default, sampling is 0.1sec but can be changed
-            
-        .. note::
-            Data saved in CSV fille be automatically resampled as it is difficult to save in this format
-            data not sharing same master channel
-            Warning: this can be slow for big data, CSV is text format after all
+        Notes
+        --------
+        Data saved in CSV fille be automatically resampled as it is difficult to save in this format
+        data not sharing same master channel
+        Warning: this can be slow for big data, CSV is text format after all
         """
         import csv
         self.resample( sampling )
@@ -552,21 +608,19 @@ class mdf( mdf3,  mdf4 ):
         f.close()
 
     def exportToNetCDF( self, filename = None, sampling = None ):
-        """
-        mdf.exportToNetCDF(filename=None, sampling=None)
-        =================
-        Exports mdf data into netcdf file
+        """Exports mdf data into netcdf file
         
-        Args:
-        -------
-            filename (str): file name
-            If no name defined, it will use original mdf name and path
+        Parameters
+        ----------------
+        filename : str, optional
+            file name. If no name defined, it will use original mdf name and path
+        
+        sampling : float, optional
+            sampling interval.
             
-            sampling (float): sampling interval
-            Not probationnary
-            
-        .. Dependency::
-            scipy
+        Dependency
+        -----------------
+        scipy
         """
         try:
             from scipy.io import netcdf
@@ -639,21 +693,24 @@ class mdf( mdf3,  mdf4 ):
         f.close()
 
     def exportToHDF5( self, filename = None, sampling = None ):
-        """
-        mdf.exportToHDF5(filename=None, sampling=None)
-        =================
-        Exports mdf class data structure into hdf5 file
+        """Exports mdf class data structure into hdf5 file
         
-        Args:
-        -------
-            filename (str): file name
-            If no name defined, it will use original mdf name and path
+        Parameters
+        ----------------
+        filename : str, optional
+            file name. If no name defined, it will use original mdf name and path
             
-            sampling (float): sampling interval
-            Not probationnary
+        sampling : float, optional
+            sampling interval.
             
-        .. Dependency::
-            h5py
+        Dependency
+        ------------------
+        h5py
+        
+        Notes
+        --------
+        The maximum attributes will be stored
+        Data structure will be similar has it is in masterChannelList attribute
         """
         # 
         try:
@@ -699,26 +756,22 @@ class mdf( mdf3,  mdf4 ):
         f.close()
 
     def exportToMatlab( self, filename = None ):
-        """
-        mdf.exportToMatlab(filename=None)
-        =================
-        Export mdf data into Matlab file format 5, tentatively compressed
+        """Export mdf data into Matlab file format 5, tentatively compressed
         
-        Args:
-        -------
-            filename (str): file name
-            If no name defined, it will use original mdf name and path
+        Parameters
+        ----------------
+        filename : str, optional
+            file name. If no name defined, it will use original mdf name and path
             
-            sampling (float): sampling interval
-            Not probationnary
+        Dependency
+        ------------------
+        scipy
             
-        .. Dependency::
-            scipy
-            
-        .. note::
-            This method will dump all data into Matlab file but you will loose below information:
-                - unit and descriptions of channel
-                - data structure, what is corresponding master channel to a channel.
+        Notes
+        --------
+        This method will dump all data into Matlab file but you will loose below information:
+        - unit and descriptions of channel
+        - data structure, what is corresponding master channel to a channel. Channels might have then different lengths
         """
         # export class data struture into .mat file
         try:
@@ -742,24 +795,23 @@ class mdf( mdf3,  mdf4 ):
             savemat( filename , temp, long_field_names = True,format='5')
 
     def exportToExcel( self , filename = None ):
-        """
-        mdf.exportToExcel(filename=None)
-        =================
-        Export mdf data into excel 95 to 2003 file
+        """Exports mdf data into excel 95 to 2003 file
         
-        Args:
-        -------
-            filename (str): file name
-            If no name defined, it will use original mdf name and path
+        Parameters
+        ----------------
+        filename : str, optional
+            file name. If no name defined, it will use original mdf name and path
             
-        .. Dependency::
-            xlwt for python 2.6+
-            xlwt3 for python 3.2+
+        Dependencies
+        --------------------
+        xlwt for python 2.6+
+        xlwt3 for python 3.2+
             
-        .. Note::
-            xlwt is not fast for even for small files, consider other binary formats like HDF5 or Matlab
-            If there are more than 256 channels, data will be saved over different worksheets
-            Also Excel 203 is becoming rare these days
+        Notes
+        --------
+        xlwt is not fast for even for small files, consider other binary formats like HDF5 or Matlab
+        If there are more than 256 channels, data will be saved over different worksheets
+        Also Excel 203 is becoming rare these days
         """
         try:
             if PythonVersion<3:
@@ -821,21 +873,20 @@ class mdf( mdf3,  mdf4 ):
             print( tooLongChannels )
 
     def exportToXlsx(self, filename=None):
-        """
-        mdf.exportToXlsx(filename=None)
-        =================
-        Export mdf data into excel 2007 and 2010 file
+        """Exports mdf data into excel 2007 and 2010 file
         
-        Args:
-        -------
-            filename (str): file name
-            If no name defined, it will use original mdf name and path
+        Parameters
+        ----------------
+        filename : str, optional
+            file name. If no name defined, it will use original mdf name and path
             
-        .. Dependency::
-            openpyxl
+        Dependency
+        -----------------
+        openpyxl
             
-        .. Note::
-            It is recommended to export resampled data for performances
+        Notes
+        --------
+        It is recommended to export resampled data for performances
         """
         try:
             import openpyxl
@@ -900,15 +951,12 @@ class mdf( mdf3,  mdf4 ):
         wb.save(filename)
 
     def keepChannels(self, channelList):
-        """
-        mdf.keepChannels(channelList)
-        =================
-        keep only list of channels and removes the rest
+        """ keeps only list of channels and removes the other channels
         
-        Args:
-        -------
-            channelList (list of str): list of channel names
-
+        Parameters
+        ----------------
+        channelList : list of str
+            list of channel names
         """
         channelList=[channel for channel in channelList]
         removeChannels=[]
@@ -921,13 +969,11 @@ class mdf( mdf3,  mdf4 ):
             [self.pop(channel) for channel in removeChannels]
 
     def copy(self):
-        """
-        mdf.copy()
-        =================
-        copy a mdf class
+        """copy a mdf class
             
         Returns:
         ------------
+        mdf class instance
             copy of a mdf class
         """
         yop=mdf()
@@ -939,18 +985,17 @@ class mdf( mdf3,  mdf4 ):
         return yop
 
     def mergeMdf(self, mdfClass):
-        """
-        mdf.mergeMdf(mdfClass)
-        =================
-        merges data of 2 mdf classes
+        """Merges data of 2 mdf classes
         
-        Args:
-        -------
-            mdfClass (mdf): mdf class instance to be merge with
+        Parameters
+        ----------------
+        mdfClass : mdf
+            mdf class instance to be merge with self
             
-        .. Note::
-            both must have been resampled, otherwise, impossible to know master channel to match
-            create union of both channel lists
+        Notes
+        --------
+        both classes must have been resampled, otherwise, impossible to know master channel to match
+        create union of both channel lists and fill with Nan for unknown sections in channels
         """
         self.convertAllChannel() # make sure all channels are converted
         unionedList=list(mdfClass.keys()) and list(self.keys())
@@ -979,18 +1024,17 @@ class mdf( mdf3,  mdf4 ):
                 self[channel]['data']=hstack((data, refill))
 
     def convertToPandas(self, sampling=None):
-        """
-        mdf.convertToPandas(sampling=None)
-        =================
-        converts mdf data structure into pandas dataframe(s)
+        """converts mdf data structure into pandas dataframe(s)
         
-        Args:
-        -------
-            sampling (float): optional resampling interval
+        Parameters
+        ----------------
+        sampling : float, optional
+            resampling interval
             
-        .. Note::
-            One pandas dataframe is converted per data group
-            Not adapted yet for mdf4 as it considers only time master channels
+        Notes
+        --------
+        One pandas dataframe is converted per data group
+        Not adapted yet for mdf4 as it considers only time master channels
         """
         # convert data structure into pandas module
         try:
