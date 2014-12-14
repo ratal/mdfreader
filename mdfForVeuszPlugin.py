@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
-'''
+''' Veusz data plugin for mdf format
+
 Created on 18 nov. 2010
 
 @author: Aymeric Rateau ; aymeric.rateau@gmail.com
 
-Veusz version confirmed : until 1.16
+Veusz version confirmed : from 1.16
 
-Instructions :
+Installation instructions :
+----------------------------------
 1. copy or link mdfForVeuszPlugin.py into the plugins directory of Veusz
-2. copy or link mdfreader.py in root or plugin directory of Veusz
+2. link mdfreader.py in root or plugin directory of Veusz
 3. Go in Veusz ; Edit / Preferences / Plugins tab and add mdfForVeuszPlugins.py
-
 '''
 from veusz.plugins import *
 from veusz.plugins.datasetplugin import Dataset1D as ImportDataset1D

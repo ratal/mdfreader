@@ -1,9 +1,29 @@
 # -*- coding: utf-8 -*-
-""" Measured Data Format blocks parser for version 4.x
-Created on Thu Dec 9 12:57:28 2014
+""" Measured Data Format file reader module for version 3.x
 
-:Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
+Platform and python version
+----------------------------------------
+With Unix and Windows for python 2.6+ and 3.2+
 
+Author
+---------
+Aymeric Rateau <http://code.google.com/p/mdfreader/>
+
+Created on Sun Oct 10 12:57:28 2010
+
+Dependencies
+-------------------
+- Python >2.6, >3.2 <http://www.python.org>
+- Numpy >1.6 <http://numpy.scipy.org>
+- Sympy to convert channels with formula
+
+Attributes
+--------------
+PythonVersion : float
+    Python version currently running, needed for compatibility of both python 2.6+ and 3.2+
+    
+mdf3reader module
+--------------------------
 """
 from numpy import average, right_shift, bitwise_and, all, diff, max, min, interp
 from numpy import asarray, zeros, recarray, array, reshape
@@ -18,25 +38,41 @@ PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 
 def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc ):
-    ## Processes recorded data blocks
-    # Outside of class to allow multiprocessing
-    #procTime = time.clock()
-    #print( 'Start process ' + str( dataGroup ) )
-    #print( ' Number of Channels ' + str( info['CGBlock'][dataGroup][0]['numberOfChannels'] ) )
-    #print( ' of length ' + str( len( buf ) ) + ' ' + str( time.clock() ) )
+    """Put raw data from buf to a dict L and processes nested nBit channels
+    
+    Parameters
+    ----------------
+    Q : multiprocessing.Queue, optional
+        Queue for multiprocessing
+    buf : DATA class
+        contains raw data
+    info : info class
+        contains infomation from MDF Blocks
+    dataGroup : int
+        data group number according to info class
+    channelList : list of str, optional
+        list of channel names to be processed
+    multiProc : bool
+        flag to return Queue or dict
+        
+    Returns
+    -----------
+    Q : multiprocessing.Queue
+        Queue containing a dict
+    L : dict
+        dict of channels
+    """
     L = {}
 
     if channelList is None:
         allChannel=True
     else:
         allChannel=False
-    ## Processes Bits, metadata and conversion
+    ## Processes Bits, metadata
     for recordID in buf.keys():
-        #channelGroup=buf[recordID]['record'].channelGroup
         for chan in buf[recordID]['record']:
             channelName=chan.name
             if (allChannel or channelName in channelList) and chan.signalDataType not in (132, 133):
-                #channel=chan.channelNumber
                 recordName=buf[recordID]['record'].recordToChannelMatching[channelName] # in case record is used for several channels
                 temp = buf[recordID]['data'].__getattribute__( str(recordName)+'_title') # extract channel vector
                     
@@ -60,28 +96,87 @@ def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc ):
         Q.put(L)
     else:
         return L
-        #print( 'Process ' + str( dataGroup ) + ' Finished ' + str( time.clock() - procTime ) )
         
 def linearConv(data, conv): # 0 Parametric, Linear: Physical =Integer*P2 + P1
+    """ apply linear conversion to data
+    
+    Parameters
+    ----------------
+    data : numpy 1D array
+        raw data to be converted to physical value
+    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    
+    Returns
+    -----------
+    converted data to physical value
+    """
     if conv['P2'] == 1.0 and conv['P1'] in (0.0, -0.0):
         return data # keeps dtype probably more compact than float64
     else:
         return data * conv['P2'] + conv['P1']
 def tabInterpConv(data, conv): # 1 Tabular with interpolation
+    """ apply Tabular interpolation conversion to data
+    
+    Parameters
+    ----------------
+    data : numpy 1D array
+        raw data to be converted to physical value
+    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    
+    Returns
+    -----------
+    converted data to physical value
+    """
     if all(diff(conv['int']) > 0):
         return interp(data, conv['int'], conv['phy'])
     else:
         print(( 'X values for interpolation of channel are not increasing'))
         return data
 def tabConv(data, conv): # 2 Tabular
+    """ apply Tabular conversion to data
+    
+    Parameters
+    ----------------
+    data : numpy 1D array
+        raw data to be converted to physical value
+    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    
+    Returns
+    -----------
+    converted data to physical value
+    """
     if all(diff(conv['int']) > 0):
         return interp(data, conv['int'], conv['phy'])
     else:
         print(( 'X values for interpolation of channel are not increasing'))
         return data
 def polyConv(data, conv): # 6 Polynomial
+    """ apply polynomial conversion to data
+    
+    Parameters
+    ----------------
+    data : numpy 1D array
+        raw data to be converted to physical value
+    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    
+    Returns
+    -----------
+    converted data to physical value
+    """
     return (conv['P2'] - conv['P4'] * (data - conv['P5'] - conv['P6'])) / (conv['P3'] * (data - conv['P5'] - conv['P6']) - conv['P1'])
 def expConv(data, conv): # 7 Exponential
+    """ apply exponential conversion to data
+    
+    Parameters
+    ----------------
+    data : numpy 1D array
+        raw data to be converted to physical value
+    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    
+    Returns
+    -----------
+    converted data to physical value
+    """
     if conv['P4'] == 0 and conv['P1'] != 0 and conv['P2'] != 0:
         return exp(((data - conv['P7']) * conv['P6'] - conv['P3']) / conv['P1']) / conv['P2']
     elif conv['P1'] == 0 and conv['P4'] != 0 and conv['P5'] != 0:
@@ -89,6 +184,18 @@ def expConv(data, conv): # 7 Exponential
     else:
         print('Non possible conversion parameters for channel ')
 def logConv(data, conv): # 8 Logarithmic
+    """ apply logarithmic conversion to data
+    
+    Parameters
+    ----------------
+    data : numpy 1D array
+        raw data to be converted to physical value
+    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    
+    Returns
+    -----------
+    converted data to physical value
+    """
     if conv['P4']  == 0 and conv['P1']  != 0 and conv['P2']  != 0:
         return log(((data - conv['P7'] ) * conv['P6']  - conv['P3'] ) / conv['P1'] ) / conv['P2'] 
     elif conv['P1']  == 0 and conv['P4']  != 0 and conv['P5']  != 0:
@@ -96,8 +203,36 @@ def logConv(data, conv): # 8 Logarithmic
     else:
         print('Non possible conversion parameters for channel ')
 def rationalConv(data, conv): # 9 rational
+    """ apply rational conversion to data
+    
+    Parameters
+    ----------------
+    data : numpy 1D array
+        raw data to be converted to physical value
+    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    
+    Returns
+    -----------
+    converted data to physical value
+    """
     return(conv['P1']*data * data + conv['P2']*data + conv['P3'])/(conv['P4']*data * data + conv['P5'] * data + conv['P6'])
 def formulaConv(data, conv): # 10 Text Formula
+    """ apply formula conversion to data
+    
+    Parameters
+    ----------------
+    data : numpy 1D array
+        raw data to be converted to physical value
+    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    
+    Returns
+    -----------
+    converted data to physical value
+    
+    Notes
+    --------
+    Requires sympy module
+    """
     try:
         from sympy import lambdify, symbols
         X = symbols('X') # variable is X
@@ -110,6 +245,18 @@ def formulaConv(data, conv): # 10 Text Formula
         print('Please install sympy to convert channel ')
         print('Failed to convert formulae '+conv['textFormula'])
 def textRangeTableConv(data, conv): # 12 Text range table
+    """ apply text range table conversion to data
+    
+    Parameters
+    ----------------
+    data : numpy 1D array
+        raw data to be converted to physical value
+    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    
+    Returns
+    -----------
+    converted data to physical value
+    """
     try:
         npair=len(conv)
         lower=[conv[pair]['lowerRange'] for pair in range(npair)]
@@ -132,7 +279,59 @@ def textRangeTableConv(data, conv): # 12 Text range table
         print('Failed to convert text to range table')
 
 class recordChannel():
+    """ recordChannel class gathers all about channel structure in a record
+    
+    Attributes
+    --------------
+    name : str
+        Name of channel
+    channelNumber : int
+        channel number corresponding to mdfinfo3.info3 class
+    signalDataType : int
+        signal type according to specification
+    bitCount : int
+        number of bits used to store channel record
+    nBytes : int
+        number of bytes (1 byte = 8 bits) taken by channel record
+    dataFormat : str
+        numpy dtype as string
+    CFormat : struct class instance
+        struct instance to convert from C Format
+    byteOffset : int
+        position of channel record in complete record in bytes
+    bitOffset : int
+        bit position of channel value inside byte in case of channel having bit count below 8
+    RecordFormat : list of str
+        dtype format used for numpy.core.records functions ((name,name_title),str_stype)
+    channelType : int
+        channel type
+    posBeg : int
+        start position in number of bit of channel record in complete record
+    posEnd : int
+        end position in number of bit of channel record in complete record
+    
+    Methods
+    ------------
+    __init__(info, dataGroup, channelGroup, channelNumber, recordIDsize)
+        constructor
+    __str__()
+        to print class attributes
+    """
     def __init__(self, info, dataGroup, channelGroup, channelNumber, recordIDsize):
+        """ recordChannel class constructor
+        
+        Parameters
+        ------------
+        info : mdfinfo3.info3 class
+        dataGroup : int
+            data group number in mdfinfo3.info3 class
+        channelGroup : int
+            channel group number in mdfinfo3.info3 class
+        channelNumber : int
+            channel number in mdfinfo3.info3 class
+        recordIDsize : in
+            size of record ID in Bytes
+        """
         self.name=info['CNBlock'][dataGroup][channelGroup][channelNumber]['signalName']
         self.channelNumber=channelNumber
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['signalDataType']
@@ -160,6 +359,40 @@ class recordChannel():
         return output
 
 class record(list):
+    """ record class lists recordchannel classes, it is representing a channel group
+    
+    Attributes
+    --------------
+    recordLength : int
+        length of record corresponding of channel group in Byte
+    numberOfRecords : int
+        number of records in data block
+    recordID : int
+        recordID corresponding to channel group
+    recordIDsize : int
+        size of recordID
+    dataGroup : int:
+        data group number
+    channelGroup : int
+        channel group number
+    numpyDataRecordFormat : list
+        list of numpy (dtype) for each channel
+    dataRecordName : list
+        list of channel names used for recarray attribute definition
+    master : dict
+        define name and number of master channel
+    recordToChannelMatching : dict
+        helps to identify nested bits in byte
+    channelNames : list
+        channel names to be stored, useful for low memory consumption but slow
+    
+    Methods
+    ------------
+    addChannel(info, channelNumber)
+    loadInfo(info)
+    readSortedRecord(fid, pointer, channelList=None)
+    readUnsortedRecord(buf, channelList=None)
+    """
     def __init__(self, dataGroup, channelGroup):
         self.recordLength=0
         self.numberOfRecords=0
@@ -173,10 +406,23 @@ class record(list):
         self.recordToChannelMatching={}
         self.channelNames=[]
     def addChannel(self, info, channelNumber):
+        """ add a channel in class
+        
+        Parameters
+        ----------------
+        info : mdfinfo3.info3 class
+        channelNumber : int
+            channel number in mdfinfo3.info3 class
+        """
         self.append(recordChannel(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize))
         self.channelNames.append(self[-1].name)
     def loadInfo(self, info):
-        # gathers records related from info class
+        """ gathers records related from info class
+        
+        Parameters
+        ----------------
+        info : mdfinfo3.info3 class
+        """
         self.recordIDsize=info['DGBlock'][self.dataGroup]['numberOfRecordIDs']
         self.recordID=info['CGBlock'][self.dataGroup][self.channelGroup]['recordID']
         if not self.recordIDsize==0: # record ID existing
@@ -204,7 +450,27 @@ class record(list):
             self.numpyDataRecordFormat.append( ( format, 'uint8' ) )
 
     def readSortedRecord(self, fid, pointer, channelList=None):
-        # reads record, only one channel group per datagroup
+        """ reads record, only one channel group per datagroup
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        pointer
+            position in file of data block beginning
+        channelList : list of str, optional
+            list of channel to read
+            
+        Returns
+        -----------
+        rec : numpy recarray
+            contains a matrix of raw data in a recarray (attributes corresponding to channel name)
+            
+        Notes
+        --------
+        If channelList is None, read data using numpy.core.records.fromfile that is rather quick.
+        However, in case of large file, you can use channelList to load only interesting channels or 
+        only one channel on demand, but be aware it might be much slower.
+        """
         fid.seek(pointer)
         if channelList is None: # reads all, quickest but memory consuming
             return fromfile( fid, dtype = self.numpyDataRecordFormat, shape = self.numberOfRecords, names=self.dataRecordName)
@@ -232,17 +498,58 @@ class record(list):
                 return rec.view(recarray)
             
     def readUnsortedRecord(self, buf, channelList=None):
+        """ Not implemented yet, no reference files available to test it
+        """
         pass
 
 class DATA(dict):
+    """ DATA class is organizing record classes itself made of recordchannel.
+    This class inherits from dict. Keys are corresponding to channel group recordID
+    A DATA class corresponds to a data block, a dict of record classes (one per channel group) 
+    Each record class contains a list of recordchannel class representing the structure of channel record.
+    
+    Attributes
+    --------------
+    fid : io.open
+        file identifier
+    pointerToData : int
+        position of Data block in mdf file
+    
+    Methods
+    ------------
+    addRecord(record)
+        Adds a new record in DATA class dict
+    read(channelList, zip=None)
+        Reads data block
+    loadSorted(record, zip=None, nameList=None)
+        Reads sorted data block from record definition
+    load(nameList=None)
+        Reads unsorted data block, not yet implemented
+    """
     def __init__(self, fid, pointer):
         self.fid=fid
         self.pointerToData=pointer
     def addRecord(self, record):
+        """Adds a new record in DATA class dict
+        
+        Parameters
+        ----------------
+        record class
+            channel group definition listing record channel classes
+        """
         self[record.recordID]={}
         self[record.recordID]['record']=record
 
     def read(self, channelList, zip=None):
+        """Reads data block
+        
+        Parameters
+        ----------------
+        channelList : list of str, optional
+            list of channel names
+        zip : bool, optional
+            flag to track if data block is compressed
+        """
         if len(self)==1: #sorted dataGroup
             recordID=list(self.keys())[0]
             self[recordID]['data']=self.loadSorted( self[recordID]['record'], zip=None, nameList=channelList)
@@ -250,16 +557,66 @@ class DATA(dict):
             self.load( nameList=channelList)
             
     def loadSorted(self, record, zip=None, nameList=None): # reads sorted data
+        """Reads sorted data block from record definition
+        
+        Parameters
+        ----------------
+        record class
+            channel group definition listing record channel classes
+        zip : bool, optional
+            flag to track if data block is compressed
+        channelList : list of str, optional
+            list of channel names
+            
+        Returns
+        -----------
+        numpy recarray of data
+        """
         return record.readSortedRecord(self.fid, self.pointerToData, nameList)
     
     def load(self, nameList=None):
-        # not yet implemented
+        """ not yet implemented
+        """ 
         return None
 
 class mdf3(dict):
-    """ mdf file class
-    It imports mdf files version 3.0 to 3.3
-    To use : yop= mdfreader.mdf('FileName.dat') """
+    """ mdf file version 3.0 to 3.3 class
+    
+    Attributes
+    --------------
+    fileName : str
+        file name
+    VersionNumber : int
+        mdf file version number
+    masterChannelList : dict
+        Represents data structure: a key per master channel with corresponding value containing a list of channels
+        One key or master channel represents then a data group having same sampling interval.
+    multiProc : bool
+        Flag to request channel conversion multi processed for performance improvement.
+        One thread per data group.
+    filterChannelNames : bool, optional
+        flag to filter long channel names from its module names separated by '.'
+    author : str
+    organisation : str
+    project : str
+    subject : str
+    comment : str
+    time : str
+    date : str
+    
+    Methods
+    ------------
+    read3( fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True)
+        Reads mdf 3.x file data and stores it in dict
+    getChannelData3(channelName)
+        Returns channel numpy array
+    convertChannel3(channelName)
+        converts specific channel from raw to physical data according to CCBlock information
+    convertAllChannel3()
+        Converts all channels from raw data to converted data according to CCBlock information
+    write3(fileName=None)
+        Writes simple mdf 3.3 file
+    """
     
     def __init__( self, fileName=None, info=None, multiProc=False,  channelList=None, convertAfterRead=True, filterChannelNames=False):
         self.masterChannelList = {}
@@ -285,7 +642,29 @@ class mdf3(dict):
 
     ## reads mdf file
     def read3( self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True):
-        # read mdf file
+        """ Reads mdf 3.x file data and stores it in dict
+        
+        Parameters
+        ----------------
+        fileName : str, optional
+            file name
+            
+        info : mdfinfo3.info3 class
+            info3 class containing all MDF Blocks
+        
+        multiProc : bool
+            flag to activate multiprocessing of channel data conversion
+        
+        channelList : list of str, optional
+            list of channel names to be read
+            If you use channelList, reading might be much slower but it will save you memory. Can be used to read big files
+        
+        convertAfterRead : bool, optional
+            flag to convert channel after read, True by default
+            If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
+            If many float are stored in file, you can gain from 3 to 4 times memory footprint
+            To calculate value from channel, you can then use method .getChannelData()
+        """
         self.multiProc = multiProc
         self.convertAfterRead = convertAfterRead
         if platform == 'win32':
@@ -339,7 +718,7 @@ class mdf3(dict):
             Q = Queue()
         L = {}
         masterDataGroup={}  # datagroup name correspondence with its master channel
-        ## Defines record format
+        ## Read data from file
         for dataGroup in sortedDataGroup:
             if info['DGBlock'][dataGroup]['numberOfChannelGroups']>0: # data exists
                 #Pointer to data block
@@ -405,14 +784,40 @@ class mdf3(dict):
         #print( 'Finished in ' + str( time.clock() - inttime ) )
     
     def getChannelData3(self, channelName):
-        # returns data of channel
+        """Returns channel numpy array
+        
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+            
+        Returns:
+        -----------
+        numpy array
+            converted, if not already done, data corresponding to channel name
+        
+        Notes
+        ------
+        This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
+        """
         if channelName in self:
             return self.convert3(channelName)
         else:
             raise('Channel not in dictionary')
     
     def convert3(self, channelName):
-        # returns data converted if necessary
+        """converts specific channel from raw to physical data according to CCBlock information
+        
+        Parameters
+        ----------------
+        channelName : str
+            Name of channel
+        
+        Returns
+        -----------
+        numpy array
+            returns numpy array converted to physical values according to conversion type
+        """
         if 'conversion' in self[channelName]: # there is conversion property
             if self[channelName]['conversion']['type'] == 0:
                 return linearConv(self[channelName]['data'], self[channelName]['conversion']['parameters'])
@@ -438,16 +843,37 @@ class mdf3(dict):
             return self[channelName]['data']
             
     def convertChannel3(self, channelName):
+        """converts specific channel from raw to physical data according to CCBlock information
+        
+        Parameters
+        ----------------
+        channelName : str
+            Name of channel
+        """
         if 'conversion' in self[channelName]:
             self[channelName]['data'] = self.convert3(channelName)
             self[channelName].pop('conversion')
                 
     def convertAllChannel3(self):
+        """Converts all channels from raw data to converted data according to CCBlock information
+        Converted data will take more memory.
+        """
         for channel in self:
             self.convertChannel3(channel)
 
     def write3(self, fileName=None):
-        # write data in sorted format: 1 datagroup for 1  channel group and many channel with same sampling
+        """Writes simple mdf 3.3 file
+        
+        Parameters
+        ----------------
+        fileName : str, optional
+            Name of file
+            If file name is not input, written file name will be the one read with appended '_new' string before extension
+        
+        Notes
+        --------
+        All channels will be converted to physical data, so size might be bigger than original file
+        """
         LINK = 'I'
         #CHAR = 'c'
         REAL = 'd'
@@ -726,11 +1152,20 @@ class mdf3(dict):
         
     
 def datatypeformat3(signalDataType, numberOfBits):
-    # DATATYPEFORMAT Data type format precision to give to fread
-    #   datatypeformat3(SIGNALDATATYPE,NUMBEROFBITS) is the precision string to
-    #   give to fread for reading the data type specified by SIGNALDATATYPE and
-    #   NUMBEROFBITS
-
+    """ function returning C format string from channel data type and number of bits
+    
+    Parameters
+    ----------------
+    signalDataType : int
+        channel data type according to specification
+    numberOfBits : int
+        number of bits taken by channel data in a record
+    
+    Returns
+    -----------
+    dataType : str
+        C format used by fread to read channel raw data
+    """
     if signalDataType in (0, 9, 10, 11):  # unsigned
         if numberOfBits <= 8:
             dataType = 'B'
@@ -769,7 +1204,19 @@ def datatypeformat3(signalDataType, numberOfBits):
 
 
 def arrayformat3(signalDataType, numberOfBits):
-
+    """ function returning numpy stype string from channel data type and number of bits
+    Parameters
+    ----------------
+    signalDataType : int
+        channel data type according to specification
+    numberOfBits : int
+        number of bits taken by channel data in a record
+    
+    Returns
+    -----------
+    dataType : str
+        numpy dtype format used by numpy..core.records to read channel raw data
+    """
     # Formats used by numpy
 
     if signalDataType in (0, 9, 10, 11):  # unsigned

@@ -1,4 +1,29 @@
 # -*- coding: utf-8 -*-
+""" Measured Data Format blocks parser for version 3.x
+
+Created on Thu Dec 9 12:57:28 2014
+
+Platform and python version
+----------------------------------------
+With Unix and Windows for python 2.6+ and 3.2+
+
+Author
+---------
+Aymeric Rateau <http://code.google.com/p/mdfreader/>
+
+Dependencies
+-------------------
+- Python >2.6, >3.2 <http://www.python.org>
+- Numpy >1.6 <http://numpy.scipy.org>
+
+Attributes
+--------------
+PythonVersion : float
+    Python version currently running, needed for compatibility of both python 2.6+ and 3.2+
+    
+mdfinfo3 module
+--------------------------
+"""
 from sys import version_info
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
@@ -6,20 +31,45 @@ from struct import calcsize, unpack
 
 class info3(dict):
     """ mdf file info class version 3.x
-    # MDFINFO is a class information about an MDF (Measure Data Format) file
-    #   Based on following specification http://powertrainnvh.com/nvh/MDFspecificationv03.pdf
-    #   mdfinfo(FILENAME) contains a dict of structures, for
-    #   each data group, containing key information about all channels in each
-    #   group. FILENAME is a string that specifies the name of the MDF file.
-    #
-    #       mdfinfo.read(FIELNAME) will process Filename file
-    #  General dictionary structure is the following :
-    #  mdfinfo['HDBlock'] header block
-    #  mdfinfo['DGBlock'][dataGroup] Data Group block
-    #  mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
-    #  mdfinfo['CNBlock'][dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
-    #  mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information"""
+    MDFINFO is a class information about an MDF (Measure Data Format) file
+    Based on following specification http://powertrainnvh.com/nvh/MDFspecificationv03.pdf
+    
+    Attributes
+    --------------
+    filterChannelNames : bool, optional
+        flag to filter long channel names including module names separated by a '.'
+    fileName : str
+        name of file
+    
+    Notes
+    --------
+    mdfinfo(FILENAME) contains a dict of structures, for
+    each data group, containing key information about all channels in each
+    group. FILENAME is a string that specifies the name of the MDF file. 
+    General dictionary structure is the following
+    
+    - mdfinfo['HDBlock'] header block
+    - mdfinfo['DGBlock'][dataGroup] Data Group block
+    - mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
+    - mdfinfo['CNBlock'][dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
+    - mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information
+    """
     def __init__(self, fileName=None, fid=None,  filterChannelNames = False):
+        """ info3 class constructor
+        
+        Parameters
+        ----------------
+        fileName : str, optional
+            name of file
+        fid : float, optional
+            file identifier
+        filterChannelNames : bool, optional
+            flag to filter long channel names including module names separated by a '.'
+
+        Notes
+        --------
+        If fileName is given it will read file blocks directly by calling method readinfo3
+        """
         self['IDBlock'] = {} # Identifier Block
         self['HDBlock'] = {} # Header Block
         self['DGBlock']= {} # Data Group Block
@@ -39,6 +89,13 @@ class info3(dict):
             self.readinfo3(fid)
 
     def readinfo3(self, fid):
+        """ read all file blocks except data
+        
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        """
         # reads IDBlock
         fid.seek(24)
         self['IDBlock']['ByteOrder']=unpack( '<H', fid.read( 2 ) )
@@ -250,6 +307,17 @@ class info3(dict):
         fid.close()
         
     def listChannels3( self, fileName = None ):
+        """ reads data, channel group and channel blocks to list channel names
+        
+        Attributes
+        --------------
+        fileName : str
+            file name
+            
+        Returns
+        -----------
+        list of channel names
+        """
         # Read MDF file and extract its complete structure
         if not fileName == None:
             self.fileName = fileName
@@ -326,10 +394,19 @@ class info3(dict):
     #######blockformats3####################
     @staticmethod
     def blockformats3( block , version=0):
-        # This function returns all the predefined formats for the different blocks
-        # in the MDF file as specified in "Format Specification MDF Format Version 3.0"
-        # document version 2.0, 14/11/2002
-
+        """ This function returns all the predefined formats for the different blocks in the MDF file
+        
+        Parameters
+        ----------------
+        block : str
+            kind of block
+        version : int
+            mdf version
+            
+        Returns
+        -----------
+        nested list of str and int describing structure of block to be used by mdfblockread3 method
+        """
         ## Data Type Definitions '<' for little-endian byteOrder
         LINK = '<I'
         CHAR = '<c'
@@ -496,19 +573,24 @@ class info3(dict):
     #######mdfblockread3####################
     @staticmethod
     def mdfblockread3( blockFormat, fid, pointer,  removeTrailing0=True ):
-        # mdfblockread3 Extract block of data from MDF file in original data types
-        #   Block=mdfblockread3(BLOCKFORMAT, FID, OFFSET) returns a
-        #   dictionary with keys specified in data structure BLOCKFORMAT, fid
-        #   FID, at byte offset in the file OFFSET
-        #
-        # Example block format is:
-        # formats=(
-        #        (CHAR,2,'BlockType'),
-        #        (UINT16,1,'BlockSize'),
-        #        (CHAR,'Var',Text))
-        #
-        # Example function call is:
-        # Block=mdfblockread3(blockFormat, 1, 413)
+        """ Extract block of data from MDF file in original data types. 
+        Returns a dictionary with keys specified in data structure blockFormat
+        
+        Parameters
+        ----------------
+        blockFormat : nested list
+            output of blockformats3 method
+        fid : float
+            file identifier
+        pointer : int
+            position of block in file
+        removeTrailing0 : bool, optional
+            removes or not the trailing 0 from strings
+        
+        Returns
+        -----------
+        Block content in a dict
+        """
         Block = {}
         if pointer != 0 and not pointer == None:
             fid.seek( pointer )
