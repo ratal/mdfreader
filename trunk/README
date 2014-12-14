@@ -1,5 +1,5 @@
-MDFREADER
-*********
+**MDFREADER**
+**************
 
 Abstract:
 =========
@@ -12,7 +12,7 @@ The structure of the mdf dictionary, for each channel: mdf[channelName]
 - master : vector name corresponding to master channel
 - masterType : type of master channel (time, angle, distance, etc.)
 - description : physical meaning of channel
-- conversion: (optinal) dictionnary describing how to convert raw data in data to meaningful/physical data
+- conversion: (optional) dictionary describing how to convert raw data in data to meaningful/physical data
 
 Mdfreader module methods:
 =========================

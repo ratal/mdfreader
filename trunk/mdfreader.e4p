@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Project SYSTEM "Project-5.1.dtd">
 <!-- eric5 project file for project mdfreader -->
-<!-- Saved: 2014-04-03, 22:31:01 -->
+<!-- Saved: 2014-12-11, 00:48:28 -->
 <!-- Copyright (C) 2014 Aymeric Rateau, aymeric.rateau@gmail.com -->
 <Project version="5.1">
   <Language>en</Language>
@@ -24,6 +24,8 @@
     <Source>test/test.py</Source>
     <Source>mdf3reader.py</Source>
     <Source>mdf4reader.py</Source>
+    <Source>README</Source>
+    <Source>LICENSE</Source>
   </Sources>
   <Forms>
     <Form>mdfreaderui.ui</Form>
@@ -33,6 +35,8 @@
   <Interfaces/>
   <Others>
     <Other>.issues</Other>
+    <Other>doc</Other>
+    <Other>doc/doc</Other>
   </Others>
   <MainScript>mdfconverter.py</MainScript>
   <Vcs>
@@ -159,4 +163,80 @@
     <FiletypeAssociation pattern="*.ui" type="FORMS"/>
     <FiletypeAssociation pattern="*.ui.h" type="FORMS"/>
   </FiletypeAssociations>
+  <Documentation>
+    <DocumentationParams>
+      <dict>
+        <key>
+          <string>ERIC4API</string>
+        </key>
+        <value>
+          <dict>
+            <key>
+              <string>ignoreFilePatterns</string>
+            </key>
+            <value>
+              <list>
+                <string></string>
+              </list>
+            </value>
+            <key>
+              <string>languages</string>
+            </key>
+            <value>
+              <list>
+                <string>Python2</string>
+              </list>
+            </value>
+            <key>
+              <string>outputFile</string>
+            </key>
+            <value>
+              <string>doc/doc</string>
+            </value>
+          </dict>
+        </value>
+        <key>
+          <string>ERIC4DOC</string>
+        </key>
+        <value>
+          <dict>
+            <key>
+              <string>cssFile</string>
+            </key>
+            <value>
+              <string>%PYTHON%/eric5/CSSs/blue.css</string>
+            </value>
+            <key>
+              <string>ignoreFilePatterns</string>
+            </key>
+            <value>
+              <list>
+                <string></string>
+              </list>
+            </value>
+            <key>
+              <string>outputDirectory</string>
+            </key>
+            <value>
+              <string>doc</string>
+            </value>
+            <key>
+              <string>qtHelpEnabled</string>
+            </key>
+            <value>
+              <bool>False</bool>
+            </value>
+            <key>
+              <string>sourceExtensions</string>
+            </key>
+            <value>
+              <list>
+                <string></string>
+              </list>
+            </value>
+          </dict>
+        </value>
+      </dict>
+    </DocumentationParams>
+  </Documentation>
 </Project>

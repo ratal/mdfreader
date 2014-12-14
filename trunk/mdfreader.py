@@ -123,8 +123,7 @@ class mdfinfo( dict):
         self.mdfversion = 0
         if fileName != None:
             self.readinfo( fileName, filterChannelNames )
-        
-    ## Reads block informations inside file
+
     def readinfo( self, fileName = None, filterChannelNames=False ):
         """ Reads MDF file and extracts its complete structure
         
@@ -326,6 +325,9 @@ class mdf( mdf3,  mdf4 ):
         ----------------
         fileName : str, optional
             file name
+        
+        multiProc : bool
+            flag to activate multiprocessing of channel data conversion
         
         channelList : list of str, optional
             list of channel names to be read
