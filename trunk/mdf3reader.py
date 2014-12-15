@@ -5,9 +5,7 @@ Platform and python version
 ----------------------------------------
 With Unix and Windows for python 2.6+ and 3.2+
 
-Author
----------
-Aymeric Rateau <http://code.google.com/p/mdfreader/>
+:Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
 
 Created on Sun Oct 10 12:57:28 2010
 
@@ -58,7 +56,7 @@ def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc ):
     Returns
     -----------
     Q : multiprocessing.Queue
-        Queue containing a dict
+        updates Queue containing L dict
     L : dict
         dict of channels
     """
@@ -329,7 +327,7 @@ class recordChannel():
             channel group number in mdfinfo3.info3 class
         channelNumber : int
             channel number in mdfinfo3.info3 class
-        recordIDsize : in
+        recordIDsize : int
             size of record ID in Bytes
         """
         self.name=info['CNBlock'][dataGroup][channelGroup][channelNumber]['signalName']
@@ -594,7 +592,9 @@ class mdf3(dict):
     multiProc : bool
         Flag to request channel conversion multi processed for performance improvement.
         One thread per data group.
-    filterChannelNames : bool, optional
+    convertAfterRead : bool
+        flag to convert raw data to physical just after read
+    filterChannelNames : bool
         flag to filter long channel names from its module names separated by '.'
     author : str
     organisation : str
@@ -640,7 +640,6 @@ class mdf3(dict):
             self.fileName = fileName
             self.read3(self.fileName, info, multiProc, channelList)        
 
-    ## reads mdf file
     def read3( self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True):
         """ Reads mdf 3.x file data and stores it in dict
         
@@ -1204,7 +1203,7 @@ def datatypeformat3(signalDataType, numberOfBits):
 
 
 def arrayformat3(signalDataType, numberOfBits):
-    """ function returning numpy stype string from channel data type and number of bits
+    """ function returning numpy style string from channel data type and number of bits
     Parameters
     ----------------
     signalDataType : int
@@ -1215,7 +1214,7 @@ def arrayformat3(signalDataType, numberOfBits):
     Returns
     -----------
     dataType : str
-        numpy dtype format used by numpy..core.records to read channel raw data
+        numpy dtype format used by numpy.core.records to read channel raw data
     """
     # Formats used by numpy
 

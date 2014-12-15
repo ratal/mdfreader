@@ -7,9 +7,7 @@ Platform and python version
 ----------------------------------------
 With Unix and Windows for python 2.6+ and 3.2+
 
-Author
----------
-Aymeric Rateau <http://code.google.com/p/mdfreader/>
+:Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
 
 Dependencies
 -------------------

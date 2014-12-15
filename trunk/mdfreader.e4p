@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Project SYSTEM "Project-5.1.dtd">
 <!-- eric5 project file for project mdfreader -->
-<!-- Saved: 2014-12-11, 00:48:28 -->
+<!-- Saved: 2014-12-14, 23:24:24 -->
 <!-- Copyright (C) 2014 Aymeric Rateau, aymeric.rateau@gmail.com -->
 <Project version="5.1">
   <Language>en</Language>
@@ -36,7 +36,6 @@
   <Others>
     <Other>.issues</Other>
     <Other>doc</Other>
-    <Other>doc/doc</Other>
   </Others>
   <MainScript>mdfconverter.py</MainScript>
   <Vcs>
