@@ -1,9 +1,26 @@
 # -*- coding: utf-8 -*-
 """ Measured Data Format blocks paser for version 4.x
+
+Platform and python version
+----------------------------------------
+With Unix and Windows for python 2.6+ and 3.2+
+
 Created on Sun Dec 15 12:57:28 2013
 
 :Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
 
+Dependencies
+-------------------
+- Python >2.6, >3.2 <http://www.python.org>
+- Numpy >1.6 <http://numpy.scipy.org>
+
+Attributes
+--------------
+PythonVersion : float
+    Python version currently running, needed for compatibility of both python 2.6+ and 3.2+
+    
+mdfinfo4 module
+--------------------------
 """
 from struct import calcsize, unpack, unpack_from
 from sys import version_info
@@ -28,17 +45,22 @@ CHAR='<c'
 class MDFBlock(dict):
     """MDFBlock base class for the MDF related block classes 
     
-    **Methods**
-    
-    *mdfblockread* : converts a byte array to a given data type
-    
-    **Attributes**
-    
-    none        
-     
+    Methods
+    ------------
+    loadHeader(fid, pointer)
+        reads block's header and put in class dict
+    mdfblockread( fid, type,  count )
+        converts a byte array of length count to a given data type
+    mdfblockreadCHAR( fid,  count )
+        reads a character chain of length count encoded in latin.
+    mdfblockreadBYTE( fid, count )
+        reads an array of UTF-8 encoded bytes
     """
     
     def __init__(self):
+        """ MDFBlock constructor. 
+        Reserves header keys in class dict (id, reserved,link_count,pointer)
+        """
         self['id']={}
         self['reserved']={}
         self['length']={}
@@ -46,6 +68,15 @@ class MDFBlock(dict):
         self['pointer']=0
     
     def loadHeader(self, fid,  pointer):
+        """ reads block's header and put in class dict
+        
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        pointer : int
+            position of block in file
+        """
         #All blocks have the same header
         if pointer != 0 and pointer is not None:
             fid.seek(pointer)
@@ -57,7 +88,19 @@ class MDFBlock(dict):
         
     @staticmethod
     def mdfblockread( fid, type,  count ):
-        # reads value in file corresponding to format and size
+        """ converts a byte array of length count to a given data type
+        
+        Parameters
+        ----------------
+        type : str
+            C format data type
+        count : int
+            number of elements to sequentially read
+            
+        Returns
+        -----------
+        array of values of 'type' parameter
+        """
         valueSize=calcsize(type)
         value=fid.read(valueSize*count)
         if value:
@@ -75,7 +118,17 @@ class MDFBlock(dict):
         
     @staticmethod
     def mdfblockreadCHAR( fid,  count ):
-        # reads value in file corresponding to format and size
+        """ reads a character chain of length count encoded in latin. Removes trailing 0
+        
+        Parameters
+        ----------------
+        count : int
+            number of characters to read
+            
+        Returns
+        -----------
+        a string of length count
+        """
         value=fid.read( count )
         if PythonVersion<3:
             value.replace('\x00', '')
@@ -85,6 +138,17 @@ class MDFBlock(dict):
         
     @staticmethod
     def mdfblockreadBYTE( fid, count ):
+        """ reads an array of UTF-8 encoded bytes. Removes trailing 0
+        
+        Parameters
+        ----------------
+        count : int
+            number of bytes to read
+            
+        Returns
+        -----------
+        bytes array of length count
+        """
         # UTF-8 encoded bytes
         value=fid.read( count )
         value=value.decode('UTF-8', 'ignore')
@@ -95,8 +159,10 @@ class MDFBlock(dict):
         return value
         
 class IDBlock(MDFBlock):
+    """ reads ID Block and save in class dict
+    """
     def __init__(self, fid):
-    # reads IDBlock
+        # reads IDBlock
         fid.seek(0)
         self['id_file']=self.mdfblockreadCHAR(fid, 8)
         self['id_vers']=self.mdfblockreadCHAR(fid, 8)
@@ -106,6 +172,8 @@ class IDBlock(MDFBlock):
         self['id_reserved2']=self.mdfblockreadBYTE(fid, 34)
 
 class HDBlock(MDFBlock):
+    """ reads Header block and save in class dict
+    """
     def __init__(self, fid,  pointer=64):
         # block header
         self.loadHeader(fid, pointer)
@@ -129,6 +197,8 @@ class HDBlock(MDFBlock):
             self['Comment']=CommentBlock(fid, self['hd_md_comment'], 'HD')
 
 class FHBlock(MDFBlock):
+    """ reads File History block and save in class dict
+    """
     def __init__(self, fid,  pointer):
         # block header
         self.loadHeader(fid, pointer)
@@ -144,6 +214,8 @@ class FHBlock(MDFBlock):
             self['Comment']=CommentBlock(fid, self['fh_md_comment'], 'FH')
             
 class CHBlock(MDFBlock):
+    """ reads Channel Hierarchy block and saves in class dict
+    """
     def __init__(self, fid,  pointer):
         # block header
         self.loadHeader(fid, pointer)
@@ -163,6 +235,12 @@ class CHBlock(MDFBlock):
             self['ch_name_level']=CommentBlock(fid, self['ch_tx_name'])
 
 class CommentBlock(MDFBlock):
+    """ reads Comment block and saves in class dict
+    
+    Notes
+    --------
+    Can read xml (MD metadata) or text (TX) comments from several kind of blocks
+    """
     def __init__(self, fid,  pointer, MDType=None):
         self.namespace='{http://www.asam.net/mdf/v4}'
         if pointer>0:
@@ -223,10 +301,30 @@ class CommentBlock(MDFBlock):
                     self['Comment']=self.mdfblockreadBYTE(fid, self['length']-24)
     
     def extractXmlField(self,  xml_tree, field):
+        """ Extract Xml field from a xml tree
+        
+        Parameters
+        ----------------
+        xml_tree : xml tree from xml.etree.ElementTree
+        field : str
+        
+        Returns
+        -----------
+        field value in xml tree
+        """
         return xml_tree.findtext(self.namespace+field)
 
 def elementTreeToDict(element):
-    #converts xml into dictionnary
+    """ converts xml tree into dictionnary
+    
+    Parameters
+    ----------------
+    element : xml tree from xml.etree.ElementTree
+    
+    Returns
+    -----------
+    dict of xml tree flattened
+    """
     node = dict()
 
     text = getattr(element, 'text', None)
@@ -249,6 +347,8 @@ def elementTreeToDict(element):
     return node
     
 class DGBlock(MDFBlock):
+    """ reads Data Group block and saves in class dict
+    """
     def __init__(self, fid,  pointer):
         # block header
         self.loadHeader(fid, pointer)
@@ -264,6 +364,8 @@ class DGBlock(MDFBlock):
             self['Comment']=CommentBlock(fid, self['dg_md_comment'])
         
 class CGBlock(MDFBlock):
+    """ reads Channel Group block and saves in class dict
+    """
     def __init__(self, fid,  pointer):
         # block header
         self.loadHeader(fid, pointer)
@@ -288,6 +390,8 @@ class CGBlock(MDFBlock):
             self['acq_name']=CommentBlock(fid, self['cg_tx_acq_name'])
         
 class CNBlock(MDFBlock):
+    """ reads Channel block and saves in class dict
+    """
     def __init__(self, fid,  pointer,  attachmentNumber=None):
         if pointer != 0 and pointer is not None:
             fid.seek( pointer )
@@ -345,6 +449,8 @@ class CNBlock(MDFBlock):
                 self['name']=CommentBlock(fid, self['cn_tx_name'], MDType='CN')['name']
 
 class CCBlock(MDFBlock):
+    """ reads Channel Conversion block and saves in class dict
+    """
     def __init__(self, fid,  pointer):
         # block header
         if pointer != 0 and not pointer == None:
@@ -391,6 +497,8 @@ class CCBlock(MDFBlock):
             self['cc_type']=0
 
 class CABlock(MDFBlock):
+    """ reads Channel Array block and saves in class dict
+    """
     def __init__(self, fid,  pointer):
         # block header
         if pointer != 0 and not pointer == None:
@@ -431,6 +539,8 @@ class CABlock(MDFBlock):
                 self['ca_axis']=self.mdfblockread(fid, LINK, self['ca_ndim']*3)
 
 class ATBlock(MDFBlock):
+    """ reads Attachment block and saves in class dict
+    """
     def __init__(self, fid,  pointer):
         # block header
         if pointer != 0 and not pointer == None:
@@ -457,6 +567,8 @@ class ATBlock(MDFBlock):
                 self['Comment']=CommentBlock(fid, self['at_md_comment'])
         
 class EVBlock(MDFBlock):
+    """ reads Event block and saves in class dict
+    """
     def __init__(self, fid,  pointer):
         # block header
         if pointer != 0 and not pointer == None:
@@ -507,6 +619,8 @@ class EVBlock(MDFBlock):
                 self['name']=CommentBlock(fid, self['ev_tx_name'])
 
 class SRBlock(MDFBlock):
+    """ reads Sample Reduction block and saves in class dict
+    """
     def __init__(self, fid,  pointer):
         # block header
         if pointer != 0 and not pointer == None:
@@ -526,6 +640,8 @@ class SRBlock(MDFBlock):
             self['sr_reserved']=self.mdfblockreadBYTE(fid, 6)
             
 class SIBlock(MDFBlock):
+    """ reads Source Information block and saves in class dict
+    """
     def __init__(self, fid,  pointer):
         # block header
         if pointer != 0 and not pointer == None:
@@ -579,6 +695,27 @@ class SIBlock(MDFBlock):
             self['comment']=CommentBlock(fid, self['si_md_comment'], MDType='SI')
 
 class info4(dict):
+    """ information block parser fo MDF file version 4.x
+    
+    Attributes
+    --------------
+    fileName : str
+        name of file
+    
+    Notes
+    --------
+    mdfinfo(FILENAME) contains a dict of structures, for
+    each data group, containing key information about all channels in each
+    group. FILENAME is a string that specifies the name of the MDF file. 
+    Either file name or fid should be given. 
+    General dictionary structure is the following
+    
+    - mdfinfo['HDBlock'] header block
+    - mdfinfo['DGBlock'][dataGroup] Data Group block
+    - mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
+    - mdfinfo['CNBlock'][dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
+    - mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information
+    """
     def __init__(self, fileName=None, fid=None):
         self['IDBlock'] = {} # Identifier Block
         self['HDBlock'] = {} # Header Block
@@ -603,8 +740,13 @@ class info4(dict):
             self.readinfo(fid)
 
     def readinfo(self, fid):
-        # this function reads all blocks contained in mdf4 file
+        """ read all file blocks except data
         
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        """
         # reads IDBlock
         self['IDBlock'].update(IDBlock(fid))
         
