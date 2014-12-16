@@ -717,6 +717,19 @@ class info4(dict):
     - mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information
     """
     def __init__(self, fileName=None, fid=None):
+        """ info4 class constructor
+        
+        Parameters
+        ----------------
+        fileName : str
+            file name
+        fid : float
+            file identifier
+        
+        Notes
+        ---------
+        Either fileName or fid can be used as argument
+        """
         self['IDBlock'] = {} # Identifier Block
         self['HDBlock'] = {} # Header Block
         self['FHBlock'] = {}
@@ -787,7 +800,15 @@ class info4(dict):
         self.readDGBlock(fid)
 
     def readDGBlock(self, fid, channelNameList=False):
-        # reads Data Group Blocks
+        """reads Data Group Blocks
+        
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        channelNameList : bool
+            Flag to reads only channel blocks for listChannels4 method
+        """
         if self['HDBlock']['hd_dg_first']:
             dg=0
             self['DGBlock'][dg] = {}
@@ -802,7 +823,17 @@ class info4(dict):
                 self.readCGBlock(fid, dg, channelNameList)
                 
     def readCGBlock(self, fid, dg, channelNameList=False):
-        # reads Channel Group blocks
+        """reads Channel Group blocks
+        
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        dg : int
+            data group number
+        channelNameList : bool
+            Flag to reads only channel blocks for listChannels4 method
+        """
         if self['DGBlock'][dg] ['dg_cg_first']:
             cg=0
             self['CNBlock'][dg] = {}
@@ -884,7 +915,19 @@ class info4(dict):
                     self['CCBlock'][dg][cg][cn]=self['CCBlock'][dg][cg].pop(orderedMap[cn][0]+nChannel)
 
     def readCNBlock(self, fid, dg, cg, channelNameList=False):
-        # reads Channel Block
+        """reads Channel blocks
+        
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        dg : int
+            data group number
+        cg : int
+            channel group number in data group
+        channelNameList : bool
+            Flag to reads only channel blocks for listChannels4 method
+        """
         cn=0
         self['CNBlock'][dg][cg][cn] = {}
         self['CCBlock'][dg][cg][cn] = {}
@@ -958,7 +1001,25 @@ class info4(dict):
                     break
         
     def readComposition(self, fid, dg, cg, MLSDChannels, channelNameList=False):
-        #check for composition of channels, arrays or structures
+        """check for composition of channels, arrays or structures
+        
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        dg : int
+            data group number
+        cg : int
+            channel group number in data group
+        MLSDChannels : list of int
+            channel numbers
+        channelNameList : bool
+            Flag to reads only channel blocks for listChannels4 method
+            
+        Returns
+        -----------
+        MLSDChannels list of appended Maximum Length Sampling Data channels
+        """
         chan=list(self['CNBlock'][dg][cg].keys())[-1]+1
         for cn in list(self['CNBlock'][dg][cg].keys()):
             if self['CNBlock'][dg][cg][cn]['cn_composition']:
@@ -984,7 +1045,19 @@ class info4(dict):
         return MLSDChannels
         
     def readSRBlock(self, fid, pointer):
-        # reads Sample Reduction Blocks
+        """reads Sample Reduction Blocks
+        
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        pointer : int
+            position of SRBlock in file
+            
+        Returns
+        -----------
+        Sample Reduction Blocks in a dict
+        """
         if pointer>0:
             sr=0
             srBlocks={}
@@ -995,7 +1068,19 @@ class info4(dict):
             return srBlocks
             
     def readATBlock(selfself, fid, pointer):
-        # reads Attachment blocks
+        """reads Attachment blocks
+        
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        pointer : int
+            position of ATBlock in file
+            
+        Returns
+        -----------
+        Attachments Blocks in a dict
+        """
         if pointer >0:
             at=0
             atBlocks={}
@@ -1006,7 +1091,17 @@ class info4(dict):
             return atBlocks
     
     def listChannels4( self, fileName = None ):
-        # Read MDF file and extract its complete structure
+        """ Read MDF file and extract its complete structure
+        
+        Parameters
+        ----------------
+        fileName : str
+            file name
+        
+        Returns
+        -----------
+        list of channel names contained in file
+        """
         if not fileName == None:
             self.fileName = fileName
         # Open file
