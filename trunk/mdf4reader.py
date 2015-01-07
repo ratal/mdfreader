@@ -947,66 +947,67 @@ class mdf4(dict):
         # After all processing of channels,
         # prepare final class data with all its keys
         for dataGroup in list(info['DGBlock'].keys()):
-            if masterDataGroup: #master channel exist
-                self.masterChannelList[masterDataGroup[dataGroup]]=[]
-            for channelGroup in list(info['CGBlock'][dataGroup].keys()):
-                for channel in list(info['CNBlock'][dataGroup][channelGroup].keys()):
-                    channelName = info['CNBlock'][dataGroup][channelGroup][channel]['name']
-                    if channelName in L and len( L[channelName] ) != 0:
-                        if masterDataGroup: #master channel exist
-                            self.masterChannelList[masterDataGroup[dataGroup]].append(channelName)
-                        self[channelName] = {}
-                        if masterDataGroup: #master channel exist
-                            self[channelName]['master'] = masterDataGroup[dataGroup]
-                        else:
-                            self[channelName]['master'] = ''
-                        # sync_types : 0 data, 1 time (sec), 2 angle (radians), 4 index
-                        self[channelName]['masterType'] = info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
-                        if 'unit' in list(info['CCBlock'][dataGroup][channelGroup][channel].keys()):
-                            self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['unit']
-                        elif 'unit' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
-                            self[channelName]['unit'] = info['CNBlock'][dataGroup][channelGroup][channel]['unit']
-                        else:
-                            self[channelName]['unit'] = ''
-                        if 'Comment' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
-                            self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['Comment']
-                        else:
-                            self[channelName]['description'] = ''
-                        self[channelName]['data'] = L[channelName]
-                        L.pop(channelName, None) # free memory
-                        if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type']==4: # sync channel
-                            # attach stream to be synchronised
-                            self[channelName]['attachment']=ATBlock(fid, info['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
-                        convType = info['CCBlock'][dataGroup][channelGroup][channel]['cc_type']
-                        if convType in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10): # needs conversion
-                            self[channelName]['conversion'] = {}
-                            self[channelName]['conversion']['parameters'] = {}
-                            self[channelName]['conversion']['type'] = convType
-                            if 'cc_val' in info['CCBlock'][dataGroup][channelGroup][channel]:
-                                self[channelName]['conversion']['parameters']['cc_val'] = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
-                            if 'cc_ref' in info['CCBlock'][dataGroup][channelGroup][channel]:
-                                self[channelName]['conversion']['parameters']['cc_ref'] = info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']
-                    elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type']==13: #CANopen date
-                        identifier=['ms', 'min', 'hour', 'day', 'month', 'year']
-                        for name in identifier:
-                            self[name]={}
-                            self[name]['data']=L[name]
-                            self[name]['unit']=name
-                            self[name]['description']=''
-                            self[name]['masterType']=info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
+            if not info['DGBlock'][dataGroup]['dg_data']==0: # data exists
+                if masterDataGroup: #master channel exist
+                    self.masterChannelList[masterDataGroup[dataGroup]]=[]
+                for channelGroup in list(info['CGBlock'][dataGroup].keys()):
+                    for channel in list(info['CNBlock'][dataGroup][channelGroup].keys()):
+                        channelName = info['CNBlock'][dataGroup][channelGroup][channel]['name']
+                        if channelName in L and len( L[channelName] ) != 0:
                             if masterDataGroup: #master channel exist
-                                self.masterChannelList[masterDataGroup[dataGroup]].append(name)
-                    elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type']==14: #CANopen time
-                        identifier=['ms', 'days']
-                        for name in identifier:
-                            self[name]={}
-                            self[name]['data']=L[name]
-                            self[name]['unit']=name
-                            self[name]['description']=''
-                            self[name]['masterType']=info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
+                                self.masterChannelList[masterDataGroup[dataGroup]].append(channelName)
+                            self[channelName] = {}
                             if masterDataGroup: #master channel exist
-                                self.masterChannelList[masterDataGroup[dataGroup]].append(name)
-        
+                                self[channelName]['master'] = masterDataGroup[dataGroup]
+                            else:
+                                self[channelName]['master'] = ''
+                            # sync_types : 0 data, 1 time (sec), 2 angle (radians), 4 index
+                            self[channelName]['masterType'] = info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
+                            if 'unit' in list(info['CCBlock'][dataGroup][channelGroup][channel].keys()):
+                                self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['unit']
+                            elif 'unit' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
+                                self[channelName]['unit'] = info['CNBlock'][dataGroup][channelGroup][channel]['unit']
+                            else:
+                                self[channelName]['unit'] = ''
+                            if 'Comment' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
+                                self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['Comment']
+                            else:
+                                self[channelName]['description'] = ''
+                            self[channelName]['data'] = L[channelName]
+                            L.pop(channelName, None) # free memory
+                            if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type']==4: # sync channel
+                                # attach stream to be synchronised
+                                self[channelName]['attachment']=ATBlock(fid, info['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
+                            convType = info['CCBlock'][dataGroup][channelGroup][channel]['cc_type']
+                            if convType in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10): # needs conversion
+                                self[channelName]['conversion'] = {}
+                                self[channelName]['conversion']['parameters'] = {}
+                                self[channelName]['conversion']['type'] = convType
+                                if 'cc_val' in info['CCBlock'][dataGroup][channelGroup][channel]:
+                                    self[channelName]['conversion']['parameters']['cc_val'] = info['CCBlock'][dataGroup][channelGroup][channel]['cc_val']
+                                if 'cc_ref' in info['CCBlock'][dataGroup][channelGroup][channel]:
+                                    self[channelName]['conversion']['parameters']['cc_ref'] = info['CCBlock'][dataGroup][channelGroup][channel]['cc_ref']
+                        elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type']==13: #CANopen date
+                            identifier=['ms', 'min', 'hour', 'day', 'month', 'year']
+                            for name in identifier:
+                                self[name]={}
+                                self[name]['data']=L[name]
+                                self[name]['unit']=name
+                                self[name]['description']=''
+                                self[name]['masterType']=info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
+                                if masterDataGroup: #master channel exist
+                                    self.masterChannelList[masterDataGroup[dataGroup]].append(name)
+                        elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type']==14: #CANopen time
+                            identifier=['ms', 'days']
+                            for name in identifier:
+                                self[name]={}
+                                self[name]['data']=L[name]
+                                self[name]['unit']=name
+                                self[name]['description']=''
+                                self[name]['masterType']=info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
+                                if masterDataGroup: #master channel exist
+                                    self.masterChannelList[masterDataGroup[dataGroup]].append(name)
+            
         fid.close() # close file
         
         if convertAfterRead: 
