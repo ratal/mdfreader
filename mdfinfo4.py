@@ -251,48 +251,52 @@ class CommentBlock(MDFBlock):
                 self['Comment']=self.mdfblockreadBYTE(fid, self['length']-24) #[:-1] # removes normal 0 at end
                 import xml.etree.ElementTree as ET
                 utf8parser = ET.XMLParser(encoding="utf-8")
-                self['xml_tree']=ET.XML(self['Comment'].encode('utf-8'), parser=utf8parser)
-                self['xml']=elementTreeToDict(self['xml_tree'])
-                # specific action per comment block type, extracts specific tags from xml
-                if MDType=='CN': # channel comment
-                    self['names']=self.extractXmlField(self['xml_tree'], 'names')
-                    self['linker_name']=self.extractXmlField(self['xml_tree'], 'linker_name')
-                    self['linker_address']=self.extractXmlField(self['xml_tree'], 'linker_address')
-                    self['address']=self.extractXmlField(self['xml_tree'], 'address')
-                    self['axis_monotony']=self.extractXmlField(self['xml_tree'], 'axis_monotony')
-                    self['raster']=self.extractXmlField(self['xml_tree'], 'raster')
-                    self['formula']=self.extractXmlField(self['xml_tree'], 'formula')
-                elif MDType=='unit': # channel comment
-                    self['unit']=self.extractXmlField(self['xml_tree'], 'TX')
-                elif MDType=='HD': # header comment
-                    self['TX']=self.extractXmlField(self['xml_tree'], 'TX')
-                    tmp=self['xml_tree'].find(self.namespace+'common_properties')
-                    if tmp is not None:
-                        self[tmp[0].attrib['name']]=tmp[0].text # subject
-                        self[tmp[1].attrib['name']]=tmp[1].text # project
-                        self[tmp[2].attrib['name']]=tmp[2].text # department
-                        self[tmp[3].attrib['name']]=tmp[3].text # author
-                elif MDType=='FH': # File History comment
-                    self['TX']=self.extractXmlField(self['xml_tree'], 'TX')
-                    self['tool_id']=self.extractXmlField(self['xml_tree'], 'tool_id')
-                    self['tool_vendor']=self.extractXmlField(self['xml_tree'], 'tool_vendor')
-                    self['tool_version']=self.extractXmlField(self['xml_tree'], 'tool_version')
-                    self['user_name']=self.extractXmlField(self['xml_tree'], 'user_name')
-                elif MDType=='SI':
-                    self['TX']=self.extractXmlField(self['xml_tree'], 'TX')
-                    self['names']=self.extractXmlField(self['xml_tree'], 'names')
-                    self['path']=self.extractXmlField(self['xml_tree'], 'path')
-                    self['bus']=self.extractXmlField(self['xml_tree'], 'bus')
-                    self['protocol']=self.extractXmlField(self['xml_tree'], 'protocol')
-                elif MDType=='CC':
-                    self['TX']=self.extractXmlField(self['xml_tree'], 'TX')
-                    self['names']=self.extractXmlField(self['xml_tree'], 'names')
-                    self['ho:COMPU_METHOD']=self.extractXmlField(self['xml_tree'], 'ho:COMPU_METHOD')
-                    self['formula']=self.extractXmlField(self['xml_tree'], 'formula')
-                else:
-                    if MDType is not None:
-                        print('No recognized MDType')
-                        print(MDType)
+                try:
+                    self['xml_tree']=ET.XML(self['Comment'].encode('utf-8'), parser=utf8parser)
+                    self['xml']=elementTreeToDict(self['xml_tree'])
+                    # specific action per comment block type, extracts specific tags from xml
+                    if MDType=='CN': # channel comment
+                        self['names']=self.extractXmlField(self['xml_tree'], 'names')
+                        self['linker_name']=self.extractXmlField(self['xml_tree'], 'linker_name')
+                        self['linker_address']=self.extractXmlField(self['xml_tree'], 'linker_address')
+                        self['address']=self.extractXmlField(self['xml_tree'], 'address')
+                        self['axis_monotony']=self.extractXmlField(self['xml_tree'], 'axis_monotony')
+                        self['raster']=self.extractXmlField(self['xml_tree'], 'raster')
+                        self['formula']=self.extractXmlField(self['xml_tree'], 'formula')
+                    elif MDType=='unit': # channel comment
+                        self['unit']=self.extractXmlField(self['xml_tree'], 'TX')
+                    elif MDType=='HD': # header comment
+                        self['TX']=self.extractXmlField(self['xml_tree'], 'TX')
+                        tmp=self['xml_tree'].find(self.namespace+'common_properties')
+                        if tmp is not None:
+                            self[tmp[0].attrib['name']]=tmp[0].text # subject
+                            self[tmp[1].attrib['name']]=tmp[1].text # project
+                            self[tmp[2].attrib['name']]=tmp[2].text # department
+                            self[tmp[3].attrib['name']]=tmp[3].text # author
+                    elif MDType=='FH': # File History comment
+                        self['TX']=self.extractXmlField(self['xml_tree'], 'TX')
+                        self['tool_id']=self.extractXmlField(self['xml_tree'], 'tool_id')
+                        self['tool_vendor']=self.extractXmlField(self['xml_tree'], 'tool_vendor')
+                        self['tool_version']=self.extractXmlField(self['xml_tree'], 'tool_version')
+                        self['user_name']=self.extractXmlField(self['xml_tree'], 'user_name')
+                    elif MDType=='SI':
+                        self['TX']=self.extractXmlField(self['xml_tree'], 'TX')
+                        self['names']=self.extractXmlField(self['xml_tree'], 'names')
+                        self['path']=self.extractXmlField(self['xml_tree'], 'path')
+                        self['bus']=self.extractXmlField(self['xml_tree'], 'bus')
+                        self['protocol']=self.extractXmlField(self['xml_tree'], 'protocol')
+                    elif MDType=='CC':
+                        self['TX']=self.extractXmlField(self['xml_tree'], 'TX')
+                        self['names']=self.extractXmlField(self['xml_tree'], 'names')
+                        self['ho:COMPU_METHOD']=self.extractXmlField(self['xml_tree'], 'ho:COMPU_METHOD')
+                        self['formula']=self.extractXmlField(self['xml_tree'], 'formula')
+                    else:
+                        if MDType is not None:
+                            print('No recognized MDType')
+                            print(MDType)
+                except:
+                    print('problem parsing metadata for '+MDType+' block')
+                    print(self['Comment'])
 
             elif self['id'] in ('##TX',b'##TX'):
                 if MDType=='CN': # channel comment
@@ -392,7 +396,7 @@ class CGBlock(MDFBlock):
 class CNBlock(MDFBlock):
     """ reads Channel block and saves in class dict
     """
-    def __init__(self, fid,  pointer,  attachmentNumber=None):
+    def __init__(self, fid,  pointer):
         if pointer != 0 and pointer is not None:
             fid.seek( pointer )
             self['pointer']=pointer
@@ -434,7 +438,7 @@ class CNBlock(MDFBlock):
                 self['attachment']={}
                 if self['cn_attachment_count']>1:
                     for at in range(self['cn_attachment_count']):
-                        self['attachment'][at]=ATBlock(fid, self['cn_at_reference'][at])
+                        self['attachment'][at]=ATBlock(fid, self['cn_at_reference'][at][0])
                 else:
                     self['attachment'][0]=ATBlock(fid, self['cn_at_reference'])
             if self['link_count']>(8+self['cn_attachment_count']):
@@ -766,7 +770,7 @@ class info4(dict):
         # reads Header HDBlock
         self['HDBlock'].update(HDBlock(fid))        
         
-        # reads File History blocks, always exists
+        #print('reads File History blocks, always exists')
         fh=0 # index of fh blocks
         self['FHBlock'][fh] = {}
         self['FHBlock'][fh] .update(FHBlock(fid, self['HDBlock']['hd_fh_first']))
@@ -775,7 +779,7 @@ class info4(dict):
             self['FHBlock'][fh+1] .update(FHBlock(fid, self['FHBlock'][fh]['fh_fh_next']))
             fh+=1
         
-        # reads Channel Hierarchy blocks
+        # print('reads Channel Hierarchy blocks')
         if self['HDBlock']['hd_ch_first']:
             ch=0
             self['CHBlock'][ch] = {}
@@ -951,10 +955,12 @@ class info4(dict):
                 # reads Channel Array Block
                 
                 # reads Attachment Block
-                if self['CNBlock'][dg][cg][cn]['cn_attachment_count']>0:
+                if self['CNBlock'][dg][cg][cn]['cn_attachment_count']>1:
                     for at in range(self['CNBlock'][dg][cg][cn]['cn_attachment_count']):
-                        self['CNBlock'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn-1]['cn_at_reference'][at]))
-            
+                        self['CNBlock'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference'][at]))
+                elif self['CNBlock'][dg][cg][cn]['cn_attachment_count']==1:
+                    self['CNBlock'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference']))
+                
                 # reads Channel Conversion Block
                 self['CCBlock'][dg][cg][cn]=CCBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
             while self['CNBlock'][dg][cg][cn]['cn_cn_next']:
@@ -1084,6 +1090,8 @@ class info4(dict):
         if pointer >0:
             at=0
             atBlocks={}
+            if type(pointer) in (tuple, list):
+                pointer=pointer[0]
             atBlocks[0]=ATBlock(fid, pointer)
             while atBlocks[at]['at_at_next']>0:
                 at+=1
