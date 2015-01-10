@@ -42,7 +42,7 @@ setup(
         'Topic :: Scientific/Engineering',
 
         # Pick your license as you wish (should match "license" above)
-        'License :: OSI Approved :: GPL3',
+        'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
 
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
@@ -74,7 +74,7 @@ setup(
     extras_require = {
         'export': ['scipy','h5py','xlwt','xlwt3','openpyxl','pandas'],
         'converter': ['PyQt4'],
-    },
+    }
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.  If using Python 2.6 or less, then these
@@ -96,5 +96,5 @@ setup(
     #    'console_scripts': [
     #        'sample=sample:main',
     #    ],
-    },
+    #},
 )
