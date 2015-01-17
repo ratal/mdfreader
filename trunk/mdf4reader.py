@@ -673,7 +673,7 @@ class record(list):
             if channel.channelType in (0, 1, 2, 4, 5): # not virtual channel
                 self.append(channel)
                 self.channelNames.append(channel.name)
-                if len(self)>1 and channel.byteOffset==self[-2].byteOffset: # several channels in one byte, ubit1 or ubit2
+                if len(self)>1 and channel.byteOffset>=self[-2].byteOffset and channel.byteOffset<(self[-2].byteOffset+self[-2].nBytes): # several channels in one byte, ubit1 or ubit2
                     self.recordToChannelMatching[channel.name]=self.recordToChannelMatching[self[-2].name]
                 else: # adding bytes
                     self.recordToChannelMatching[channel.name]=channel.name
