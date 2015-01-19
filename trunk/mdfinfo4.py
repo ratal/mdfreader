@@ -520,15 +520,24 @@ class CABlock(MDFBlock):
             self['ca_byte_offset_base']=self.mdfblockread(fid, INT32, 1) 
             self['ca_invalid_bit_pos_base']=self.mdfblockread(fid, UINT32, 1)
             self['ca_dim_size']=self.mdfblockread(fid, UINT64, self['ca_ndim'])
+            try: # more than one dimension, processing dict
+                SNd=0
+                PNd=1
+                for x in self['ca_dim_size']:
+                    SNd+=self['ca_dim_size'][x][0]
+                    PNd*=self['ca_dim_size'][x][0]
+            except: # only one dimension, processing int
+                SNd=self['ca_dim_size']
+                PNd=SNd
             if 1<<5 & self['ca_flags']: # bit5
-                self['ca_axis_value']=self.mdfblockread(fid, REAL, self['ca_dim_size'].sum())
+                self['ca_axis_value']=self.mdfblockread(fid, REAL, SNd)
             if self['ca_storage']>=1:
-                self['ca_cycle_count']=self.mdfblockread(fid, UINT64, self['ca_dim_size'].product())
+                self['ca_cycle_count']=self.mdfblockread(fid, UINT64, PNd)
             # Channel Conversion block : Links
             fid.seek( pointer +24 )
             self['ca_composition']=self.mdfblockread(fid, LINK, 1) # point to CN for array of structures or CA for array of array
             if self['ca_storage']==2:
-                self['ca_data']=self.mdfblockread(fid, LINK, self['ca_dim_size'].product()) 
+                self['ca_data']=self.mdfblockread(fid, LINK, PNd) 
             if 1<<0 &self['ca_flags']: # bit 0
                 self['ca_dynamic_size']=self.mdfblockread(fid, LINK, self['ca_ndim']*3)
             if 1<<1 &self['ca_flags']: # bit 1
@@ -539,8 +548,11 @@ class CABlock(MDFBlock):
                 self['ca_comparison_quantity']=self.mdfblockread(fid, LINK, 3)
             if 1<<4 &self['ca_flags']: # bit 4
                 self['ca_cc_axis_conversion']=self.mdfblockread(fid, LINK, self['ca_ndim'])
-            if 1<<4 &self['ca_flags'] and 1<<5 &self['ca_flags']: # bit 4 and 5
+            if 1<<4 &self['ca_flags'] and not 1<<5 &self['ca_flags']: # bit 4 and 5
                 self['ca_axis']=self.mdfblockread(fid, LINK, self['ca_ndim']*3)
+            # nested arrays
+            if self['ca_composition']:
+                self['CABlock']=CABlock(fid, self['ca_composition'])
 
 class ATBlock(MDFBlock):
     """ reads Attachment block and saves in class dict
@@ -953,7 +965,15 @@ class info4(dict):
                 self['CNBlock'][dg][cg][cn]['SIBlock']=SIBlock(fid, self['CNBlock'][dg][cg][cn]['cn_si_source'])
                 
                 # reads Channel Array Block
-                
+                if self['CNBlock'][dg][cg][cn]['cn_composition']: # composition but can be either structure of channels or array
+                    fid.seek(self['CNBlock'][dg][cg][cn]['cn_composition'])
+                    if fid.read(4) in ('##CA',b'##CA'):
+                        self['CNBlock'][dg][cg][cn]['CABlock']=CABlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                    elif self.mdfblockreadCHAR(fid, 4) in ('##CN',b'##CN'):
+                        self['CNBlock'][dg][cg][cn]['CNBlock']=CNBlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                    else:
+                        raise('unknown channel composition')
+                        
                 # reads Attachment Block
                 if self['CNBlock'][dg][cg][cn]['cn_attachment_count']>1:
                     for at in range(self['CNBlock'][dg][cg][cn]['cn_attachment_count']):
@@ -981,7 +1001,16 @@ class info4(dict):
                                 break
                                 
                     # reads Channel Array Block
-                    
+                    if self['CNBlock'][dg][cg][cn]['cn_composition']: # composition but can be either structure of channels or array
+                        fid.seek(self['CNBlock'][dg][cg][cn]['cn_composition'])
+                        id=fid.read(4)
+                        if id in ('##CA',b'##CA'):
+                            self['CNBlock'][dg][cg][cn]['CABlock']=CABlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                        elif id in ('##CN',b'##CN'):
+                            self['CNBlock'][dg][cg][cn]['CNBlock']=CNBlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                        else:
+                            raise('unknown channel composition')
+                        
                     # reads Attachment Block
                     if self['CNBlock'][dg][cg][cn-1]['cn_attachment_count']>0:
                         for at in range(self['CNBlock'][dg][cg][cn-1]['cn_attachment_count']):
@@ -1032,7 +1061,7 @@ class info4(dict):
                 fid.seek(self['CNBlock'][dg][cg][cn]['cn_composition'])
                 ID=MDFBlock()
                 ID=ID.mdfblockreadCHAR(fid, 4)
-                if ID in ('##CN',b'##CN'):
+                if ID in ('##CN',b'##CN'): # Structures
                     self['CNBlock'][dg][cg][chan]=CNBlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
                     self['CCBlock'][dg][cg][chan]=CCBlock(fid, self['CNBlock'][dg][cg][chan]['cn_cc_conversion'])
                     if self['CNBlock'][dg][cg][chan]['cn_type']==5:
@@ -1044,7 +1073,7 @@ class info4(dict):
                         if self['CNBlock'][dg][cg][chan]['cn_type']==5:
                             MLSDChannels.append(chan)
                     self['CNBlock'][dg][cg][cn]['cn_type']=6 # makes the channel virtual
-                elif ID in ('##CA',b'##CA'):
+                elif ID in ('##CA',b'##CA'): # arrays
                     print('channel array composition')
                 else:
                     print('unknown channel composition')
