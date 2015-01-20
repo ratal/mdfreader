@@ -1012,14 +1012,13 @@ class info4(dict):
                             raise('unknown channel composition')
                         
                     # reads Attachment Block
-                    if self['CNBlock'][dg][cg][cn-1]['cn_attachment_count']>0:
-                        for at in range(self['CNBlock'][dg][cg][cn-1]['cn_attachment_count']):
-                            if self['CNBlock'][dg][cg][cn-1]['cn_attachment_count']>1:
-                                at_pointer = self['CNBlock'][dg][cg][cn-1]['cn_at_reference'][at]
-                            else:
-                                at_pointer = self['CNBlock'][dg][cg][cn-1]['cn_at_reference']
-                            self['CNBlock'][dg][cg][cn-1]['attachment'][at].update(self.readATBlock(fid, at_pointer))
-                    
+                    if self['CNBlock'][dg][cg][cn]['cn_attachment_count']>1:
+                        for at in range(self['CNBlock'][dg][cg][cn]['cn_attachment_count']):
+                            print(self['CNBlock'][dg][cg][cn]['cn_at_reference'][at])
+                            self['CNBlock'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference'][at][0]))
+                    elif self['CNBlock'][dg][cg][cn]['cn_attachment_count']==1:
+                        self['CNBlock'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference']))
+
                     # reads Channel Conversion Block
                     self['CCBlock'][dg][cg][cn]=CCBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
         
@@ -1074,7 +1073,7 @@ class info4(dict):
                             MLSDChannels.append(chan)
                     self['CNBlock'][dg][cg][cn]['cn_type']=6 # makes the channel virtual
                 elif ID in ('##CA',b'##CA'): # arrays
-                    print('channel array composition')
+                    pass
                 else:
                     print('unknown channel composition')
         return MLSDChannels
