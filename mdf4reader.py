@@ -831,14 +831,13 @@ class mdf4(dict):
         self.comment=''
         self.time=''
         self.date=''
-        self.convertAfterRead=True
         # clears class from previous reading and avoid to mess up
         self.clear()
         if fileName == None and info!=None:
             self.fileName=info.fileName
         else:
             self.fileName=fileName
-        self.read4(self.fileName, info, multiProc, channelList)
+        self.read4(self.fileName, info, multiProc, channelList, convertAfterRead)
 
     def read4( self, fileName=None, info = None, multiProc = False, channelList=None, convertAfterRead=True):
         """ Reads mdf 4.x file data and stores it in dict
@@ -1049,26 +1048,27 @@ class mdf4(dict):
         numpy array
             returns numpy array converted to physical values according to conversion type
         """
+        text_Type=self[channelName]['data'].dtype.kind in ['S', 'U'] # channel of string or not ?
         if 'conversion' in self[channelName]: # there is conversion property
-            if self[channelName]['conversion']['type'] == 1:
+            if self[channelName]['conversion']['type'] == 1 and not text_Type:
                 return linearConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
-            elif self[channelName]['conversion']['type'] == 2:
+            elif self[channelName]['conversion']['type'] == 2 and not text_Type:
                 return rationalConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
-            elif self[channelName]['conversion']['type'] == 3:
+            elif self[channelName]['conversion']['type'] == 3 and not text_Type:
                 return formulaConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_ref']['Comment'])
-            elif self[channelName]['conversion']['type'] == 4:
+            elif self[channelName]['conversion']['type'] == 4 and not text_Type:
                 return valueToValueTableWInterpConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
-            elif self[channelName]['conversion']['type'] == 5:
+            elif self[channelName]['conversion']['type'] == 5 and not text_Type:
                 return valueToValueTableWOInterpConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
-            elif self[channelName]['conversion']['type'] == 6:
+            elif self[channelName]['conversion']['type'] == 6 and not text_Type:
                 return valueRangeToValueTableConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
-            elif self[channelName]['conversion']['type'] == 7:
+            elif self[channelName]['conversion']['type'] == 7 and not text_Type:
                 return valueToTextConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'], self[channelName]['conversion']['parameters']['cc_ref'])
-            elif self[channelName]['conversion']['type'] == 8:
+            elif self[channelName]['conversion']['type'] == 8 and not text_Type:
                 return valueRangeToTextConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'], self[channelName]['conversion']['parameters']['cc_ref'])
-            elif self[channelName]['conversion']['type'] == 9:
+            elif self[channelName]['conversion']['type'] == 9 and text_Type:
                 return textToValueConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'], self[channelName]['conversion']['parameters']['cc_ref'])
-            elif self[channelName]['conversion']['type'] == 10:
+            elif self[channelName]['conversion']['type'] == 10 and text_Type:
                 return textToTextConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_ref'])
             else:
                 return self[channelName]['data']
@@ -1286,12 +1286,33 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                     else: # should not happen
                         print('bit count and offset not applied to correct data type')
                         L[channelName] = temp
-                else: #data using bull bytes
+                else: #data using full bytes
                     L[channelName] = temp
                 
                 # MLSD
                 if chan.channelType==5:
                     pass #print('MLSD masking needed')
+                    
+                # channel array processing
+                if 'CABlock' in info['CNBlock'][dataGroup][channelGroup][channel]:
+                    if info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_ndim']==1:
+                        Dims=info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_dim_size']
+                    elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_ndim']>1:
+                        ca_dim_size=info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_dim_size']
+                        Dims=[ca_dim_size[i][0] for i in ca_dim_size]
+                    if info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==0: # simple array, no axis/outpout
+                        print('resizing array', Dims, len(L[channelName]))
+                        if info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_ndim']>1:
+                            L[channelName]=L[channelName].reshape(Dims)
+                    elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==1: # scaling axis, 1D
+                        pass
+                    elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==2: # look-up
+                        pass
+                    elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==3: # interval axis, 1D
+                        pass
+                    elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==4: # classification
+                        pass
+                    
             elif chan.signalDataType==13:
                 L['ms']=buf[recordID]['data']['data'].__getattribute__( 'ms_title') 
                 L['min']=buf[recordID]['data']['data'].__getattribute__( 'min_title') 
@@ -1342,7 +1363,7 @@ def rationalConv(vect,  cc_val):
     P4 = cc_val[3]
     P5 = cc_val[4]
     P6 = cc_val[5]
-    return (P1*vect *vect +P2*vect +P3)/(P4*vect *vect +P5*vect +P6)
+    return (P1*vect*vect +P2*vect +P3)/(P4*vect*vect +P5*vect +P6)
 def formulaConv(vect, formula):
     """ apply formula conversion to data
     

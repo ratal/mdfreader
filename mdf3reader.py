@@ -629,16 +629,15 @@ class mdf3(dict):
         self.time=''
         self.date=''
         self.VersionNumber=300
-        self.convertAfterRead=True
         self.filterChannelNames=False
         # clears class from previous reading and avoid to mess up
         self.clear()
         if fileName is None and info is not None:
             self.fileName = info.fileName
-            self.read3(self.fileName, info, multiProc, channelList)
+            self.read3(self.fileName, info, multiProc, channelList, convertAfterRead)
         elif fileName is not None:
             self.fileName = fileName
-            self.read3(self.fileName, info, multiProc, channelList)        
+            self.read3(self.fileName, info, multiProc, channelList, convertAfterRead)
 
     def read3( self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True):
         """ Reads mdf 3.x file data and stores it in dict
@@ -665,7 +664,6 @@ class mdf3(dict):
             To calculate value from channel, you can then use method .getChannelData()
         """
         self.multiProc = multiProc
-        self.convertAfterRead = convertAfterRead
         if platform == 'win32':
             self.multiProc = False # no multiprocessing for windows platform
         try:
@@ -778,7 +776,7 @@ class mdf3(dict):
                             if convType == 0 and (self[channelName]['conversion']['parameters']['P2'] == 1.0 and self[channelName]['conversion']['parameters']['P1'] in (0.0, -0.0)):
                                 self[channelName].pop('conversion')
         
-        if self.convertAfterRead: 
+        if convertAfterRead: 
             self.convertAllChannel3()
         #print( 'Finished in ' + str( time.clock() - inttime ) )
     
