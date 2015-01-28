@@ -26,7 +26,7 @@ mdf4reader module
 
 """
 from numpy.core.records import fromrecords, fromstring, fromfile
-from numpy import array, recarray, append, asarray, empty, zeros, dtype
+from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
 from numpy import hstack, arange, right_shift, bitwise_and, all, diff, interp
 from struct import unpack, Struct
 from math import pow
@@ -1473,14 +1473,24 @@ def valueToTextConv(vect, cc_val, cc_ref):
     converted data to physical value
     """
     val_count=int(len(cc_val))
-    temp=[]
-    for Lindex in range(len(vect )):
-        key_index=val_count # default index if not found
-        for i in range(val_count):
-            if  vect[Lindex] == cc_val[i]:
-                key_index=i
-                break
-        temp.append(cc_ref[key_index])
+    cc_val=list(cc_val.values()) # converts dict to lists
+    cc_ref=list(cc_ref.values())
+    maxlen=len(max(cc_ref, key=len))
+    temp=empty(len(vect), dtype='S'+str(maxlen)) # initialize empty array with max length
+    key_index=where(vect[0] == cc_val)[0] # look up for first value in vect
+    if not len(key_index)==0: # value corresponding in cc_val
+        temp[0]=cc_ref[key_index[0]]
+    else: # default value
+        temp[0]=cc_ref[val_count]
+    for Lindex in range(1, len(vect)):
+        if vect[Lindex]==vect[Lindex-1]: # same value as before, no need to look further
+            temp[Lindex]=temp[Lindex-1]
+        else: # value changed from previous step
+            key_index=where(vect[Lindex] == cc_val)[0]
+            if not len(key_index)==0: # found match
+                temp[Lindex]=cc_ref[key_index[0]]
+            else: # default
+                temp[Lindex]=cc_ref[val_count]
     return temp
     
 def valueRangeToTextConv(vect, cc_val, cc_ref):
