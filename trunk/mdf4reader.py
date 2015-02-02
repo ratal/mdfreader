@@ -34,6 +34,7 @@ from sys import platform, version_info
 from io import open # for python 3 and 2 consistency
 from mdfinfo4 import info4, MDFBlock,  ATBlock#, CNBlock
 from time import gmtime, strftime
+from multiprocessing import Pool,cpu_count
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 
@@ -97,11 +98,12 @@ class DATABlock(MDFBlock):
             elif record.signalDataType==9:
                 format='>utf-16'
             pointer=0
-            buf=[]
+            buf=[] # buf=array(record.numberOfRecords,dtype='s'+str(record.maxLengthVLSDRecord))
             nElement=0
             while pointer<self['length']-24:
                 VLSDLen=unpack('I', fid.read(4))[0] # length of data
-                buf.append(fid.read(VLSDLen).decode(format).rstrip('\x00'))
+                buf.append(fid.read(VLSDLen).decode(format).rstrip('\x00')) # to be improved, removing append
+                #buf[nElement]=fid.read(VLSDLen).decode(format).rstrip('\x00')
                 pointer+=VLSDLen+4
                 nElement+=1
             if nElement>1:
@@ -142,7 +144,7 @@ class DATABlock(MDFBlock):
                 print('not implemented yet sorted compressed data block reading with channelList') # to be implemented
                 
             else: # unsorted reading
-                # reads only the channels using offset functions, channel by channel. Not yet ready
+                # reads only the channels using offset functions, channel by channel.
                 buf={}
                 position=0
                 recordIdCFormat=record[list(record.keys())[0]]['record'].recordIDCFormat
@@ -151,7 +153,8 @@ class DATABlock(MDFBlock):
                 # initialise data structure
                 for recordID in record:
                     for channelName in record[recordID]['record'].channelNames:
-                        buf[channelName]=[]
+                        buf[channelName]=[] # empty(record.numberOfRecords,dtype=record[recordID]['record'].dataFormat)
+                        #index[channelName]=0
                 # read data
                 while position<len(self['data']):
                     recordID=recordIdCFormat.unpack(self['data'][position:position+recordIDsize])[0]
@@ -159,7 +162,9 @@ class DATABlock(MDFBlock):
                         temp=record.readRecord(recordID, self['data'][position:position+record[recordID]['record'].recordLength+1], channelList)
                         position += record[recordID]['record'].recordLength+1
                         for channelName in temp:
-                            buf[channelName].append(temp[channelName])
+                            buf[channelName].append(temp[channelName]) # to remove append
+                            # buf[channelName][index[recordID]]=temp[channelName]
+                            # index[recordID] += 1
                     else: # VLSD CG
                         position+=recordIDsize
                         VLSDLen=VLSDStruct.unpack(self['data'][position:position+4])[0] # VLSD length
@@ -316,9 +321,11 @@ class DATA(dict):
             self[recordID]['data']=self.loadSorted( record, zip=None, nameList=channelList)
             for cn in record.VLSD: # VLSD channels
                 if channelList is None or record[cn].name in channelList:
-                    temp=DATA(self.fid,  record[cn].data)
+                    temp=DATA(self.fid,  record[cn].data) # all channels
+                    rec=self[recordID]['data']['data'] # recarray from data block
+                    # determine maximum length of values in VLSD for array dtype
+                    # record[cn].maxLengthVLSDRecord=max(diff(rec[convertName(record[cn].name)])-4)
                     temp=temp.loadSorted(record[cn], zip=None, nameList=channelList)
-                    rec=self[recordID]['data']['data']
                     rec=change_field_name(rec, convertName(record[cn].name), convertName(record[cn].name)+'_offset')
                     rec=append_field(rec, convertName(record[cn].name), temp['data'])
                     self[recordID]['data']['data']=rec.view(recarray)
@@ -534,6 +541,7 @@ class recordChannel():
             self.data=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data']
             if self.channelType==1: # if VSLD
                 self.dataFormat=arrayformat4(0, self.bitCount )
+                self.maxLengthVLSDRecord=0 # initialises max length of SDBlock elements to 0 for later calculation
         self.RecordFormat=((self.name, convertName(self.name)),  self.dataFormat)
         if not self.signalDataType in (13, 14): # processed by several channels
             if not self.channelType==1: # if VSLD
@@ -706,7 +714,7 @@ class record(list):
                             self.VLSD_CG[recordID]['channelName']=channel.name
                             self[-1].VLSD_CG_Flag=True
                             break
-                if channel.channelType==1:
+                if channel.channelType==1: # VLSD channel
                     self.VLSD.append(channel.channelNumber)
             elif channel.channelType in (3, 6): # virtual channel
                 pass # channel calculated based on record index later in conversion function
@@ -820,9 +828,10 @@ class mdf4(dict):
         Converts all channels from raw data to converted data according to CCBlock information
     """
     
-    def __init__( self, fileName = None, info=None,multiProc = False,  channelList=None, convertAfterRead=True):
+    def __init__( self, fileName = None, info=None, multiProc = False, channelList=None, convertAfterRead=True):
         self.masterChannelList = {}
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
+        self.convert_tables = False # if True converts raw data with expensive loops, not necessary most cases
         self.VersionNumber=400
         self.author=''
         self.organisation=''
@@ -833,11 +842,12 @@ class mdf4(dict):
         self.date=''
         # clears class from previous reading and avoid to mess up
         self.clear()
-        if fileName == None and info!=None:
+        if fileName is None and info is not None:
             self.fileName=info.fileName
-        else:
+            self.read4(self.fileName, info, multiProc, channelList, convertAfterRead)
+        elif fileName is not None:
             self.fileName=fileName
-        self.read4(self.fileName, info, multiProc, channelList, convertAfterRead)
+            self.read4(self.fileName, info, multiProc, channelList, convertAfterRead)
 
     def read4( self, fileName=None, info = None, multiProc = False, channelList=None, convertAfterRead=True):
         """ Reads mdf 4.x file data and stores it in dict
@@ -940,8 +950,11 @@ class mdf4(dict):
                     print('No data in dataGroup '+ str(dataGroup))
 
         if self.multiProc and 'data' in buf:
-            for i in proc:
+            for p in proc:
                 L.update(Q.get()) # concatenate results of processes in dict
+            for p in proc:
+                p.join()
+            del Q # free memory
 
         # After all processing of channels,
         # prepare final class data with all its keys
@@ -1031,49 +1044,9 @@ class mdf4(dict):
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if channelName in self:
-            return self.convert4(channelName)
+            return convertChannelData4(self[channelName], self.convert_tables)
         else:
             raise('Channel not in dictionary')
-    
-    def convert4(self, channelName):
-        """converts specific channel from raw to physical data according to CCBlock information
-        
-        Parameters
-        ----------------
-        channelName : str
-            Name of channel
-        
-        Returns
-        -----------
-        numpy array
-            returns numpy array converted to physical values according to conversion type
-        """
-        text_Type=self[channelName]['data'].dtype.kind in ['S', 'U'] # channel of string or not ?
-        if 'conversion' in self[channelName]: # there is conversion property
-            if self[channelName]['conversion']['type'] == 1 and not text_Type:
-                return linearConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
-            elif self[channelName]['conversion']['type'] == 2 and not text_Type:
-                return rationalConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
-            elif self[channelName]['conversion']['type'] == 3 and not text_Type:
-                return formulaConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_ref']['Comment'])
-            elif self[channelName]['conversion']['type'] == 4 and not text_Type:
-                return valueToValueTableWInterpConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
-            elif self[channelName]['conversion']['type'] == 5 and not text_Type:
-                return valueToValueTableWOInterpConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
-            elif self[channelName]['conversion']['type'] == 6 and not text_Type:
-                return valueRangeToValueTableConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'])
-            elif self[channelName]['conversion']['type'] == 7 and not text_Type:
-                return valueToTextConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'], self[channelName]['conversion']['parameters']['cc_ref'])
-            elif self[channelName]['conversion']['type'] == 8 and not text_Type:
-                return valueRangeToTextConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'], self[channelName]['conversion']['parameters']['cc_ref'])
-            elif self[channelName]['conversion']['type'] == 9 and text_Type:
-                return textToValueConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_val'], self[channelName]['conversion']['parameters']['cc_ref'])
-            elif self[channelName]['conversion']['type'] == 10 and text_Type:
-                return textToTextConv(self[channelName]['data'], self[channelName]['conversion']['parameters']['cc_ref'])
-            else:
-                return self[channelName]['data']
-        else:
-            return self[channelName]['data']
     
     def convertChannel4(self, channelName):
         """converts specific channel from raw to physical data according to CCBlock information
@@ -1083,7 +1056,7 @@ class mdf4(dict):
         channelName : str
             Name of channel
         """
-        self[channelName]['data'] = self.convert4(channelName)
+        self[channelName]['data'] = convertChannelData4(self[channelName], self.convert_tables)
         if 'conversion' in self[channelName]:
             self[channelName].pop('conversion')
     
@@ -1091,8 +1064,20 @@ class mdf4(dict):
         """Converts all channels from raw data to converted data according to CCBlock information
         Converted data will take more memory.
         """
-        for channel in self:
-            self.convertChannel4(channel)
+        if self.multiProc == False:
+            [self.convertChannel4(channelName) for channelName in self]
+        else: # multiprocessing
+            ncpu=cpu_count() # to still have response from PC
+            if ncpu<1:
+                ncpu=1
+            pool = Pool(processes=ncpu)
+            args = [self[channelName] for channelName in self]
+            result = pool.map_async(convertChannelData4,args)
+            result.get()
+            index=0
+            for channelName in self:
+                self[channelName]['data']=result[index]
+                index+=1
 
 def convertName(channelName):
     """ Adds '_title' to channel name for numpy.core.records methods
@@ -1327,7 +1312,46 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
         Q.put(L)
     else:
         return L
-
+        
+def convertChannelData4(channel, convert_tables=False):
+    """converts specific channel from raw to physical data according to CCBlock information
+    
+    Parameters
+    ----------------
+    channelName : str
+        Name of channel
+    
+    Returns
+    -----------
+    numpy array
+        returns numpy array converted to physical values according to conversion type
+    """
+    vect = channel['data']
+    if 'conversion' in channel: # there is conversion property
+        text_type = channel['data'].dtype.kind in ['S', 'U'] # channel of string or not ?
+        conversion_type = channel['conversion']['type']
+        if conversion_type == 1 and not text_type:
+            vect = linearConv(vect, channel['conversion']['parameters']['cc_val'])
+        elif conversion_type == 2 and not text_type:
+            vect = rationalConv(vect, channel['conversion']['parameters']['cc_val'])
+        elif conversion_type == 3 and not text_type:
+            vect = formulaConv(vect, channel['conversion']['parameters']['cc_ref']['Comment'])
+        elif conversion_type == 4 and not text_type:
+            vect = valueToValueTableWInterpConv(vect, channel['conversion']['parameters']['cc_val'])
+        elif conversion_type == 5 and not text_type:
+            vect = valueToValueTableWOInterpConv(vect, channel['conversion']['parameters']['cc_val'])
+        elif conversion_type == 6 and not text_type and convert_tables:
+            vect = valueRangeToValueTableConv(vect, channel['conversion']['parameters']['cc_val'])
+        elif conversion_type == 7 and not text_type and convert_tables:
+            vect = valueToTextConv(vect, channel['conversion']['parameters']['cc_val'], channel['conversion']['parameters']['cc_ref'])
+        elif conversion_type == 8 and not text_type and convert_tables:
+            vect = valueRangeToTextConv(vect, channel['conversion']['parameters']['cc_val'], channel['conversion']['parameters']['cc_ref'])
+        elif conversion_type == 9 and text_type and convert_tables:
+            vect = textToValueConv(vect, channel['conversion']['parameters']['cc_val'], channel['conversion']['parameters']['cc_ref'])
+        elif conversion_type == 10 and text_type and convert_tables:
+            vect = textToTextConv(vect, channel['conversion']['parameters']['cc_ref'])
+    return vect
+            
 def linearConv(vect, cc_val):
     """ apply linear conversion to data
     
@@ -1482,7 +1506,7 @@ def valueToTextConv(vect, cc_val, cc_ref):
         temp[0]=cc_ref[key_index[0]]
     else: # default value
         temp[0]=cc_ref[val_count]
-    for Lindex in range(1, len(vect)):
+    for Lindex in set(range(1, len(vect))):
         if vect[Lindex]==vect[Lindex-1]: # same value as before, no need to look further
             temp[Lindex]=temp[Lindex-1]
         else: # value changed from previous step

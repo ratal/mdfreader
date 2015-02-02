@@ -310,6 +310,7 @@ class mdf( mdf3,  mdf4 ):
         self.time=''
         self.date=''
         self.multiProc = False # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
+        self.convert_tables = False # if True converts raw data with expensive loops, not necessary most cases
         # clears class from previous reading and avoid to mess up
         self.clear()
         if not fileName == None:

@@ -745,8 +745,11 @@ class mdf3(dict):
         fid.close()  # close file
 
         if self.multiProc:
-            for i in proc:
+            for p in proc:
                 L.update(Q.get())  # concatenate results of processes in dict
+            for p in proc:
+                p.join()
+            del Q # free memory
 
         # After all processing of channels,
         # prepare final class data with all its keys
