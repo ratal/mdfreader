@@ -542,6 +542,8 @@ class recordChannel():
             if self.channelType==1: # if VSLD
                 self.dataFormat=arrayformat4(0, self.bitCount )
                 self.maxLengthVLSDRecord=0 # initialises max length of SDBlock elements to 0 for later calculation
+        if self.channelType in (2, 3): # master channel, add datagroup number to avoid overwriting same sames like time
+            self.name+=str(dataGroup)
         self.RecordFormat=((self.name, convertName(self.name)),  self.dataFormat)
         if not self.signalDataType in (13, 14): # processed by several channels
             if not self.channelType==1: # if VSLD
@@ -933,9 +935,9 @@ class mdf4(dict):
                     buf.addRecord(temp)
                     for channel in info['CNBlock'][dataGroup][channelGroup].keys():
                         if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in (2, 3):
-                            masterDataGroup[dataGroup]=info['CNBlock'][dataGroup][channelGroup][channel]['name']
+                            masterDataGroup[dataGroup]=info['CNBlock'][dataGroup][channelGroup][channel]['name']+str(dataGroup)
 
-                buf.read(channelList)
+                buf.read(channelList) # reads raw data with DATA and DATABlock classes
 
                 # Convert channels to physical values
                 OkBuf=len(buf)>0 and 'data' in buf[list(buf.keys())[0]] and buf[list(buf.keys())[0]]['data'] is not None
@@ -965,6 +967,8 @@ class mdf4(dict):
                 for channelGroup in list(info['CGBlock'][dataGroup].keys()):
                     for channel in list(info['CNBlock'][dataGroup][channelGroup].keys()):
                         channelName = info['CNBlock'][dataGroup][channelGroup][channel]['name']
+                        if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in(2, 3):
+                            channelName+=str(dataGroup)
                         if channelName in L and len( L[channelName] ) != 0:
                             if masterDataGroup: #master channel exist
                                 self.masterChannelList[masterDataGroup[dataGroup]].append(channelName)
@@ -1318,8 +1322,10 @@ def convertChannelData4(channel, convert_tables=False):
     
     Parameters
     ----------------
-    channelName : str
-        Name of channel
+    channelName : dict
+        channel dict containing keys like 'data', 'unit', 'comment' and potentially 'conversion' dict
+    convert_tables : bool
+        activates computation intensive loops for conversion with tables. Default is False
     
     Returns
     -----------
@@ -1367,7 +1373,7 @@ def linearConv(vect, cc_val):
     """
     P1 = cc_val[0]
     P2 = cc_val[1]
-    return vect* P2 + P1
+    return vect*P2 + P1
 def rationalConv(vect,  cc_val):
     """ apply rational conversion to data
     
