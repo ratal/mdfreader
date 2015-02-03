@@ -980,13 +980,19 @@ class mdf4(dict):
                             # sync_types : 0 data, 1 time (sec), 2 angle (radians), 4 index
                             self[channelName]['masterType'] = info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
                             if 'unit' in list(info['CCBlock'][dataGroup][channelGroup][channel].keys()):
-                                self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['unit']
+                                unit = info['CCBlock'][dataGroup][channelGroup][channel]['unit']
                             elif 'unit' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
-                                self[channelName]['unit'] = info['CNBlock'][dataGroup][channelGroup][channel]['unit']
+                                unit = info['CNBlock'][dataGroup][channelGroup][channel]['unit']
                             else:
-                                self[channelName]['unit'] = ''
+                                unit = ''
+                            if 'Comment' in unit:
+                                unit = unit['Comment']
+                            self[channelName]['unit'] = unit
                             if 'Comment' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
-                                self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['Comment']
+                                desc = info['CNBlock'][dataGroup][channelGroup][channel]['Comment']
+                                if 'description' in desc:
+                                    desc=desc['description']
+                                self[channelName]['description'] = desc
                             else:
                                 self[channelName]['description'] = ''
                             self[channelName]['data'] = L[channelName]
