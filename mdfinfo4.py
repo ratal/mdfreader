@@ -256,6 +256,7 @@ class CommentBlock(MDFBlock):
                     self['xml']=elementTreeToDict(self['xml_tree'])
                     # specific action per comment block type, extracts specific tags from xml
                     if MDType=='CN': # channel comment
+                        self['description']=self.extractXmlField(self['xml_tree'], 'TX')
                         self['names']=self.extractXmlField(self['xml_tree'], 'names')
                         self['linker_name']=self.extractXmlField(self['xml_tree'], 'linker_name')
                         self['linker_address']=self.extractXmlField(self['xml_tree'], 'linker_address')
