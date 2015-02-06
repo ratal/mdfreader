@@ -27,7 +27,7 @@ mdf4reader module
 """
 from numpy.core.records import fromrecords, fromstring, fromfile
 from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
-from numpy import hstack, arange, right_shift, bitwise_and, all, diff, interp
+from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from struct import unpack, Struct
 from math import pow
 from sys import platform, version_info
@@ -51,139 +51,126 @@ UINT64='<Q'
 INT64='<q'
 CHAR='<c'
 
-class DATABlock(MDFBlock):
-    """ DATABlock class represents a data block object in file, allowing to extract raw data
+
+def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
+    """ DATABlock converts raw data into arrays
+    
+    Parameters
+    ----------------
+    record : class
+        record class instance describing a channel group record
+    parent_block : class
+        MDFBlock class containing at least parent block header
+    channelList : list of str, optional
+        defines list of channels to only read, can be slow but saves memory, for big files
+    sortedFlag : bool, optional
+        flag to know if data block is sorted (only one Channel Group in block) 
+        or unsorted (several Channel Groups identified by a recordID). As unsorted block can 
+        contain CG records in random order, block is processed iteratively, 
+        not in raw like sorted -> much slower reading
+    
+    Returns
+    ---------
+    a recarray containing the channels data
+    
+    Notes
+    --------
+    This function will read DTBlock, RDBlock, DZBlock (compressed), RDBlock (VLSD), sorted or unsorted
     """
-    def __init__(self, fid,  pointer, record, zip_type=None, channelList=None, sortedFlag=True):
-        """ DATABlock constructor
-        
-        Parameters
-        ----------------
-        fid : float
-            file identifier
-        pointer : int
-            position of data block in file
-        record : class
-            record class instance describing a channel group record
-        zip_type : int, optional
-            defines if compressed data are transposed or not
-        channelList : list of str, optional
-            defines list of channels to only read, can be slow but saves memory, for big files
-        sortedFlag : bool, optional
-            flag to know if data block is sorted (only one Channel Group in block) 
-            or unsorted (several Channel Groups identified by a recordID). As unsorted block can 
-            contain CG records in random order, block is processed iteratively, 
-            not in raw like sorted -> much slower reading
-        
-        Notes
-        --------
-        This class will read DTBlock, RDBlock, DZBlock (compressed), RDBlock (VLSD), sorted or unsorted
-        """
-        # block header
-        self.loadHeader(fid, pointer)
-        if self['id'] in ('##DT', '##RD', b'##DT', b'##RD'): # normal data block
-            if sortedFlag:
-                record.numberOfRecords = (self['length']-24) // record.recordLength
-                self['data']=record.readSortedRecord(fid, pointer, channelList)
-            else: # unsorted reading
-                print('not implemented yet unsorted data block reading') # to be implemented
-        
-        elif self['id'] in ('##SD', b'##SD'): # 
-            if record.signalDataType==6:
-                format='ISO8859'
-            elif record.signalDataType==7:
-                format='utf-8'
-            elif record.signalDataType==8:
-                format='<utf-16'
-            elif record.signalDataType==9:
-                format='>utf-16'
-            pointer=0
-            buf=[] # buf=array(record.numberOfRecords,dtype='s'+str(record.maxLengthVLSDRecord))
-            nElement=0
-            while pointer<self['length']-24:
-                VLSDLen=unpack('I', fid.read(4))[0] # length of data
-                buf.append(fid.read(VLSDLen).decode(format).rstrip('\x00')) # to be improved, removing append
-                #buf[nElement]=fid.read(VLSDLen).decode(format).rstrip('\x00')
-                pointer+=VLSDLen+4
-                nElement+=1
-            if nElement>1:
-                buf=equalizeStringLength(buf)
-                self['data']=fromrecords(buf, names=str(record.name))
-            else: # only one data
-                self['data']=buf
-        
-        elif self['id'] in ('##DZ', b'##DZ'): # zipped data block
-            self['dz_org_block_type']=self.mdfblockreadCHAR(fid, 2)
-            self['dz_zip_type']=self.mdfblockread(fid, UINT8, 1)
-            if zip_type is not None: # HLBlock used
-                self['dz_zip_type']=zip_type
-            self['dz_reserved']=self.mdfblockreadBYTE(fid, 1)
-            self['dz_zip_parameter']=self.mdfblockread(fid, UINT32, 1)
-            self['dz_org_data_length']=self.mdfblockread(fid, UINT64, 1)
-            self['dz_data_length']=self.mdfblockread(fid, UINT64, 1)
-            self['data']=fid.read( self['dz_data_length'] )
-            # uncompress data
-            try:
-                from zlib import decompress
-            except:
-                raise('zlib module not found or error while uncompressing')
-            self['data']=decompress(self['data']) # decompress data
-            if self['dz_zip_type']==1: # data bytes transposed
-                N = self['dz_zip_parameter']
-                M = self['dz_org_data_length']//N
-                temp=array(memoryview(self['data'][:M*N]))
-                tail=array(memoryview(self['data'][M*N:]))
-                temp=temp.reshape(N, M).T.ravel()
-                if len(tail)>0:
-                    temp=append(temp, tail)
-                self['data']=temp.tostring()
-            if channelList is None and sortedFlag: # reads all blocks if sorted block and no channelList defined
-                record.numberOfRecords = self['dz_org_data_length'] // record.recordLength
-                self['data']=fromstring(self['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
-            elif channelList is not None and sortedFlag: # sorted data but channel list requested
-                print('not implemented yet sorted compressed data block reading with channelList') # to be implemented
-                
-            else: # unsorted reading
-                # reads only the channels using offset functions, channel by channel.
-                buf={}
-                position=0
-                recordIdCFormat=record[list(record.keys())[0]]['record'].recordIDCFormat
-                recordIDsize=record[list(record.keys())[0]]['record'].recordIDsize
-                VLSDStruct=Struct('I')
-                # initialise data structure
-                for recordID in record:
-                    for channelName in record[recordID]['record'].channelNames:
-                        buf[channelName]=[] # empty(record.numberOfRecords,dtype=record[recordID]['record'].dataFormat)
-                        #index[channelName]=0
-                # read data
-                while position<len(self['data']):
-                    recordID=recordIdCFormat.unpack(self['data'][position:position+recordIDsize])[0]
-                    if not record[recordID]['record'].Flags & 0b1: # not VLSD CG)
-                        temp=record.readRecord(recordID, self['data'][position:position+record[recordID]['record'].recordLength+1], channelList)
-                        position += record[recordID]['record'].recordLength+1
-                        for channelName in temp:
-                            buf[channelName].append(temp[channelName]) # to remove append
-                            # buf[channelName][index[recordID]]=temp[channelName]
-                            # index[recordID] += 1
-                    else: # VLSD CG
-                        position+=recordIDsize
-                        VLSDLen=VLSDStruct.unpack(self['data'][position:position+4])[0] # VLSD length
-                        position+=4
-                        temp=self['data'][position:position+VLSDLen-1]
-                        if record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==6:
-                            temp=temp.decode('ISO8859')
-                        elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==7:
-                            temp=temp.decode('utf-8')
-                        elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==8:
-                            temp=temp.decode('<utf-16')
-                        elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==9:
-                            temp=temp.decode('>utf-16')
-                        buf[record[recordID]['record'].VLSD_CG[recordID]['channelName']].append(temp)
-                        position += VLSDLen
-                # convert list to array
-                for chan in buf:
-                    buf[chan]=array(buf[chan])
-                self['data']=buf
+    
+    if parent_block['id'] in ('##DT', '##RD', b'##DT', b'##RD'): # normal data block
+        if sortedFlag:
+            return fromstring(parent_block['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
+        else: # unsorted reading
+            print('not implemented yet unsorted data block reading') # to be implemented
+    
+    elif parent_block['id'] in ('##SD', b'##SD'): # 
+        if record.signalDataType==6:
+            format='ISO8859'
+        elif record.signalDataType==7:
+            format='utf-8'
+        elif record.signalDataType==8:
+            format='<utf-16'
+        elif record.signalDataType==9:
+            format='>utf-16'
+        pointer=0
+        buf=[] # buf=array(record.numberOfRecords,dtype='s'+str(record.maxLengthVLSDRecord))
+        nElement=0
+        while pointer<parent_block['length']-24:
+            VLSDLen=unpack('I', parent_block['data'][pointer:pointer+4])[0] # length of data
+            pointer+=4
+            buf.append(parent_block['data'][pointer:pointer+VLSDLen].decode(format).rstrip('\x00')) # to be improved, removing append
+            #buf[nElement]=fid.read(VLSDLen).decode(format).rstrip('\x00')
+            pointer+=VLSDLen
+            nElement+=1
+        if nElement>1:
+            buf=equalizeStringLength(buf)
+            return fromrecords(buf, names=str(record.name))
+        else: # only one data
+            return buf
+    
+    elif parent_block['id'] in ('##DZ', b'##DZ'): # zipped data block
+        # uncompress data
+        try:
+            from zlib import decompress
+        except:
+            raise('zlib module not found or error while uncompressing')
+        parent_block['data']=decompress(parent_block['data']) # decompress data
+        if parent_block['dz_zip_type']==1: # data bytes transposed
+            N = parent_block['dz_zip_parameter']
+            M = parent_block['dz_org_data_length']//N
+            temp=array(memoryview(parent_block['data'][:M*N]))
+            tail=array(memoryview(parent_block['data'][M*N:]))
+            temp=temp.reshape(N, M).T.ravel()
+            if len(tail)>0:
+                temp=append(temp, tail)
+            parent_block['data']=temp.tostring()
+        if channelList is None and sortedFlag: # reads all blocks if sorted block and no channelList defined
+            record.numberOfRecords = parent_block['dz_org_data_length'] // record.recordLength
+            return fromstring(parent_block['data'] , dtype = record.numpyDataRecordFormat, shape = record.numberOfRecords , names=record.dataRecordName)
+        elif channelList is not None and sortedFlag: # sorted data but channel list requested
+            print('not implemented yet sorted compressed data block reading with channelList') # to be implemented
+        else: # unsorted reading
+            # reads only the channels using offset functions, channel by channel.
+            buf={}
+            position=0
+            recordIdCFormat=record[list(record.keys())[0]]['record'].recordIDCFormat
+            recordIDsize=record[list(record.keys())[0]]['record'].recordIDsize
+            VLSDStruct=Struct('I')
+            # initialise data structure
+            for recordID in record:
+                for channelName in record[recordID]['record'].channelNames:
+                    buf[channelName]=[] # empty(record.numberOfRecords,dtype=record[recordID]['record'].dataFormat)
+                    #index[channelName]=0
+            # read data
+            while position<len(parent_block['data']):
+                recordID=recordIdCFormat.unpack(parent_block['data'][position:position+recordIDsize])[0]
+                if not record[recordID]['record'].Flags & 0b1: # not VLSD CG)
+                    temp=record.readRecord(recordID, parent_block['data'][position:position+record[recordID]['record'].recordLength+1], channelList)
+                    position += record[recordID]['record'].recordLength+1
+                    for channelName in temp:
+                        buf[channelName].append(temp[channelName]) # to remove append
+                        # buf[channelName][index[recordID]]=temp[channelName]
+                        # index[recordID] += 1
+                else: # VLSD CG
+                    position+=recordIDsize
+                    VLSDLen=VLSDStruct.unpack(parent_block['data'][position:position+4])[0] # VLSD length
+                    position+=4
+                    temp=parent_block['data'][position:position+VLSDLen-1]
+                    if record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==6:
+                        temp=temp.decode('ISO8859')
+                    elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==7:
+                        temp=temp.decode('utf-8')
+                    elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==8:
+                        temp=temp.decode('<utf-16')
+                    elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType==9:
+                        temp=temp.decode('>utf-16')
+                    buf[record[recordID]['record'].VLSD_CG[recordID]['channelName']].append(temp)
+                    position += VLSDLen
+            # convert list to array
+            for chan in buf:
+                buf[chan]=array(buf[chan])
+            return buf
 
 def equalizeStringLength(buf):
     """ Makes all strings in a list having same length by appending spaces strings
@@ -272,10 +259,8 @@ class DATA(dict):
         Adds a new record in DATA class dict
     read(channelList, zip=None)
         Reads data block
-    loadSorted(record, zip=None, nameList=None)
+    load(record, zip=None, nameList=None)
         Reads sorted data block from record definition
-    loadUnsorted(record, zip=None, nameList=None)
-        Reads unsorted data block
     readRecord(recordID, buf, channelList=None):
         read record from a buffer
     """
@@ -318,23 +303,23 @@ class DATA(dict):
         if len(self)==1: #sorted dataGroup
             recordID=list(self.keys())[0]
             record=self[recordID]['record']
-            self[recordID]['data']=self.loadSorted( record, zip=None, nameList=channelList)
+            self[recordID]['data']=self.load( record, zip=None, nameList=channelList, sortedFlag=True)
             for cn in record.VLSD: # VLSD channels
                 if channelList is None or record[cn].name in channelList:
                     temp=DATA(self.fid,  record[cn].data) # all channels
-                    rec=self[recordID]['data']['data'] # recarray from data block
+                    rec=self[recordID]['data'] # recarray from data block
                     # determine maximum length of values in VLSD for array dtype
                     # record[cn].maxLengthVLSDRecord=max(diff(rec[convertName(record[cn].name)])-4)
-                    temp=temp.loadSorted(record[cn], zip=None, nameList=channelList)
+                    temp=temp.load(record[cn], zip=None, nameList=channelList, sortedFlag=True)
                     rec=change_field_name(rec, convertName(record[cn].name), convertName(record[cn].name)+'_offset')
-                    rec=append_field(rec, convertName(record[cn].name), temp['data'])
-                    self[recordID]['data']['data']=rec.view(recarray)
+                    rec=append_field(rec, convertName(record[cn].name), temp)
+                    self[recordID]['data']=rec.view(recarray)
         else: # unsorted DataGroup
             self.type='unsorted'
-            self['data']=self.loadUnsorted( zip=None, nameList=channelList)
+            self['data']=self.load( self, zip=None, nameList=channelList, sortedFlag=False)
             
-    def loadSorted(self, record, zip=None, nameList=None): # reads sorted data
-        """Reads sorted data block from record definition
+    def load(self, record, zip=None, nameList=None, sortedFlag=True): # reads sorted data
+        """Reads data block from record definition
         
         Parameters
         ----------------
@@ -355,33 +340,44 @@ class DATA(dict):
         if temps['id'] in ('##DL', b'##DL'): # data list block
             # link section
             temps['dl_dl_next']=temps.mdfblockread(self.fid, LINK, 1)
-            temps['dl_data']=[temps.mdfblockread(self.fid, LINK, 1) for Link in range(temps['link_count']-1)]
+            temps['dl_data']={}
+            temps['dl_data'][0]=[temps.mdfblockread(self.fid, LINK, 1) for Link in range(temps['link_count']-1)]
             # data section
             temps['dl_flags']=temps.mdfblockread(self.fid, UINT8, 1)
             temps['dl_reserved']=temps.mdfblockreadBYTE(self.fid, 3)
             temps['dl_count']=temps.mdfblockread(self.fid, UINT32, 1)
+            if temps['dl_flags']: # equal length datalist
+                temps['dl_equal_length']=temps.mdfblockread(self.fid, UINT64, 1)
+            else: # datalist defined by byte offset
+                temps['dl_offset']=temps.mdfblockread(self.fid, UINT64, temps['dl_count'])
+            if temps['dl_dl_next']:
+                index=1
+            while temps['dl_dl_next']:
+                temp=MDFBlock()
+                temp.loadHeader(self.fid, temps['dl_dl_next'])
+                temps['dl_dl_next']=temp.mdfblockread(self.fid, LINK, 1)
+                temps['dl_data'][index]=[temp.mdfblockread(self.fid, LINK, 1) for Link in range(temp['link_count']-1)]
+                index+=1
             if temps['dl_count']:
-                if temps['dl_flags']: # equal length datalist
-                    temps['dl_equal_length']=temps.mdfblockread(self.fid, UINT64, 1)
-                else: # datalist defined by byte offset
-                    temps['dl_offset']=temps.mdfblockread(self.fid, UINT64, temps['dl_count'])
-                # read data list
-                if temps['dl_count']==1:
-                    temps['data']=DATABlock(self.fid, temps['dl_data'][0], record, zip, channelList=nameList)
-                elif temps['dl_count']==0:
-                    raise('empty datalist')
-                else:
-                    # define size of each block to be read
-                    temps['data']={}
-                    temps['data']['data']=[]
-                    temps['data']['data']=[DATABlock(self.fid, temps['dl_data'][dl], record, zip, channelList=nameList)['data'] for dl in range(temps['dl_count'])]
-                    if temps['dl_dl_next']:
-                         self.pointerTodata=temps['dl_dl_next']
-                         temps['data']['data'].append(self.loadSorted(record, zip, nameList)['data'])
-                    
-                    #Concatenate all data
-                    temps['data']['data']=hstack(temps['data']['data']) # concatenate data list
-                    temps['data']['data']=temps['data']['data'].view(recarray) # vstack output ndarray instead of recarray
+                # read and concatenate raw blocks
+                buf=b''
+                for DL in temps['dl_data']:
+                    for pointer in temps['dl_data'][DL]:
+                        # read fist data blocks linked by DLBlock to identify data block type
+                        data_block=MDFBlock()
+                        data_block.loadHeader(self.fid, pointer)
+                        if data_block['id'] in ('##DT', '##RD', b'##DT', b'##RD', '##SD', b'##SD'):
+                            buf+=self.fid.read(data_block['length']-24)
+                        elif data_block['id'] in ('##DZ', b'##DZ'):
+                            data_block['dz_org_block_type']=data_block.mdfblockreadCHAR(self.fid, 2)
+                            data_block['dz_zip_type']=data_block.mdfblockread(self.fid, UINT8, 1)
+                            data_block['dz_reserved']=data_block.mdfblockreadBYTE(self.fid, 1)
+                            data_block['dz_zip_parameter']=data_block.mdfblockread(self.fid, UINT32, 1)
+                            data_block['dz_org_data_length']=data_block.mdfblockread(self.fid, UINT64, 1)
+                            data_block['dz_data_length']=data_block.mdfblockread(self.fid, UINT64, 1)
+                            buf+=self.fid.read( data_block['dz_data_length'] )
+                data_block['data']=buf
+                temps['data']=DATABlock(record, parent_block=data_block, channelList=nameList, sortedFlag=sortedFlag)
             else: # empty datalist
                 temps['data']=None
         elif temps['id'] in ('##HL', b'##HL'): # header list block for DZBlock 
@@ -392,71 +388,25 @@ class DATA(dict):
             temps['hl_zip_type']=temps.mdfblockread(self.fid, UINT8, 1)
             temps['hl_reserved']=temps.mdfblockreadBYTE(self.fid, 5)
             self.pointerTodata= temps['hl_dl_first']
-            temps['data']=self.loadSorted(record, zip=temps['hl_zip_type'], nameList=nameList)#, record, zip=temps['hl_zip_type'], nameList=nameList)
+            temps['data']=self.load(record, zip=temps['hl_zip_type'], nameList=nameList, sortedFlag=sortedFlag)
+        elif temps['id'] in ('##DT', '##RD', b'##DT', b'##RD'): # normal sorted data block, direct read
+            temps['data']=record.readSortedRecord(self.fid, self.pointerTodata, channelList=nameList)
+        elif temps['id'] in ('##SD', b'##SD'): # VLSD
+            temps['data']=self.fid.read(temps['length']-24)
+            temps['data']=DATABlock(record, parent_block=temps, channelList=nameList, sortedFlag=sortedFlag)
+        elif temps['id'] in ('##DZ', b'##DZ'): # zipped data block
+            temps['dz_org_block_type']=temps.mdfblockreadCHAR(self.fid, 2)
+            temps['dz_zip_type']=temps.mdfblockread(self.fid, UINT8, 1)
+            temps['dz_reserved']=temps.mdfblockreadBYTE(self.fid, 1)
+            temps['dz_zip_parameter']=temps.mdfblockread(self.fid, UINT32, 1)
+            temps['dz_org_data_length']=temps.mdfblockread(self.fid, UINT64, 1)
+            temps['dz_data_length']=temps.mdfblockread(self.fid, UINT64, 1)
+            temps['data']=self.fid.read( temps['dz_data_length'] )
+            temps['data']=DATABlock(record, parent_block=temps, channelList=nameList, sortedFlag=sortedFlag)
         else:
-            temps['data']=DATABlock(self.fid, self.pointerTodata, record, zip_type=zip, channelList=nameList)
+            raise('unknown data block')
         return temps['data']
-    
-    def loadUnsorted(self, zip=None, nameList=None):
-        """Reads unsorted data block from record definition
-        
-        Parameters
-        ----------------
-        zip : bool, optional
-            flag to track if data block is compressed
-        nameList : list of str, optional
-            list of channel names
-            
-        Returns
-        -----------
-        numpy recarray of data
-        """
-        temps=MDFBlock()
-        # block header
-        temps.loadHeader(self.fid, self.pointerTodata)
-        if temps['id'] in ('##DL', b'##DL'): # data list block
-            # link section
-            temps['dl_dl_next']=temps.mdfblockread(self.fid, LINK, 1)
-            temps['dl_data']=[temps.mdfblockread(self.fid, LINK, 1) for Link in range(temps['link_count']-1)]
-            # data section
-            temps['dl_flags']=temps.mdfblockread(self.fid, UINT8, 1)
-            temps['dl_reserved']=temps.mdfblockreadBYTE(self.fid, 3)
-            temps['dl_count']=temps.mdfblockread(self.fid, UINT32, 1)
-            if temps['dl_count']:
-                if temps['dl_flags']: # equal length datalist
-                    temps['dl_equal_length']=temps.mdfblockread(self.fid, UINT64, 1)
-                else: # datalist defined by byte offset
-                    temps['dl_offset']=temps.mdfblockread(self.fid, UINT64, temps['dl_count'])
-                # read data list
-                if temps['dl_count']==1:
-                    temps['data']=DATABlock(self.fid, temps['dl_data'][0], self, nameList, sortedFlag=False)
-                elif temps['dl_count']==0:
-                    raise('empty datalist')
-                else:
-                    # define size of each block to be read
-                    temps['data']={}
-                    temps['data']['data']=[]
-                    temps['data']['data']=[DATABlock(self.fid, temps['dl_data'][dl], self, zip, nameList, sortedFlag=False)['data'] for dl in range(temps['dl_count'])]
-                    if temps['dl_dl_next']:
-                         self.pointerTodata=temps['dl_dl_next']
-                         temps['data']['data'].append(self.loadUnsorted(record, zip, nameList)['data'])
-                    #Concatenate all data
-                    temps['data']['data']=hstack(temps['data']['data']) # concatenate data list
-                    temps['data']['data']=temps['data']['data'].view(recarray) # vstack output ndarray instead of recarray
-            else: # empty datalist
-                temps['data']=None
-        elif temps['id'] in ('##HL', b'##HL'): # header list block for DZBlock 
-            # link section
-            temps['hl_dl_first']=temps.mdfblockread(self.fid, LINK, 1)
-            # data section
-            temps['hl_flags']=temps.mdfblockread(self.fid, UINT16, 1)
-            temps['hl_zip_type']=temps.mdfblockread(self.fid, UINT8, 1)
-            temps['hl_reserved']=temps.mdfblockreadBYTE(self.fid, 5)
-            self.pointerTodata= temps['hl_dl_first']
-            temps['data']=self.loadUnsorted(record, zip=temps['hl_zip_type'], nameList=nameList)#, record, zip=temps['hl_zip_type'], nameList=nameList)
-        else:
-            temps['data']=DATABlock(self.fid, self.pointerTodata, self, zip_type=zip, channelList=nameList, sortedFlag=False)
-        return temps['data']
+
     def readRecord(self, recordID, buf, channelList=None):
         """ read record from a buffer
         
@@ -947,7 +897,7 @@ class mdf4(dict):
                 elif OkBuf: # for debugging purpose, can switch off multiprocessing
                     L.update(processDataBlocks4( None, buf, info, dataGroup, channelList, self.multiProc))
                 elif buf.type=='unsorted':
-                    L=buf['data']['data']
+                    L=buf['data']
                 else:
                     print('No data in dataGroup '+ str(dataGroup))
 
@@ -1264,7 +1214,7 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                 channel=chan.channelNumber
                 recordName=buf[recordID]['record'].recordToChannelMatching[channelName] # in case record is used for several channels
                 if not chan.channelType in (3, 6): # not virtual channel
-                    temp = buf[recordID]['data']['data'].__getattribute__( convertName(recordName) ) # extract channel vector
+                    temp = buf[recordID]['data'].__getattribute__( convertName(recordName) ) # extract channel vector
                 else :# virtual channel 
                     temp=arange(buf[recordID]['record'].numberOfRecords)
                     
@@ -1309,15 +1259,15 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                         pass
                     
             elif chan.signalDataType==13:
-                L['ms']=buf[recordID]['data']['data'].__getattribute__( 'ms_title') 
-                L['min']=buf[recordID]['data']['data'].__getattribute__( 'min_title') 
-                L['hour']=buf[recordID]['data']['data'].__getattribute__( 'hour_title') 
-                L['day']=buf[recordID]['data']['data'].__getattribute__( 'day_title') 
-                L['month']=buf[recordID]['data']['data'].__getattribute__( 'month_title') 
-                L['year']=buf[recordID]['data']['data'].__getattribute__( 'year_title') 
+                L['ms']=buf[recordID]['data'].__getattribute__( 'ms_title') 
+                L['min']=buf[recordID]['data'].__getattribute__( 'min_title') 
+                L['hour']=buf[recordID]['data'].__getattribute__( 'hour_title') 
+                L['day']=buf[recordID]['data'].__getattribute__( 'day_title') 
+                L['month']=buf[recordID]['data'].__getattribute__( 'month_title') 
+                L['year']=buf[recordID]['data'].__getattribute__( 'year_title') 
             elif chan.signalDataType==14:
-                L['ms']=buf[recordID]['data']['data'].__getattribute__( 'ms_title') 
-                L['days']=buf[recordID]['data']['data'].__getattribute__( 'days_title') 
+                L['ms']=buf[recordID]['data'].__getattribute__( 'ms_title') 
+                L['days']=buf[recordID]['data'].__getattribute__( 'days_title') 
     if multiProc:
         Q.put(L)
     else:
