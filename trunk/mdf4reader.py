@@ -25,7 +25,7 @@ mdf4reader module
 --------------------------
 
 """
-from numpy.core.records import fromrecords, fromstring, fromfile
+from numpy.core.records import fromstring, fromfile
 from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from struct import unpack, Struct
@@ -95,19 +95,15 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
             format='>utf-16'
         pointer=0
         buf=[] # buf=array(record.numberOfRecords,dtype='s'+str(record.maxLengthVLSDRecord))
-        nElement=0
+
         while pointer<parent_block['length']-24:
             VLSDLen=unpack('I', parent_block['data'][pointer:pointer+4])[0] # length of data
             pointer+=4
             buf.append(parent_block['data'][pointer:pointer+VLSDLen].decode(format).rstrip('\x00')) # to be improved, removing append
             #buf[nElement]=fid.read(VLSDLen).decode(format).rstrip('\x00')
             pointer+=VLSDLen
-            nElement+=1
-        if nElement>1:
-            buf=equalizeStringLength(buf)
-            return fromrecords(buf, names=str(record.name))
-        else: # only one data
-            return buf
+        buf=equalizeStringLength(buf)
+        return array(buf)
     
     elif parent_block['id'] in ('##DZ', b'##DZ'): # zipped data block
         # uncompress data
