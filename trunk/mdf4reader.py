@@ -348,7 +348,7 @@ class DATA(dict):
                 temps['dl_offset']=temps.mdfblockread(self.fid, UINT64, temps['dl_count'])
             if temps['dl_dl_next']:
                 index=1
-            while temps['dl_dl_next']:
+            while temps['dl_dl_next']: # reads pointers to all data blocks (DT, RD, SD, DZ)
                 temp=MDFBlock()
                 temp.loadHeader(self.fid, temps['dl_dl_next'])
                 temps['dl_dl_next']=temp.mdfblockread(self.fid, LINK, 1)
@@ -356,14 +356,14 @@ class DATA(dict):
                 index+=1
             if temps['dl_count']:
                 # read and concatenate raw blocks
-                buf=b''
+                buf=bytearray()
                 for DL in temps['dl_data']:
                     for pointer in temps['dl_data'][DL]:
                         # read fist data blocks linked by DLBlock to identify data block type
                         data_block=MDFBlock()
                         data_block.loadHeader(self.fid, pointer)
                         if data_block['id'] in ('##DT', '##RD', b'##DT', b'##RD', '##SD', b'##SD'):
-                            buf+=self.fid.read(data_block['length']-24)
+                            buf.extend(self.fid.read(data_block['length']-24))
                         elif data_block['id'] in ('##DZ', b'##DZ'):
                             data_block['dz_org_block_type']=data_block.mdfblockreadCHAR(self.fid, 2)
                             data_block['dz_zip_type']=data_block.mdfblockread(self.fid, UINT8, 1)
@@ -371,7 +371,7 @@ class DATA(dict):
                             data_block['dz_zip_parameter']=data_block.mdfblockread(self.fid, UINT32, 1)
                             data_block['dz_org_data_length']=data_block.mdfblockread(self.fid, UINT64, 1)
                             data_block['dz_data_length']=data_block.mdfblockread(self.fid, UINT64, 1)
-                            buf+=self.fid.read( data_block['dz_data_length'] )
+                            buf.extend(self.fid.read( data_block['dz_data_length'] ))
                 data_block['data']=buf
                 temps['data']=DATABlock(record, parent_block=data_block, channelList=nameList, sortedFlag=sortedFlag)
             else: # empty datalist
@@ -1027,8 +1027,8 @@ class mdf4(dict):
             if ncpu<1:
                 ncpu=1
             pool = Pool(processes=ncpu)
-            args = [self[channelName] for channelName in self]
-            result = pool.map_async(convertChannelData4,args)
+            args = [(self[channelName]['data'], self.convert_tables) for channelName in self]
+            result = pool.apply_async(convertChannelData4,args)
             result.get()
             index=0
             for channelName in self:
