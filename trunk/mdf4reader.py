@@ -516,6 +516,88 @@ class recordChannel():
         output+=str(self.bitOffset)+' '
         output+=str(self.byteOffset)
         return output
+
+class invalid_bytes():
+    """invalid_bytes class to handle invalid bytes in record if existing
+    
+    Attributes
+    -----------
+        name : str
+        Name of channel
+    signalDataType : int
+        signal type according to specification
+    bitCount : int
+        number of bits used to store channel record
+    nBytes : int
+        number of bytes (1 byte = 8 bits) taken by channel record
+    dataFormat : str
+        numpy dtype as string
+    Format : 
+        C format understood by fread
+    CFormat : struct class instance
+        struct instance to convert from C Format
+    byteOffset : int
+        position of channel record in complete record in bytes
+    bitOffset : int
+        bit position of channel value inside byte in case of channel having bit count below 8
+    RecordFormat : list of str
+        dtype format used for numpy.core.records functions ((name,name_title),str_stype)
+    channelType : int
+        channel type
+    posBeg : int
+        start position in number of bit of channel record in complete record
+    posEnd : int
+        end position in number of bit of channel record in complete record
+    VLSD_CG_Flag : bool
+        flag when Channel Group VLSD is used
+    data : int
+        pointer to data block linked to a channel (VLSD, MLSD)
+        
+    Methods
+    ---------
+    __init__(info, dataGroup, channelGroup, recordIDsize)
+        constructor
+    channel_validity(channelName)
+        returns channel validity bit array
+    """
+    def __init__(self, info, dataGroup, channelGroup, recordIDsize):
+        """ invalid_bytes class constructor
+        
+        Parameters
+        ----------
+        info : mdfinfo4.info4 class
+        
+        """
+        self.name='invalid_bytes'+str(dataGroup)
+        self.signalDataType = 10 # byte array
+        self.nBytes=info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bytes']
+        self.bitCount = self.nBytes*8
+        self.channelType = 0 # fixed length data
+        self.dataFormat=arrayformat4( self.signalDataType, self.bitCount )
+        self.RecordFormat=((self.name, convertName(self.name)),  self.dataFormat)
+        self.Format=datatypeformat4( self.signalDataType, self.bitCount )
+        self.CFormat=Struct(self.Format)
+        self.bitOffset=0
+        self.byteOffset=info['CGBlock'][dataGroup][channelGroup]['cg_data_bytes']
+        self.posBeg=recordIDsize+self.byteOffset
+        self.posEnd=recordIDsize+self.byteOffset+self.nBytes
+        self.VLSD_CG_Flag=False
+        self.invalid_bit={}
+        for channelNumber in info['CNBlock'][dataGroup][channelGroup]:
+            name=info['CNBlock'][dataGroup][channelGroup][channelNumber]['name']
+            self.invalid_bit[name]=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_invalid_bit_pos']
+        self.invalid_bytes=None
+        
+    def channel_validity(self, channelName):
+        """ extract channel validity bits
+        
+        Parameters
+        ----------
+        channelName : str
+            channel name
+        
+        """
+        return bitwise_and(right_shift(self.invalid_bytes, self.invalid_bit[channelName]), 1)
         
 class record(list):
     """ record class lists recordchannel classes, it is representing a channel group
@@ -615,7 +697,6 @@ class record(list):
                 self.recordIDCFormat='L'
         self.recordID=info['CGBlock'][self.dataGroup][self.channelGroup]['cg_record_id']
         self.recordLength=info['CGBlock'][self.dataGroup][self.channelGroup]['cg_data_bytes']
-        self.recordLength+= info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
         self.numberOfRecords=info['CGBlock'][self.dataGroup][self.channelGroup]['cg_cycle_count']
         self.Flags=info['CGBlock'][self.dataGroup][self.channelGroup]['cg_flags']
         if 'MLSD' in info:
@@ -666,6 +747,14 @@ class record(list):
                     self.VLSD.append(channel.channelNumber)
             elif channel.channelType in (3, 6): # virtual channel
                 pass # channel calculated based on record index later in conversion function
+        if info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']: # invalid bytes existing
+            self.recordLength += info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
+            invalid_channel=invalid_bytes(info, self.dataGroup, self.channelGroup, self.recordIDsize)
+            self.append(invalid_channel)
+            self.channelNames.append(invalid_channel.name)
+            self.recordToChannelMatching[invalid_channel.name]=invalid_channel.name
+            self.numpyDataRecordFormat.append(invalid_channel.RecordFormat)
+            self.dataRecordName.append(invalid_channel.name)
 
     def readSortedRecord(self, fid, pointer, channelList=None):
         """ reads record, only one channel group per datagroup
@@ -1206,7 +1295,7 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
         channelGroup=buf[recordID]['record'].channelGroup
         for chan in buf[recordID]['record']:
             channelName=chan.name
-            if (allChannel or channelName in channelList) and chan.signalDataType not in (13, 14):
+            if (allChannel or channelName in channelList) and chan.signalDataType not in (13, 14) and not 'invalid_bytes' in channelName:
                 channel=chan.channelNumber
                 recordName=buf[recordID]['record'].recordToChannelMatching[channelName] # in case record is used for several channels
                 if not chan.channelType in (3, 6): # not virtual channel
@@ -1263,7 +1352,9 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                 L['year']=buf[recordID]['data'].__getattribute__( 'year_title') 
             elif chan.signalDataType==14:
                 L['ms']=buf[recordID]['data'].__getattribute__( 'ms_title') 
-                L['days']=buf[recordID]['data'].__getattribute__( 'days_title') 
+                L['days']=buf[recordID]['data'].__getattribute__( 'days_title')
+            elif 'invalid_bytes' in channelName: # invalid bytes
+                L[channelName]=buf[recordID]['data'].__getattribute__( convertName(channelName) )
     if multiProc:
         Q.put(L)
     else:
