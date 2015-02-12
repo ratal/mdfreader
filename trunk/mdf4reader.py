@@ -34,7 +34,7 @@ from sys import platform, version_info
 from io import open # for python 3 and 2 consistency
 from mdfinfo4 import info4, MDFBlock,  ATBlock#, CNBlock
 from time import gmtime, strftime
-from multiprocessing import Pool,cpu_count
+from multiprocessing import Queue, Process
 PythonVersion=version_info
 PythonVersion=PythonVersion[0]
 
@@ -985,14 +985,16 @@ class mdf4(dict):
                     L=buf['data']
                 else:
                     print('No data in dataGroup '+ str(dataGroup))
-
-        if self.multiProc and 'data' in buf:
+                del buf
+                
+        if self.multiProc:
             for p in proc:
                 L.update(Q.get()) # concatenate results of processes in dict
             for p in proc:
                 p.join()
             del Q # free memory
 
+        fid.close() # close file
         # After all processing of channels,
         # prepare final class data with all its keys
         for dataGroup in list(info['DGBlock'].keys()):
@@ -1065,7 +1067,7 @@ class mdf4(dict):
                                 if masterDataGroup: #master channel exist
                                     self.masterChannelList[masterDataGroup[dataGroup]].append(name)
             
-        fid.close() # close file
+        
         
         if convertAfterRead: 
             self.convertAllChannel4()
@@ -1089,7 +1091,7 @@ class mdf4(dict):
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if channelName in self:
-            return convertChannelData4(self[channelName], self.convert_tables)
+            return convertChannelData4(self[channelName], channelName, self.convert_tables)[channelName]
         else:
             raise('Channel not in dictionary')
     
@@ -1101,7 +1103,7 @@ class mdf4(dict):
         channelName : str
             Name of channel
         """
-        self[channelName]['data'] = convertChannelData4(self[channelName], self.convert_tables)
+        self[channelName]['data'] = convertChannelData4(self[channelName], channelName, self.convert_tables)[channelName]
         if 'conversion' in self[channelName]:
             self[channelName].pop('conversion')
     
@@ -1112,16 +1114,22 @@ class mdf4(dict):
         if self.multiProc == False:
             [self.convertChannel4(channelName) for channelName in self]
         else: # multiprocessing
-            ncpu=cpu_count() # to still have response from PC
-            if ncpu<1:
-                ncpu=1
-            pool = Pool(processes=ncpu)
-            args = [(self[channelName]['data'], self.convert_tables) for channelName in self]
-            result = pool.apply_async(convertChannelData4,args)
-            result.get()
+            proc = []
+            Q=Queue()
+            L={}
+            for channelName in self:
+                proc.append( Process(target=convertChannelData4,args=(self[channelName], channelName, self.convert_tables, True, Q)))
+                proc[-1].start()
+            for p in proc:
+                L.update(Q.get()) # concatenate results of processes in dict
+            for p in proc:
+                p.join()
+            del Q # free memory
             index=0
             for channelName in self:
-                self[channelName]['data']=result[index]
+                self[channelName]['data']=L[channelName]
+                if 'conversion' in self[channelName]:
+                    self[channelName].pop('conversion')
                 index+=1
 
 def convertName(channelName):
@@ -1360,7 +1368,7 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
     else:
         return L
         
-def convertChannelData4(channel, convert_tables=False):
+def convertChannelData4(channel, channelName, convert_tables, multiProc=False, Q=None):
     """converts specific channel from raw to physical data according to CCBlock information
     
     Parameters
@@ -1399,7 +1407,12 @@ def convertChannelData4(channel, convert_tables=False):
             vect = textToValueConv(vect, channel['conversion']['parameters']['cc_val'], channel['conversion']['parameters']['cc_ref'])
         elif conversion_type == 10 and text_type and convert_tables:
             vect = textToTextConv(vect, channel['conversion']['parameters']['cc_ref'])
-    return vect
+    L={}
+    L[channelName]=vect
+    if multiProc:
+        Q.put(L)
+    else:
+        return L
             
 def linearConv(vect, cc_val):
     """ apply linear conversion to data

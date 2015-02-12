@@ -649,11 +649,16 @@ class mdf( mdf3,  mdf4 ):
         f = netcdf.netcdf_file( filename, 'w' )
         setAttribute( f, 'Date', (self.date))
         setAttribute( f, 'Time', (self.time))
-        setAttribute(f, 'Author', self.author)
-        setAttribute( f, 'Organization', (self.organisation))
-        setAttribute( f, 'ProjectName', (self.project))
-        setAttribute( f, 'Subject', (self.subject))
-        setAttribute( f, 'Comment', (self.comment))
+        if self.author is not None:
+            setAttribute(f, 'Author', self.author)
+        if self.organisation is not None:
+            setAttribute( f, 'Organization', (self.organisation))
+        if self.project is not None:
+            setAttribute( f, 'ProjectName', (self.project))
+        if self.subject is not None:
+            setAttribute( f, 'Subject', (self.subject))
+        if self.comment is not None:
+            setAttribute( f, 'Comment', (self.comment))
         # Create dimensions having name of all time channels
         for time in list(self.masterChannelList.keys()):
             f.createDimension( time, len( self.getChannelData(time) ) )
