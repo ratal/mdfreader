@@ -1118,19 +1118,23 @@ class mdf4(dict):
             Q=Queue()
             L={}
             for channelName in self:
-                proc.append( Process(target=convertChannelData4,args=(self[channelName], channelName, self.convert_tables, True, Q)))
-                proc[-1].start()
+                if 'conversion' in self[channelName]:
+                    if self[channelName]['conversion']['type'] in (1, 2): # more time in multi proc
+                        self[channelName]['data']=convertChannelData4(self[channelName], channelName, self.convert_tables)[channelName]
+                        self[channelName].pop('conversion')
+                    else:
+                        proc.append( Process(target=convertChannelData4,args=(self[channelName], channelName, self.convert_tables, True, Q)))
+                        proc[-1].start()
             for p in proc:
                 L.update(Q.get()) # concatenate results of processes in dict
             for p in proc:
                 p.join()
             del Q # free memory
-            index=0
             for channelName in self:
-                self[channelName]['data']=L[channelName]
-                if 'conversion' in self[channelName]:
-                    self[channelName].pop('conversion')
-                index+=1
+                if channelName in L:
+                    self[channelName]['data']=L[channelName]
+                    if 'conversion' in self[channelName]:
+                        self[channelName].pop('conversion')
 
 def convertName(channelName):
     """ Adds '_title' to channel name for numpy.core.records methods
