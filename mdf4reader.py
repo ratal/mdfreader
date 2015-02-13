@@ -994,7 +994,6 @@ class mdf4(dict):
                 p.join()
             del Q # free memory
 
-        fid.close() # close file
         # After all processing of channels,
         # prepare final class data with all its keys
         for dataGroup in list(info['DGBlock'].keys()):
@@ -1066,8 +1065,8 @@ class mdf4(dict):
                                 self[name]['masterType']=info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
                                 if masterDataGroup: #master channel exist
                                     self.masterChannelList[masterDataGroup[dataGroup]].append(name)
-            
-        
+
+        fid.close() # close file
         
         if convertAfterRead: 
             self.convertAllChannel4()
@@ -1379,13 +1378,19 @@ def convertChannelData4(channel, channelName, convert_tables, multiProc=False, Q
     ----------------
     channelName : dict
         channel dict containing keys like 'data', 'unit', 'comment' and potentially 'conversion' dict
+    channelName : str
+        name of channel
     convert_tables : bool
         activates computation intensive loops for conversion with tables. Default is False
+    multiProc : bool, default False
+        flag to put data in multiprocess queue
+    Q : Queue class, default None
+        Queue used for multiprocessing
     
     Returns
     -----------
-    numpy array
-        returns numpy array converted to physical values according to conversion type
+    dict
+        returns dict with channelName key containing numpy array converted to physical values according to conversion type
     """
     vect = channel['data']
     if 'conversion' in channel: # there is conversion property
