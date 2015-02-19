@@ -481,8 +481,18 @@ class recordChannel():
         self.channelNumber=channelNumber
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data_type']
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_count']
+        if info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_composition']: # channel array
+            self.dataFormat=arrayformat4( self.signalDataType, self.bitCount )
+            self.CABlock=info['CNBlock'][dataGroup][channelGroup][channelNumber]['CABlock']
+            array_desc = '('
+            for i in self.CABlock['ca_dim_size']:
+                array_desc += str(self.CABlock['ca_dim_size'][i][0])+','
+            array_desc = array_desc[:-1] + ')' # remove trailing comma
+            #self.bitCount = self.bitCount*self.CABlock['PNd']
+            self.dataFormat = array_desc + self.dataFormat
+        else:
+            self.dataFormat=arrayformat4( self.signalDataType, self.bitCount )
         self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_type']
-        self.dataFormat=arrayformat4( self.signalDataType, self.bitCount )
         if self.channelType in (1, 4, 5): # if VSLD or sync or max length channel
             self.data=info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data']
             if self.channelType==1: # if VSLD
@@ -492,9 +502,9 @@ class recordChannel():
             self.name+=str(dataGroup)
         self.RecordFormat=((self.name, convertName(self.name)),  self.dataFormat)
         if not self.signalDataType in (13, 14): # processed by several channels
-            if not self.channelType==1: # if VSLD
+            if not self.channelType==1: # if not VSLD
                 self.Format=datatypeformat4( self.signalDataType, self.bitCount )
-            else:
+            else: # VLSD
                 self.Format=datatypeformat4( 0, self.bitCount )
             self.CFormat=Struct(self.Format)
         if self.bitCount%8==0:
@@ -1337,14 +1347,15 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                 # channel array processing
                 if 'CABlock' in info['CNBlock'][dataGroup][channelGroup][channel]:
                     if info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_ndim']==1:
-                        Dims=info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_dim_size']
+                        #Dims=info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_dim_size']
+                        pass
                     elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_ndim']>1:
-                        ca_dim_size=info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_dim_size']
-                        Dims=[ca_dim_size[i][0] for i in ca_dim_size]
+                        #ca_dim_size=info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_dim_size']
+                        #Dims=[ca_dim_size[i][0] for i in ca_dim_size]
+                        pass
                     if info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==0: # simple array, no axis/outpout
-                        print('resizing array', Dims, len(L[channelName]))
                         if info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_ndim']>1:
-                            L[channelName]=L[channelName].reshape(Dims)
+                            pass
                     elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==1: # scaling axis, 1D
                         pass
                     elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==2: # look-up
@@ -1477,7 +1488,7 @@ def formulaConv(vect, formula):
     except:
         print('Please install sympy to convert channel ')
     X=symbols('X')
-    expr=lambdify(X, formula, 'numpy')
+    expr=lambdify(X, formula, modules='numpy', dummify=False)
     return expr(vect) 
 
 def valueToValueTableWOInterpConv(vect, cc_val):
