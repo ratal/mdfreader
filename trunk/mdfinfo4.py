@@ -522,23 +522,23 @@ class CABlock(MDFBlock):
             self['ca_invalid_bit_pos_base']=self.mdfblockread(fid, UINT32, 1)
             self['ca_dim_size']=self.mdfblockread(fid, UINT64, self['ca_ndim'])
             try: # more than one dimension, processing dict
-                SNd=0
-                PNd=1
+                self['SNd']=0
+                self['PNd']=1
                 for x in self['ca_dim_size']:
-                    SNd+=self['ca_dim_size'][x][0]
-                    PNd*=self['ca_dim_size'][x][0]
+                    self['SNd']+=self['ca_dim_size'][x][0]
+                    self['PNd']*=self['ca_dim_size'][x][0]
             except: # only one dimension, processing int
-                SNd=self['ca_dim_size']
-                PNd=SNd
+                self['SNd']=self['ca_dim_size']
+                self['PNd']=self['SNd']
             if 1<<5 & self['ca_flags']: # bit5
-                self['ca_axis_value']=self.mdfblockread(fid, REAL, SNd)
+                self['ca_axis_value']=self.mdfblockread(fid, REAL, self['SNd'])
             if self['ca_storage']>=1:
-                self['ca_cycle_count']=self.mdfblockread(fid, UINT64, PNd)
+                self['ca_cycle_count']=self.mdfblockread(fid, UINT64, self['PNd'])
             # Channel Conversion block : Links
             fid.seek( pointer +24 )
             self['ca_composition']=self.mdfblockread(fid, LINK, 1) # point to CN for array of structures or CA for array of array
             if self['ca_storage']==2:
-                self['ca_data']=self.mdfblockread(fid, LINK, PNd) 
+                self['ca_data']=self.mdfblockread(fid, LINK, self['PNd']) 
             if 1<<0 &self['ca_flags']: # bit 0
                 self['ca_dynamic_size']=self.mdfblockread(fid, LINK, self['ca_ndim']*3)
             if 1<<1 &self['ca_flags']: # bit 1

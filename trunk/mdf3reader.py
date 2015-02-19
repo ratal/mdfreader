@@ -237,7 +237,7 @@ def formulaConv(data, conv): # 10 Text Formula
         formula = conv['textFormula']
         formula=formula[:formula.find('\x00')] # remove trailing text after 0
         formula = formula.replace('pow(', 'power(') # adapt ASAM-MCD2 syntax to sympy
-        expr = lambdify(X,formula , 'numpy') # formula to function for evaluation
+        expr = lambdify(X,formula , modules='numpy', dummify=False) # formula to function for evaluation
         return expr(data)
     except:
         print('Please install sympy to convert channel ')
