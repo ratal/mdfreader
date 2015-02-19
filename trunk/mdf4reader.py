@@ -111,7 +111,10 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
             from zlib import decompress
         except:
             raise('zlib module not found or error while uncompressing')
-        parent_block['data']=decompress(parent_block['data']) # decompress data
+        if PythonVersion>3:
+            parent_block['data']=decompress(parent_block['data']) # decompress data
+        else:
+            parent_block['data']=decompress(bytes(parent_block['data'])) # decompress data
         if parent_block['dz_zip_type']==1: # data bytes transposed
             N = parent_block['dz_zip_parameter']
             M = parent_block['dz_org_data_length']//N
@@ -481,13 +484,17 @@ class recordChannel():
         self.channelNumber=channelNumber
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data_type']
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_count']
-        if info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_composition']: # channel array
+        if info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_composition'] and \
+                'CABlock' in info['CNBlock'][dataGroup][channelGroup][channelNumber]: # channel array
             self.dataFormat=arrayformat4( self.signalDataType, self.bitCount )
             self.CABlock=info['CNBlock'][dataGroup][channelGroup][channelNumber]['CABlock']
-            array_desc = '('
-            for i in self.CABlock['ca_dim_size']:
-                array_desc += str(self.CABlock['ca_dim_size'][i][0])+','
-            array_desc = array_desc[:-1] + ')' # remove trailing comma
+            if self.CABlock['ca_ndim']>1:
+                array_desc = '('
+                for i in self.CABlock['ca_dim_size']:
+                    array_desc += str(self.CABlock['ca_dim_size'][i][0])+','
+                array_desc = array_desc[:-1] + ')' # remove trailing comma
+            else:
+                array_desc = str(self.CABlock['ca_dim_size'])
             #self.bitCount = self.bitCount*self.CABlock['PNd']
             self.dataFormat = array_desc + self.dataFormat
         else:
@@ -1343,27 +1350,6 @@ def processDataBlocks4( Q, buf, info, dataGroup,  channelList, multiProc ):
                 # MLSD
                 if chan.channelType==5:
                     pass #print('MLSD masking needed')
-                    
-                # channel array processing
-                if 'CABlock' in info['CNBlock'][dataGroup][channelGroup][channel]:
-                    if info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_ndim']==1:
-                        #Dims=info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_dim_size']
-                        pass
-                    elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_ndim']>1:
-                        #ca_dim_size=info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_dim_size']
-                        #Dims=[ca_dim_size[i][0] for i in ca_dim_size]
-                        pass
-                    if info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==0: # simple array, no axis/outpout
-                        if info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_ndim']>1:
-                            pass
-                    elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==1: # scaling axis, 1D
-                        pass
-                    elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==2: # look-up
-                        pass
-                    elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==3: # interval axis, 1D
-                        pass
-                    elif info['CNBlock'][dataGroup][channelGroup][channel]['CABlock']['ca_type']==4: # classification
-                        pass
                     
             elif chan.signalDataType==13:
                 L['ms']=buf[recordID]['data'].__getattribute__( 'ms_title') 
