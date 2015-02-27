@@ -598,10 +598,20 @@ class mdf( mdf3,  mdf4 ):
             f = open( filename, "wt" , encoding='latin-1')
         writer = csv.writer( f, dialect = csv.excel )
         # writes header
-        writer.writerow( [name for name in list(self.keys()) if self.getChannelData(name).dtype in ('float64','float32')] ) # writes channel names
-        writer.writerow( [(self.getChannelUnit(name)) for name in list(self.keys()) if self.getChannelData(name).dtype in ('float64','float32')] ) # writes units
+        writer.writerow( [name for name in list(self.keys()) if self.getChannelData(name).dtype.kind not in ('S','U')] ) # writes channel names
+        if PythonVersion<3:
+            units=[]
+            for name in list(self.keys()):
+                if self.getChannelData(name).dtype.kind not in ('S','U'):
+                    if self.getChannelUnit(name) is bytes:
+                        units.append(self.getChannelUnit(name).encode('unicode', 'ignore'))
+                    else:
+                        units.append(self.getChannelUnit(name))
+            writer.writerow( units ) # writes units
+        else:
+            writer.writerow([self.getChannelUnit(name) for name in list(self.keys()) if self.getChannelData(name).dtype.kind not in ('S','U')]) # writes units
         # concatenate all channels
-        buf = vstack( [self.getChannelData(name).transpose() for name in list(self.keys()) if self.getChannelData(name).dtype in ('float64','float32')] )
+        buf = vstack( [self.getChannelData(name).transpose() for name in list(self.keys()) if self.getChannelData(name).dtype.kind not in ('S','U')] )
         buf = buf.transpose()
         # Write all rows
         r, c = buf.shape
@@ -637,7 +647,12 @@ class mdf( mdf3,  mdf4 ):
             return buf
 
         def setAttribute(f, name, value):
-            if len(value)>0: # netcdf does not allow empty strings...
+            if value is not None and len(value)>0: # netcdf does not allow empty strings...
+                if value is dict and 'name' in value:
+                    value = value['name']
+                if PythonVersion>=3 and value is bytes:
+                    value = value.encode('utf-8', 'ignore')
+                value = cleanName(value)
                 setattr( f, name, value)
             else:
                 pass
@@ -647,18 +662,13 @@ class mdf( mdf3,  mdf4 ):
             filename = splitext(self.fileName)[0]
             filename = filename + '.nc'
         f = netcdf.netcdf_file( filename, 'w' )
-        setAttribute( f, 'Date', (self.date))
-        setAttribute( f, 'Time', (self.time))
-        if self.author is not None:
-            setAttribute(f, 'Author', self.author)
-        if self.organisation is not None:
-            setAttribute( f, 'Organization', (self.organisation))
-        if self.project is not None:
-            setAttribute( f, 'ProjectName', (self.project))
-        if self.subject is not None:
-            setAttribute( f, 'Subject', (self.subject))
-        if self.comment is not None:
-            setAttribute( f, 'Comment', (self.comment))
+        setAttribute( f, 'Date', self.date)
+        setAttribute( f, 'Time', self.time)
+        setAttribute(f, 'Author', self.author)
+        setAttribute( f, 'Organization', self.organisation)
+        setAttribute( f, 'ProjectName', self.project)
+        setAttribute( f, 'Subject', self.subject)
+        setAttribute( f, 'Comment', self.comment)
         # Create dimensions having name of all time channels
         for time in list(self.masterChannelList.keys()):
             f.createDimension( time, len( self.getChannelData(time) ) )
@@ -686,8 +696,8 @@ class mdf( mdf3,  mdf4 ):
                 var[name] = f.createVariable( CleanedName, type, ( self[name]['master'], ) )
             # Create attributes
             setAttribute( var[name], 'title', CleanedName )
-            setAttribute( var[name], 'units', cleanName(self.getChannelUnit(name)))
-            setAttribute( var[name], 'Description', cleanName(self[name]['description']))
+            setAttribute( var[name], 'units', self.getChannelUnit(name))
+            setAttribute( var[name], 'Description', self[name]['description'])
             if name in list(self.masterChannelList.keys()):
                 setAttribute( var[name], 'Type', 'Master Channel' )
                 setAttribute( var[name], 'datatype', 'master' )
@@ -725,20 +735,31 @@ class mdf( mdf3,  mdf4 ):
         except:
             print( 'h5py not found' )
             raise
+        def setAttribute(obj, name, value):
+            if value is not None and len(value)>0:
+                try:
+                    if value is dict and 'name' in value:
+                        value = value['name']
+                    obj.attrs[name] = value
+                except:
+                    pass
+            else:
+                pass
         if sampling != None:
             self.resample( sampling )
         if filename == None:
             filename = splitext(self.fileName)[0]
             filename = filename + '.hdf'
         f = h5py.File( filename, 'w' ) # create hdf5 file
-        filegroup=f.create_group(os.path.basename(filename)) # create group in root associated to file
-        filegroup.attrs['Author']=self.author
-        filegroup.attrs['Date']=self.date
-        filegroup.attrs['Time']= self.time 
-        filegroup.attrs['Organization']=self.organisation
-        filegroup.attrs['ProjectName']=self.project
-        filegroup.attrs['Subject']=self.subject
-        filegroup.attrs['Comment']=self.comment
+        filegroup = f.create_group(os.path.basename(filename)) # create group in root associated to file
+        setAttribute(filegroup, 'Author', self.author)
+        setAttribute(filegroup, 'Date', self.date)
+        setAttribute(filegroup, 'Time', self.time)
+        setAttribute(filegroup, 'Time', self.time)
+        setAttribute(filegroup, 'Organization', self.organisation)
+        setAttribute(filegroup, 'ProjectName', self.project)
+        setAttribute(filegroup, 'Subject', self.subject)
+        setAttribute(filegroup, 'Comment', self.comment)
         if len( list(self.masterChannelList.keys()) ) > 1:
             # if several time groups of channels, not resampled
             groups = {}
@@ -751,14 +772,14 @@ class mdf( mdf3,  mdf4 ):
                     groups[self[channel]['master'] ] = ngroups
                     grp[ngroups] = filegroup.create_group( self[channel]['master'] )
                 dset = grp[groups[self[channel]['master'] ]].create_dataset( channel, data = self.getChannelData(channel) )
-                dset.attrs[ 'unit']=self.getChannelUnit(channel)
-                dset.attrs['description']=self[channel]['description']
+                setAttribute(dset, 'unit', self.getChannelUnit(channel))
+                setAttribute(dset, 'description', self[channel]['description'])
         else: # resampled or only one time for all channels : no groups
             for channel in list(self.keys()):
                 channelName=convertMatlabName(channel)
                 dset = filegroup.create_dataset( channelName, data = self.getChannelData(channel) )
-                dset.attrs[ 'unit']=self.getChannelUnit(channel)
-                dset.attrs['description']=self[channel]['description']
+                setAttribute(dset, 'unit', self.getChannelUnit(channel))
+                setAttribute(dset, 'description', self[channel]['description'])
         f.close()
 
     def exportToMatlab( self, filename = None ):
@@ -1062,7 +1083,7 @@ class mdf( mdf3,  mdf4 ):
             self[group+'_group'].pop(group) # delete time channel, no need anymore
         # clean rest of self from data and time channel information
         [self[channel].pop('data') for channel in originalKeys]
-        [self[channel].pop('master') for channel in originalKeys]
+        [self[channel].pop('master') for channel in originalKeys if 'master' in self[channel]]
         self.masterGroups=[] # save time groups name in list
         [self.masterGroups.append(group+'_group') for group in list(self.masterChannelList.keys())]
         self.masterChannelList={}
