@@ -53,7 +53,7 @@ In the case of big files and lack of memory, you can optionally:
 
 Warning:
 ========
-MDF 4.x specification is much complex compared to 3.x and file reading functionality is not yet fully complete (Working on composition of channels in structure or Channel Arrays), but you should be able to import simple files.
+MDF 4.x specification is much complex compared to 3.x and its implementation is young. Even though I tested it with around 150 different files, chances of bug is higher with version 4.x compared to 3.x
 
 For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
 
