@@ -97,8 +97,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                     if not len(self.resampleValue.text())==0:
                         resampleFlag=True
                     else:
-                        print('Empty field for resampling')
-                        raise 
+                        raise Exception('Empty field for resampling')
                 else:
                     resampleFlag=False
                 args=[(str(self.FileList.takeItem(0).text()),channelList,resampleFlag,resampleValue,convertFlag,convertSelection) for i in range(self.FileList.count())]
@@ -112,8 +111,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                 # import first file
                 fileNameList=[]
                 if len(self.resampleValue.text())==0:
-                    print('Wrong value for re-sampling')
-                    raise 
+                    raise Exception('Wrong value for re-sampling')
                 convertFlag=False
                 convertSelection=self.convertSelection
                 resampleValue=float(self.resampleValue.text())
@@ -326,8 +324,7 @@ def processMDFstar(args):
         return processMDF(*args)
     except :
         print('Error, following file might be corrupted : '+args[0]) # Shows fileName and parameters to help finding corrupted files
-        print('Please re-try by removing this file from the list and restart mdfconverter to kill processes and clean memory')
-        raise # produce error and stops all processes
+        raise Exception('Please re-try by removing this file from the list and restart mdfconverter to kill processes and clean memory')
 
 def convertChannelList(channelList):
     if PythonVersion<3:

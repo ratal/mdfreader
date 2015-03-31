@@ -138,8 +138,7 @@ class mdfinfo( dict):
         try:
             fid = open( self.fileName, 'rb' )
         except IOError:
-            print('Can not find file'+self.fileName)
-            raise
+            raise Exception('Can not find file '+self.fileName)
         # read Identifier block
         fid.seek(28)
         VersionNumber = unpack( '<H', fid.read( 2 ) )
@@ -170,8 +169,7 @@ class mdfinfo( dict):
         try:
             fid = open( self.fileName, 'rb' )
         except IOError:
-            print('Can not find file'+self.fileName)
-            raise
+            raise Exception('Can not find file '+self.fileName)
         # read Identifier block
         fid.seek(28)
         VersionNumber=unpack( '<H', fid.read( 2 ) )
@@ -449,8 +447,7 @@ class mdf( mdf3,  mdf4 ):
         try:
             import matplotlib.pyplot as plt
         except:
-            print('matplotlib not found' )
-            raise
+            raise ImportError('matplotlib not found' )
         if type(channels) is str:
             channels={channels}
         for channelName in channels:
@@ -636,8 +633,7 @@ class mdf( mdf3,  mdf4 ):
         try:
             from scipy.io import netcdf
         except:
-            print( 'scipy.io module not found' )
-            raise
+            raise ImportError( 'scipy.io module not found' )
         def cleanName( name ):
             allowedStr=' ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-+_.@'
             buf=''
@@ -733,8 +729,7 @@ class mdf( mdf3,  mdf4 ):
             import h5py
             import os
         except:
-            print( 'h5py not found' )
-            raise
+            raise ImportError( 'h5py not found' )
         def setAttribute(obj, name, value):
             if value is not None and len(value)>0:
                 try:
@@ -804,8 +799,7 @@ class mdf( mdf3,  mdf4 ):
         try:
             from scipy.io import savemat
         except:
-            print( 'scipy module not found' )
-            raise
+            raise ImportError( 'scipy module not found' )
         if filename == None:
             filename = splitext(self.fileName)[0]
             filename = filename + '.mat'
@@ -846,8 +840,7 @@ class mdf( mdf3,  mdf4 ):
             else:
                 import xlwt3 as xlwt
         except:
-            print( 'xlwt module missing' )
-            raise
+            raise ImportError( 'xlwt module missing' )
         if filename == None:
             filename = filename = splitext(self.fileName)[0]
             filename = filename + '.xls'
@@ -918,8 +911,7 @@ class mdf( mdf3,  mdf4 ):
         try:
             import openpyxl
         except:
-            print('Module openpyxl missing')
-            raise
+            raise ImportError('Module openpyxl missing')
         if filename == None:
             filename = splitext(self.fileName)[0]
             filename = filename + '.xlsx'
@@ -1027,8 +1019,7 @@ class mdf( mdf3,  mdf4 ):
         self.convertAllChannel() # make sure all channels are converted
         unionedList=list(mdfClass.keys()) and list(self.keys())
         if not len(list(self.masterChannelList.keys()))==1:
-            print( 'Data not resampled')
-            raise
+            raise Exception( 'Data not resampled')
         initialTimeSize=len(self.getChannelData('master'))
         for channel in unionedList:
             data = self.getChannelData(channel)
@@ -1067,8 +1058,7 @@ class mdf( mdf3,  mdf4 ):
         try:
             import pandas as pd
         except:
-            print('Module pandas missing')
-            raise
+            raise ImportError('Module pandas missing')
         if sampling is not None:
             self.resample(sampling)
         datetimeInfo=datetime64(self.date.replace(':','-')+'T'+self.time)

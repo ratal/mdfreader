@@ -110,7 +110,7 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
         try:
             from zlib import decompress
         except:
-            raise('zlib module not found or error while uncompressing')
+            raise ImportError('zlib module not found or error while uncompressing')
         if PythonVersion>3:
             parent_block['data']=decompress(parent_block['data']) # decompress data
         else:
@@ -403,7 +403,7 @@ class DATA(dict):
             temps['data']=self.fid.read( temps['dz_data_length'] )
             temps['data']=DATABlock(record, parent_block=temps, channelList=nameList, sortedFlag=sortedFlag)
         else:
-            raise('unknown data block')
+            raise Exception('unknown data block')
         return temps['data']
 
     def readRecord(self, recordID, buf, channelList=None):
@@ -965,8 +965,7 @@ class mdf4(dict):
         try:
             fid = open( self.fileName, 'rb' )
         except IOError:
-            print('Can not find file'+self.fileName)
-            raise
+            raise Exception('Can not find file '+self.fileName)
 
         if self.multiProc:
             # prepare multiprocessing of dataGroups
@@ -1109,7 +1108,8 @@ class mdf4(dict):
         if channelName in self:
             return convertChannelData4(self[channelName], channelName, self.convert_tables)[channelName]
         else:
-            raise('Channel not in dictionary')
+            raise KeyError('Channel not in dictionary')
+            return channelName
     
     def convertChannel4(self, channelName):
         """converts specific channel from raw to physical data according to CCBlock information
@@ -1497,7 +1497,7 @@ def valueToValueTableWOInterpConv(vect, cc_val):
         try:
             from scipy import interpolate
         except:
-            raise('Please install scipy to convert channel')
+            raise ImportError('Please install scipy to convert channel')
         f = interpolate.interp1d( intVal, physVal , kind='nearest', bounds_error=False) # nearest
         return f(vect) # fill with Nan out of bounds while should be bounds
     else:

@@ -761,8 +761,7 @@ class info4(dict):
             try:
                 fid = open( self.fileName, 'rb' )
             except IOError:
-                print('Can not find file '+self.fileName)
-                raise
+                raise IOError('Can not find file '+self.fileName)
             self.readinfo( fid )
             # Close the file
             fid.close()

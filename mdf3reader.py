@@ -19,10 +19,11 @@ Attributes
 --------------
 PythonVersion : float
     Python version currently running, needed for compatibility of both python 2.6+ and 3.2+
-    
+
 mdf3reader module
 --------------------------
 """
+
 from numpy import average, right_shift, bitwise_and, all, diff, max, min, interp
 from numpy import asarray, zeros, recarray, array, reshape
 from numpy.core.records import fromfile
@@ -30,12 +31,12 @@ from math import log, exp
 from sys import platform, version_info
 from time import strftime, time
 from struct import pack, Struct
-from io import open # for python 3 and 2 consistency
+from io import open  # for python 3 and 2 consistency
 from mdfinfo3 import info3
-PythonVersion=version_info
-PythonVersion=PythonVersion[0]
+PythonVersion = version_info
+PythonVersion = PythonVersion[0]
 
-def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc ):
+def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc):
     """Put raw data from buf to a dict L and processes nested nBit channels
     
     Parameters
@@ -66,7 +67,7 @@ def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc ):
         allChannel=True
     else:
         allChannel=False
-    ## Processes Bits, metadata
+    # Processes Bits, metadata
     for recordID in buf.keys():
         for chan in buf[recordID]['record']:
             channelName=chan.name
@@ -74,20 +75,20 @@ def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc ):
                 recordName=buf[recordID]['record'].recordToChannelMatching[channelName] # in case record is used for several channels
                 temp = buf[recordID]['data'].__getattribute__( str(recordName)+'_title') # extract channel vector
                     
-                if chan.channelType ==1: # master channel 
+                if chan.channelType ==1: # master channel
                     channelName = 'master' + str( dataGroup )
 
                 # Process concatenated bits inside uint8
                 if not chan.bitCount//8.0==chan.bitCount/8.0: # if channel data do not use complete bytes
                     mask = int(pow(2, chan.bitCount+1)-1) # masks isBitUnit8
-                    if chan.signalDataType in (0,1, 9, 10, 13, 14): # integers
-                        temp =  right_shift(temp,  chan.bitOffset)
+                    if chan.signalDataType in (0, 1, 9, 10, 13, 14): # integers
+                        temp =  right_shift(temp, chan.bitOffset)
                         temp =  bitwise_and(temp,  mask )
                         L[channelName] = temp
                     else: # should not happen
                         print('bit count and offset not applied to correct data type')
                         L[channelName] = temp
-                else: #data using full bytes
+                else: # data using full bytes
                     L[channelName] = temp
 
     if multiProc:
@@ -194,7 +195,7 @@ def logConv(data, conv): # 8 Logarithmic
     -----------
     converted data to physical value
     """
-    if conv['P4']  == 0 and conv['P1']  != 0 and conv['P2']  != 0:
+    if conv['P4'] == 0 and conv['P1'] != 0 and conv['P2'] != 0:
         return log(((data - conv['P7'] ) * conv['P6']  - conv['P3'] ) / conv['P1'] ) / conv['P2'] 
     elif conv['P1']  == 0 and conv['P4']  != 0 and conv['P5']  != 0:
         return log((conv['P3']  / (data - conv['P7'] ) - conv['P6'] ) / conv['P4'] ) / conv['P5'] 
@@ -700,8 +701,7 @@ class mdf3(dict):
         try:
             fid = open(self.fileName, 'rb')
         except IOError:
-            print('Can not find file'+self.fileName)
-            raise
+            raise Exception('Can not find file '+self.fileName)
 
         # Look for the biggest group to process first, to reduce processing time when mutiprocessed
         dataGroupList = dict.fromkeys(list(range( info['HDBlock']['numberOfDataGroups'])))
@@ -803,7 +803,8 @@ class mdf3(dict):
         if channelName in self:
             return self.convert3(channelName)
         else:
-            raise('Channel not in dictionary')
+            raise KeyError('Channel not in dictionary')
+            return channelName
     
     def convert3(self, channelName):
         """converts specific channel from raw to physical data according to CCBlock information
@@ -1086,8 +1087,8 @@ class mdf3(dict):
                 elif data.dtype.kind in ['S', 'U']: 
                     dataType = 7
                 else:
-                    print('Not recognized dtype')
-                    raise
+                    raise Exception('Not recognized dtype')
+                    return data.dtype
                 if not data.dtype.kind in ['S', 'U']: 
                     dataTypeList += data.dtype.char
                 else:

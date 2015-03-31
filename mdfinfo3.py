@@ -80,8 +80,7 @@ class info3(dict):
             try:
                 fid = open( self.fileName, 'rb' )
             except IOError:
-                print('Can not find file'+self.fileName)
-                raise
+                raise IOError('Can not find file '+self.fileName)
             self.readinfo3( fid )
         elif fileName == None and fid!=None:
             self.readinfo3(fid)
