@@ -488,7 +488,7 @@ class CCBlock(MDFBlock):
 
     def __init__(self, fid, pointer):
         # block header
-        if pointer != 0 and not pointer is None:
+        if pointer != 0 and pointer is not None:
             fid.seek(pointer)
             self['id'] = self.mdfblockreadCHAR(fid, 4)
             self['reserved'] = self.mdfblockreadBYTE(fid, 4)
@@ -539,7 +539,7 @@ class CABlock(MDFBlock):
 
     def __init__(self, fid, pointer):
         # block header
-        if pointer != 0 and not pointer is None:
+        if pointer != 0 and pointer is not None:
             fid.seek(pointer)
             self['id'] = self.mdfblockreadCHAR(fid, 4)
             self['reserved'] = self.mdfblockreadBYTE(fid, 4)
@@ -596,7 +596,7 @@ class ATBlock(MDFBlock):
 
     def __init__(self, fid, pointer):
         # block header
-        if pointer != 0 and not pointer is None:
+        if pointer != 0 and pointer is not None:
             fid.seek(pointer)
             self['id'] = self.mdfblockreadCHAR(fid, 4)
             self['reserved'] = self.mdfblockreadBYTE(fid, 4)
@@ -627,7 +627,7 @@ class EVBlock(MDFBlock):
 
     def __init__(self, fid, pointer):
         # block header
-        if pointer != 0 and not pointer is None:
+        if pointer != 0 and pointer is not None:
             fid.seek(pointer)
             self['id'] = self.mdfblockreadCHAR(fid, 4)
             self['reserved'] = self.mdfblockreadBYTE(fid, 4)
@@ -682,7 +682,7 @@ class SRBlock(MDFBlock):
 
     def __init__(self, fid, pointer):
         # block header
-        if pointer != 0 and not pointer is None:
+        if pointer != 0 and pointer is not None:
             fid.seek(pointer)
             self['id'] = self.mdfblockreadCHAR(fid, 4)
             self['reserved'] = self.mdfblockreadBYTE(fid, 4)
@@ -706,7 +706,7 @@ class SIBlock(MDFBlock):
 
     def __init__(self, fid, pointer):
         # block header
-        if pointer != 0 and not pointer is None:
+        if pointer != 0 and pointer is not None:
             fid.seek(pointer)
             self['id'] = self.mdfblockreadCHAR(fid, 4)
             self['reserved'] = self.mdfblockreadBYTE(fid, 4)
@@ -956,10 +956,10 @@ class info4(dict):
                                 self['VLSD_CG'][self['CGBlock'][dg][VLSDcg]['cg_record_id']] = temp
                                 break
 
-              # reorder channel blocks and related blocks(CC, SI, AT, CA) based on byte offset
-              # this reorder is meant to improve performance while parsing records using core.records.fromfile
-              # as it will not use cn_byte_offset
-              # first, calculate new mapping/order
+            # reorder channel blocks and related blocks(CC, SI, AT, CA) based on byte offset
+            # this reorder is meant to improve performance while parsing records using core.records.fromfile
+            # as it will not use cn_byte_offset
+            # first, calculate new mapping/order
             nChannel = len(self['CNBlock'][dg][cg])
             Map = zeros(shape=len(self['CNBlock'][dg][cg]), dtype=[('index', 'u4'), ('byte_offset', 'u4')])
             for cn in range(nChannel):
@@ -1186,7 +1186,7 @@ class info4(dict):
         -----------
         list of channel names contained in file
         """
-        if not fileName is None:
+        if fileName is not None:
             self.fileName = fileName
         # Open file
         fid = open(self.fileName, 'rb')

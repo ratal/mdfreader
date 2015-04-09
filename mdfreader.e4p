@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Project SYSTEM "Project-5.1.dtd">
 <!-- eric project file for project mdfreader -->
-<!-- Saved: 2015-03-31, 23:46:16 -->
+<!-- Saved: 2015-04-10, 01:02:36 -->
 <!-- Copyright (C) 2015 Aymeric Rateau, aymeric.rateau@gmail.com -->
 <Project version="5.1">
   <Language>en</Language>
@@ -40,7 +40,7 @@
   </Others>
   <MainScript>mdfconverter.py</MainScript>
   <Vcs>
-    <VcsType>None</VcsType>
+    <VcsType>Git</VcsType>
     <VcsOptions>
       <dict>
         <key>
@@ -357,6 +357,79 @@
             </value>
             <key>
               <string>txtReport</string>
+            </key>
+            <value>
+              <bool>False</bool>
+            </value>
+          </dict>
+        </value>
+        <key>
+          <string>Pep8Checker</string>
+        </key>
+        <value>
+          <dict>
+            <key>
+              <string>DocstringType</string>
+            </key>
+            <value>
+              <string>pep257</string>
+            </value>
+            <key>
+              <string>ExcludeFiles</string>
+            </key>
+            <value>
+              <string></string>
+            </value>
+            <key>
+              <string>ExcludeMessages</string>
+            </key>
+            <value>
+              <string>E123,E226,E24,E501</string>
+            </value>
+            <key>
+              <string>FixCodes</string>
+            </key>
+            <value>
+              <string></string>
+            </value>
+            <key>
+              <string>FixIssues</string>
+            </key>
+            <value>
+              <bool>False</bool>
+            </value>
+            <key>
+              <string>HangClosing</string>
+            </key>
+            <value>
+              <bool>False</bool>
+            </value>
+            <key>
+              <string>IncludeMessages</string>
+            </key>
+            <value>
+              <string></string>
+            </value>
+            <key>
+              <string>MaxLineLength</string>
+            </key>
+            <value>
+              <int>79</int>
+            </value>
+            <key>
+              <string>NoFixCodes</string>
+            </key>
+            <value>
+              <string>E501</string>
+            </value>
+            <key>
+              <string>RepeatMessages</string>
+            </key>
+            <value>
+              <bool>False</bool>
+            </value>
+            <key>
+              <string>ShowIgnored</string>
             </key>
             <value>
               <bool>False</bool>

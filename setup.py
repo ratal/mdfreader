@@ -66,20 +66,20 @@ setup(
     # project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/technical.html#install-requires-vs-requirements-files
-    install_requires=['numpy>=1.6','Sympy'],
+    install_requires=['numpy>=1.6', 'Sympy'],
 
     # List additional groups of dependencies here (e.g. development dependencies).
     # You can install these using the following syntax, for example:
     # $ pip install -e .[dev,test]
-    extras_require = {
-        'export': ['scipy','h5py','xlwt','xlwt3','openpyxl','pandas'],
+    extras_require={
+        'export': ['scipy', 'h5py', 'xlwt', 'xlwt3', 'openpyxl', 'pandas'],
         'converter': ['PyQt4'],
     }
 
     # If there are data files included in your packages that need to be
     # installed, specify them here.  If using Python 2.6 or less, then these
     # have to be included in MANIFEST.in as well.
-    #package_data={
+    # package_data={
     #    'sample': ['package_data.dat'],
     #},
 
@@ -92,7 +92,7 @@ setup(
     # To provide executable scripts, use entry points in preference to the
     # "scripts" keyword. Entry points provide cross-platform support and allow
     # pip to create the appropriate form of executable for the target platform.
-    #entry_points={
+    # entry_points={
     #    'console_scripts': [
     #        'sample=sample:main',
     #    ],

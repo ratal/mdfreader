@@ -1121,12 +1121,12 @@ class mdf3(dict):
                 else:
                     raise Exception('Not recognized dtype')
                     return data.dtype
-                if not data.dtype.kind in ['S', 'U']:
+                if data.dtype.kind not in ['S', 'U']:
                     dataTypeList += data.dtype.char
                 else:
                     dataTypeList += str(data.dtype.itemsize) + 's'
                 fid.write(pack(UINT16, dataType))  # Signal data type
-                if not data.dtype.kind in ['S', 'U']:
+                if data.dtype.kind not in ['S', 'U']:
                     fid.write(pack(BOOL, 1))  # Value range valid
                     if len(data) > 0:
                         maximum = max(data)
@@ -1156,7 +1156,7 @@ class mdf3(dict):
                 writePointer(fid, pointers['CN'][dataGroup][channel]['CC'], fid.tell())
                 writeChar(fid, 'CC')
                 fid.write(pack(UINT16, 46))  # CC block size
-                if not data.dtype.kind in ['S', 'U']:
+                if data.dtype.kind not in ['S', 'U']:
                     fid.write(pack(BOOL, 1))  # Value range valid
                     fid.write(pack(REAL, minimum))  # Min value
                     fid.write(pack(REAL, maximum))  # Max value

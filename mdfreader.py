@@ -316,7 +316,7 @@ class mdf(mdf3, mdf4):
         self.convert_tables = False  # if True converts raw data with expensive loops, not necessary most cases
         # clears class from previous reading and avoid to mess up
         self.clear()
-        if not fileName is None:
+        if fileName is not None:
             self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames)
             self.fileName = fileName
 
@@ -458,7 +458,7 @@ class mdf(mdf3, mdf4):
         for channelName in channels:
             if channelName in self:
                 data = self.getChannelData(channelName)
-                if not data.dtype.kind in ['S', 'U']:  # if channel not a string
+                if data.dtype.kind not in ['S', 'U']:  # if channel not a string
                     self.fig = plt.figure()
                     # plot using matplotlib the channel versus master channel
                     if len(list(self.masterChannelList.keys())) == 1:  # Resampled signals
@@ -814,7 +814,7 @@ class mdf(mdf3, mdf4):
         temp = {}
         for channel in list(self.keys()):
             data = self.getChannelData(channel)
-            if not data.dtype.kind in ('S', 'U'):  # does not like special characters chains, skip
+            if data.dtype.kind not in ('S', 'U'):  # does not like special characters chains, skip
                 channelName = convertMatlabName(channel)
                 temp[channelName] = data
         try:  # depends of version used , compression can be used
@@ -960,7 +960,7 @@ class mdf(mdf3, mdf4):
             buf = bigmat
             for col in range(maxCols):
                 data = self.getChannelData(channels[col])
-                if not data.dtype.kind in ['S', 'U']:
+                if data.dtype.kind not in ['S', 'U']:
                     chanlen = len(data)
                     if chanlen < maxRows:
                         buf[:] = None
@@ -987,7 +987,7 @@ class mdf(mdf3, mdf4):
         channelList = [channel for channel in channelList]
         removeChannels = []
         for channel in list(self.keys()):
-            if channel not in channelList and not 'master' in channel and channel not in list(self.masterChannelList.keys()):
+            if channel not in channelList and 'master' not in channel and channel not in list(self.masterChannelList.keys()):
                 # avoid to remove master channels otherwise problems with resample
                 removeChannels.append(channel)
         if not len(removeChannels) == 0:

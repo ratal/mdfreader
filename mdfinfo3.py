@@ -319,7 +319,7 @@ class info3(dict):
         list of channel names
         """
         # Read MDF file and extract its complete structure
-        if not fileName is None:
+        if fileName is not None:
             self.fileName = fileName
         # Open file
         fid = open(self.fileName, 'rb')
@@ -592,7 +592,7 @@ class info3(dict):
         Block content in a dict
         """
         Block = {}
-        if pointer != 0 and not pointer is None:
+        if pointer != 0 and pointer is not None:
             fid.seek(pointer)
             # Extract parameters
             for field in range(len(blockFormat)):

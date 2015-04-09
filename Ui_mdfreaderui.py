@@ -14,7 +14,9 @@ try:
 except AttributeError:
     _fromUtf8 = lambda s: s
 
+
 class Ui_MainWindow(object):
+
     def setupUi(self, MainWindow):
         MainWindow.setObjectName(_fromUtf8("MainWindow"))
         MainWindow.resize(800, 653)
@@ -146,7 +148,7 @@ class Ui_MainWindow(object):
         self.Resample.addWidget(self.resample)
         self.resampleValue = QtGui.QLineEdit(self.horizontalLayoutWidget)
         self.resampleValue.setEnabled(True)
-        self.resampleValue.setInputMethodHints(QtCore.Qt.ImhFormattedNumbersOnly|QtCore.Qt.ImhPreferNumbers)
+        self.resampleValue.setInputMethodHints(QtCore.Qt.ImhFormattedNumbersOnly | QtCore.Qt.ImhPreferNumbers)
         self.resampleValue.setObjectName(_fromUtf8("resampleValue"))
         self.Resample.addWidget(self.resampleValue)
         self.layoutWidget = QtGui.QWidget(self.splitter)
@@ -223,4 +225,3 @@ if __name__ == "__main__":
     ui.setupUi(MainWindow)
     MainWindow.show()
     sys.exit(app.exec_())
-
