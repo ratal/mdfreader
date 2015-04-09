@@ -5,7 +5,7 @@ from multiprocessing import freeze_support
 
 if __name__ == "__main__":
     freeze_support()
-    app = QtGui.QApplication( argv )
-    myapp = MainWindow(  )
+    app = QtGui.QApplication(argv)
+    myapp = MainWindow()
     myapp.show()
-    exit( app.exec_() )
+    exit(app.exec_())

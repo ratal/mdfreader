@@ -27,14 +27,16 @@ except ImportError:
         import sys
         import os
         import os.path
-        sys.path.append( os.getcwdu() )
+        sys.path.append(os.getcwdu())
         print( os.path.join( os.getcwdu(), 'plugins' ) )
         from mdfreader import mdf
         from mdfreader import mdfinfo
 
+
 class ImportPlugin( mdfinfo ):
+
     """Define a plugin to read data in a particular format.
-    
+
     override doImport and optionally getPreview to define a new plugin
     register the class by adding to the importpluginregistry list
     """
@@ -68,7 +70,7 @@ class ImportPlugin( mdfinfo ):
             f += 'Subject: ' + info['HDBlock']['Subject'] + '\n' + 'Channel List:\n'
         else:
             from time import gmtime, strftime
-            fileDateTime=gmtime(info['HDBlock']['hd_start_time_ns']/1000000000)
+            fileDateTime = gmtime(info['HDBlock']['hd_start_time_ns']/1000000000)
             date=strftime('%Y-%m-%d', fileDateTime)
             time=strftime('%H:%M:%S', fileDateTime)
             f = ''
@@ -103,7 +105,7 @@ class MdfImportPlugin( ImportPlugin, mdf ):
 
     def __init__( self ):
         ImportPlugin.__init__( self )
-        self.fields = [ImportFieldFloat( "mult", descr = "Sampling", default = 0.1 )]
+        self.fields = [ImportFieldFloat( "mult", descr="Sampling", default=0.1 )]
 
     def doImport( self, params ):
         """Actually import data
@@ -112,11 +114,11 @@ class MdfImportPlugin( ImportPlugin, mdf ):
         """
 
         data = mdf( params.filename )
-        data.resample( samplingTime = params.field_results['mult'] )
+        data.resample( samplingTime=params.field_results['mult'] )
         List = []
         for channelName in list(data.keys()):
             if len( data[channelName]['data'] ) > 0 and not data[channelName]['data'].dtype.kind in ['S', 'U']:
-                #print( data[channelName]['data'].dtype )
+                # print( data[channelName]['data'].dtype )
                 List.append( ImportDataset1D( channelName, data[channelName]['data'] ) )
         return List
 
