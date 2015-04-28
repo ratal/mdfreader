@@ -81,7 +81,7 @@ def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc):
 
                 # Process concatenated bits inside uint8
                 if not chan.bitCount // 8.0 == chan.bitCount / 8.0:  # if channel data do not use complete bytes
-                    mask = int(pow(2, chan.bitCount + 1) - 1)  # masks isBitUnit8
+                    mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUnit8
                     if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
                         temp = right_shift(temp, chan.bitOffset)
                         temp = bitwise_and(temp, mask)
@@ -1255,26 +1255,30 @@ def arrayformat3(signalDataType, numberOfBits):
     if signalDataType in (0, 9, 10, 11):  # unsigned
         if numberOfBits <= 8:
             dataType = 'uint8'
-        elif numberOfBits == 16:
+        elif numberOfBits <= 16:
             dataType = 'uint16'
-        elif numberOfBits == 32:
+        elif numberOfBits <= 32:
             dataType = 'uint32'
+        elif numberOfBits <= 64:
+            dataType = 'uint64'
         elif numberOfBits == 1:
             dataType = 'uint8'  # not directly processed
         elif numberOfBits == 2:
             dataType = 'uint8'  # not directly processed
         else:
-            print(('Unsupported number of bits for unsigned int ' + str(signalDataType)))
+            print('Unsupported number of bits for unsigned int ' + str(signalDataType) + ' nBits ', numberOfBits)
 
     elif signalDataType == 1:  # signed int
         if numberOfBits <= 8:
             dataType = 'int8'
-        elif numberOfBits == 16:
+        elif numberOfBits <= 16:
             dataType = 'int16'
-        elif numberOfBits == 32:
+        elif numberOfBits <= 32:
             dataType = 'int32'
+        elif numberOfBits <= 64:
+            dataType = 'int64'
         else:
-            print(('Unsupported number of bits for signed int ' + str(signalDataType)))
+            print('Unsupported number of bits for signed int ' + str(signalDataType) + ' nBits ', numberOfBits)
 
     elif signalDataType in (2, 3):  # floating point
         if numberOfBits == 32:
@@ -1282,12 +1286,12 @@ def arrayformat3(signalDataType, numberOfBits):
         elif numberOfBits == 64:
             dataType = 'float64'
         else:
-            print(('Unsupported number of bit for floating point ' + str(signalDataType)))
+            print('Unsupported number of bit for floating point ' + str(signalDataType) + ' nBits ', numberOfBits)
 
     elif signalDataType == 7:  # string
         dataType = 'str'  # not directly processed
     elif signalDataType == 8:  # array of bytes
         dataType = 'buffer'  # not directly processed
     else:
-        print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
+        print('Unsupported Signal Data Type ' + str(signalDataType) + ' nBits ', numberOfBits)
     return dataType

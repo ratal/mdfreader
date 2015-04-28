@@ -25,6 +25,7 @@ mdfinfo3 module
 from sys import version_info
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
+from numpy import sort, zeros
 from struct import calcsize, unpack
 
 
@@ -305,6 +306,30 @@ class info3(dict):
 
         # CLose the file
         fid.close()
+        
+        # reorder channel blocks and related blocks based on first bit position
+        # this reorder is meant to improve performance while parsing records using core.records.fromfile
+        # as it will not use cn_byte_offset
+        # first, calculate new mapping/order
+        for dg in range(self['HDBlock']['numberOfDataGroups']):
+            for cg in range(self['DGBlock'][dataGroup]['numberOfChannelGroups']):
+                nChannel = len(self['CNBlock'][dg][cg])
+                Map = zeros(shape=len(self['CNBlock'][dg][cg]), dtype=[('index', 'u4'), ('first_bit', 'u4')])
+                for cn in range(nChannel):
+                    Map[cn] = (cn, self['CNBlock'][dg][cg][cn]['numberOfTheFirstBits'])
+                orderedMap = sort(Map, order='first_bit')
+
+                toChangeIndex = Map == orderedMap
+                for cn in range(nChannel):
+                    if not toChangeIndex[cn]:
+                        # offset all indexes of indexes to be moved
+                        self['CNBlock'][dg][cg][cn + nChannel] = self['CNBlock'][dg][cg].pop(cn)
+                        self['CCBlock'][dg][cg][cn + nChannel] = self['CCBlock'][dg][cg].pop(cn)
+                for cn in range(nChannel):
+                    if not toChangeIndex[cn]:
+                        # change to ordered index
+                        self['CNBlock'][dg][cg][cn] = self['CNBlock'][dg][cg].pop(orderedMap[cn][0] + nChannel)
+                        self['CCBlock'][dg][cg][cn] = self['CCBlock'][dg][cg].pop(orderedMap[cn][0] + nChannel)
 
     def listChannels3(self, fileName=None):
         """ reads data, channel group and channel blocks to list channel names
