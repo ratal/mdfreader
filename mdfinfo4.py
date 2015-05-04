@@ -961,10 +961,10 @@ class info4(dict):
             # as it will not use cn_byte_offset
             # first, calculate new mapping/order
             nChannel = len(self['CNBlock'][dg][cg])
-            Map = zeros(shape=len(self['CNBlock'][dg][cg]), dtype=[('index', 'u4'), ('byte_offset', 'u4')])
+            Map = zeros(shape=len(self['CNBlock'][dg][cg]), dtype=[('index', 'u4'), ('bit_offset', 'u4')])
             for cn in range(nChannel):
-                Map[cn] = (cn, self['CNBlock'][dg][cg][cn]['cn_byte_offset'])
-            orderedMap = sort(Map, order='byte_offset')
+                Map[cn] = (cn, self['CNBlock'][dg][cg][cn]['cn_byte_offset'] * 8 + self['CNBlock'][dg][cg][cn]['cn_bit_offset'])
+            orderedMap = sort(Map, order='bit_offset')
 
             toChangeIndex = Map == orderedMap
             for cn in range(nChannel):

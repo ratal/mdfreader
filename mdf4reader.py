@@ -86,19 +86,8 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
             else: # record is not byte aligned
                 # reads only the channels from channelList using offset functions, channel by channel.
                 from bitstring import ConstBitStream
-                # initialise data structure
-                if channelList is None:
-                    channelList = record.channelNames
-                buf = recarray(record.numberOfRecords, record.numpyDataRecordFormat)
                 B = ConstBitStream(parent_block['data'])
-                # read data
-                for record_index in range(record.numberOfRecords):
-                    temp = B.peeklist(record.bitstringFormat)
-                    print(B.pos, record_index, temp)
-                    B.pos += record.CGrecordLength * 8
-                    for chan in range(len(temp)):
-                        buf[record.dataRecordName[chan]][record_index] = temp[chan]
-                return buf
+                return record.readBitstring(B, channelList)
         else:  # unsorted reading
             print('not implemented yet unsorted data block reading')  # to be implemented if needed, missing example file
 
@@ -129,8 +118,8 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
             from zlib import decompress
         except:
             raise ImportError('zlib module not found or error while uncompressing')
-        if PythonVersion > 3:
-            parent_block['data'] = decompress(parent_block['data'])  # decompress data
+        if PythonVersion > 3:  # decompress data
+            parent_block['data'] = decompress(parent_block['data'])
         else:
             parent_block['data'] = decompress(bytes(parent_block['data']))  # decompress data
         if parent_block['dz_zip_type'] == 1:  # data bytes transposed
@@ -143,8 +132,13 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
                 temp = append(temp, tail)
             parent_block['data'] = temp.tostring()
         if channelList is None and sortedFlag:  # reads all blocks if sorted block and no channelList defined
-            record.numberOfRecords = parent_block['dz_org_data_length'] // record.CGrecordLength
-            return fromstring(parent_block['data'], dtype=record.numpyDataRecordFormat, shape=record.numberOfRecords, names=record.dataRecordName)
+            if record.byte_aligned:
+                record.numberOfRecords = parent_block['dz_org_data_length'] // record.CGrecordLength
+                return fromstring(parent_block['data'], dtype=record.numpyDataRecordFormat, shape=record.numberOfRecords, names=record.dataRecordName)
+            else:
+                from bitstring import ConstBitStream
+                B = ConstBitStream(parent_block['data'])
+                return record.readBitstring(B, channelList)
         elif channelList is not None and sortedFlag:  # sorted data but channel list requested
             print('not implemented yet sorted compressed data block reading with channelList')  # to be implemented
         else:  # unsorted reading
@@ -260,6 +254,17 @@ def change_field_name(arr, old_name, new_name):
 
 
 def bits_to_bytes(nBits):
+    """ Converts number of bits into number of aligned bytes
+    
+    Parameters
+    -------------
+    nBits : int
+        number of bits
+        
+    Returns
+    ----------
+    number of equivalent bytes
+    """
     if nBits <= 8:
         nBytes = 1
     elif nBits <= 16:
@@ -637,7 +642,7 @@ class invalid_bytes():
         returns channel validity bit array
     """
 
-    def __init__(self, info, dataGroup, channelGroup, recordIDsize):
+    def __init__(self, info, dataGroup, channelGroup, recordIDsize, byte_aligned=True):
         """ invalid_bytes class constructor
 
         Parameters
@@ -646,14 +651,18 @@ class invalid_bytes():
 
         """
         self.name = 'invalid_bytes' + str(dataGroup)
-        self.signalDataType = 0  # uint LE
+        if byte_aligned:
+            self.signalDataType = 10  # byte array
+        else:
+            self.signalDataType = 0  # uint LE
         self.nBytes = info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bytes']
         self.bitCount = self.nBytes * 8
         self.channelType = 0  # fixed length data
         self.dataFormat = arrayformat4(self.signalDataType, self.bitCount)
         self.RecordFormat = ((self.name, convertName(self.name)), self.dataFormat)
         self.Format = datatypeformat4(self.signalDataType, self.bitCount)
-        self.CFormat = Struct(self.Format)
+        if byte_aligned:
+            self.CFormat = Struct(self.Format)
         self.bitOffset = 0
         self.byteOffset = info['CGBlock'][dataGroup][channelGroup]['cg_data_bytes']
         self.posByteBeg = recordIDsize + self.byteOffset
@@ -724,6 +733,8 @@ class record(list):
         flag for byte aligned record
     bitstringFormat : str
         bitstring format string to unpack bytes
+    invalid_channel : Default None
+        invalid_byte class if existing in record otherwise None
 
     Methods
     ------------
@@ -753,6 +764,7 @@ class record(list):
         self.channelNames = []
         self.byte_aligned = True
         self.bitstringFormat = []
+        self.invalid_channel = None
 
     def addChannel(self, info, channelNumber):
         """ add a channel in class
@@ -815,18 +827,23 @@ class record(list):
             if channel.channelType in (0, 1, 2, 4, 5):  # not virtual channel
                 self.append(channel)
                 self.channelNames.append(channel.name)
-                self.bitstringFormat.append(channel.bitstringFormat)
                 # Checking if several channels are embedded in bytes
                 embedded_bytes = False
                 if len(self) > 1:
+                    if channel.posBitBeg > self[-2].posBitEnd:  # padding
+                        self.bitstringFormat.append('pad:'+ str(channel.posBitBeg - self[-2].posBitEnd))
                     for n in range(len(self)-1):
-                        if channel.posBitBeg < 8 * (self[n].byteOffset + self[n].nBytes):  # not byte aligned
-                            self.byte_aligned = False
-                            break
                         if channel.byteOffset >= self[n].byteOffset and \
-                                channel.posBitEnd < 8 * (self[n].byteOffset + self[n].nBytes):  # bit(s) in byte(s)
+                                channel.posBitBeg < 8 * (self[n].byteOffset + self[n].nBytes) and \
+                                channel.posBitEnd > 8 * (self[n].byteOffset + self[n].nBytes):  # not byte aligned
+                            self.byte_aligned = False
+                            print('not aligned bytes record', channel.name, self[n].name)
+                            break
+                        if channel.posBitBeg >= 8 * self[n].byteOffset \
+                                and channel.posBitEnd <= 8 * (self[n].byteOffset + self[n].nBytes):  # bit(s) in byte(s)
                             embedded_bytes = True
                             self.recordToChannelMatching[channel.name] = self.recordToChannelMatching[self[n].name]
+                self.bitstringFormat.append(channel.bitstringFormat)
                 if not embedded_bytes:  # adding bytes
                     self.recordToChannelMatching[channel.name] = channel.name
                     if channel.signalDataType not in (13, 14):
@@ -873,18 +890,19 @@ class record(list):
                     self.VLSD.append(channel.channelNumber)
             elif channel.channelType in (3, 6):  # virtual channel
                 pass  # channel calculated based on record index later in conversion function
+        if self[-1].posBitEnd < self.CGrecordLength * 8:  # eventually pad the end of the record
+            self.bitstringFormat.append('pad:'+ str(self.CGrecordLength * 8 - self[-1].posBitEnd))
         if info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']:  # invalid bytes existing
             self.CGrecordLength += info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
             self.recordLength += info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
-            invalid_channel = invalid_bytes(info, self.dataGroup, self.channelGroup, self.recordIDsize)
-            self.append(invalid_channel)
-            self.channelNames.append(invalid_channel.name)
-            self.recordToChannelMatching[invalid_channel.name] = invalid_channel.name
-            self.numpyDataRecordFormat.append(invalid_channel.RecordFormat)
-            self.dataRecordName.append(invalid_channel.name)
-            self.bitstringFormat.append(invalid_channel.bitstringFormat)
-        self.bitstringFormat = ', '.join(self.bitstringFormat)
-        print(self.bitstringFormat)
+            self.invalid_channel = invalid_bytes(info, self.dataGroup, self.channelGroup, self.recordIDsize, self.byte_aligned)
+            self.append(self.invalid_channel)
+            self.channelNames.append(self.invalid_channel.name)
+            self.recordToChannelMatching[self.invalid_channel.name] = self.invalid_channel.name
+            self.numpyDataRecordFormat.append(self.invalid_channel.RecordFormat)
+            self.dataRecordName.append(self.invalid_channel.name)
+            self.bitstringFormat.append(self.invalid_channel.bitstringFormat)
+        self.bitstringFormat = ', '.join(self.bitstringFormat)  # converts le list of formats into format string
 
     def readSortedRecord(self, fid, pointer, channelList=None):
         """ reads record, only one channel group per datagroup
@@ -909,7 +927,12 @@ class record(list):
         only one channel on demand, but be aware it might be much slower.
         """
         if channelList is None:  # reads all, quickest but memory consuming
-            return fromfile(fid, dtype=self.numpyDataRecordFormat, shape=self.numberOfRecords, names=self.dataRecordName)
+            if self.byte_aligned:
+                return fromfile(fid, dtype=self.numpyDataRecordFormat, shape=self.numberOfRecords, names=self.dataRecordName)
+            else:
+                from bitstring import ConstBitStream
+                B = ConstBitStream(fid.read(self.CGrecordLength * self.numberOfRecords))
+                return self.readBitstring(B, channelList)
         else:  # reads only some channels from a sorted data block
             # memory efficient but takes time
             if len(list(set(channelList) & set(self.channelNames))) > 0:  # are channelList in this dataGroup
@@ -970,9 +993,20 @@ class record(list):
         rec : dict
             returns dictionnary of channel with its corresponding values
         """
-        
-        
-        return rec
+        # initialise data structure
+        if channelList is None:
+            channelList = self.channelNames
+        format = []
+        name = []
+        for channel in self:
+            format.append(channel.RecordFormat)
+            name.append(channel.name)
+        buf = recarray(self.numberOfRecords, format)
+        # read data
+        temp = bitstream.readlist(self.numberOfRecords * (self.bitstringFormat + ', '))
+        for chan in range(len(self)):
+            buf[self[chan].name] = temp[chan::len(self)]
+        return buf
 
 
 class mdf4(dict):
@@ -1321,7 +1355,7 @@ def arrayformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 64:
             dataType = 'u8'
         else:
-            print('Unsupported number of bits for unsigned int ' + str(numberOfBits))
+            dataType = 'u1'
 
     elif signalDataType in (2, 3):  # signed int
         if numberOfBits <= 8:
@@ -1391,7 +1425,7 @@ def datatypeformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 64:
             dataType = 'L'
         else:
-            print(('Unsupported number of bits for unsigned int ' + str(signalDataType)))
+            dataType = 'u1'
 
     elif signalDataType in (2, 3):  # signed int
         if numberOfBits <= 8:
@@ -1467,10 +1501,8 @@ def bitstringformat4(signalDataType, numberOfBits):
         dataType = 'floatle:' + str(numberOfBits)
     elif signalDataType == 5:  # floating point
         dataType = 'floatbe:' + str(numberOfBits)
-    elif signalDataType in (6, 7, 8, 10, 11, 12):  # string/bytes
-        dataType = 'uint:' + str(numberOfBits)
-    elif signalDataType == 9:  # string/bytes
-        dataType = 'uintbe:' + str(numberOfBits)
+    elif signalDataType in (6, 7, 8, 9, 10, 11, 12):  # string/bytes
+        dataType = 'bytes:' + str(numberOfBits)
 
     return dataType
 
