@@ -14,6 +14,7 @@ Dependencies
 - Python >2.6, >3.2 <http://www.python.org>
 - Numpy >1.6 <http://numpy.scipy.org>
 - Sympy to convert channels with formula
+- bitarray for not byte aligned data parsing
 - Matplotlib >1.0 <http://matplotlib.sourceforge.net>
 - NetCDF
 - h5py for the HDF5 export
@@ -1092,10 +1093,43 @@ if __name__ == "__main__":
     except:
         None
     parser = ArgumentParser(prog='mdfreader', description='reads mdf file')
-    parser.add_argument('--convertAfterRead', default=True, help='True by default, flag to convert raw channel data to physical values just after reading. Deactivate if you have memory concerns')
-    parser.add_argument('--filterChannelNames', default=False, help='False by default, activates channel name filtering, removes modules names separated by a point character')
-    parser.add_argument('fileName', help='mdf file name', required=True)
-    parser.add_argumetn('--channelList', dest='channelList', type=list, default=None, help='list of channels to read')
+    parser.add_argument('--export', dest='export', default=None, \
+            choices=['CSV', 'HDF5', 'Matlab', 'Xlsx', 'Excel', 'NetCDF', 'MDF3'], \
+            help='Export after parsing to defined file type')
+    parser.add_argument('--list_channels', dest='list_channels', action='store_true', \
+            help='list of channels in file')
+    parser.add_argument('fileName', help='mdf file name')
+    parser.add_argument('--channelList', dest='channelList', nargs='+', type=str, \
+            default=None, help='list of channels to only read')
+    parser.add_argument('--plot', dest='plot_channel_list', nargs='+', type=str, \
+            default=None, help='plots list of channels')
+    parser.add_argument('--noConversion', action='store_false', \
+            help='Do not convert raw channel data \
+            to physical values just after reading. Useful if you have memory concerns')
+    parser.add_argument('--filterChannelNames', action='store_true', \
+            help='activates channel name filtering; \
+            removes modules names separated by a point character')
 
     args = parser.parse_args()
-    mdf(fileName=args.fileName, channelList=args.channelList, converAfterRead=args.convertAfterRead, filterChannelNames=args.filterChannelNames)
+
+    temp = mdf(fileName=args.fileName, channelList=args.channelList)
+    #, converAfterRead=args.convertAfterRead, filterChannelNames=args.filterChannelNames)
+    if args.export is not None:
+        if args.export == 'CSV':
+            temp.exportToCSV()
+        elif args.export == 'HDF5':
+            temp.exportToHDF5()
+        elif args.export == 'Matlab':
+            temp.exportToMatlab()
+        elif args.export == 'Xlsx':
+            temp.exportToXlsx()
+        elif args.export == 'Excel':
+            temp.exportToExcel()
+        elif args.export == 'NetCDF':
+            temp.exportToNetCDF()
+        elif args.export == 'MDF3':
+            temp.write()
+    if args.plot_channel_list is not None:
+        temp.plot(args.plot_channel_list)
+    if args.list_channels:
+        print(temp.masterChannelList)
