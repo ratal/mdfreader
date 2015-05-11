@@ -991,8 +991,12 @@ class record(list):
                     byte = 8 * (self[chan].nBytes - nbytes) * bitarray([False])
                     for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
                         temp[i].append(byte)
-                temp = [self[chan].CFormat.unpack(temp[i].tobytes())[0] \
-                        for i in range(self.numberOfRecords)]
+                if 's' not in self[chan].Format:
+                    temp = [self[chan].CFormat.unpack(temp[i].tobytes())[0] \
+                            for i in range(self.numberOfRecords)]
+                else:
+                    temp = [temp[i].tobytes() \
+                            for i in range(self.numberOfRecords)]
                 buf[self[chan].name] = asarray(temp)
         return buf
 
@@ -1342,7 +1346,7 @@ def arrayformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 64:
             dataType = 'u8'
         else:
-            dataType = 'u1'
+            dataType = str(bits_to_bytes(numberOfBits) // 8) + 'V'
 
     elif signalDataType in (2, 3):  # signed int
         if numberOfBits <= 8:
@@ -1412,7 +1416,7 @@ def datatypeformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 64:
             dataType = 'L'
         else:
-            dataType = 'u1'
+            dataType = str(bits_to_bytes(numberOfBits) // 8) + 's'
 
     elif signalDataType in (2, 3):  # signed int
         if numberOfBits <= 8:
