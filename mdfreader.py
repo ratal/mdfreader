@@ -21,6 +21,7 @@ Dependencies
 - xlwt for the excel export (not existing for python3)
 - openpyxl for the excel 2007 export
 - scipy for the Matlab file conversion
+- zlib to uncompress data block if needed
 
 Attributes
 --------------

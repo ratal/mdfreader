@@ -13,8 +13,9 @@ Dependencies
 -------------------
 - Python >2.6, >3.2 <http://www.python.org>
 - Numpy >1.6 <http://numpy.scipy.org>
-- zlib to uncompress data block if needed
+- bitarray to parse bits in not aligned bytes
 - Sympy to convert channels with formula if needed
+- zlib to uncompress data block if needed
 
 Attributes
 --------------
@@ -737,6 +738,7 @@ class record(list):
     loadInfo(info)
     readSortedRecord(fid, pointer, channelList=None)
     readRecordBuf(buf, channelList=None)
+    readBitarray(bita, channelList=None)
     """
 
     def __init__(self, dataGroup, channelGroup):
@@ -961,6 +963,7 @@ class record(list):
         bitarray : stream
             stream of bytes
         channelList : List of str, optional
+            list of channel to read
         
         Returns
         --------
