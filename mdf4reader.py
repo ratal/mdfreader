@@ -658,9 +658,9 @@ class invalid_bytes():
         self.nBytes = info['CGBlock'][dataGroup][channelGroup]['cg_invalid_bytes']
         self.bitCount = self.nBytes * 8
         self.channelType = 0  # fixed length data
-        self.dataFormat = arrayformat4(self.signalDataType, self.bitCount)
+        self.dataFormat = str(self.nBytes) + 'V'
         self.RecordFormat = ((self.name, convertName(self.name)), self.dataFormat)
-        self.Format = datatypeformat4(self.signalDataType, self.bitCount)
+        self.Format = str(self.nBytes) + 's'
         self.CFormat = Struct(self.Format)
         self.bitOffset = 0
         self.byteOffset = info['CGBlock'][dataGroup][channelGroup]['cg_data_bytes']

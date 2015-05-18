@@ -20,7 +20,7 @@ setup(
     long_description=long_description,
 
     # The project's main homepage.
-    url='https://code.google.com/p/mdfreader',
+    url='https://github.com/ratal/mdfreader',
 
     # Author details
     author='Aymeric Rateau',
@@ -66,7 +66,7 @@ setup(
     # project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/technical.html#install-requires-vs-requirements-files
-    install_requires=['numpy>=1.6', 'Sympy', 'bitarray'],
+    install_requires=['numpy>=1.6', 'sympy', 'bitarray'],
 
     # List additional groups of dependencies here (e.g. development dependencies).
     # You can install these using the following syntax, for example:
