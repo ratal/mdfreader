@@ -15,7 +15,9 @@
   <Eol index="-1"/>
   <Sources>
     <Source>mdfreader/mdfreader.py</Source>
+    <Source>mdfreader/__init__.py</Source>
     <Source>mdfForVeuszPlugin.py</Source>
+    <Source>mdfconverter/__init__.py</Source>
     <Source>mdfconverter/mdfreaderui.py</Source>
     <Source>mdfconverter/Ui_mdfreaderui.py</Source>
     <Source>mdfconverter/mdfconverter.py</Source>
@@ -35,7 +37,7 @@
   <Others>
     <Other>.issues</Other>
   </Others>
-  <MainScript>mdfconverter.py</MainScript>
+  <MainScript>mdfreader/mdfreader.py</MainScript>
   <Vcs>
     <VcsType>Git</VcsType>
     <VcsOptions>
