@@ -1417,7 +1417,7 @@ def datatypeformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 32:
             dataType = 'I'
         elif numberOfBits <= 64:
-            dataType = 'L'
+            dataType = 'Q'
         else:
             dataType = str(bits_to_bytes(numberOfBits) // 8) + 's'
 
@@ -1429,7 +1429,7 @@ def datatypeformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 32:
             dataType = 'i'
         elif numberOfBits <= 64:
-            dataType = 'l'
+            dataType = 'q'
         else:
             print(('Unsupported number of bits for signed int ' + str(signalDataType)))
 
