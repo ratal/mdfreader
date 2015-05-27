@@ -1,6 +1,6 @@
 #documentation
 recursive-include docs/build/html *
-recursive-include docs/build/latex/mdfreader.pdf
+recursive-include docs/build/latex mdfreader.pdf
 
 #example files
 #include test/mdf3/*
@@ -9,3 +9,4 @@ recursive-include docs/build/latex/mdfreader.pdf
 #Misc
 #include CHANGES
 include LICENSE
+include README
