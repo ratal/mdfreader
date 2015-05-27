@@ -1,0 +1,11 @@
+#documentation
+recursive-include docs/build/html *
+recursive-include docs/build/latex/mdfreader.pdf
+
+#example files
+#include test/mdf3/*
+#include test/MDF4/*
+
+#Misc
+#include CHANGES
+include LICENSE

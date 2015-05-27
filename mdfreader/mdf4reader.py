@@ -579,16 +579,15 @@ class recordChannel():
 
     def __str__(self):
         output = str(self.channelNumber) + ' '
-        output += self.name + ' '
-        output += str(self.signalDataType) + ' '
-        output += str(self.channelType) + ' '
         output += str(self.RecordFormat) + ' '
-        output += str(self.bitOffset) + ' '
-        output += str(self.byteOffset) + ' '
-        output += str(self.posByteBeg) + ' '
-        output += str(self.posByteEnd) + ' '
-        output += str(self.posBitBeg) + ' '
-        output += str(self.posBitEnd)
+        output += str(self.Format) + ' '
+        output += 'ChannelType ' + str(self.channelType) + ' '
+        output += 'DataType ' + str(self.signalDataType) + ' '
+        output += 'bitOffset ' + str(self.bitOffset) + ' '
+        output += 'ByteBeg ' + str(self.posByteBeg) + ' '
+        output += 'ByteEnd ' + str(self.posByteEnd) + ' '
+        output += 'BitBeg ' + str(self.posBitBeg) + ' '
+        output += 'BitEnd ' + str(self.posBitEnd)
         return output
 
 
@@ -686,6 +685,16 @@ class invalid_bytes():
         """
         return bitwise_and(right_shift(self.invalid_bytes, self.invalid_bit[channelName]), 1)
 
+    def __str__(self):
+        output = str(self.RecordFormat) + ' '
+        output += str(self.Format) + ' '
+        output += 'DataType ' + str(self.signalDataType) + ' '
+        output += 'bitOffset ' + str(self.bitOffset) + ' '
+        output += 'ByteBeg ' + str(self.posByteBeg) + ' '
+        output += 'ByteEnd ' + str(self.posByteEnd) + ' '
+        output += 'BitBeg ' + str(self.posBitBeg) + ' '
+        output += 'BitEnd ' + str(self.posBitEnd)
+        return output
 
 class record(list):
 
@@ -991,9 +1000,10 @@ class record(list):
                 nbytes = len(temp[0].tobytes())
                 if not nbytes == self[chan].nBytes and \
                         self[chan].signalDataType not in (6, 7, 8, 9, 10, 11, 12): # not Ctype byte length
-                    byte = 8 * (self[chan].nBytes - nbytes) * bitarray([False])
+                    byte = bitarray(8 * (self[chan].nBytes - nbytes))
+                    byte.setall(False)
                     for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
-                        temp[i].append(byte)
+                        temp[i].extend(byte)
                 if 's' not in self[chan].Format:
                     temp = [self[chan].CFormat.unpack(temp[i].tobytes())[0] \
                             for i in range(self.numberOfRecords)]

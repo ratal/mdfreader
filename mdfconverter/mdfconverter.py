@@ -4,6 +4,9 @@ from sys import argv, exit
 from multiprocessing import freeze_support
 
 if __name__ == "__main__":
+    main()
+
+def main()
     freeze_support()
     app = QtGui.QApplication(argv)
     myapp = MainWindow()
