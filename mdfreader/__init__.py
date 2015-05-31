@@ -12,4 +12,12 @@
 # along with this program.  If not, see http://www.gnu.org/licenses.
 #
 # ----------------------------------------------------------------------
-__version__ = "0.1.5"
+
+__author__ = 'Aymeric Rateau (aymeric.rateau@gmail.com)'
+__copyright__ = 'Copyright (c) 2015 Aymeric Rateau'
+__license__ = 'GPLV3'
+__version__ = "0.1.6"
+
+#if it's run as a script or imported within python, this happens
+if __name__ == 'mdfreader':
+    from mdfreader import *

@@ -12,7 +12,7 @@ The structure of the mdf dictionary, for each channel: mdf[channelName]
 - master : vector name corresponding to master channel
 - masterType : type of master channel (time, angle, distance, etc.)
 - description : physical meaning of channel
-- conversion: (optional) dictionary describing how to convert raw data in data to meaningful/physical data
+- conversion: (optional) dictionary describing how to convert raw data into meaningful/physical data
 
 Mdfreader module methods:
 =========================
@@ -42,15 +42,15 @@ Reading channels defined by a formula will require sympy.
 Export requirements (optional): scipy, csv, h5py, xlwt(3), openpyxl, pandas
 Mdfconverter user interface requires pyQT
 
-User interface:
-===============
-User interface in PyQT(4.6) to convert batch of files is also written. You can launch it with command "python mdfconverter.py" By right clicking a channel in the interface list, you can plot it. You can also drag-drop channels between columns to tune import list. Channel list from a .lab text file can be imported. You can optionally merge several files into one and even resample all them.
+User interface: mdfconverter (PyQt4)
+==================================
+User interface in PyQT4 to convert batch of files is also written. You can launch it with command mdfconverter. By right clicking a channel in the interface list, you can plot it. You can also drag-drop channels between columns to tune import list. Channel list from a .lab text file can be imported. You can optionally merge several files into one and even resample all of them.
 
 Others:
 =======
 In the case of big files and lack of memory, you can optionally:
 - Read only a channel list (slightly slower, argument channelList = ['channel', 'list'])
-- Keep raw data as stored in mdf, data type conversion (mdfreader argument convertAfterRead=False). Data will then be converted on the fly by the other functions (plot, exportTo..., getChannelData, etc.) but raw data will remain as in mdf file along with conversion information.
+- Keep raw data as stored in mdf without data type conversion (mdfreader argument convertAfterRead=False). Data will then be converted on the fly by the other functions (plot, exportTo..., getChannelData, etc.) but raw data will remain as in mdf file along with conversion information.
 
 Warning:
 ========

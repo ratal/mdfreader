@@ -9,7 +9,7 @@ from PyQt4.QtCore import pyqtSignature, SIGNAL
 from Ui_mdfreaderui import Ui_MainWindow
 from io import open
 from multiprocessing import Pool, cpu_count
-from mdfreader import mdfinfo, mdf
+from mdfreader import *
 
 from sys import version_info
 from os import path
