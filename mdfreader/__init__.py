@@ -16,8 +16,8 @@
 __author__ = 'Aymeric Rateau (aymeric.rateau@gmail.com)'
 __copyright__ = 'Copyright (c) 2015 Aymeric Rateau'
 __license__ = 'GPLV3'
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 
 #if it's run as a script or imported within python, this happens
 if __name__ == 'mdfreader':
-    from mdfreader import *
+    from .mdfreader import mdf,mdfinfo

@@ -34,7 +34,7 @@ from struct import unpack as structunpack
 from math import pow
 from sys import platform, version_info
 from io import open  # for python 3 and 2 consistency
-from mdfinfo4 import info4, MDFBlock, ATBlock
+from .mdfinfo4 import info4, MDFBlock, ATBlock
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
 PythonVersion = version_info

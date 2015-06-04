@@ -32,7 +32,7 @@ from sys import platform, version_info
 from time import strftime, time
 from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
-from mdfinfo3 import info3
+from .mdfinfo3 import info3
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 

@@ -14,7 +14,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/development.html#single-sourcing-the-version
-    version='0.1.6',
+    version='0.1.7',
 
     description='A Measured Data Format file parser',
     long_description=long_description,
@@ -94,7 +94,7 @@ setup(
     # pip to create the appropriate form of executable for the target platform.
     entry_points={
        'console_scripts': [
-           'mdfconverter=mdfconverter:main',
+           'mdfconverter=mdfconverter.mdfconverter:main',
        ],
     }
 )

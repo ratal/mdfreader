@@ -34,8 +34,8 @@ mdfreader module
 from io import open
 from struct import unpack
 from math import ceil
-from mdf3reader import mdf3
-from mdf4reader import mdf4
+from .mdf3reader import mdf3
+from .mdf4reader import mdf4
 from numpy import arange, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
 from numpy import nan, datetime64, array
 
@@ -149,10 +149,10 @@ class mdfinfo(dict):
         VersionNumber = unpack('<H', fid.read(2))
         self.mdfversion = VersionNumber[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
-            from mdfinfo3 import info3
+            from mdfreader.mdfinfo3 import info3
             self.update(info3(None, fid, filterChannelNames))
         else:  # MDF version 4.x
-            from mdfinfo4 import info4
+            from mdfreader.mdfinfo4 import info4
             self.update(info4(None, fid))
 
     def listChannels(self, fileName=None):
