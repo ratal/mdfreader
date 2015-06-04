@@ -23,7 +23,7 @@
     <Source>mdfconverter/mdfconverter.py</Source>
     <Source>mdfreader/mdfinfo4.py</Source>
     <Source>mdfreader/mdfinfo3.py</Source>
-    <Source>test/test.py</Source>
+    <Source>mdfreader/tests/test.py</Source>
     <Source>mdfreader/mdf3reader.py</Source>
     <Source>mdfreader/mdf4reader.py</Source>
     <Source>README</Source>

@@ -149,10 +149,10 @@ class mdfinfo(dict):
         VersionNumber = unpack('<H', fid.read(2))
         self.mdfversion = VersionNumber[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
-            from mdfreader.mdfinfo3 import info3
+            from .mdfinfo3 import info3
             self.update(info3(None, fid, filterChannelNames))
         else:  # MDF version 4.x
-            from mdfreader.mdfinfo4 import info4
+            from .mdfinfo4 import info4
             self.update(info4(None, fid))
 
     def listChannels(self, fileName=None):
@@ -180,11 +180,11 @@ class mdfinfo(dict):
         VersionNumber = unpack('<H', fid.read(2))
         self.mdfversion = VersionNumber[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
-            from mdfinfo3 import info3
+            from .mdfinfo3 import info3
             channelNameList = info3()
             nameList = channelNameList.listChannels3(self.fileName)
         else:
-            from mdfinfo4 import info4
+            from .mdfinfo4 import info4
             channelNameList = info4()
             nameList = channelNameList.listChannels4(self.fileName)
         return nameList
