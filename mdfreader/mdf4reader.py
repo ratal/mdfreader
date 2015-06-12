@@ -1000,10 +1000,22 @@ class record(list):
                 nbytes = len(temp[0].tobytes())
                 if not nbytes == self[chan].nBytes and \
                         self[chan].signalDataType not in (6, 7, 8, 9, 10, 11, 12): # not Ctype byte length
-                    byte = bitarray(8 * (self[chan].nBytes - nbytes))
+                    byte = bitarray(8 * (self[chan].nBytes - nbytes), endian='little')
                     byte.setall(False)
-                    for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
-                        temp[i].extend(byte)
+                    if self[chan].signalDataType not in (2, 3):  # not signed integer
+                        for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
+                            temp[i].extend(byte)
+                    else:  # signed integer (two's complement), keep sign bit and extend with bytes
+                        byteInv = bitarray(len(byte), endian='little')
+                        byteInv.setall(True)
+                        for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
+                            signBit = temp[i][-1]
+                            if not signBit:  # positive value, extend with 0
+                                temp[i].extend(byte)
+                            else:  # negative value, extend with 1
+                                signBit = temp[i].pop(-1)
+                                temp[i].extend(byteInv)
+                                temp[i].append(signBit)
                 if 's' not in self[chan].Format:
                     temp = [self[chan].CFormat.unpack(temp[i].tobytes())[0] \
                             for i in range(self.numberOfRecords)]
