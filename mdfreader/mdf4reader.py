@@ -990,6 +990,21 @@ class record(list):
             if channel.name in channelList:
                 format.append(channel.RecordFormat)
         buf = recarray(self.numberOfRecords, format)
+        def signedInt(temp, extension):
+            """ extend bits of signed data managing two's complement
+            """
+            extension.setall(False)
+            extensionInv = bitarray(extension, endian='little')
+            extensionInv.setall(True)
+            for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
+                signBit = temp[i][-1]
+                if not signBit:  # positive value, extend with 0
+                    temp[i].extend(extension)
+                else:  # negative value, extend with 1
+                    signBit = temp[i].pop(-1)
+                    temp[i].extend(extensionInv)
+                    temp[i].append(signBit)
+            return temp
         # read data
         for chan in range(len(self)):
             if self[chan].name in channelList:
@@ -1006,16 +1021,13 @@ class record(list):
                         for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
                             temp[i].extend(byte)
                     else:  # signed integer (two's complement), keep sign bit and extend with bytes
-                        byteInv = bitarray(len(byte), endian='little')
-                        byteInv.setall(True)
-                        for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
-                            signBit = temp[i][-1]
-                            if not signBit:  # positive value, extend with 0
-                                temp[i].extend(byte)
-                            else:  # negative value, extend with 1
-                                signBit = temp[i].pop(-1)
-                                temp[i].extend(byteInv)
-                                temp[i].append(signBit)
+                        temp = signedInt(temp, byte)
+                nTrailBits = self[chan].nBytes*8 - self[chan].bitCount
+                if self[chan].signalDataType in (2, 3) and \
+                        nbytes == self[chan].nBytes and \
+                        nTrailBits > 0:  # Ctype byte length but signed integer
+                    trailBits = bitarray(nTrailBits, endian='little')
+                    temp = signedInt(temp, trailBits)
                 if 's' not in self[chan].Format:
                     temp = [self[chan].CFormat.unpack(temp[i].tobytes())[0] \
                             for i in range(self.numberOfRecords)]

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Project SYSTEM "Project-5.1.dtd">
 <!-- eric project file for project mdfreader -->
-<!-- Saved: 2015-05-21, 22:22:18 -->
+<!-- Saved: 2015-06-15, 23:19:28 -->
 <!-- Copyright (C) 2015 Aymeric Rateau, aymeric.rateau@gmail.com -->
 <Project version="5.1">
   <Language>en</Language>
@@ -23,12 +23,12 @@
     <Source>mdfconverter/mdfconverter.py</Source>
     <Source>mdfreader/mdfinfo4.py</Source>
     <Source>mdfreader/mdfinfo3.py</Source>
-    <Source>mdfreader/tests/test.py</Source>
     <Source>mdfreader/mdf3reader.py</Source>
     <Source>mdfreader/mdf4reader.py</Source>
     <Source>README</Source>
     <Source>LICENSE</Source>
     <Source>setup.py</Source>
+    <Source>mdfreader/tests/tests.py</Source>
   </Sources>
   <Forms/>
   <Translations/>
