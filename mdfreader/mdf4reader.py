@@ -112,23 +112,8 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
 
     elif parent_block['id'] in ('##DZ', b'##DZ'):  # zipped data block
         # uncompress data
-        try:
-            from zlib import decompress
-        except:
-            raise ImportError('zlib module not found or error while uncompressing')
-        if PythonVersion > 3:  # decompress data
-            parent_block['data'] = decompress(parent_block['data'])
-        else:
-            parent_block['data'] = decompress(bytes(parent_block['data']))  # decompress data
-        if parent_block['dz_zip_type'] == 1:  # data bytes transposed
-            N = parent_block['dz_zip_parameter']
-            M = parent_block['dz_org_data_length'] // N
-            temp = array(memoryview(parent_block['data'][:M * N]))
-            tail = array(memoryview(parent_block['data'][M * N:]))
-            temp = temp.reshape(N, M).T.ravel()
-            if len(tail) > 0:
-                temp = append(temp, tail)
-            parent_block['data'] = temp.tostring()
+        parent_block['data'] = decompress_datablock(parent_block['data'], parent_block['dz_zip_type'],
+                parent_block['dz_zip_parameter'], parent_block['dz_org_data_length'])
         if channelList is None and sortedFlag:  # reads all blocks if sorted block and no channelList defined
             if record.byte_aligned:
                 record.numberOfRecords = parent_block['dz_org_data_length'] // record.CGrecordLength
@@ -179,6 +164,38 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
                 buf[chan] = array(buf[chan])
             return buf
 
+def decompress_datablock(block, zip_type, zip_parameter, org_data_length):
+    """ decompress datablock.
+
+    Parameters
+    --------------
+    block : bytes
+        raw data compressed
+    zip_type : int
+        0 for non transposed, 1 for transposed data
+    zip_parameter : int
+        first dimension of matrix to be transposed
+    org_data_length : int
+        uncompressed data length
+        
+    Returns
+    ---------
+    uncompressed raw data
+    """
+    from zlib import decompress
+    if PythonVersion > 3:  # decompress data
+        block = decompress(block)
+    else:
+        block = decompress(bytes(block))  # decompress data
+    if zip_type == 1:  # data bytes transposed
+        M = org_data_length // zip_parameter
+        temp = array(memoryview(block[:M * zip_parameter]))
+        tail = array(memoryview(block[M * zip_parameter:]))
+        temp = temp.reshape(zip_parameter, M).T.ravel()
+        if len(tail) > 0:
+            temp = append(temp, tail)
+        block = temp.tostring()
+    return block
 
 def equalizeStringLength(buf):
     """ Makes all strings in a list having same length by appending spaces strings.
@@ -417,7 +434,11 @@ class DATA(dict):
                             data_block['dz_zip_parameter'] = data_block.mdfblockread(self.fid, UINT32, 1)
                             data_block['dz_org_data_length'] = data_block.mdfblockread(self.fid, UINT64, 1)
                             data_block['dz_data_length'] = data_block.mdfblockread(self.fid, UINT64, 1)
-                            buf.extend(self.fid.read(data_block['dz_data_length']))
+                            data_block['data'] = decompress_datablock(self.fid.read(data_block['dz_data_length']),
+                                    data_block['dz_zip_type'],
+                                    data_block['dz_zip_parameter'], data_block['dz_org_data_length'])
+                            buf.extend(data_block['data'])
+                            data_block['id'] = '##DT' # do not uncompress in DATABlock function
                 data_block['data'] = buf
                 temps['data'] = DATABlock(record, parent_block=data_block, channelList=nameList, sortedFlag=sortedFlag)
             else:  # empty datalist
@@ -1006,9 +1027,9 @@ class record(list):
                     temp[i].append(signBit)
             return temp
         # read data
+        record_bit_size = self.CGrecordLength * 8
         for chan in range(len(self)):
             if self[chan].name in channelList:
-                record_bit_size = self.CGrecordLength * 8
                 temp = [B[self[chan].posBitBeg + record_bit_size * i:\
                         self[chan].posBitEnd + record_bit_size * i]\
                          for i in range(self.numberOfRecords)]
