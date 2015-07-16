@@ -22,7 +22,7 @@ PythonVersion : float
 mdfinfo4 module
 --------------------------
 """
-from struct import calcsize, unpack, unpack_from
+from struct import calcsize, unpack
 from sys import version_info
 from numpy import sort, zeros
 PythonVersion = version_info
@@ -103,20 +103,17 @@ class MDFBlock(dict):
         -----------
         array of values of 'type' parameter
         """
-        valueSize = calcsize(type)
-        value = fid.read(valueSize * count)
+        value = fid.read(calcsize(type) * count)
         if value:
             if count == 1:
-                value = unpack(type, value)
-                value = value[0]
+                return unpack(type, value)[0]
             else:
-                vect = {}
-                for i in range(count):
-                    vect[i] = unpack_from(type, value, offset=valueSize * i)
-                return vect
+                if '<' in type or '>' in type:
+                    endian = type[0]
+                    type = type.strip('<>')
+                return list(unpack(endian+count*type, value))
         else:
-            value = None
-        return value
+            return None
 
     @staticmethod
     def mdfblockreadCHAR(fid, count):
@@ -131,12 +128,10 @@ class MDFBlock(dict):
         -----------
         a string of length count
         """
-        value = fid.read(count)
         if PythonVersion < 3:
-            value.replace('\x00', '')
+            return fid.read(count).replace('\x00', '')
         else:
-            value.decode('iso8859-1', 'replace').replace('\x00', '')
-        return value
+            return fid.read(count).decode('iso8859-1', 'replace').replace('\x00', '')
 
     @staticmethod
     def mdfblockreadBYTE(fid, count):
@@ -152,13 +147,10 @@ class MDFBlock(dict):
         bytes array of length count
         """
         # UTF-8 encoded bytes
-        value = fid.read(count)
-        value = value.decode('UTF-8', 'ignore')
         if PythonVersion < 3:
-            value = value.replace(b'\x00', b'')
+            return fid.read(count).decode('UTF-8', 'ignore').replace(b'\x00', b'')
         else:
-            value = value.replace('\x00', '')
-        return value
+            return fid.read(count).decode('UTF-8', 'ignore').replace('\x00', '')
 
 
 class IDBlock(MDFBlock):
@@ -466,7 +458,7 @@ class CNBlock(MDFBlock):
                 self['attachment'] = {}
                 if self['cn_attachment_count'] > 1:
                     for at in range(self['cn_attachment_count']):
-                        self['attachment'][at] = ATBlock(fid, self['cn_at_reference'][at][0])
+                        self['attachment'][at] = ATBlock(fid, self['cn_at_reference'][at])
                 else:
                     self['attachment'][0] = ATBlock(fid, self['cn_at_reference'])
             if self['link_count'] > (8 + self['cn_attachment_count']):
@@ -514,14 +506,14 @@ class CCBlock(MDFBlock):
                 self['cc_ref'] = CommentBlock(fid, self['cc_ref'])
             elif self['cc_type']in (7, 8, 9, 10):  # text list
                 for i in range(self['cc_ref_count']):
-                    fid.seek(self['cc_ref'][i][0])
+                    fid.seek(self['cc_ref'][i])
                     ID = self.mdfblockreadCHAR(fid, 4)  # find if TX/MD or another CCBlock
                     if ID in ('##TX', '##MD', b'##TX', b'##MD'):  # for algebraic formulae
-                        temp = CommentBlock(fid, self['cc_ref'][i][0])
+                        temp = CommentBlock(fid, self['cc_ref'][i])
                         self['cc_ref'][i] = temp['Comment']
                     elif ID in ('##CC', b'##CC'):  # for table conversion
                         # much more complicated nesting conversions !!!
-                        self['cc_ref'][i] = CCBlock(fid, self['cc_ref'][i][0])['name']['Comment']
+                        self['cc_ref'][i] = CCBlock(fid, self['cc_ref'][i])['name']['Comment']
             if self['cc_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock(fid, self['cc_md_comment'], MDType='CC')
             if self['cc_md_unit']:  # comments exist
@@ -558,8 +550,8 @@ class CABlock(MDFBlock):
                 self['SNd'] = 0
                 self['PNd'] = 1
                 for x in self['ca_dim_size']:
-                    self['SNd'] += self['ca_dim_size'][x][0]
-                    self['PNd'] *= self['ca_dim_size'][x][0]
+                    self['SNd'] += x
+                    self['PNd'] *= x
             except:  # only one dimension, processing int
                 self['SNd'] = self['ca_dim_size']
                 self['PNd'] = self['SNd']
@@ -1063,7 +1055,7 @@ class info4(dict):
                     if self['CNBlock'][dg][cg][cn]['cn_attachment_count'] > 1:
                         for at in range(self['CNBlock'][dg][cg][cn]['cn_attachment_count']):
                             print(self['CNBlock'][dg][cg][cn]['cn_at_reference'][at])
-                            self['CNBlock'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference'][at][0]))
+                            self['CNBlock'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference'][at]))
                     elif self['CNBlock'][dg][cg][cn]['cn_attachment_count'] == 1:
                         self['CNBlock'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference']))
 

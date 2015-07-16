@@ -563,9 +563,9 @@ class mdf(mdf3, mdf4):
                             self.pop(Name)
                 except:
                     if len(timevect) != len(self.getChannelData(Name)):
-                        print((Name + ' and time channel ' + self[Name][masterChannelName] + ' do not have same length'))
+                        print((Name + ' and master channel ' + self[Name][masterChannelName] + ' do not have same length'))
                     elif not all(diff(timevect) > 0):
-                        print((Name + ' has non regularly increasing time channel ' + self[Name][masterChannelName]))
+                        print((Name + ' has non regularly increasing master channel ' + self[Name][masterChannelName]))
             # remove time channels in masterChannelList
             for ind in list(self.masterChannelList.keys()):
                 del self[ind]

@@ -24,8 +24,8 @@ mdf3reader module
 --------------------------
 """
 
-from numpy import average, right_shift, bitwise_and, all, diff, max, min, interp
-from numpy import asarray, zeros, recarray, array, reshape
+from numpy import average, right_shift, bitwise_and, diff, max, min, interp
+from numpy import asarray, zeros, recarray, array, reshape, searchsorted
 from numpy.core.records import fromfile
 from math import log, exp
 from sys import platform, version_info
@@ -130,12 +130,8 @@ def tabInterpConv(data, conv):  # 1 Tabular with interpolation
     -----------
     converted data to physical value
     """
-    if all(diff(conv['int']) > 0):
-        return interp(data, conv['int'], conv['phy'])
-    else:
-        print(('X values for interpolation of channel are not increasing'))
-        return data
-
+    tmp = array([(key, val['int'], val['phy']) for (key, val) in conv.items()])
+    return interp(data, tmp[:,1], tmp[:,2])
 
 def tabConv(data, conv):  # 2 Tabular
     """ apply Tabular conversion to data
@@ -150,11 +146,9 @@ def tabConv(data, conv):  # 2 Tabular
     -----------
     converted data to physical value
     """
-    if all(diff(conv['int']) > 0):
-        return interp(data, conv['int'], conv['phy'])
-    else:
-        print(('X values for interpolation of channel are not increasing'))
-        return data
+    tmp = array([(key, val['int'], val['phy']) for (key, val) in conv.items()])
+    indexes = searchsorted(tmp[:, 1], data)
+    return tmp[indexes, 2]
 
 
 def polyConv(data, conv):  # 6 Polynomial

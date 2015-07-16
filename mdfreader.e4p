@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Project SYSTEM "Project-5.1.dtd">
 <!-- eric project file for project mdfreader -->
-<!-- Saved: 2015-06-15, 23:19:28 -->
+<!-- Saved: 2015-07-14, 23:37:18 -->
 <!-- Copyright (C) 2015 Aymeric Rateau, aymeric.rateau@gmail.com -->
 <Project version="5.1">
   <Language>en</Language>
@@ -29,6 +29,7 @@
     <Source>LICENSE</Source>
     <Source>setup.py</Source>
     <Source>mdfreader/tests/tests.py</Source>
+    <Source>mdfreader/__main__.py</Source>
   </Sources>
   <Forms/>
   <Translations/>

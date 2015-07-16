@@ -566,10 +566,7 @@ class recordChannel():
             self.CABlock = info['CNBlock'][dataGroup][channelGroup][channelNumber]['CABlock']
             self.nBytes *= self.CABlock['PNd']  # calculates total array size in bytes
             if self.CABlock['ca_ndim'] > 1:
-                array_desc = '('
-                for i in self.CABlock['ca_dim_size']:
-                    array_desc += str(self.CABlock['ca_dim_size'][i][0]) + ','
-                array_desc = array_desc[:-1] + ')'  # remove trailing comma
+                array_desc = str(tuple(self.CABlock['ca_dim_size']))
             else:
                 array_desc = str(self.CABlock['ca_dim_size'])
             self.dataFormat = array_desc + self.dataFormat
@@ -1657,8 +1654,8 @@ def linearConv(vect, cc_val):
     -----------
     converted data to physical value
     """
-    P1 = cc_val[0][0]
-    P2 = cc_val[1][0]
+    P1 = cc_val[0]
+    P2 = cc_val[1]
     return vect * P2 + P1
 
 
@@ -1720,8 +1717,8 @@ def valueToValueTableWOInterpConv(vect, cc_val):
     converted data to physical value
     """
     val_count = 2 * int(len(cc_val) / 2)
-    intVal = [cc_val[i][0] for i in range(0, val_count, 2)]
-    physVal = [cc_val[i][0] for i in range(1, val_count, 2)]
+    intVal = [cc_val[i] for i in range(0, val_count, 2)]
+    physVal = [cc_val[i] for i in range(1, val_count, 2)]
     if all(diff(intVal) > 0):
         try:
             from scipy import interpolate
@@ -1747,8 +1744,8 @@ def valueToValueTableWInterpConv(vect, cc_val):
     converted data to physical value
     """
     val_count = 2 * int(len(cc_val) / 2)
-    intVal = [cc_val[i][0] for i in range(0, val_count, 2)]
-    physVal = [cc_val[i][0] for i in range(1, val_count, 2)]
+    intVal = [cc_val[i] for i in range(0, val_count, 2)]
+    physVal = [cc_val[i] for i in range(1, val_count, 2)]
     if all(diff(intVal) > 0):
         return interp(vect, intVal, physVal)  # with interpolation
     else:
@@ -1769,9 +1766,9 @@ def valueRangeToValueTableConv(vect, cc_val):
     converted data to physical value
     """
     val_count = int(len(cc_val) / 3)
-    key_min = [cc_val[i][0] for i in range(0, 3 * val_count + 1, 3)]
-    key_max = [cc_val[i][0] for i in range(1, 3 * val_count + 1, 3)]
-    value = [cc_val[i][0] for i in range(2, 3 * val_count + 1, 3)]
+    key_min = [cc_val[i] for i in range(0, 3 * val_count + 1, 3)]
+    key_max = [cc_val[i] for i in range(1, 3 * val_count + 1, 3)]
+    value = [cc_val[i] for i in range(2, 3 * val_count + 1, 3)]
     # look up in range keys
     for Lindex in range(len(vect)):
         key_index = 0  # default index if not found
@@ -1834,8 +1831,8 @@ def valueRangeToTextConv(vect, cc_val, cc_ref):
     converted data to physical value
     """
     val_count = int(len(cc_val) / 2)
-    key_min = [cc_val[i][0] for i in range(0, 2 * val_count, 2)]
-    key_max = [cc_val[i][0] for i in range(1, 2 * val_count, 2)]
+    key_min = [cc_val[i] for i in range(0, 2 * val_count, 2)]
+    key_max = [cc_val[i] for i in range(1, 2 * val_count, 2)]
     # look up in range keys
     temp = []
     for Lindex in range(len(vect)):
