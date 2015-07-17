@@ -111,7 +111,9 @@ class MDFBlock(dict):
                 if '<' in type or '>' in type:
                     endian = type[0]
                     type = type.strip('<>')
-                return list(unpack(endian+count*type, value))
+                    return list(unpack(endian+count*type, value))
+                else:
+                    return list(unpack(count*type, value))
         else:
             return None
 
