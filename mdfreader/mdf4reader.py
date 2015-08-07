@@ -32,7 +32,7 @@ from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from struct import Struct
 from struct import unpack as structunpack
 from math import pow
-from sys import platform, version_info
+from sys import platform, version_info, exc_info
 from io import open  # for python 3 and 2 consistency
 from .mdfinfo4 import info4, MDFBlock, ATBlock
 from time import gmtime, strftime
@@ -981,13 +981,13 @@ class record(list):
                 temp[channel.name] = channel.CFormat.unpack(buf[channel.posByteBeg:channel.posByteEnd])[0]
         return temp  # returns dictionary of channel with its corresponding values
 
-
+    #@profile
     def readBitarray(self, bita, channelList=None):
         """ reads stream of record bytes using bitarray module needed for not byte aligned data
         
         Parameters
         ------------
-        bitarray : stream
+        bita : stream
             stream of bytes
         channelList : List of str, optional
             list of channel to read
@@ -997,9 +997,6 @@ class record(list):
         rec : numpy recarray
             contains a matrix of raw data in a recarray (attributes corresponding to channel name)
         """
-        from bitarray import bitarray
-        B = bitarray(endian="little")  # little endian by default
-        B.frombytes(bytes(bita))
         # initialise data structure
         if channelList is None:
             channelList = self.channelNames
@@ -1008,52 +1005,68 @@ class record(list):
             if channel.name in channelList:
                 format.append(channel.RecordFormat)
         buf = recarray(self.numberOfRecords, format)
-        def signedInt(temp, extension):
-            """ extend bits of signed data managing two's complement
-            """
-            extension.setall(False)
-            extensionInv = bitarray(extension, endian='little')
-            extensionInv.setall(True)
-            for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
-                signBit = temp[i][-1]
-                if not signBit:  # positive value, extend with 0
-                    temp[i].extend(extension)
-                else:  # negative value, extend with 1
-                    signBit = temp[i].pop(-1)
-                    temp[i].extend(extensionInv)
-                    temp[i].append(signBit)
-            return temp
-        # read data
-        record_bit_size = self.CGrecordLength * 8
-        for chan in range(len(self)):
-            if self[chan].name in channelList:
-                temp = [B[self[chan].posBitBeg + record_bit_size * i:\
-                        self[chan].posBitEnd + record_bit_size * i]\
-                         for i in range(self.numberOfRecords)]
-                nbytes = len(temp[0].tobytes())
-                if not nbytes == self[chan].nBytes and \
-                        self[chan].signalDataType not in (6, 7, 8, 9, 10, 11, 12): # not Ctype byte length
-                    byte = bitarray(8 * (self[chan].nBytes - nbytes), endian='little')
-                    byte.setall(False)
-                    if self[chan].signalDataType not in (2, 3):  # not signed integer
-                        for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
-                            temp[i].extend(byte)
-                    else:  # signed integer (two's complement), keep sign bit and extend with bytes
-                        temp = signedInt(temp, byte)
-                nTrailBits = self[chan].nBytes*8 - self[chan].bitCount
-                if self[chan].signalDataType in (2, 3) and \
-                        nbytes == self[chan].nBytes and \
-                        nTrailBits > 0:  # Ctype byte length but signed integer
-                    trailBits = bitarray(nTrailBits, endian='little')
-                    temp = signedInt(temp, trailBits)
-                if 's' not in self[chan].Format:
-                    temp = [self[chan].CFormat.unpack(temp[i].tobytes())[0] \
-                            for i in range(self.numberOfRecords)]
-                else:
-                    temp = [temp[i].tobytes() \
-                            for i in range(self.numberOfRecords)]
-                buf[self[chan].name] = asarray(temp)
-        return buf
+        try: # use rather cython compiled code for performance
+            from .dataRead import dataRead
+            for chan in range(len(self)):
+                if self[chan].name in channelList:
+                    buf[self[chan].name] = dataRead(bita, self[chan].bitCount, \
+                            self[chan].signalDataType, self[chan].RecordFormat[1], \
+                            self.numberOfRecords, self.CGrecordLength, \
+                            self[chan].bitOffset, self[chan].posByteBeg, self[chan].posByteEnd, \
+                            self[chan].posBitEnd)
+            return buf
+        except:
+            print("Unexpected error:", exc_info()[0])
+            print('dataRead crashed, back to python data reading')
+            from bitarray import bitarray
+            B = bitarray(endian="little")  # little endian by default
+            B.frombytes(bytes(bita))
+            def signedInt(temp, extension):
+                """ extend bits of signed data managing two's complement
+                """
+                extension.setall(False)
+                extensionInv = bitarray(extension, endian='little')
+                extensionInv.setall(True)
+                for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
+                    signBit = temp[i][-1]
+                    if not signBit:  # positive value, extend with 0
+                        temp[i].extend(extension)
+                    else:  # negative value, extend with 1
+                        signBit = temp[i].pop(-1)
+                        temp[i].extend(extensionInv)
+                        temp[i].append(signBit)
+                return temp
+            # read data
+            record_bit_size = self.CGrecordLength * 8
+            for chan in range(len(self)):
+                if self[chan].name in channelList:
+                    temp = [B[self[chan].posBitBeg + record_bit_size * i:\
+                            self[chan].posBitEnd + record_bit_size * i]\
+                             for i in range(self.numberOfRecords)]
+                    nbytes = len(temp[0].tobytes())
+                    if not nbytes == self[chan].nBytes and \
+                            self[chan].signalDataType not in (6, 7, 8, 9, 10, 11, 12): # not Ctype byte length
+                        byte = bitarray(8 * (self[chan].nBytes - nbytes), endian='little')
+                        byte.setall(False)
+                        if self[chan].signalDataType not in (2, 3):  # not signed integer
+                            for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
+                                temp[i].extend(byte)
+                        else:  # signed integer (two's complement), keep sign bit and extend with bytes
+                            temp = signedInt(temp, byte)
+                    nTrailBits = self[chan].nBytes*8 - self[chan].bitCount
+                    if self[chan].signalDataType in (2, 3) and \
+                            nbytes == self[chan].nBytes and \
+                            nTrailBits > 0:  # Ctype byte length but signed integer
+                        trailBits = bitarray(nTrailBits, endian='little')
+                        temp = signedInt(temp, trailBits)
+                    if 's' not in self[chan].Format:
+                        temp = [self[chan].CFormat.unpack(temp[i].tobytes())[0] \
+                                for i in range(self.numberOfRecords)]
+                    else:
+                        temp = [temp[i].tobytes() \
+                                for i in range(self.numberOfRecords)]
+                    buf[self[chan].name] = asarray(temp)
+            return buf
 
 class mdf4(dict):
 

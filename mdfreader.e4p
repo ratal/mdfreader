@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Project SYSTEM "Project-5.1.dtd">
 <!-- eric project file for project mdfreader -->
-<!-- Saved: 2015-07-14, 23:37:18 -->
+<!-- Saved: 2015-07-26, 04:47:31 -->
 <!-- Copyright (C) 2015 Aymeric Rateau, aymeric.rateau@gmail.com -->
 <Project version="5.1">
   <Language>en</Language>
@@ -30,6 +30,7 @@
     <Source>setup.py</Source>
     <Source>mdfreader/tests/tests.py</Source>
     <Source>mdfreader/__main__.py</Source>
+    <Source>mdfreader/dataRead.pyx</Source>
   </Sources>
   <Forms/>
   <Translations/>

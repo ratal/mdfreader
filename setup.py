@@ -1,6 +1,7 @@
 from setuptools import setup, find_packages
 from codecs import open  # To use a consistent encoding
 from os import path
+from Cython.Build import cythonize
 
 here = path.abspath(path.dirname(__file__))
 
@@ -66,7 +67,7 @@ setup(
     # project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/technical.html#install-requires-vs-requirements-files
-    install_requires=['numpy>=1.6', 'sympy', 'bitarray'],
+    install_requires=['numpy>=1.6', 'sympy', 'bitarray', 'cython'],
 
     # List additional groups of dependencies here (e.g. development dependencies).
     # You can install these using the following syntax, for example:
@@ -96,5 +97,6 @@ setup(
        'console_scripts': [
            'mdfconverter=mdfconverter.mdfconverter:main',
        ],
-    }
+    }, 
+    ext_modules=cythonize('mdfreader/dataRead.pyx')
 )
