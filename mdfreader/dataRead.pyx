@@ -2,9 +2,9 @@ import numpy as np
 cimport numpy as np
 #cimport cython
 
-cdef extern from "Python.h":
-    char* PyByteArray_AsString(object bytearray) except NULL
-    char* PyBytes_AsString(object bytearray) except NULL
+#cdef extern from "Python.h":
+#    char* PyByteArray_AsString(object bytearray) except NULL
+#    char* PyBytes_AsString(object bytearray) except NULL
 cdef extern from *:
     ctypedef void const_void "const void"
 cdef extern from "string.h" nogil:
@@ -12,15 +12,14 @@ cdef extern from "string.h" nogil:
 
 #@cython.boundscheck(False)
 #@cython.wraparound(False)
-def dataRead(temp, unsigned short bitCount, \
+def dataRead(const char[:] bita, unsigned short bitCount, \
         unsigned short signalDataType, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, \
         unsigned long bitOffset, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd):
     # initialise variables
     cdef unsigned long trailBits = posByteEnd * 8 - posBitEnd
-    cdef const char* bita = PyByteArray_AsString(temp)
-    # slice stream in array
+    #cdef const char* bita = PyByteArray_AsString(temp)
     if signalDataType in (4, 5) and bitCount == 32:  # float
         return dataReadFloat(bita, RecordFormat, numberOfRecords, \
             record_byte_size, posByteBeg, posByteEnd, posBitEnd, trailBits, bitOffset)
@@ -55,7 +54,7 @@ def dataRead(temp, unsigned short bitCount, \
         return dataReadByte(bita, RecordFormat, numberOfRecords, \
             record_byte_size, posByteBeg, posByteEnd, posBitEnd, trailBits, bitOffset)
         
-cdef inline dataReadFloat(const char * bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadFloat(const char[:] bita, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd, unsigned long trailBits, unsigned long bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
@@ -80,7 +79,7 @@ cdef inline dataReadFloat(const char * bita, RecordFormat, unsigned long long nu
             buf[i] = tempfloat
     return buf
 
-cdef inline dataReadDouble(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadDouble(const char[:] bita, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd, unsigned long trailBits, unsigned long bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
@@ -91,7 +90,7 @@ cdef inline dataReadDouble(const char* bita, RecordFormat, unsigned long long nu
         buf[i] = temp8bytes
     return buf
 
-cdef inline dataReadUChar(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadUChar(const char[:] bita, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd, unsigned long trailBits, unsigned long bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
@@ -110,7 +109,7 @@ cdef inline dataReadUChar(const char* bita, RecordFormat, unsigned long long num
         buf[i] = temp1byte
     return buf
 
-cdef inline dataReadChar(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadChar(const char[:] bita, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd, unsigned long trailBits, unsigned long bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
@@ -129,7 +128,7 @@ cdef inline dataReadChar(const char* bita, RecordFormat, unsigned long long numb
         buf[i] = temp1byte
     return buf
 
-cdef inline dataReadUShort(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadUShort(const char[:] bita, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd, unsigned long trailBits, unsigned long bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
@@ -148,7 +147,7 @@ cdef inline dataReadUShort(const char* bita, RecordFormat, unsigned long long nu
         buf[i] = temp2byte
     return buf
 
-cdef inline dataReadShort(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadShort(const char[:] bita, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd, unsigned long trailBits, unsigned long bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
@@ -167,7 +166,7 @@ cdef inline dataReadShort(const char* bita, RecordFormat, unsigned long long num
         buf[i] = temp2byte
     return buf
 
-cdef inline dataReadUInt(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadUInt(const char[:] bita, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd, unsigned long trailBits, unsigned long bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
@@ -186,7 +185,7 @@ cdef inline dataReadUInt(const char* bita, RecordFormat, unsigned long long numb
         buf[i] = temp4byte
     return buf
 
-cdef inline dataReadInt(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadInt(const char[:] bita, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd, unsigned long trailBits, unsigned long bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
@@ -205,7 +204,7 @@ cdef inline dataReadInt(const char* bita, RecordFormat, unsigned long long numbe
         buf[i] = temp4byte
     return buf
 
-cdef inline dataReadULongLong(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadULongLong(const char[:] bita, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd, unsigned long trailBits, unsigned long bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
@@ -224,7 +223,7 @@ cdef inline dataReadULongLong(const char* bita, RecordFormat, unsigned long long
         buf[i] = temp8byte
     return buf
 
-cdef inline dataReadLongLong(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadLongLong(const char[:] bita, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd, unsigned long trailBits, unsigned long bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
@@ -243,7 +242,7 @@ cdef inline dataReadLongLong(const char* bita, RecordFormat, unsigned long long 
         buf[i] = temp8byte
     return buf
 
-cdef inline dataReadByte(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadByte(const char[:] bita, RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long posBitEnd, unsigned long trailBits, unsigned long bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
