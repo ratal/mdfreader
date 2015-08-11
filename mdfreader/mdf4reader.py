@@ -32,7 +32,7 @@ from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from struct import Struct
 from struct import unpack as structunpack
 from math import pow
-from sys import platform, version_info, exc_info
+from sys import platform, version_info, exc_info, byteorder
 from io import open  # for python 3 and 2 consistency
 from .mdfinfo4 import info4, MDFBlock, ATBlock
 from time import gmtime, strftime
@@ -1014,9 +1014,16 @@ class record(list):
                             self.numberOfRecords, self.CGrecordLength, \
                             self[chan].bitOffset, self[chan].posByteBeg, self[chan].posByteEnd, \
                             self[chan].posBitEnd)
+                    # correct endianess, not handled by dataRead outputing native byteorder
+                    if not byteorder == 'little' and self[chan].signalDataType in (0, 2, 4, 8) \
+                            and buf[self[chan].name].dtype.byteorder in ('>', '|', '='):
+                        buf[self[chan].name] = buf[self[chan].name].newbyteorder() #  swaps order
+                    elif byteorder == 'little' and self[chan].signalDataType in (1, 3, 5, 9) \
+                            and buf[self[chan].name].dtype.byteorder in ('<', '|', '='):
+                        buf[self[chan].name] = buf[self[chan].name].newbyteorder() #  swaps order
             return buf
         except:
-            print("Unexpected error:", exc_info()[0])
+            print('Unexpected error:', exc_info()[0])
             print('dataRead crashed, back to python data reading')
             from bitarray import bitarray
             B = bitarray(endian="little")  # little endian by default
