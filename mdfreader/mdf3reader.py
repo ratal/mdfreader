@@ -794,7 +794,10 @@ class mdf3(dict):
                             self.masterChannelList['master' + str(dataGroup)].append(channelName)
                             self[channelName] = {}
                             self[channelName]['master'] = 'master' + str(dataGroup)  # master channel of channel
-                            self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
+                            if 'physicalUnit' in info['CCBlock'][dataGroup][channelGroup][channel]:
+                                self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
+                            else:
+                                self[channelName]['unit'] = ''
                             self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription']
                             self[channelName]['data'] = L[channelName]
                             L.pop(channelName, None)  # free memory

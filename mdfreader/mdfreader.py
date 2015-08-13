@@ -437,7 +437,10 @@ class mdf(mdf3, mdf4):
         str
             unit string description
         """
-        return self[channelName]['unit']
+        if 'unit' in self[channelName]:
+            return self[channelName]['unit']
+        else:
+            return ''
 
     def plot(self, channels):
         """Plot channels with Matplotlib
