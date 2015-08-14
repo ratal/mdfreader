@@ -1012,8 +1012,8 @@ class record(list):
                     buf[self[chan].name] = dataRead(bita, self[chan].bitCount, \
                             self[chan].signalDataType, self[chan].RecordFormat[1], \
                             self.numberOfRecords, self.CGrecordLength, \
-                            self[chan].bitOffset, self[chan].posByteBeg, self[chan].posByteEnd, \
-                            self[chan].posBitBeg, self[chan].posBitEnd, self[chan].nBytes)
+                            self[chan].bitOffset, self[chan].posByteBeg, \
+                            self[chan].posByteEnd)
                     # correct endianess, not handled by dataRead outputing native byteorder
                     if not byteorder == 'little' and self[chan].signalDataType in (0, 2, 4, 8) \
                             and buf[self[chan].name].dtype.byteorder in ('>', '|', '='):
