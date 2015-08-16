@@ -666,7 +666,7 @@ class invalid_bytes():
         info : mdfinfo4.info4 class
 
         """
-        self.name = 'invalid_bytes' + str(dataGroup)
+        self.name = u'invalid_bytes' + str(dataGroup)
         if byte_aligned:
             self.signalDataType = 10  # byte array
         else:
@@ -1009,21 +1009,18 @@ class record(list):
             from .dataRead import dataRead
             for chan in range(len(self)):
                 if self[chan].name in channelList:
-                    buf[self[chan].name] = dataRead(bita, self[chan].bitCount, \
+                    buf[self[chan].name] = dataRead(bytes(bita), self[chan].bitCount, \
                             self[chan].signalDataType, self[chan].RecordFormat[1], \
                             self.numberOfRecords, self.CGrecordLength, \
                             self[chan].bitOffset, self[chan].posByteBeg, \
                             self[chan].posByteEnd)
-                    # correct endianess, not handled by dataRead outputing native byteorder
-                    if not byteorder == 'little' and self[chan].signalDataType in (0, 2, 4, 8) \
-                            and buf[self[chan].name].dtype.byteorder in ('>', '|', '='):
-                        buf[self[chan].name] = buf[self[chan].name].newbyteorder() #  swaps order
-                    elif byteorder == 'little' and self[chan].signalDataType in (1, 3, 5, 9) \
-                            and buf[self[chan].name].dtype.byteorder in ('<', '|', '='):
-                        buf[self[chan].name] = buf[self[chan].name].newbyteorder() #  swaps order
+                # dataRead already took care of byte order, switch to native
+                if (buf[self[chan].name].dtype.byteorder == '>' and byteorder == 'little') or \
+                        buf[self[chan].name].dtype.byteorder == '<' and byteorder == 'big':
+                    buf[self[chan].name] = buf[self[chan].name].newbyteorder()
             return buf
         except:
-            print('Unexpected error:', exc_info()[0])
+            print('Unexpected error:', exc_info())
             print('dataRead crashed, back to python data reading')
             from bitarray import bitarray
             B = bitarray(endian="little")  # little endian by default
@@ -1459,7 +1456,9 @@ def arrayformat4(signalDataType, numberOfBits):
         print('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits)
 
     # deal with byte order
-    if signalDataType in (1, 3, 5, 9):  # by default low endian, but here big endian
+    if signalDataType in (0, 2, 4, 8):  # low endian
+        dataType = '<' + dataType
+    elif signalDataType in (1, 3, 5, 9):  # big endian
         dataType = '>' + dataType
 
     return dataType
@@ -1518,7 +1517,9 @@ def datatypeformat4(signalDataType, numberOfBits):
     else:
         print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
     # deal with byte order
-    if signalDataType in (1, 3, 5, 9):  # by default low endian, but here big endian
+    if signalDataType in (0, 2, 4, 8):  # low endian
+        dataType = '<' + dataType
+    elif signalDataType in (1, 3, 5, 9):  # big endian
         dataType = '>' + dataType
 
     return dataType
