@@ -90,9 +90,9 @@ def dataRead(bytes tmp, unsigned short bitCount, \
         return dataReadByte(bita, RecordFormat, numberOfRecords, \
             record_byte_size, posByteBeg, posByteEnd, bitCount, bitOffset)
         
-cdef inline dataReadFloat(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadFloat(const char* bita, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned char swap):
-    cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
+    cdef np.ndarray[np.float32_t] buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef float tempfloat = 0
     cdef char temp[4]
@@ -107,9 +107,9 @@ cdef inline dataReadFloat(const char* bita, RecordFormat, unsigned long long num
             buf[i] = tempfloat
     return buf
     
-cdef inline dataReadDouble(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadDouble(const char* bita, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned char swap):
-    cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
+    cdef np.ndarray[np.float64_t] buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef double tempDouble = 0
     cdef char temp[8]
@@ -125,10 +125,10 @@ cdef inline dataReadDouble(const char* bita, RecordFormat, unsigned long long nu
             buf[i] = tempDouble
     return buf
     
-cdef inline dataReadUChar(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadUChar(const char* bita, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, \
         unsigned long bitCount, unsigned char bitOffset):
-    cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
+    cdef np.ndarray[np.uint8_t] buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef unsigned char mask = ((1 << bitCount) - 1)
     cdef unsigned char temp1byte = 0
@@ -147,10 +147,10 @@ cdef inline dataReadUChar(const char* bita, RecordFormat, unsigned long long num
             buf[i] = temp1byte
     return buf
 
-cdef inline dataReadChar(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadChar(const char* bita, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, \
         unsigned long bitCount, unsigned char bitOffset):
-    cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
+    cdef np.ndarray[np.int8_t] buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef char mask = ((1 << bitCount) - 1)
     cdef char temp1byte = 0
@@ -175,10 +175,10 @@ cdef inline dataReadChar(const char* bita, RecordFormat, unsigned long long numb
             buf[i] = temp1byte
     return buf
 
-cdef inline dataReadUShort(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadUShort(const char* bita, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, \
         unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
-    cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
+    cdef np.ndarray[np.uint16_t] buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef unsigned short mask = ((1 << bitCount) - 1)
     cdef unsigned short temp2byte = 0
@@ -211,10 +211,10 @@ cdef inline dataReadUShort(const char* bita, RecordFormat, unsigned long long nu
             buf[i] = temp2byte
     return buf
 
-cdef inline dataReadShort(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadShort(const char* bita, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, \
         unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
-    cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
+    cdef np.ndarray[np.int16_t] buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef short mask = ((1 << bitCount) - 1)
     cdef short temp2byte = 0
@@ -254,10 +254,10 @@ cdef inline dataReadShort(const char* bita, RecordFormat, unsigned long long num
             buf[i] = temp2byte
     return buf
 
-cdef inline dataReadUInt(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, \
         unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
-    cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
+    cdef np.ndarray[np.uint32_t] buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef unsigned int mask = ((1 << bitCount) - 1)
     cdef unsigned int temp4byte = 0
@@ -295,10 +295,10 @@ cdef inline dataReadUInt(const char* bita, RecordFormat, unsigned long long numb
             buf[i] = temp4byte
     return buf
 
-cdef inline dataReadInt(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadInt(const char* bita, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, \
         unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
-    cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
+    cdef np.ndarray[np.int32_t] buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef int mask = ((1 << bitCount) - 1)
     cdef int temp4byte = 0
@@ -345,10 +345,10 @@ cdef inline dataReadInt(const char* bita, RecordFormat, unsigned long long numbe
             buf[i] = temp4byte
     return buf
 
-cdef inline dataReadULongLong(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadULongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, \
         unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
-    cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
+    cdef np.ndarray[np.uint64_t] buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef unsigned long long mask = ((1 << bitCount) - 1)
     cdef unsigned long long temp8byte = 0
@@ -385,10 +385,10 @@ cdef inline dataReadULongLong(const char* bita, RecordFormat, unsigned long long
             buf[i] = temp8byte
     return buf
 
-cdef inline dataReadLongLong(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, \
         unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
-    cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
+    cdef np.ndarray[np.int64_t] buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef long long mask = ((1 << bitCount) - 1)
     cdef long long temp8byte = 0
@@ -434,7 +434,7 @@ cdef inline dataReadLongLong(const char* bita, RecordFormat, unsigned long long 
             buf[i] = temp8byte
     return buf
 
-cdef inline dataReadByte(const char* bita, RecordFormat, unsigned long long numberOfRecords, \
+cdef inline dataReadByte(const char* bita, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd, \
         unsigned long bitCount, unsigned char bitOffset):
     cdef np.ndarray buf = np.zeros(numberOfRecords, dtype=RecordFormat)  # return numpy array
