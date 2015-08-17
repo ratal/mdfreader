@@ -12,6 +12,35 @@ def dataRead(bytes tmp, unsigned short bitCount, \
         unsigned short signalDataType, str RecordFormat, unsigned long long numberOfRecords, \
         unsigned long record_byte_size, unsigned char bitOffset, \
         unsigned long posByteBeg, unsigned long posByteEnd):
+    """dataRead function to read in cython a channel from a byte stream
+
+    Parameters
+    ------------
+    tmp : bytes
+        byte stream
+    bitCount : unsigned short
+        number of bit taken by the channel in the record
+    signalDataType : unsigned short
+        int to describe data type
+    RecordFormat : string
+        basic numpy dtype description of data type, used to create
+	returned numpy ndarray
+    numberOfRecords : unsigned long long
+        number of records in byte stream
+    record_byte_size : unsigned long
+        number of bytes taken by one record repeated in byte stream
+    bitOffset : unsigned char
+        bit offset of data in C aligned bytes
+    posByteBeg : unsigned long
+        beginning byte position of channel in record
+    posByteEnd : unsigned long
+        ending byte position of channel in record
+
+    Return
+    -------
+    ndarray of type RecordFormat with numberOfRecords records.
+    Byte order is swapped if necessary to match machine byte order before bits offset and masking
+    """
     cdef char* bita = PyBytes_AsString(tmp)
     if 'V' in RecordFormat or 'S' in RecordFormat or RecordFormat is None:
         return dataReadByte(bita, RecordFormat, numberOfRecords, \
