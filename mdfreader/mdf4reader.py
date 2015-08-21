@@ -1591,17 +1591,17 @@ def processDataBlocks4(Q, buf, info, dataGroup, channelList, multiProc):
                 if chan.channelType == 5:
                     pass  # print('MLSD masking needed')
 
-            elif chan.signalDataType == 13:
+            elif chan.signalDataType == 13 and (allChannel or channelName in channelList):
                 L['ms'] = buf[recordID]['data'].__getattribute__('ms_title')
                 L['min'] = buf[recordID]['data'].__getattribute__('min_title')
                 L['hour'] = buf[recordID]['data'].__getattribute__('hour_title')
                 L['day'] = buf[recordID]['data'].__getattribute__('day_title')
                 L['month'] = buf[recordID]['data'].__getattribute__('month_title')
                 L['year'] = buf[recordID]['data'].__getattribute__('year_title')
-            elif chan.signalDataType == 14:
+            elif chan.signalDataType == 14 and (allChannel or channelName in channelList):
                 L['ms'] = buf[recordID]['data'].__getattribute__('ms_title')
                 L['days'] = buf[recordID]['data'].__getattribute__('days_title')
-            elif 'invalid_bytes' in channelName:  # invalid bytes
+            elif 'invalid_bytes' in channelName and (allChannel or channelName in channelList):  # invalid bytes
                 L[channelName] = buf[recordID]['data'].__getattribute__(convertName(channelName))
     if multiProc:
         Q.put(L)
