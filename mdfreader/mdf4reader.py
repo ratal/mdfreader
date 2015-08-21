@@ -84,7 +84,7 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
         if sortedFlag:
             if channelList is None and record.byte_aligned: # No channel list and length of records corresponds to C datatypes
                 return fromstring(parent_block['data'], dtype=record.numpyDataRecordFormat, shape=record.numberOfRecords, names=record.dataRecordName)
-            else: # record is not byte aligned
+            else: # record is not byte aligned or channelList not None
                 return record.readBitarray(parent_block['data'], channelList)
         else:  # unsorted reading
             print('not implemented yet unsorted data block reading')  # to be implemented if needed, missing example file
@@ -121,7 +121,7 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
             else:
                 return record.readBitarray(parent_block['data'], channelList)
         elif channelList is not None and sortedFlag:  # sorted data but channel list requested
-            print('not implemented yet sorted compressed data block reading with channelList')  # to be implemented
+            return record.readBitarray(parent_block['data'], channelList)
         else:  # unsorted reading
             # reads only the channels using offset functions, channel by channel.
             buf = {}
@@ -938,13 +938,12 @@ class record(list):
             else:
                 return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), channelList)
         else:  # reads only some channels from a sorted data block
-            try:
-                return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), channelList)
-            except:
-                print('Unexpected error:', exc_info())
-                print('dataRead crashed, back to python data reading')
-                # memory efficient but takes time
-                if len(list(set(channelList) & set(self.channelNames))) > 0:  # are channelList in this dataGroup
+            if len(list(set(channelList) & set(self.channelNames))) > 0:  # are channelList in this dataGroup
+                try:
+                    return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), channelList)
+                except:  # still memory efficient but takes time
+                    print('Unexpected error:', exc_info())
+                    print('dataRead crashed, back to python data reading')
                     # check if master channel is in the list
                     if not self.master['name'] in channelList:
                         channelList.append(self.master['name'])  # adds master channel
