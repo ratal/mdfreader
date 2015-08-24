@@ -1,6 +1,8 @@
+import numpy
 from setuptools import setup, find_packages
 from codecs import open  # To use a consistent encoding
 from os import path
+from distutils.extension import Extension
 from Cython.Build import cythonize
 
 here = path.abspath(path.dirname(__file__))
@@ -99,5 +101,5 @@ setup(
            'mdfconverter=mdfconverter.mdfconverter:main',
        ],
     }, 
-    ext_modules=cythonize('mdfreader/dataRead.pyx')
+    ext_modules=cythonize(Extension('dataRead', ['mdfreader/dataRead.pyx'], include_dirs=[numpy.get_include()]))
 )
