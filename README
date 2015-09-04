@@ -5,14 +5,16 @@ Abstract:
 =========
 This Module imports MDF files (Measured Data Format V3.x and V4.x), typically from INCA (ETAS), CANape or CANOe. It is widely used in automotive industry to record data from ECUs. The main module mdfreader.py inherits from 2 modules (One pair for each MDF version X) : The first one to read the file's blocks descriptions (mdfinfoX) and the second (mdfXreader) to read the raw data from the file. It can optionally run multithreaded and I am proud to say I did not see any other tool reading faster this kind of files --> makes it suitable to process big amount of data in a batch, generally data from endurance evaluation. 
 
-The structure of the mdf dictionary, for each channel: mdf[channelName]
-=======================================================================
+The structure of the mdf dictionary, for each channel: mdf[channelName] below keys exist
+========================================================================================
 - data: numpy vector
 - unit: unitName
 - master : vector name corresponding to master channel
 - masterType : type of master channel (time, angle, distance, etc.)
 - description : physical meaning of channel
 - conversion: (optional) dictionary describing how to convert raw data into meaningful/physical data
+mdf object main attribute: masterChannelList, a dict containing one list of channel names per datagroup
+
 
 Mdfreader module methods:
 =========================
@@ -37,8 +39,8 @@ Evaluated for Windows and Linux platforms (x86 and AMD64)
 Requirements:
 =============
 Mdfreader is mostly relying on numpy/scipy/matplotlib.
-If reading not byte aligned bitarray.
 Reading channels defined by a formula will require sympy.
+Cython is required to compile dataRead module for reading mdf4 not byte aligned data. However, if cython compilation fails, bitarray becomes required
 Export requirements (optional): scipy, csv, h5py, xlwt(3), openpyxl, pandas
 Mdfconverter user interface requires pyQT
 
