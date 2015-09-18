@@ -851,17 +851,16 @@ class record(list):
                 # Checking if several channels are embedded in bytes
                 embedded_bytes = False
                 if len(self) > 1:
-                    for n in range(len(self)-1):
-                        if channel.byteOffset >= self[n].byteOffset and \
-                                channel.posBitBeg < 8 * (self[n].byteOffset + self[n].nBytes) and \
-                                channel.posBitEnd > 8 * (self[n].byteOffset + self[n].nBytes):  # not byte aligned
-                            self.byte_aligned = False
-                            # print('not aligned bytes record', channel.name, self[n].name)
-                            break
-                        if channel.posBitBeg >= 8 * self[n].byteOffset \
-                                and channel.posBitEnd <= 8 * (self[n].byteOffset + self[n].nBytes):  # bit(s) in byte(s)
-                            embedded_bytes = True
-                            self.recordToChannelMatching[channel.name] = self.recordToChannelMatching[self[n].name]
+                    # all channels are already ordered in record based on byte_offset and bit_offset
+                    # so just comparing with previous channel
+                    if channel.byteOffset >= self[-2].byteOffset and \
+                            channel.posBitBeg < 8 * (self[-2].byteOffset + self[-2].nBytes) and \
+                            channel.posBitEnd > 8 * (self[-2].byteOffset + self[-2].nBytes):  # not byte aligned
+                        self.byte_aligned = False
+                    if channel.posBitBeg >= 8 * self[-2].byteOffset \
+                            and channel.posBitEnd <= 8 * (self[-2].byteOffset + self[-2].nBytes):  # bit(s) in byte(s)
+                        embedded_bytes = True
+                        self.recordToChannelMatching[channel.name] = self.recordToChannelMatching[self[-2].name]
                 if not embedded_bytes:  # adding bytes
                     self.recordToChannelMatching[channel.name] = channel.name
                     if channel.signalDataType not in (13, 14):
@@ -987,7 +986,6 @@ class record(list):
                 temp[channel.name] = channel.CFormat.unpack(buf[channel.posByteBeg:channel.posByteEnd])[0]
         return temp  # returns dictionary of channel with its corresponding values
 
-    #@profile
     def readBitarray(self, bita, channelList=None):
         """ reads stream of record bytes using bitarray module needed for not byte aligned data
         

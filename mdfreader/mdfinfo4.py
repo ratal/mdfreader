@@ -131,9 +131,9 @@ class MDFBlock(dict):
         a string of length count
         """
         if PythonVersion < 3:
-            return fid.read(count).replace('\x00', '')
+            return fid.read(count).rstrip(b'\x00')
         else:
-            return fid.read(count).decode('iso8859-1', 'replace').replace('\x00', '')
+            return fid.read(count).decode('iso8859-1', 'replace').rstrip('\x00')
 
     @staticmethod
     def mdfblockreadBYTE(fid, count):
@@ -150,9 +150,9 @@ class MDFBlock(dict):
         """
         # UTF-8 encoded bytes
         if PythonVersion < 3:
-            return fid.read(count).decode('UTF-8', 'ignore').replace(b'\x00', b'')
+            return fid.read(count).decode('UTF-8', 'ignore').rstrip(b'\x00')
         else:
-            return fid.read(count).decode('UTF-8', 'ignore').replace('\x00', '')
+            return fid.read(count).decode('UTF-8', 'ignore').rstrip('\x00')
 
 
 class IDBlock(MDFBlock):
