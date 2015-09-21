@@ -1109,11 +1109,11 @@ class mdf4(dict):
     ------------
     read4( fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True)
         Reads mdf 4.x file data and stores it in dict
-    getChannelData4(channelName)
+    _getChannelData4(channelName)
         Returns channel numpy array
-    convertChannel4(channelName)
+    _convertChannel4(channelName)
         converts specific channel from raw to physical data according to CCBlock information
-    convertAllChannel4()
+    _convertAllChannel4()
         Converts all channels from raw data to converted data according to CCBlock information
     """
 
@@ -1322,10 +1322,10 @@ class mdf4(dict):
         fid.close()  # close file
 
         if convertAfterRead:
-            self.convertAllChannel4()
+            self._convertAllChannel4()
         # print( 'Finished in ' + str( time.clock() - inttime ) )
 
-    def getChannelData4(self, channelName):
+    def _getChannelData4(self, channelName):
         """Returns channel numpy array
 
         Parameters
@@ -1348,7 +1348,7 @@ class mdf4(dict):
             raise KeyError('Channel not in dictionary')
             return channelName
 
-    def convertChannel4(self, channelName):
+    def _convertChannel4(self, channelName):
         """converts specific channel from raw to physical data according to CCBlock information
 
         Parameters
@@ -1360,12 +1360,12 @@ class mdf4(dict):
         if 'conversion' in self[channelName]:
             self[channelName].pop('conversion')
 
-    def convertAllChannel4(self):
+    def _convertAllChannel4(self):
         """Converts all channels from raw data to converted data according to CCBlock information
         Converted data will take more memory.
         """
         if self.multiProc is False:
-            [self.convertChannel4(channelName) for channelName in self]
+            [self._convertChannel4(channelName) for channelName in self]
         else:  # multiprocessing
             proc = []
             Q = Queue()

@@ -410,18 +410,18 @@ class mdf(mdf3, mdf4):
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if self.VersionNumber < 400:
-            return self.getChannelData3(channelName)
+            return self._getChannelData3(channelName)
         else:
-            return self.getChannelData4(channelName)
+            return self._getChannelData4(channelName)
 
     def convertAllChannel(self):
         """Converts all channels from raw data to converted data according to CCBlock information
         Converted data will take more memory.
         """
         if self.VersionNumber < 400:
-            return self.convertAllChannel3()
+            return self._convertAllChannel3()
         else:
-            return self.convertAllChannel4()
+            return self._convertAllChannel4()
 
     def getChannelUnit(self, channelName):
         """Returns channel unit string

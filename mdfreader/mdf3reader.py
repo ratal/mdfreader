@@ -36,68 +36,6 @@ from .mdfinfo3 import info3
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
-
-def processDataBlocks(Q, buf, info, dataGroup, channelList, multiProc):
-    """Put raw data from buf to a dict L and processes nested nBit channels
-
-    Parameters
-    ----------------
-    Q : multiprocessing.Queue, optional
-        Queue for multiprocessing
-    buf : DATA class
-        contains raw data
-    info : info class
-        contains infomation from MDF Blocks
-    dataGroup : int
-        data group number according to info class
-    channelList : list of str, optional
-        list of channel names to be processed
-    multiProc : bool
-        flag to return Queue or dict
-
-    Returns
-    -----------
-    Q : multiprocessing.Queue
-        updates Queue containing L dict
-    L : dict
-        dict of channels
-    """
-    L = {}
-
-    if channelList is None:
-        allChannel = True
-    else:
-        allChannel = False
-    # Processes Bits, metadata
-    for recordID in buf.keys():
-        for chan in buf[recordID]['record']:
-            channelName = chan.name
-            if (allChannel or channelName in channelList) and chan.signalDataType not in (132, 133):
-                recordName = buf[recordID]['record'].recordToChannelMatching[channelName]  # in case record is used for several channels
-                temp = buf[recordID]['data'].__getattribute__(str(recordName) + '_title')  # extract channel vector
-
-                if chan.channelType == 1:  # master channel
-                    channelName = 'master' + str(dataGroup)
-
-                # Process concatenated bits inside uint8
-                if not chan.bitCount // 8.0 == chan.bitCount / 8.0:  # if channel data do not use complete bytes
-                    mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUnit8
-                    if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
-                        temp = right_shift(temp, chan.bitOffset)
-                        temp = bitwise_and(temp, mask)
-                        L[channelName] = temp
-                    else:  # should not happen
-                        print('bit count and offset not applied to correct data type')
-                        L[channelName] = temp
-                else:  # data using full bytes
-                    L[channelName] = temp
-
-    if multiProc:
-        Q.put(L)
-    else:
-        return L
-
-
 def linearConv(data, conv):  # 0 Parametric, Linear: Physical =Integer*P2 + P1
     """ apply linear conversion to data
 
@@ -350,8 +288,8 @@ class recordChannel():
         self.channelNumber = channelNumber
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['signalDataType']
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfBits']
-        self.dataFormat = arrayformat3(self.signalDataType, self.bitCount)
-        self.CFormat = Struct(datatypeformat3(self.signalDataType, self.bitCount))
+        self.dataFormat = _arrayformat3(self.signalDataType, self.bitCount)
+        self.CFormat = Struct(_datatypeformat3(self.signalDataType, self.bitCount))
         self.nBytes = self.bitCount // 8 + 1
         if self.bitCount % 8 == 0:
             self.nBytes -= 1
@@ -636,11 +574,11 @@ class mdf3(dict):
     ------------
     read3( fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True)
         Reads mdf 3.x file data and stores it in dict
-    getChannelData3(channelName)
+    _getChannelData3(channelName)
         Returns channel numpy array
-    convertChannel3(channelName)
+    _convertChannel3(channelName)
         converts specific channel from raw to physical data according to CCBlock information
-    convertAllChannel3()
+    _convertAllChannel3()
         Converts all channels from raw data to converted data according to CCBlock information
     write3(fileName=None)
         Writes simple mdf 3.3 file
@@ -694,18 +632,17 @@ class mdf3(dict):
         self.multiProc = multiProc
         if platform == 'win32':
             self.multiProc = False  # no multiprocessing for windows platform
-        try:
-            from multiprocessing import Queue, Process
-        except:
-            print('No multiprocessing module found')
-            self.multiProc = False
 
         if self.fileName is None:
             self.fileName = info.fileName
         else:
             self.fileName = fileName
-
-        # inttime = time.clock()
+            
+        if channelList is None:
+            allChannel = True
+        else:
+            allChannel = False
+        
         # Read information block from file
         if info is None:
             info = info3(self.fileName, None, self.filterChannelNames)
@@ -729,66 +666,40 @@ class mdf3(dict):
             fid = open(self.fileName, 'rb')
         except IOError:
             raise Exception('Can not find file ' + self.fileName)
-
-        # Look for the biggest group to process first, to reduce processing time when mutiprocessed
-        dataGroupList = dict.fromkeys(list(range(info['HDBlock']['numberOfDataGroups'])))
-        for dataGroup in list(dataGroupList.keys()):
-            dataGroupList[dataGroup] = info['CGBlock'][dataGroup][0]['numberOfRecords']
-        sortedDataGroup = sorted(dataGroupList, key=dataGroupList.__getitem__, reverse=True)
-
-        if self.multiProc:
-            # prepare multiprocessing of dataGroups
-            proc = []
-            Q = Queue()
-        L = {}
-        masterDataGroup = {}  # datagroup name correspondence with its master channel
+        
+        D = {}
         # Read data from file
-        for dataGroup in sortedDataGroup:
+        for dataGroup in info['DGBlock'].keys():
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
-                buf = DATA(fid, pointerToData)
+                D[dataGroup] = DATA(fid, pointerToData)
 
                 for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
                     temp = record(dataGroup, channelGroup)  # create record class
                     temp.loadInfo(info)  # load all info related to record
 
                     if temp.numberOfRecords != 0:  # continue if there are at least some records
-                        buf.addRecord(temp)
-                        for channel in range(info['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
-                            if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:
-                                masterDataGroup[dataGroup] = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
+                        D[dataGroup].addRecord(temp)
 
-                buf.read(channelList)
-
-                if self.multiProc:
-                    proc.append(Process(target=processDataBlocks,
-                                        args=(Q, buf, info, dataGroup, channelList, self.multiProc)))
-                    proc[-1].start()
-                else:  # for debugging purpose, can switch off multiprocessing
-                    L.update(processDataBlocks(None, buf, info, dataGroup, channelList, self.multiProc))
-                del buf  # free memory
+                D[dataGroup].read(channelList)
 
         fid.close()  # close file
-
-        if self.multiProc:
-            for p in proc:
-                L.update(Q.get())  # concatenate results of processes in dict
-            for p in proc:
-                p.join()
-            del Q  # free memory
 
         # After all processing of channels,
         # prepare final class data with all its keys
         for dataGroup in range(info['HDBlock']['numberOfDataGroups']):
             for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
-                for channel in range(info['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
-                    numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
-                    if numberOfRecords != 0:
+                recordID = info['CGBlock'][dataGroup][channelGroup]['recordID']
+                numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
+                if numberOfRecords != 0:
+                    for channel in range(info['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
                         channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
+                        recordName = D[dataGroup][recordID]['record'].recordToChannelMatching[channelName]  # in case record is used for several channels
+                        temp = D[dataGroup][recordID]['data'].__getattribute__(str(recordName) + '_title')
                         if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:  # time channel
                             channelName = 'master' + str(dataGroup)
-                        if channelName in L and len(L[channelName]) != 0:
+                        if (allChannel or channelName in channelList) and len(temp) != 0:
                             if ('master' + str(dataGroup)) not in list(self.masterChannelList.keys()):
                                 self.masterChannelList['master' + str(dataGroup)] = []
                             self.masterChannelList['master' + str(dataGroup)].append(channelName)
@@ -799,8 +710,22 @@ class mdf3(dict):
                             else:
                                 self[channelName]['unit'] = ''
                             self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription']
-                            self[channelName]['data'] = L[channelName]
-                            L.pop(channelName, None)  # free memory
+                            
+                            # Process concatenated bits inside uint8
+                            bitCount = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
+                            if not bitCount // 8.0 == bitCount / 8.0:  # if channel data do not use complete bytes
+                                mask = int(pow(2, bitCount) - 1)  # masks isBitUint8
+                                if info['CNBlock'][dataGroup][channelGroup][channel]['signalDataType'] in (0, 1, 9, 10, 13, 14):  # integers
+                                    bitOffset = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfTheFirstBits'] % 8
+                                    temp = right_shift(temp, bitOffset)
+                                    temp = bitwise_and(temp, mask)
+                                    self[channelName]['data'] = temp
+                                else:  # should not happen
+                                    print('bit count and offset not applied to correct data type')
+                                    self[channelName]['data'] = temp
+                            else:  # data using full bytes
+                                self[channelName]['data'] = temp
+                            
                             convType = info['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier']
                             if convType in (0, 1, 2, 6, 7, 8, 9, 10, 11, 12):  # needs conversion
                                 self[channelName]['conversion'] = {}
@@ -808,12 +733,12 @@ class mdf3(dict):
                                 self[channelName]['conversion']['parameters'] = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']
                             if convType == 0 and (self[channelName]['conversion']['parameters']['P2'] == 1.0 and self[channelName]['conversion']['parameters']['P1'] in (0.0, -0.0)):
                                 self[channelName].pop('conversion')
+            del D[dataGroup]
 
         if convertAfterRead:
-            self.convertAllChannel3()
-        #print( 'Finished in ' + str( time.clock() - inttime ) )
+            self._convertAllChannel3()
 
-    def getChannelData3(self, channelName):
+    def _getChannelData3(self, channelName):
         """Returns channel numpy array
 
         Parameters
@@ -831,12 +756,12 @@ class mdf3(dict):
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if channelName in self:
-            return self.convert3(channelName)
+            return self._convert3(channelName)
         else:
             raise KeyError('Channel not in dictionary')
             return channelName
 
-    def convert3(self, channelName):
+    def _convert3(self, channelName):
         """converts specific channel from raw to physical data according to CCBlock information
 
         Parameters
@@ -873,7 +798,7 @@ class mdf3(dict):
         else:
             return self[channelName]['data']
 
-    def convertChannel3(self, channelName):
+    def _convertChannel3(self, channelName):
         """converts specific channel from raw to physical data according to CCBlock information
 
         Parameters
@@ -882,15 +807,15 @@ class mdf3(dict):
             Name of channel
         """
         if 'conversion' in self[channelName]:
-            self[channelName]['data'] = self.convert3(channelName)
+            self[channelName]['data'] = self._convert3(channelName)
             self[channelName].pop('conversion')
 
-    def convertAllChannel3(self):
+    def _convertAllChannel3(self):
         """Converts all channels from raw data to converted data according to CCBlock information
         Converted data will take more memory.
         """
         for channel in self:
-            self.convertChannel3(channel)
+            self._convertChannel3(channel)
 
     def write3(self, fileName=None):
         """Writes simple mdf 3.3 file
@@ -1181,7 +1106,7 @@ class mdf3(dict):
         fid.close()
 
 
-def datatypeformat3(signalDataType, numberOfBits):
+def _datatypeformat3(signalDataType, numberOfBits):
     """ function returning C format string from channel data type and number of bits
 
     Parameters
@@ -1233,7 +1158,7 @@ def datatypeformat3(signalDataType, numberOfBits):
     return dataType
 
 
-def arrayformat3(signalDataType, numberOfBits):
+def _arrayformat3(signalDataType, numberOfBits):
     """ function returning numpy style string from channel data type and number of bits
     Parameters
     ----------------
