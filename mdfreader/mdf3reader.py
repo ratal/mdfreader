@@ -550,7 +550,7 @@ class mdf3(dict):
     --------------
     fileName : str
         file name
-    VersionNumber : int
+    MDFVersionNumber : int
         mdf file version number
     masterChannelList : dict
         Represents data structure: a key per master channel with corresponding value containing a list of channels
@@ -594,7 +594,7 @@ class mdf3(dict):
         self.comment = ''
         self.time = ''
         self.date = ''
-        self.VersionNumber = 300
+        self.MDFVersionNumber = 300
         self.filterChannelNames = False
         # clears class from previous reading and avoid to mess up
         self.clear()
@@ -863,7 +863,7 @@ class mdf3(dict):
                 else:
                     temp = value + '\0' * (size - len(value))
                 temp += '\0'
-            if self.VersionNumber < 400:
+            if self.MDFVersionNumber < 400:
                 if PythonVersion >= 3:
                     temp = temp.encode('latin1', 'replace')
                 f.write(pack('<' + str(len(temp)) + 's', temp))

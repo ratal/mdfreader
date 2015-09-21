@@ -146,8 +146,8 @@ class mdfinfo(dict):
             raise Exception('Can not find file ' + self.fileName)
         # read Identifier block
         fid.seek(28)
-        VersionNumber = unpack('<H', fid.read(2))
-        self.mdfversion = VersionNumber[0]
+        MDFVersionNumber = unpack('<H', fid.read(2))
+        self.mdfversion = MDFVersionNumber[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
             from .mdfinfo3 import info3
             self.update(info3(None, fid, filterChannelNames))
@@ -177,8 +177,8 @@ class mdfinfo(dict):
             raise Exception('Can not find file ' + self.fileName)
         # read Identifier block
         fid.seek(28)
-        VersionNumber = unpack('<H', fid.read(2))
-        self.mdfversion = VersionNumber[0]
+        MDFVersionNumber = unpack('<H', fid.read(2))
+        self.mdfversion = MDFVersionNumber[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
             from .mdfinfo3 import info3
             channelNameList = info3()
@@ -198,7 +198,7 @@ class mdf(mdf3, mdf4):
     --------------
     fileName : str
         file name
-    VersionNumber : int
+    MDFVersionNumber : int
         mdf file version number
     masterChannelList : dict
         Represents data structure: a key per master channel with corresponding value containing a list of channels
@@ -305,7 +305,7 @@ class mdf(mdf3, mdf4):
             flag to filter long channel names from its module names separated by '.'
         """
         self.fileName = None
-        self.VersionNumber = None
+        self.MDFVersionNumber = None
         self.masterChannelList = {}
         self.author = ''
         self.organisation = ''
@@ -364,8 +364,8 @@ class mdf(mdf3, mdf4):
         # read file blocks
         info = mdfinfo(self.fileName, filterChannelNames)
 
-        self.VersionNumber = info.mdfversion
-        if self.VersionNumber < 400:  # up to version 3.x not compatible with version 4.x
+        self.MDFVersionNumber = info.mdfversion
+        if self.MDFVersionNumber < 400:  # up to version 3.x not compatible with version 4.x
             self.read3(self.fileName, info, multiProc, channelList, convertAfterRead)
         else:  # MDF version 4.x. Channel by channel reading implemented
             self.read4(self.fileName, info, multiProc, channelList, convertAfterRead)
@@ -409,7 +409,7 @@ class mdf(mdf3, mdf4):
         ------
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
-        if self.VersionNumber < 400:
+        if self.MDFVersionNumber < 400:
             return self._getChannelData3(channelName)
         else:
             return self._getChannelData4(channelName)
@@ -418,7 +418,7 @@ class mdf(mdf3, mdf4):
         """Converts all channels from raw data to converted data according to CCBlock information
         Converted data will take more memory.
         """
-        if self.VersionNumber < 400:
+        if self.MDFVersionNumber < 400:
             return self._convertAllChannel3()
         else:
             return self._convertAllChannel4()

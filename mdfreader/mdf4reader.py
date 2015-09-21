@@ -1085,7 +1085,7 @@ class mdf4(dict):
     --------------
     fileName : str
         file name
-    VersionNumber : int
+    MDFVersionNumber : int
         mdf file version number
     masterChannelList : dict
         Represents data structure: a key per master channel with corresponding value containing a list of channels
@@ -1121,7 +1121,7 @@ class mdf4(dict):
         self.masterChannelList = {}
         self.multiProc = False  # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         self.convert_tables = False  # if True converts raw data with expensive loops, not necessary most cases
-        self.VersionNumber = 400
+        self.MDFVersionNumber = 400
         self.author = ''
         self.organisation = ''
         self.project = ''
