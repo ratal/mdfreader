@@ -35,6 +35,7 @@ from math import pow
 from sys import platform, version_info, exc_info, byteorder
 from io import open  # for python 3 and 2 consistency
 from .mdfinfo4 import info4, MDFBlock, ATBlock
+from .mdf import mdf_skeleton
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
 PythonVersion = version_info
@@ -1077,7 +1078,7 @@ class record(list):
                         buf[self[chan].name] = asarray(temp)
                 return buf
 
-class mdf4(dict):
+class mdf4(mdf_skeleton):
 
     """ mdf file reader class from version 4.0 to 4.1
 
@@ -1097,13 +1098,8 @@ class mdf4(dict):
         flag to convert raw data to physical just after read
     filterChannelNames : bool
         flag to filter long channel names from its module names separated by '.'
-    author : str
-    organisation : str
-    project : str
-    subject : str
-    comment : str
-    time : str
-    date : str
+    file_metadata : dict
+        file metadata with minimum keys : author, organisation, project, subject, comment, time, date
 
     Methods
     ------------
@@ -1117,28 +1113,7 @@ class mdf4(dict):
         Converts all channels from raw data to converted data according to CCBlock information
     """
 
-    def __init__(self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True):
-        self.masterChannelList = {}
-        self.multiProc = False  # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
-        self.convert_tables = False  # if True converts raw data with expensive loops, not necessary most cases
-        self.MDFVersionNumber = 400
-        self.author = ''
-        self.organisation = ''
-        self.project = ''
-        self.subject = ''
-        self.comment = ''
-        self.time = ''
-        self.date = ''
-        # clears class from previous reading and avoid to mess up
-        self.clear()
-        if fileName is None and info is not None:
-            self.fileName = info.fileName
-            self.read4(self.fileName, info, multiProc, channelList, convertAfterRead)
-        elif fileName is not None:
-            self.fileName = fileName
-            self.read4(self.fileName, info, multiProc, channelList, convertAfterRead)
-
-    def read4(self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True):
+    def read4(self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True, filterChannelNames=False):
         """ Reads mdf 4.x file data and stores it in dict
 
         Parameters
@@ -1171,9 +1146,9 @@ class mdf4(dict):
             print('No multiprocessing module found')
             self.multiProc = False
 
-        if self.fileName is None:
+        if self.fileName is None and info is not None:
             self.fileName = info.fileName
-        else:
+        elif fileName is not None:
             self.fileName = fileName
 
         # inttime = time.clock()
@@ -1187,15 +1162,15 @@ class mdf4(dict):
         self.time = strftime('%H:%M:%S', fileDateTime)
         if 'Comment' in list(info['HDBlock'].keys()):
             if 'author' in list(info['HDBlock']['Comment'].keys()):
-                self.author = info['HDBlock']['Comment']['author']
+                self.file_metadata['author'] = info['HDBlock']['Comment']['author']
             if 'department' in list(info['HDBlock']['Comment'].keys()):
-                self.organisation = info['HDBlock']['Comment']['department']
+                self.file_metadata['organisation'] = info['HDBlock']['Comment']['department']
             if 'project' in list(info['HDBlock']['Comment'].keys()):
-                self.project = info['HDBlock']['Comment']['project']
+                self.file_metadata['project'] = info['HDBlock']['Comment']['project']
             if 'subject' in list(info['HDBlock']['Comment'].keys()):
-                self.subject = info['HDBlock']['Comment']['subject']
+                self.file_metadata['subject'] = info['HDBlock']['Comment']['subject']
             if 'TX' in list(info['HDBlock']['Comment'].keys()):
-                self.comment = info['HDBlock']['Comment']['TX']
+                self.file_metadata['comment'] = info['HDBlock']['Comment']['TX']
 
         try:
             fid = open(self.fileName, 'rb')
@@ -1541,7 +1516,7 @@ def processDataBlocks4(Q, buf, info, dataGroup, channelList, multiProc):
     buf : DATA class
         contains raw data
     info : info class
-        contains infomation from MDF Blocks
+        contains information from MDF Blocks
     dataGroup : int
         data group number according to info class
     channelList : list of str, optional

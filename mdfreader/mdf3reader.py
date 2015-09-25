@@ -33,6 +33,7 @@ from time import strftime, time
 from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
 from .mdfinfo3 import info3
+from .mdf import mdf_skeleton
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -542,7 +543,7 @@ class DATA(dict):
         return None
 
 
-class mdf3(dict):
+class mdf3(mdf_skeleton):
 
     """ mdf file version 3.0 to 3.3 class
 
@@ -562,13 +563,8 @@ class mdf3(dict):
         flag to convert raw data to physical just after read
     filterChannelNames : bool
         flag to filter long channel names from its module names separated by '.'
-    author : str
-    organisation : str
-    project : str
-    subject : str
-    comment : str
-    time : str
-    date : str
+    file_metadata : dict
+        file metadata with minimum keys : author, organisation, project, subject, comment, time, date
 
     Methods
     ------------
@@ -584,28 +580,7 @@ class mdf3(dict):
         Writes simple mdf 3.3 file
     """
 
-    def __init__(self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True, filterChannelNames=False):
-        self.masterChannelList = {}
-        self.multiProc = False  # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
-        self.author = ''
-        self.organisation = ''
-        self.project = ''
-        self.subject = ''
-        self.comment = ''
-        self.time = ''
-        self.date = ''
-        self.MDFVersionNumber = 300
-        self.filterChannelNames = False
-        # clears class from previous reading and avoid to mess up
-        self.clear()
-        if fileName is None and info is not None:
-            self.fileName = info.fileName
-            self.read3(self.fileName, info, multiProc, channelList, convertAfterRead)
-        elif fileName is not None:
-            self.fileName = fileName
-            self.read3(self.fileName, info, multiProc, channelList, convertAfterRead)
-
-    def read3(self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True):
+    def read3(self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True, filterChannelNames=False):
         """ Reads mdf 3.x file data and stores it in dict
 
         Parameters
@@ -633,9 +608,9 @@ class mdf3(dict):
         if platform == 'win32':
             self.multiProc = False  # no multiprocessing for windows platform
 
-        if self.fileName is None:
+        if self.fileName is None and info is not None:
             self.fileName = info.fileName
-        else:
+        elif fileName is not None:
             self.fileName = fileName
             
         if channelList is None:
@@ -648,19 +623,19 @@ class mdf3(dict):
             info = info3(self.fileName, None, self.filterChannelNames)
 
         # reads metadata
-        self.author = info['HDBlock']['Author']
-        self.organisation = info['HDBlock']['Organization']
-        self.project = info['HDBlock']['ProjectName']
-        self.subject = info['HDBlock']['Subject']
+        self.file_metadata['author'] = info['HDBlock']['Author']
+        self.file_metadata['organisation'] = info['HDBlock']['Organization']
+        self.file_metadata['project'] = info['HDBlock']['ProjectName']
+        self.file_metadata['subject'] = info['HDBlock']['Subject']
         try:
             self.comment = info['HDBlock']['TXBlock']['Text']
         except:
             pass
-        self.time = info['HDBlock']['Time']
-        self.date = info['HDBlock']['Date']
+        self.file_metadata['time'] = info['HDBlock']['Time']
+        self.file_metadata['date'] = info['HDBlock']['Date']
         # converts date to be compatible with ISO8601
-        day, month, year = self.date.split(':')
-        self.date = year + '-' + month + '-' + day
+        day, month, year = self.file_metadata['date'].split(':')
+        self.file_metadata['date'] = year + '-' + month + '-' + day
 
         try:
             fid = open(self.fileName, 'rb')
@@ -697,19 +672,14 @@ class mdf3(dict):
                         channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
                         recordName = D[dataGroup][recordID]['record'].recordToChannelMatching[channelName]  # in case record is used for several channels
                         temp = D[dataGroup][recordID]['data'].__getattribute__(str(recordName) + '_title')
+                        master_channel = 'master' + str(dataGroup)
                         if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:  # time channel
-                            channelName = 'master' + str(dataGroup)
+                            channelName = master_channel
                         if (allChannel or channelName in channelList) and len(temp) != 0:
-                            if ('master' + str(dataGroup)) not in list(self.masterChannelList.keys()):
-                                self.masterChannelList['master' + str(dataGroup)] = []
-                            self.masterChannelList['master' + str(dataGroup)].append(channelName)
-                            self[channelName] = {}
-                            self[channelName]['master'] = 'master' + str(dataGroup)  # master channel of channel
                             if 'physicalUnit' in info['CCBlock'][dataGroup][channelGroup][channel]:
-                                self[channelName]['unit'] = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
+                                unitStr = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
                             else:
-                                self[channelName]['unit'] = ''
-                            self[channelName]['description'] = info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription']
+                                unitStr = ''
                             
                             # Process concatenated bits inside uint8
                             bitCount = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
@@ -719,20 +689,14 @@ class mdf3(dict):
                                     bitOffset = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfTheFirstBits'] % 8
                                     temp = right_shift(temp, bitOffset)
                                     temp = bitwise_and(temp, mask)
-                                    self[channelName]['data'] = temp
+                                    #self[channelName]['data'] = temp
                                 else:  # should not happen
                                     print('bit count and offset not applied to correct data type')
-                                    self[channelName]['data'] = temp
-                            else:  # data using full bytes
-                                self[channelName]['data'] = temp
-                            
-                            convType = info['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier']
-                            if convType in (0, 1, 2, 6, 7, 8, 9, 10, 11, 12):  # needs conversion
-                                self[channelName]['conversion'] = {}
-                                self[channelName]['conversion']['type'] = convType
-                                self[channelName]['conversion']['parameters'] = info['CCBlock'][dataGroup][channelGroup][channel]['conversion']
-                            if convType == 0 and (self[channelName]['conversion']['parameters']['P2'] == 1.0 and self[channelName]['conversion']['parameters']['P1'] in (0.0, -0.0)):
-                                self[channelName].pop('conversion')
+
+                            self.add_channel(channelName, temp, master_channel, \
+                                    unit=unitStr, \
+                                    description=info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription'], \
+                                    conversion=info['CCBlock'][dataGroup][channelGroup][channel])
             del D[dataGroup]
 
         if convertAfterRead:
@@ -903,20 +867,20 @@ class mdf3(dict):
         fid.write(pack(UINT16, ndataGroup))  # number of data groups
         writeChar(fid, strftime("%d:%m:%Y"))  # date
         writeChar(fid, strftime("%H:%M:%S"))  # time
-        if self.author is not None:
-            writeChar(fid, self.author, size=31)  # Author
+        if self.file_metadata['author'] is not None:
+            writeChar(fid, self.file_metadata['author'], size=31)  # Author
         else:
             writeChar(fid, ' ', size=31)  # Author
-        if self.organisation is not None:
-            writeChar(fid, self.organisation, size=31)  # Organization
+        if self.file_metadata['organisation'] is not None:
+            writeChar(fid, self.file_metadata['organisation'], size=31)  # Organization
         else:
             writeChar(fid, ' ', size=31)
-        if self.project is not None:
-            writeChar(fid, self.project, size=31)  # Project
+        if self.file_metadata['project'] is not None:
+            writeChar(fid, self.file_metadata['project'], size=31)  # Project
         else:
             writeChar(fid, ' ', size=31)
-        if self.subject is not None:
-            writeChar(fid, self.subject, size=31)  # Subject
+        if self.file_metadata['subject'] is not None:
+            writeChar(fid, self.file_metadata['subject'], size=31)  # Subject
         else:
             writeChar(fid, ' ', size=31)
         fid.write(pack(UINT64, int(time() * 1000000000)))  # Time Stamp

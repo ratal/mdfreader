@@ -206,13 +206,8 @@ class mdf(mdf3, mdf4):
     multiProc : bool
         Flag to request channel conversion multi processed for performance improvement.
         One thread per data group.
-    author : str
-    organisation : str
-    project : str
-    subject : str
-    comment : str
-    time : str
-    date : str
+    file_metadata : dict
+        file metadata with minimum keys : author, organisation, project, subject, comment, time, date
 
     Methods
     ------------
@@ -282,46 +277,6 @@ class mdf(mdf3, mdf4):
     >>> yop.getChannelData('channelName') # returns channel numpy array
     """
 
-    def __init__(self, fileName=None, channelList=None, convertAfterRead=True, filterChannelNames=False):
-        """ mdf class constructor.
-        When mdf class is constructed, constructor can be called to directly reads file
-
-        Parameters
-        ----------------
-        fileName : str, optional
-            file name
-
-        channelList : list of str, optional
-            list of channel names to be read
-            If you use channelList, reading might be much slower but it will save you memory. Can be used to read big files
-
-        convertAfterRead : bool, optional
-            flag to convert channel after read, True by default
-            If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
-            If many float are stored in file, you can gain from 3 to 4 times memory footprint
-            To calculate value from channel, you can then use method .getChannelData()
-
-        filterChannelNames : bool, optional
-            flag to filter long channel names from its module names separated by '.'
-        """
-        self.fileName = None
-        self.MDFVersionNumber = None
-        self.masterChannelList = {}
-        self.author = ''
-        self.organisation = ''
-        self.project = ''
-        self.subject = ''
-        self.comment = ''
-        self.time = ''
-        self.date = ''
-        self.multiProc = False  # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
-        self.convert_tables = False  # if True converts raw data with expensive loops, not necessary most cases
-        # clears class from previous reading and avoid to mess up
-        self.clear()
-        if fileName is not None:
-            self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames)
-            self.fileName = fileName
-
     def read(self, fileName=None, multiProc=False, channelList=None, convertAfterRead=True, filterChannelNames=False):
         """ reads mdf file version 3.x and 4.x
 
@@ -366,9 +321,9 @@ class mdf(mdf3, mdf4):
 
         self.MDFVersionNumber = info.mdfversion
         if self.MDFVersionNumber < 400:  # up to version 3.x not compatible with version 4.x
-            self.read3(self.fileName, info, multiProc, channelList, convertAfterRead)
+            self.read3(self.fileName, info, multiProc, channelList, convertAfterRead, filterChannelNames=False)
         else:  # MDF version 4.x. Channel by channel reading implemented
-            self.read4(self.fileName, info, multiProc, channelList, convertAfterRead)
+            self.read4(self.fileName, info, multiProc, channelList, convertAfterRead, filterChannelNames=False)
 
     def write(self, fileName=None):
         """Writes simple mdf 3.3 file
@@ -669,13 +624,13 @@ class mdf(mdf3, mdf4):
             filename = splitext(self.fileName)[0]
             filename = filename + '.nc'
         f = netcdf.netcdf_file(filename, 'w')
-        setAttribute(f, 'Date', self.date)
-        setAttribute(f, 'Time', self.time)
-        setAttribute(f, 'Author', self.author)
-        setAttribute(f, 'Organization', self.organisation)
-        setAttribute(f, 'ProjectName', self.project)
-        setAttribute(f, 'Subject', self.subject)
-        setAttribute(f, 'Comment', self.comment)
+        setAttribute(f, 'Date', self.file_metadata['date'])
+        setAttribute(f, 'Time', self.file_metadata['time'])
+        setAttribute(f, 'Author', self.file_metadata['author'])
+        setAttribute(f, 'Organization', self.file_metadata['organisation'])
+        setAttribute(f, 'ProjectName', self.file_metadata['project'])
+        setAttribute(f, 'Subject', self.file_metadata['subject'])
+        setAttribute(f, 'Comment', self.file_metadata['comment'])
         # Create dimensions having name of all time channels
         for time in list(self.masterChannelList.keys()):
             f.createDimension(time, len(self.getChannelData(time)))
@@ -759,14 +714,14 @@ class mdf(mdf3, mdf4):
             filename = filename + '.hdf'
         f = h5py.File(filename, 'w')  # create hdf5 file
         filegroup = f.create_group(os.path.basename(filename))  # create group in root associated to file
-        setAttribute(filegroup, 'Author', self.author)
-        setAttribute(filegroup, 'Date', self.date)
-        setAttribute(filegroup, 'Time', self.time)
-        setAttribute(filegroup, 'Time', self.time)
-        setAttribute(filegroup, 'Organization', self.organisation)
-        setAttribute(filegroup, 'ProjectName', self.project)
-        setAttribute(filegroup, 'Subject', self.subject)
-        setAttribute(filegroup, 'Comment', self.comment)
+        setAttribute(filegroup, 'Author', self.file_metadata['author'])
+        setAttribute(filegroup, 'Date', self.file_metadata['date'])
+        setAttribute(filegroup, 'Time', self.file_metadata['time'])
+        setAttribute(filegroup, 'Time', self.file_metadata['time'])
+        setAttribute(filegroup, 'Organization', self.file_metadata['organisation'])
+        setAttribute(filegroup, 'ProjectName', self.file_metadata['project'])
+        setAttribute(filegroup, 'Subject', self.file_metadata['subject'])
+        setAttribute(filegroup, 'Comment', self.file_metadata['comment'])
         if len(list(self.masterChannelList.keys())) > 1:
             # if several time groups of channels, not resampled
             groups = {}
@@ -1073,7 +1028,7 @@ class mdf(mdf3, mdf4):
             raise ImportError('Module pandas missing')
         if sampling is not None:
             self.resample(sampling)
-        datetimeInfo = datetime64(self.date.replace(':', '-') + 'T' + self.time)
+        datetimeInfo = datetime64(self.file_metadata['date'].replace(':', '-') + 'T' + self.file_metadata['time'])
         originalKeys = list(self.keys())
         for group in list(self.masterChannelList.keys()):
             temp = {}
