@@ -195,23 +195,23 @@ class info3(dict):
 
                     if CCpointer == 0:  # If no conversion formula, set to 1:1
                         self['CCBlock'][dataGroup][channelGroup][channel] = {}
-                        self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] = 65535
+                        self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] = 65535
                     else:  # Otherwise get conversion formula, parameters and physical units
                         # Read data Channel Conversion block info into structure
                         self['CCBlock'][dataGroup][channelGroup][channel] = self.mdfblockread3(self.blockformats3('CCFormat'), fid, CCpointer)
 
                         # Extract Channel Conversion formula based on conversion
-                        # type(conversionFormulaIdentifier)
+                        # type(cc_type)
 
                         # Get current file position
                         currentPosition = fid.tell()
 
-                        if self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 0:  # Parameteric, Linear: Physical =Integer*P2 + P1
+                        if self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] == 0:  # Parameteric, Linear: Physical =Integer*P2 + P1
 
                             # Read data Channel Conversion parameters info into structure
                             self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula0'), fid, currentPosition)
 
-                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 1:  # Table look up with interpolation
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] == 1:  # Table look up with interpolation
 
                             # Get number of parameters sets
                             num = self['CCBlock'][dataGroup][channelGroup][channel]['numberOfValuePairs']
@@ -224,7 +224,7 @@ class info3(dict):
                                 # Get current file position
                                 currentPosition = fid.tell()
 
-                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 2:  # table look up
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] == 2:  # table look up
 
                             # Get number of parameters sets
                             num = self['CCBlock'][dataGroup][channelGroup][channel]['numberOfValuePairs']
@@ -237,32 +237,32 @@ class info3(dict):
                                 # Get current file position
                                 currentPosition = fid.tell()
 
-                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 6:  # Polynomial
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] == 6:  # Polynomial
 
                             # Read data Channel Conversion parameters info into structure
                             self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula6'), fid, currentPosition)
 
-                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 7:  # Exponential
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] == 7:  # Exponential
 
                             # Read data Channel Conversion parameters info into structure
                             self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula7'), fid, currentPosition)
 
-                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 8:  # Logarithmic
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] == 8:  # Logarithmic
 
                             # Read data Channel Conversion parameters info into structure
                             self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula8'), fid, currentPosition)
 
-                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 9:  # Rational
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] == 9:  # Rational
 
                             # Read data Channel Conversion parameters info into structure
                             self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula9'), fid, currentPosition)
 
-                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 10:  # Text Formula
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] == 10:  # Text Formula
 
                             # Read data Channel Conversion parameters info into structure
                             self['CCBlock'][dataGroup][channelGroup][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula10'), fid, currentPosition, removeTrailing0=False)
 
-                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 11:  # Text table
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] == 11:  # Text table
 
                             # Get number of parameters sets
                             num = self['CCBlock'][dataGroup][channelGroup][channel]['numberOfValuePairs']
@@ -275,7 +275,7 @@ class info3(dict):
                                 # Get current file position
                                 currentPosition = fid.tell()
 
-                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 12:  # Text range table
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] == 12:  # Text range table
 
                             # Get number of parameters sets
                             num = self['CCBlock'][dataGroup][channelGroup][channel]['numberOfValuePairs']
@@ -296,13 +296,13 @@ class info3(dict):
                                 except:
                                     self['CCBlock'][dataGroup][channelGroup][channel]['conversion'][pair]['Textrange'] = ""
 
-                        elif self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier'] == 65535:  # No conversion int=phys
+                        elif self['CCBlock'][dataGroup][channelGroup][channel]['cc_type'] == 65535:  # No conversion int=phys
                             pass
                         else:
 
                             # Give warning that conversion formula is not being
                             # made
-                            print(('Conversion Formula type (conversionFormulaIdentifier=' + str(self['CCBlock'][dataGroup][channelGroup][channel]['conversionFormulaIdentifier']) + ')not supported.'))
+                            print(('Conversion Formula type (cc_type=' + str(self['CCBlock'][dataGroup][channelGroup][channel]['cc_type']) + ')not supported.'))
 
         # CLose the file
         fid.close()
@@ -483,7 +483,7 @@ class info3(dict):
                 (REAL, 1, 'valueRangeMinimum'),
                 (REAL, 1, 'valueRangeMaximum'),
                 (CHAR, 20, 'physicalUnit'),
-                (UINT16, 1, 'conversionFormulaIdentifier'),
+                (UINT16, 1, 'cc_type'),
                 (UINT16, 1, 'numberOfValuePairs'))
         elif block == 'CCFormatFormula0':
             formats = (  # parametric, linear

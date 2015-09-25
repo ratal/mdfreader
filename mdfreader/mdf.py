@@ -1,3 +1,6 @@
+from numpy import array_repr, set_printoptions
+set_printoptions(threshold=100, edgeitems=1)
+
 class mdf_skeleton(dict):
 
     """ mdf class
@@ -76,7 +79,7 @@ class mdf_skeleton(dict):
         if fileName is not None:
             self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames)
     
-    def add_channel(self, channel_name, data, master_channel, unit='', description='', conversion=None):
+    def add_channel(self, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None):
         self[channel_name] = {}
         self[channel_name]['data'] = data
         self[channel_name]['unit'] = unit
@@ -85,15 +88,38 @@ class mdf_skeleton(dict):
         if master_channel not in self.masterChannelList.keys():
             self.masterChannelList[master_channel] = []
         self.masterChannelList[master_channel].append(channel_name)
+        if self.MDFVersionNumber < 400: #  mdf3
+                self[channel_name]['masterType'] = 1
+        else: #  mdf4
+            self[channel_name]['masterType'] = master_type
         if conversion is not None and 'conversion' in conversion:
             self[channel_name]['conversion'] = {}
-            self[channel_name]['conversion']['type'] = conversion['conversionFormulaIdentifier']
+            self[channel_name]['conversion']['type'] = conversion['cc_type']
             self[channel_name]['conversion']['parameters'] = conversion['conversion']
-            if conversion['conversionFormulaIdentifier'] == 0 and \
-                    (self[channel_name]['conversion']['parameters']['P2'] == 1.0 and \
-                    self[channel_name]['conversion']['parameters']['P1'] in (0.0, -0.0)):
-                self[channel_name].pop('conversion')
+            if self.MDFVersionNumber < 400: #  mdf3
+                if conversion['cc_type'] == 0 and \
+                        (self[channel_name]['conversion']['parameters']['P2'] == 1.0 and \
+                        self[channel_name]['conversion']['parameters']['P1'] in (0.0, -0.0)):
+                    self[channel_name].pop('conversion')
+            else: #  mdf4
+                if 'cc_val' in conversion:
+                    self[channel_name]['conversion']['parameters']['cc_val'] = conversion['cc_val']
+                if 'cc_ref' in conversion:
+                    self[channel_name]['conversion']['parameters']['cc_ref'] = conversion['cc_ref']
     
     def remove_channel(self, channel_name):
         self.masterChannelList[self[channel_name]['master']].pop(channel_name)
         del self[channel_name]
+    
+    def __repr__(self):
+        output = 'file name : ' + self.fileName + '\n'
+        for m in self.file_metadata.keys():
+            output += m + ' : ' + str(self.file_metadata[m]) + '\n'
+        output += '\nchannels listed by data groups:\n'
+        for d in self.masterChannelList.keys():
+            output += d + '\n'
+            for c in self.masterChannelList[d]:
+                output += '  ' + c + ' : ' + str(self[c]['description']) + '\n'
+                output += '    ' + array_repr(self[c]['data'], precision=3, suppress_small=True) \
+                    + ' ' + self[c]['unit'] + '\n'
+        return output

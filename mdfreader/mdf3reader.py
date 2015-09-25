@@ -694,6 +694,7 @@ class mdf3(mdf_skeleton):
                                     print('bit count and offset not applied to correct data type')
 
                             self.add_channel(channelName, temp, master_channel, \
+                                    master_type=1, \
                                     unit=unitStr, \
                                     description=info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription'], \
                                     conversion=info['CCBlock'][dataGroup][channelGroup][channel])
