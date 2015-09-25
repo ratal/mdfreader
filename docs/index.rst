@@ -11,6 +11,8 @@ Contents:
 .. toctree::
    :maxdepth: 3
 
+   mdf/index
+   
    mdfreader/index
 
    mdf3reader/index

@@ -1,3 +1,22 @@
+# -*- coding: utf-8 -*-
+""" mdf module describing basic mdf structure and methods
+
+Created on Thu Sept 24 2015
+
+Platform and python version
+----------------------------------------
+With Unix and Windows for python 2.6+ and 3.2+
+
+:Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
+
+Dependencies
+-------------------
+- Python >2.6, >3.2 <http://www.python.org>
+- Numpy >1.6 <http://numpy.scipy.org>
+
+mdf module
+--------------------------
+"""
 from numpy import array_repr, set_printoptions
 set_printoptions(threshold=100, edgeitems=1)
 
@@ -26,21 +45,14 @@ class mdf_skeleton(dict):
 
     Methods
     ------------
-    read3( fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True)
-        Reads mdf 3.x file data and stores it in dict
-    _getChannelData3(channelName)
-        Returns channel numpy array
-    _convertChannel3(channelName)
-        converts specific channel from raw to physical data according to CCBlock information
-    _convertAllChannel3()
-        Converts all channels from raw data to converted data according to CCBlock information
-    write3(fileName=None)
-        Writes simple mdf 3.3 file
+    add_channel(channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None)
+        adds channel to mdf dict
+    remove_channel(channel_name)
+        removes channel from mdf dict and returns its content
     """
 
     def __init__(self, fileName=None, channelList=None, convertAfterRead=True, filterChannelNames=False):
         """ mdf class constructor.
-        When mdf class is constructed, constructor can be called to directly reads file
 
         Parameters
         ----------------
@@ -80,6 +92,28 @@ class mdf_skeleton(dict):
             self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames)
     
     def add_channel(self, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None):
+        """ adds channel to mdf dict.
+
+        Parameters
+        ----------------
+        channel_name : str
+            channel name
+
+        data : numpy array
+            numpy array of channel's data
+
+        master_channel : str
+            master channel name
+
+        master_type : int, optional
+            master channel type : 0=None, 1=Time, 2=Angle, 3=Distance, 4=index
+        unit : str, optional
+            unit description
+        description : str, optional
+            channel description
+        conversion : info class, optional
+            conversion description from info class
+        """
         self[channel_name] = {}
         self[channel_name]['data'] = data
         self[channel_name]['unit'] = unit
@@ -108,8 +142,19 @@ class mdf_skeleton(dict):
                     self[channel_name]['conversion']['parameters']['cc_ref'] = conversion['cc_ref']
     
     def remove_channel(self, channel_name):
+        """ removes channel from mdf dict.
+
+        Parameters
+        ----------------
+        channel_name : str
+            channel name
+        
+        Returns
+        -------
+        value of mdf dict key=channel_name
+        """
         self.masterChannelList[self[channel_name]['master']].pop(channel_name)
-        del self[channel_name]
+        return self.pop(channel_name)
     
     def __repr__(self):
         output = 'file name : ' + self.fileName + '\n'
