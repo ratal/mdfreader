@@ -83,9 +83,9 @@ def convertMatlabName(channel):
 
 class mdfinfo(dict):
 
-    """MDFINFO is a class gathering information from block headers in a MDF (Measure Data Format) file
-        Structure: nested dicts. Primary key is Block type, then data group, channel group and channel number.
-        Examples of dicts:
+    """ MDFINFO is a class gathering information from block headers in a MDF (Measure Data Format) file
+        Structure is nested dicts. Primary key is Block type, then data group, channel group and channel number.
+        Examples of dicts
     - mdfinfo['HDBlock'] header block
     - mdfinfo['DGBlock'][dataGroup] Data Group block
     - mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
@@ -117,6 +117,7 @@ class mdfinfo(dict):
     """
 
     def __init__(self, fileName=None, filterChannelNames=False):
+
         """ You can give optionally to constructor a file name that will be parsed
 
         Parameters
@@ -126,12 +127,14 @@ class mdfinfo(dict):
         filterChannelNames : bool, optional
             flag to filter long channel names including module names separated by a '.'
         """
+
         self.fileName = fileName
         self.mdfversion = 0
         if fileName is not None:
             self.readinfo(fileName, filterChannelNames)
 
     def readinfo(self, fileName=None, filterChannelNames=False):
+
         """ Reads MDF file and extracts its complete structure
 
         Parameters
@@ -141,6 +144,7 @@ class mdfinfo(dict):
         filterChannelNames : bool, optional
             flag to filter long channel names including module names separated by a '.'
         """
+
         if self.fileName is None:
             self.fileName = fileName
         # Open file
@@ -160,6 +164,7 @@ class mdfinfo(dict):
             self.update(info4(None, fid))
 
     def listChannels(self, fileName=None):
+
         """ Read MDF file blocks and returns a list of contained channels
 
         Parameters
@@ -172,6 +177,7 @@ class mdfinfo(dict):
         nameList : list of string
             list of channel names
         """
+
         if self.fileName is None:
             self.fileName = fileName
         # Open file

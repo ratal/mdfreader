@@ -799,6 +799,7 @@ class mdf3(mdf_skeleton):
         --------
         All channels will be converted to physical data, so size might be bigger than original file
         """
+
         LINK = 'I'
         #CHAR = 'c'
         REAL = 'd'
