@@ -5,7 +5,7 @@ Platform and python version
 ----------------------------------------
 With Unix and Windows for python 2.6+ and 3.2+
 
-:Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
+:Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
 
 Created on Sun Oct 10 12:57:28 2010
 
@@ -34,8 +34,12 @@ mdfreader module
 from io import open
 from struct import unpack
 from math import ceil
-from .mdf3reader import mdf3
-from .mdf4reader import mdf4
+try:
+    from .mdf3reader import mdf3
+    from .mdf4reader import mdf4
+except:
+    from mdf3reader import mdf3
+    from mdf4reader import mdf4
 from numpy import arange, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
 from numpy import nan, datetime64, array
 

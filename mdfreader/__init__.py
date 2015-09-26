@@ -20,4 +20,9 @@ __version__ = "0.2.0"
 
 #if it's run as a script or imported within python, this happens
 if __name__ == 'mdfreader':
+    from .mdf import mdf_skeleton
+    from .mdf3reader import mdf3
+    from .mdf4reader import mdf4
+    from .mdfinfo3 import info3
+    from .mdfinfo4 import info4, MDFBlock, ATBlock
     from .mdfreader import mdf,mdfinfo

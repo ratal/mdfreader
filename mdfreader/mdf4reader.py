@@ -5,7 +5,7 @@ Platform and python version
 ----------------------------------------
 With Unix and Windows for python 2.6+ and 3.2+
 
-:Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
+:Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
 
 Created on Thu Dec 10 12:57:28 2013
 
@@ -34,8 +34,12 @@ from struct import unpack as structunpack
 from math import pow
 from sys import platform, version_info, exc_info, byteorder
 from io import open  # for python 3 and 2 consistency
-from .mdfinfo4 import info4, MDFBlock, ATBlock
-from .mdf import mdf_skeleton
+try:
+    from .mdfinfo4 import info4, MDFBlock, ATBlock
+    from .mdf import mdf_skeleton
+except:
+    from mdfinfo4 import info4, MDFBlock, ATBlock
+    from mdf import mdf_skeleton
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
 PythonVersion = version_info

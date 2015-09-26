@@ -7,7 +7,7 @@ With Unix and Windows for python 2.6+ and 3.2+
 
 Created on Sun Dec 15 12:57:28 2013
 
-:Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
+:Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
 
 Dependencies
 -------------------

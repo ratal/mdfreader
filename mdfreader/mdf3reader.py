@@ -5,7 +5,7 @@ Platform and python version
 ----------------------------------------
 With Unix and Windows for python 2.6+ and 3.2+
 
-:Author: `Aymeric Rateau <http://code.google.com/p/mdfreader/>`__
+:Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
 
 Created on Sun Oct 10 12:57:28 2010
 
@@ -32,8 +32,12 @@ from sys import platform, version_info
 from time import strftime, time
 from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
-from .mdfinfo3 import info3
-from .mdf import mdf_skeleton
+try:
+    from .mdf import mdf_skeleton
+    from .mdfinfo3 import info3
+except:
+    from mdf import mdf_skeleton
+    from mdfinfo3 import info3
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
