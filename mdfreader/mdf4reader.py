@@ -1252,9 +1252,9 @@ class mdf4(mdf_skeleton):
                                 unit = unit['Comment']
                             if 'Comment' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
                                 desc = info['CNBlock'][dataGroup][channelGroup][channel]['Comment']
-                                if 'description' in desc:
+                                if desc is not None and 'description' in desc:
                                     desc = desc['description']
-                                if desc is dict and 'name' in desc.keys():
+                                if desc is not None and 'name' in desc:
                                     desc = desc['name']
                             else:
                                 desc = ''

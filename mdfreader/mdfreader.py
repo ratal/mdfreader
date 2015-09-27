@@ -40,7 +40,7 @@ try:
 except:
     from mdf3reader import mdf3
     from mdf4reader import mdf4
-from numpy import arange, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
+from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
 from numpy import nan, datetime64, array
 
 from argparse import ArgumentParser
@@ -466,17 +466,17 @@ class mdf(mdf3, mdf4):
             except:
                 print(Name)
 
-    def resample(self, samplingTime=0.1, masterChannel=None):
+    def resample(self, samplingTime=None, masterChannel=None):
         """ Resamples all data groups into one data group having defined
         sampling interval or sharing same master channel
 
         Parameters
         ----------------
-        samplingTime : float
+        samplingTime : float, optional
             resampling interval
         **or**
-        masterChannel : str
-            master channel name used for all channels
+        masterChannel : str, optional
+            master channel name to be used for all channels
 
         Notes
         --------
@@ -491,44 +491,55 @@ class mdf(mdf3, mdf4):
         """
         # must make sure all channels are converted
         self.convertAllChannel()
-        # resample all channels to one sampling time vector
-        if len(list(self.masterChannelList.keys())) > 1:  # Not yet resampled
-            channelNames = list(self.keys())
-            minTime = maxTime = []
-            if masterChannel is None:  # create master channel if not proposed
-                masterChannelName = 'master'
-                self[masterChannelName] = {}
-                unit = ''
-                masterType = 1  # time by default
-
-                for master in list(self.masterChannelList.keys()):
-                    masterData = self.getChannelData(master)
-                    if master in self and len(masterData) > 5:  # consider groups having minimum size
-                        minTime.append(masterData[0])
-                        maxTime.append(masterData[len(masterData) - 1])
-                        if len(self.getChannelUnit(master)) > 1:
-                            unit = self.getChannelUnit(master)
-                            masterType = self[master]['masterType']
-                self[masterChannelName]['data'] = arange(min(minTime), max(maxTime), samplingTime)
-                self[masterChannelName]['unit'] = unit
-                self[masterChannelName]['description'] = 'Unique master channel'
-                self[masterChannelName]['masterType'] = masterType
+        if masterChannel is None:  # create master channel if not proposed
+            minTime = []
+            maxTime = []
+            length = []
+            masterChannelName = 'master'
+            for master in list(self.masterChannelList.keys()):
+                masterData = self.getChannelData(master)
+                if master in self and len(masterData) > 5:  # consider groups having minimum size
+                    minTime.append(masterData[0])
+                    maxTime.append(masterData[-1])
+                    length.append(len(masterData))
+            if samplingTime is None:
+                masterData = linspace(min(minTime), max(maxTime), num=max(length))
             else:
-                masterChannelName = masterChannel
+                masterData = arange(min(minTime), max(maxTime), samplingTime)
+            self.add_channel(masterChannelName, \
+                masterData, \
+                masterChannelName, \
+                master_type=self[master]['masterType'], \
+                unit=self.getChannelUnit(master), \
+                description=self[master]['description'], \
+                conversion=None)
+        else:
+            masterChannelName = masterChannel # master channel defined in argument
+            if masterChannel not in list(self.masterChannelList.keys()):
+                print('master channel name not in existing')
+                raise
+        # resample all channels to one sampling time vector
+        if len(list(self.masterChannelList.keys())) > 1:  # Not yet resampled or only 1 datagroup
+            if masterChannel is None:  # create master channel if not proposed
+                self.add_channel(masterChannelName, \
+                    masterData, \
+                    masterChannelName, \
+                    master_type=self[master]['masterType'], \
+                    unit=self.getChannelUnit(master), \
+                    description=self[master]['description'], \
+                    conversion=None)
 
             # Interpolate channels
             timevect = []
-            for Name in channelNames:
+            masterData = self.getChannelData(masterChannelName)
+            for Name in list(self.keys()):
                 try:
                     if Name not in list(self.masterChannelList.keys()):  # not a master channel
                         timevect = self.getChannelData(self[Name]['master'])
                         if not self.getChannelData(Name).dtype.kind in ('S', 'U'):  # if channel not array of string
-                            self[Name]['data'] = interp(self.getChannelData(masterChannelName), timevect, self.getChannelData(Name))
-                            if masterChannelName in self[Name]:
-                                del self[Name][masterChannelName]
+                            self[Name]['data'] = interp(masterData, timevect, self.getChannelData(Name))
                         else:  # can not interpolate strings, remove channel containing string
-                            self.masterChannelList[self[Name]['master']].remove(Name)
-                            self.pop(Name)
+                            self.remove_channel(Name)
                 except:
                     if len(timevect) != len(self.getChannelData(Name)):
                         print((Name + ' and master channel ' + self[Name][masterChannelName] + ' do not have same length'))
@@ -536,10 +547,17 @@ class mdf(mdf3, mdf4):
                         print((Name + ' has non regularly increasing master channel ' + self[Name][masterChannelName]))
             # remove time channels in masterChannelList
             for ind in list(self.masterChannelList.keys()):
-                del self[ind]
+                if ind != masterChannelName:
+                    del self[ind]
             self.masterChannelList = {}  # empty dict
             self.masterChannelList[masterChannelName] = list(self.keys())
-        else:
+        elif len(list(self.masterChannelList.keys())) == 1 and samplingTime is not None: # resamples only 1 datagroup
+            masterData = self.getChannelData(list(self.masterChannelList.keys())[0])
+            masterData = arange(masterData[0], masterData[-1], samplingTime)
+            for Name in list(self.keys()):
+                timevect = self.getChannelData(self[Name]['master'])
+                self[Name]['data'] = interp(masterData, timevect, self.getChannelData(Name))
+        elif samplingTime is None:
             print('Already resampled')
 
     def exportToCSV(self, filename=None, sampling=0.1):
