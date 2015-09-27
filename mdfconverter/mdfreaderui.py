@@ -6,7 +6,10 @@ Module implementing MainWindow.
 from PyQt4.QtGui import QMainWindow, QFileDialog, QAction
 from PyQt4.QtCore import pyqtSignature, SIGNAL
 
-from Ui_mdfreaderui import Ui_MainWindow
+try:
+    from .Ui_mdfreaderui import Ui_MainWindow
+except:
+    from Ui_mdfreaderui import Ui_MainWindow
 from io import open
 from multiprocessing import Pool, cpu_count
 from mdfreader import *

@@ -1,5 +1,8 @@
 ﻿from PyQt4 import QtGui
-from mdfreaderui import MainWindow
+try:
+    from .mdfreaderui import MainWindow
+except:
+    from mdfreaderui import MainWindow
 from sys import argv, exit
 from multiprocessing import freeze_support
 
