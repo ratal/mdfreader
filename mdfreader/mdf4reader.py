@@ -1315,8 +1315,8 @@ class mdf4(mdf_skeleton):
         if channelName in self:
             return convertChannelData4(self[channelName], channelName, self.convert_tables)[channelName]
         else:
-            raise KeyError('Channel not in dictionary')
-            return channelName
+            raise KeyError(channelName + ' channel not in dictionary')
+            
 
     def _convertChannel4(self, channelName):
         """converts specific channel from raw to physical data according to CCBlock information

@@ -762,7 +762,10 @@ class mdf(mdf3, mdf4):
                     # create new time group
                     ngroups += 1
                     groups[self[channel]['master']] = ngroups
-                    grp[ngroups] = filegroup.create_group(self[channel]['master'])
+                    if self[channel]['master']!='':
+                        grp[ngroups] = filegroup.create_group(self[channel]['master'])
+                    else:
+                        grp[ngroups] = filegroup.create_group('master'+str(ngroups))
                 dset = grp[groups[self[channel]['master']]].create_dataset(channel, data=self.getChannelData(channel))
                 setAttribute(dset, 'unit', self.getChannelUnit(channel))
                 setAttribute(dset, 'description', self[channel]['description'])
