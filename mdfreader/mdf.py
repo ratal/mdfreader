@@ -126,11 +126,13 @@ class mdf_skeleton(dict):
                 self[channel_name]['masterType'] = 1
         else: #  mdf4
             self[channel_name]['masterType'] = master_type
-        if conversion is not None and 'conversion' in conversion:
+        if conversion is not None:
             self[channel_name]['conversion'] = {}
             self[channel_name]['conversion']['type'] = conversion['cc_type']
-            self[channel_name]['conversion']['parameters'] = conversion['conversion']
+            self[channel_name]['conversion']['parameters'] = {}
             if self.MDFVersionNumber < 400: #  mdf3
+                if 'conversion' in conversion:
+                    self[channel_name]['conversion']['parameters'] = conversion['conversion']
                 if conversion['cc_type'] == 0 and \
                         (self[channel_name]['conversion']['parameters']['P2'] == 1.0 and \
                         self[channel_name]['conversion']['parameters']['P1'] in (0.0, -0.0)):

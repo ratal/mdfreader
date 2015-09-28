@@ -42,6 +42,7 @@ except:
     from mdf4reader import mdf4
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
 from numpy import nan, datetime64, array
+from datetime import datetime
 
 from argparse import ArgumentParser
 from sys import version_info
@@ -473,7 +474,8 @@ class mdf(mdf3, mdf4):
         Parameters
         ----------------
         samplingTime : float, optional
-            resampling interval
+            resampling interval, None by default. If None, will merge all datagroups
+            into a unique datagroup having the highest sampling rate from all datagroups
         **or**
         masterChannel : str, optional
             master channel name to be used for all channels
@@ -560,7 +562,7 @@ class mdf(mdf3, mdf4):
         elif samplingTime is None:
             print('Already resampled')
 
-    def exportToCSV(self, filename=None, sampling=0.1):
+    def exportToCSV(self, filename=None, sampling=None):
         """Exports mdf data into CSV file
 
         Parameters
@@ -569,7 +571,7 @@ class mdf(mdf3, mdf4):
             file name. If no name defined, it will use original mdf name and path
 
         sampling : float, optional
-            sampling interval. By default, sampling is 0.1sec but can be changed
+            sampling interval. None by default
 
         Notes
         --------
@@ -1056,9 +1058,16 @@ class mdf(mdf3, mdf4):
             raise ImportError('Module pandas missing')
         if sampling is not None:
             self.resample(sampling)
-        datetimeInfo = datetime64(self.file_metadata['date'].replace(':', '-') + 'T' + self.file_metadata['time'])
+        if self.file_metadata['date'] != '' and self.file_metadata['time']!='':
+            date = self.file_metadata['date'].replace(':', '-')
+            time = self.file_metadata['time']
+            datetimeInfo = datetime64(date + 'T' + time)
+        else:
+            datetimeInfo = datetime64(datetime.now())
         originalKeys = list(self.keys())
         for group in list(self.masterChannelList.keys()):
+            if self[group]['masterType']!=1:
+                print('Warning: master channel is not time, not appropriate conversion for pandas')
             temp = {}
             # convert time channel into timedelta
             time = datetimeInfo + array(self.getChannelData(group) * 10E6, dtype='timedelta64[us]')
