@@ -499,22 +499,24 @@ class mdf(mdf3, mdf4):
             length = []
             masterChannelName = 'master'
             for master in list(self.masterChannelList.keys()):
-                masterData = self.getChannelData(master)
-                if master in self and len(masterData) > 5:  # consider groups having minimum size
-                    minTime.append(masterData[0])
-                    maxTime.append(masterData[-1])
-                    length.append(len(masterData))
-            if samplingTime is None:
-                masterData = linspace(min(minTime), max(maxTime), num=max(length))
-            else:
-                masterData = arange(min(minTime), max(maxTime), samplingTime)
-            self.add_channel(masterChannelName, \
-                masterData, \
-                masterChannelName, \
-                master_type=self[master]['masterType'], \
-                unit=self.getChannelUnit(master), \
-                description=self[master]['description'], \
-                conversion=None)
+                if master != '':
+                    masterData = self.getChannelData(master)
+                    if master in self and len(masterData) > 5:  # consider groups having minimum size
+                        minTime.append(masterData[0])
+                        maxTime.append(masterData[-1])
+                        length.append(len(masterData))
+            if minTime: # at least 1 datagroup has a master channel to be resampled
+                if samplingTime is None:
+                    masterData = linspace(min(minTime), max(maxTime), num=max(length))
+                else:
+                    masterData = arange(min(minTime), max(maxTime), samplingTime)
+                self.add_channel(masterChannelName, \
+                    masterData, \
+                    masterChannelName, \
+                    master_type=self[master]['masterType'], \
+                    unit=self.getChannelUnit(master), \
+                    description=self[master]['description'], \
+                    conversion=None)
         else:
             masterChannelName = masterChannel # master channel defined in argument
             if masterChannel not in list(self.masterChannelList.keys()):
@@ -590,20 +592,25 @@ class mdf(mdf3, mdf4):
             f = open(filename, "wt", encoding='latin-1')
         writer = csv.writer(f, dialect=csv.excel)
         # writes header
-        writer.writerow([name for name in list(self.keys()) if self.getChannelData(name).dtype.kind not in ('S', 'U')])  # writes channel names
+        writer.writerow([name for name in list(self.keys()) \
+                if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V')])  # writes channel names
         if PythonVersion < 3:
             units = []
             for name in list(self.keys()):
-                if self.getChannelData(name).dtype.kind not in ('S', 'U'):
+                if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V'):
                     if self.getChannelUnit(name) is bytes:
                         units.append(self.getChannelUnit(name).encode('unicode', 'ignore'))
                     else:
                         units.append(self.getChannelUnit(name))
             writer.writerow(units)  # writes units
         else:
-            writer.writerow([self.getChannelUnit(name) for name in list(self.keys()) if self.getChannelData(name).dtype.kind not in ('S', 'U')])  # writes units
+            writer.writerow([self.getChannelUnit(name) \
+                    for name in list(self.keys()) 
+                    if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V')])  # writes units
         # concatenate all channels
-        buf = vstack([self.getChannelData(name).transpose() for name in list(self.keys()) if self.getChannelData(name).dtype.kind not in ('S', 'U')])
+        buf = vstack([self.getChannelData(name).transpose() \
+                for name in list(self.keys()) \
+                if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V')])
         buf = buf.transpose()
         # Write all rows
         r, c = buf.shape
@@ -758,6 +765,7 @@ class mdf(mdf3, mdf4):
             ngroups = 0
             grp = {}
             for channel in list(self.keys()):
+                channelData = self.getChannelData(channel)
                 if self[channel]['master'] not in list(groups.keys()):
                     # create new time group
                     ngroups += 1
@@ -766,15 +774,18 @@ class mdf(mdf3, mdf4):
                         grp[ngroups] = filegroup.create_group(self[channel]['master'])
                     else:
                         grp[ngroups] = filegroup.create_group('master'+str(ngroups))
-                dset = grp[groups[self[channel]['master']]].create_dataset(channel, data=self.getChannelData(channel))
-                setAttribute(dset, 'unit', self.getChannelUnit(channel))
-                setAttribute(dset, 'description', self[channel]['description'])
+                if channelData.dtype.kind not in ('U', 'O'):  # not supported type
+                    dset = grp[groups[self[channel]['master']]].create_dataset(channel, data=channelData)
+                    setAttribute(dset, 'unit', self.getChannelUnit(channel))
+                    setAttribute(dset, 'description', self[channel]['description'])
         else:  # resampled or only one time for all channels : no groups
             for channel in list(self.keys()):
-                channelName = convertMatlabName(channel)
-                dset = filegroup.create_dataset(channelName, data=self.getChannelData(channel))
-                setAttribute(dset, 'unit', self.getChannelUnit(channel))
-                setAttribute(dset, 'description', self[channel]['description'])
+                channelData = self.getChannelData(channel)
+                if channelData.dtype.kind not in ('U', 'O'):  # not supported type
+                    channelName = convertMatlabName(channel)
+                    dset = filegroup.create_dataset(channelName, data=channelData)
+                    setAttribute(dset, 'unit', self.getChannelUnit(channel))
+                    setAttribute(dset, 'description', self[channel]['description'])
         f.close()
 
     def exportToMatlab(self, filename=None):
@@ -807,7 +818,7 @@ class mdf(mdf3, mdf4):
         temp = {}
         for channel in list(self.keys()):
             data = self.getChannelData(channel)
-            if data.dtype.kind not in ('S', 'U'):  # does not like special characters chains, skip
+            if data.dtype.kind not in ('S', 'U', 'V'):  # does not like special characters chains, skip
                 channelName = convertMatlabName(channel)
                 temp[channelName] = data
         try:  # depends of version used , compression can be used

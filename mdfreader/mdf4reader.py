@@ -796,6 +796,13 @@ class record(list):
         self.byte_aligned = True
         self.invalid_channel = None
 
+    def __repr__(self):
+        output = 'Channels :\n'
+        for chan in self.channelNames:
+            output += chan + '\n'
+        output += 'Datagroup number ' + str(self.dataGroup) + '\n'
+        output += 'Byte aligned ' + str(self.byte_aligned) + '\n'
+        return output
     def addChannel(self, info, channelNumber):
         """ add a channel in class
 
@@ -1268,8 +1275,11 @@ class mdf4(mdf_skeleton):
                                 # attach stream to be synchronised
                                 self[channelName]['attachment'] = ATBlock(fid, info['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
                          
-                        elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type'] == 13:  # CANopen date
-                            identifier = ['ms', 'min', 'hour', 'day', 'month', 'year']
+                        elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type'] in (13, 14):
+                            if info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type'] == 13:
+                                identifier = ['ms', 'min', 'hour', 'day', 'month', 'year']  # CANopen date
+                            else:  # CANopen time cn_data_type == 14
+                                identifier = ['ms', 'days']
                             for name in identifier:
                                 self[name] = {}
                                 self[name]['data'] = L[name]
@@ -1277,16 +1287,7 @@ class mdf4(mdf_skeleton):
                                 self[name]['description'] = ''
                                 self[name]['masterType'] = info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
                                 if masterDataGroup:  # master channel exist
-                                    self.masterChannelList[masterDataGroup[dataGroup]].append(name)
-                        elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type'] == 14:  # CANopen time
-                            identifier = ['ms', 'days']
-                            for name in identifier:
-                                self[name] = {}
-                                self[name]['data'] = L[name]
-                                self[name]['unit'] = name
-                                self[name]['description'] = ''
-                                self[name]['masterType'] = info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
-                                if masterDataGroup:  # master channel exist
+                                    self[name]['master'] = master_channel
                                     self.masterChannelList[masterDataGroup[dataGroup]].append(name)
 
         fid.close()  # close file
