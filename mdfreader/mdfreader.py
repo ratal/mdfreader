@@ -491,78 +491,83 @@ class mdf(mdf3, mdf4):
         2. resampling will convert all your channels so be careful for big files
         and memory consumption
         """
-        # must make sure all channels are converted
-        self.convertAllChannel()
-        if masterChannel is None:  # create master channel if not proposed
-            minTime = []
-            maxTime = []
-            length = []
-            masterChannelName = 'master'
-            for master in list(self.masterChannelList.keys()):
-                if master != '':
-                    masterData = self.getChannelData(master)
-                    if master in self and len(masterData) > 5:  # consider groups having minimum size
-                        minTime.append(masterData[0])
-                        maxTime.append(masterData[-1])
-                        length.append(len(masterData))
-            if minTime: # at least 1 datagroup has a master channel to be resampled
-                if samplingTime is None:
-                    masterData = linspace(min(minTime), max(maxTime), num=max(length))
-                else:
-                    masterData = arange(min(minTime), max(maxTime), samplingTime)
-                self.add_channel(masterChannelName, \
-                    masterData, \
-                    masterChannelName, \
-                    master_type=self[master]['masterType'], \
-                    unit=self.getChannelUnit(master), \
-                    description=self[master]['description'], \
-                    conversion=None)
-        else:
-            masterChannelName = masterChannel # master channel defined in argument
-            if masterChannel not in list(self.masterChannelList.keys()):
-                print('master channel name not in existing')
-                raise
-        # resample all channels to one sampling time vector
-        if len(list(self.masterChannelList.keys())) > 1:  # Not yet resampled or only 1 datagroup
+        if self: # mdf contains data 
+            # must make sure all channels are converted
+            self.convertAllChannel()
+            masterData = None
             if masterChannel is None:  # create master channel if not proposed
-                self.add_channel(masterChannelName, \
-                    masterData, \
-                    masterChannelName, \
-                    master_type=self[master]['masterType'], \
-                    unit=self.getChannelUnit(master), \
-                    description=self[master]['description'], \
-                    conversion=None)
+                minTime = []
+                maxTime = []
+                length = []
+                masterChannelName = 'master'
+                for master in list(self.masterChannelList.keys()):
+                    if master != '' and master is not None and self.masterChannelList[master]:
+                        masterData = self.getChannelData(master)
+                        if master in self and len(masterData) > 5:  # consider groups having minimum size
+                            minTime.append(masterData[0])
+                            maxTime.append(masterData[-1])
+                            length.append(len(masterData))
+                if minTime: # at least 1 datagroup has a master channel to be resampled
+                    if samplingTime is None:
+                        masterData = linspace(min(minTime), max(maxTime), num=max(length))
+                    else:
+                        masterData = arange(min(minTime), max(maxTime), samplingTime)
+                    self.add_channel(masterChannelName, \
+                        masterData, \
+                        masterChannelName, \
+                        master_type=self[master]['masterType'], \
+                        unit=self.getChannelUnit(master), \
+                        description=self[master]['description'], \
+                        conversion=None)
+            else:
+                masterChannelName = masterChannel # master channel defined in argument
+                if masterChannel not in list(self.masterChannelList.keys()):
+                    print('master channel name not in existing')
+                    raise
+            # resample all channels to one sampling time vector
+            if len(list(self.masterChannelList.keys())) > 1:  # Not yet resampled or only 1 datagroup
+                if masterChannel is None and masterData is not None:  # create master channel if not proposed
+                    self.add_channel(masterChannelName, \
+                        masterData, \
+                        masterChannelName, \
+                        master_type=self[master]['masterType'], \
+                        unit=self.getChannelUnit(master), \
+                        description=self[master]['description'], \
+                        conversion=None)
 
-            # Interpolate channels
-            timevect = []
-            masterData = self.getChannelData(masterChannelName)
-            for Name in list(self.keys()):
-                try:
-                    if Name not in list(self.masterChannelList.keys()):  # not a master channel
-                        timevect = self.getChannelData(self[Name]['master'])
-                        if not self.getChannelData(Name).dtype.kind in ('S', 'U'):  # if channel not array of string
-                            self[Name]['data'] = interp(masterData, timevect, self.getChannelData(Name))
-                        else:  # can not interpolate strings, remove channel containing string
-                            self.remove_channel(Name)
-                except:
-                    if len(timevect) != len(self.getChannelData(Name)):
-                        print((Name + ' and master channel ' + self[Name][masterChannelName] + ' do not have same length'))
-                    elif not all(diff(timevect) > 0):
-                        print((Name + ' has non regularly increasing master channel ' + self[Name][masterChannelName]))
-            # remove time channels in masterChannelList
-            for ind in list(self.masterChannelList.keys()):
-                if ind != masterChannelName:
-                    del self[ind]
-            self.masterChannelList = {}  # empty dict
-            self.masterChannelList[masterChannelName] = list(self.keys())
-        elif len(list(self.masterChannelList.keys())) == 1 and samplingTime is not None: # resamples only 1 datagroup
-            masterData = self.getChannelData(list(self.masterChannelList.keys())[0])
-            masterData = arange(masterData[0], masterData[-1], samplingTime)
-            for Name in list(self.keys()):
-                timevect = self.getChannelData(self[Name]['master'])
-                self[Name]['data'] = interp(masterData, timevect, self.getChannelData(Name))
-        elif samplingTime is None:
-            print('Already resampled')
+                # Interpolate channels
+                timevect = []
+                if masterChannelName in self:
+                    masterData = self.getChannelData(masterChannelName)
+                for Name in list(self.keys()):
+                    try:
+                        if Name not in list(self.masterChannelList.keys()):  # not a master channel
+                            timevect = self.getChannelData(self[Name]['master'])
+                            if not self.getChannelData(Name).dtype.kind in ('S', 'U'):  # if channel not array of string
+                                self[Name]['data'] = interp(masterData, timevect, self.getChannelData(Name))
+                            else:  # can not interpolate strings, remove channel containing string
+                                self.remove_channel(Name)
+                    except:
+                        if len(timevect) != len(self.getChannelData(Name)):
+                            print((Name + ' and master channel ' + self[Name][masterChannelName] + ' do not have same length'))
+                        elif not all(diff(timevect) > 0):
+                            print((Name + ' has non regularly increasing master channel ' + self[Name][masterChannelName]))
+                # remove time channels in masterChannelList
+                for ind in list(self.masterChannelList.keys()):
+                    if ind != masterChannelName and ind in self:
+                        del self[ind]
+                self.masterChannelList = {}  # empty dict
+                self.masterChannelList[masterChannelName] = list(self.keys())
+            elif len(list(self.masterChannelList.keys())) == 1 and samplingTime is not None: # resamples only 1 datagroup
+                masterData = self.getChannelData(list(self.masterChannelList.keys())[0])
+                masterData = arange(masterData[0], masterData[-1], samplingTime)
+                for Name in list(self.keys()):
+                    timevect = self.getChannelData(self[Name]['master'])
+                    self[Name]['data'] = interp(masterData, timevect, self.getChannelData(Name))
+            elif samplingTime is None:
+                print('Already resampled')
+        else:
+            print('no data to be resampled')
 
     def exportToCSV(self, filename=None, sampling=None):
         """Exports mdf data into CSV file
@@ -581,41 +586,54 @@ class mdf(mdf3, mdf4):
         data not sharing same master channel
         Warning: this can be slow for big data, CSV is text format after all
         """
-        import csv
-        self.resample(sampling)
-        if filename is None:
-            filename = splitext(self.fileName)[0]
-            filename = filename + '.csv'
-        if PythonVersion < 3:
-            f = open(filename, "wb")
-        else:
-            f = open(filename, "wt", encoding='latin-1')
-        writer = csv.writer(f, dialect=csv.excel)
-        # writes header
-        writer.writerow([name for name in list(self.keys()) \
-                if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V')])  # writes channel names
-        if PythonVersion < 3:
-            units = []
+        if self: # data in mdf
+            import csv
+            self.resample(sampling)
+            if filename is None:
+                filename = splitext(self.fileName)[0]
+                filename = filename + '.csv'
+            if PythonVersion < 3:
+                f = open(filename, "wb")
+            else:
+                f = open(filename, "wt", encoding='latin-1')
+            writer = csv.writer(f, dialect=csv.excel)
+            # writes header
+            writer.writerow([name for name in list(self.keys()) \
+                    if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V') \
+                    and self.getChannelData(name).ndim <= 1])  # writes channel names
+            if PythonVersion < 3:
+                units = []
+                for name in list(self.keys()):
+                    data = self.getChannelData(name)
+                    if data.dtype.kind not in ('S', 'U', 'V') \
+                            and data.ndim <= 1:
+                        if self.getChannelUnit(name) is bytes:
+                            units.append(self.getChannelUnit(name).encode('unicode', 'ignore'))
+                        else:
+                            units.append(self.getChannelUnit(name))
+                writer.writerow(units)  # writes units
+            else:
+                writer.writerow([self.getChannelUnit(name) \
+                        for name in list(self.keys()) 
+                        if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V') \
+                        and self.getChannelData(name).ndim <= 1])  # writes units
+            # concatenate all channels
+            temp=[]
             for name in list(self.keys()):
-                if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V'):
-                    if self.getChannelUnit(name) is bytes:
-                        units.append(self.getChannelUnit(name).encode('unicode', 'ignore'))
-                    else:
-                        units.append(self.getChannelUnit(name))
-            writer.writerow(units)  # writes units
+                data = self.getChannelData(name)
+                print(name + str(data.shape))
+                if data.dtype.kind not in ('S', 'U', 'V') \
+                        and data.ndim <= 1:
+                    temp.append(data.transpose())
+            if temp:
+                buf = vstack(temp)
+                buf = buf.transpose()
+                # Write all rows
+                r, c = buf.shape
+                writer.writerows([list(buf[i, :]) for i in range(r)])
+            f.close()
         else:
-            writer.writerow([self.getChannelUnit(name) \
-                    for name in list(self.keys()) 
-                    if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V')])  # writes units
-        # concatenate all channels
-        buf = vstack([self.getChannelData(name).transpose() \
-                for name in list(self.keys()) \
-                if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V')])
-        buf = buf.transpose()
-        # Write all rows
-        r, c = buf.shape
-        writer.writerows([list(buf[i, :]) for i in range(r)])
-        f.close()
+            print('no data to be exported')
 
     def exportToNetCDF(self, filename=None, sampling=None):
         """Exports mdf data into netcdf file

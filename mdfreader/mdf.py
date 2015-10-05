@@ -164,7 +164,8 @@ class mdf_skeleton(dict):
             output += m + ' : ' + str(self.file_metadata[m]) + '\n'
         output += '\nchannels listed by data groups:\n'
         for d in self.masterChannelList.keys():
-            output += d + '\n'
+            if d is not None:
+                output += d + '\n'
             for c in self.masterChannelList[d]:
                 output += '  ' + c + ' : ' + str(self[c]['description']) + '\n'
                 output += '    ' + array_repr(self[c]['data'], precision=3, suppress_small=True) \
