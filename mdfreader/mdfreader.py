@@ -621,7 +621,6 @@ class mdf(mdf3, mdf4):
             temp=[]
             for name in list(self.keys()):
                 data = self.getChannelData(name)
-                print(name + str(data.shape))
                 if data.dtype.kind not in ('S', 'U', 'V') \
                         and data.ndim <= 1:
                     temp.append(data.transpose())
@@ -784,18 +783,21 @@ class mdf(mdf3, mdf4):
             grp = {}
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
-                if self[channel]['master'] not in list(groups.keys()):
-                    # create new time group
+                if 'master' in self[channel] and self[channel]['master'] not in list(groups.keys()):
+                    # create new data group
                     ngroups += 1
-                    groups[self[channel]['master']] = ngroups
-                    if self[channel]['master']!='':
-                        grp[ngroups] = filegroup.create_group(self[channel]['master'])
+                    if self[channel]['master']!='' \
+                            and self[channel]['master'] is not None:
+                        group_name = self[channel]['master']
                     else:
-                        grp[ngroups] = filegroup.create_group('master'+str(ngroups))
+                        group_name = 'master'+str(ngroups)
+                    groups[group_name] = ngroups
+                    grp[ngroups] = filegroup.create_group(group_name)
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
-                    dset = grp[groups[self[channel]['master']]].create_dataset(channel, data=channelData)
+                    dset = grp[groups[group_name]].create_dataset(channel, data=channelData)
                     setAttribute(dset, 'unit', self.getChannelUnit(channel))
-                    setAttribute(dset, 'description', self[channel]['description'])
+                    if 'description' in self[channel]:
+                        setAttribute(dset, 'description', self[channel]['description'])
         else:  # resampled or only one time for all channels : no groups
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
@@ -803,7 +805,8 @@ class mdf(mdf3, mdf4):
                     channelName = convertMatlabName(channel)
                     dset = filegroup.create_dataset(channelName, data=channelData)
                     setAttribute(dset, 'unit', self.getChannelUnit(channel))
-                    setAttribute(dset, 'description', self[channel]['description'])
+                    if 'description' in self[channel]:
+                        setAttribute(dset, 'description', self[channel]['description'])
         f.close()
 
     def exportToMatlab(self, filename=None):

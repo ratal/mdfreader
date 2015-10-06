@@ -32,7 +32,7 @@ from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from struct import Struct
 from struct import unpack as structunpack
 from math import pow
-from sys import platform, version_info, exc_info, byteorder
+from sys import version_info, exc_info, byteorder
 from io import open  # for python 3 and 2 consistency
 try:
     from .mdfinfo4 import info4, MDFBlock, ATBlock
@@ -498,8 +498,18 @@ class recordChannel():
     --------------
     name : str
         Name of channel
+    unit : str, default empty string
+        channel unit
+    desc : str
+        channel description
+    conversion : info class
+        conversion dictionnary
     channelNumber : int
         channel number corresponding to mdfinfo3.info3 class
+    channelGroup : int
+        channel group number corresponding to mdfinfo3.info3 class
+    dataGroup : int
+        data group number corresponding to mdfinfo3.info3 class
     signalDataType : int
         signal type according to specification
     bitCount : int
@@ -561,6 +571,8 @@ class recordChannel():
         """
         self.name = info['CNBlock'][dataGroup][channelGroup][channelNumber]['name']
         self.channelNumber = channelNumber
+        self.dataGroup = dataGroup
+        self.channelGroup = channelGroup
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data_type']
         self.channelSyncType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_sync_type']
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_count']
@@ -603,6 +615,23 @@ class recordChannel():
         self.posBitBeg = self.posByteBeg * 8 + self.bitOffset
         self.posBitEnd = self.posBitBeg + self.bitCount
         self.VLSD_CG_Flag = False
+        if 'unit' in list(info['CCBlock'][dataGroup][channelGroup][channelNumber].keys()):
+            self.unit = info['CCBlock'][dataGroup][channelGroup][channelNumber]['unit']
+        elif 'unit' in list(info['CNBlock'][dataGroup][channelGroup][channelNumber].keys()):
+            self.unit = info['CNBlock'][dataGroup][channelGroup][channelNumber]['unit']
+        else:
+            self.unit = ''
+        if 'Comment' in self.unit:
+            self.unit = self.unit['Comment']
+        if 'Comment' in list(info['CNBlock'][dataGroup][channelGroup][channelNumber].keys()):
+            self.desc = info['CNBlock'][dataGroup][channelGroup][channelNumber]['Comment']
+            if self.desc is not None and 'description' in self.desc:
+                self.desc = self.desc['description']
+            if self.desc is not None and 'name' in self.desc:
+                self.desc = self.desc['name']
+        else:
+            self.desc = ''
+        self.conversion = info['CCBlock'][dataGroup][channelGroup][channelNumber]
 
     def __str__(self):
         output = str(self.channelNumber) + ' '
@@ -615,7 +644,12 @@ class recordChannel():
         output += 'ByteEnd ' + str(self.posByteEnd) + ' '
         output += 'BitBeg ' + str(self.posBitBeg) + ' '
         output += 'BitEnd ' + str(self.posBitEnd)
+        output += 'unit ' + self.unit
+        output += 'description ' + self.desc
         return output
+    
+    def attachment(self, fid, info): # in case of sync channel attached to channel
+        return ATBlock(fid, info['CNBlock'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data'])
 
 
 class invalid_bytes():
@@ -624,8 +658,14 @@ class invalid_bytes():
 
     Attributes
     -----------
-        name : str
+    name : str
         Name of channel
+    unit : str, default empty string
+        channel unit
+    desc : str
+        channel description
+    conversion : info class
+        conversion dictionnary
     signalDataType : int
         signal type according to specification
     bitCount : int
@@ -676,6 +716,9 @@ class invalid_bytes():
 
         """
         self.name = u'invalid_bytes' + str(dataGroup)
+        self.unit = ''
+        self.desc = ''
+        self.conversion = ''
         if byte_aligned:
             self.signalDataType = 10  # byte array
         else:
@@ -806,7 +849,8 @@ class record(list):
             output += chan + '\n'
         output += 'Datagroup number : ' + str(self.dataGroup) + '\n'
         output += 'Byte aligned : ' + str(self.byte_aligned) + '\n'
-        output += 'Master channel : ' + self.master['name'] + '\n'
+        if self.master['name'] is not None:
+            output += 'Master channel : ' + self.master['name'] + '\n'
         output += 'Numpy records format : \n'
         for record in self.numpyDataRecordFormat:
             output += str(record) + '\n'
@@ -865,8 +909,8 @@ class record(list):
             if channel.channelType in (2, 3):  # master channel found
                 if self.master['name'] is None or channel.channelSyncType==1:  # new master channel found
                     # or more than 1 master channel, priority to time channel
-                    self.master['name'] = channel.name
                     self.master['number'] = channelNumber
+                    self.master['name'] = channel.name
             if channel.channelType in (0, 1, 2, 4, 5):  # not virtual channel
                 self.append(channel)
                 self.channelNames.append(channel.name)
@@ -882,7 +926,13 @@ class record(list):
                     if channel.posBitBeg >= 8 * self[-2].byteOffset \
                             and channel.posBitEnd <= 8 * (self[-2].byteOffset + self[-2].nBytes):  # bit(s) in byte(s)
                         embedded_bytes = True
-                        self.recordToChannelMatching[channel.name] = self.recordToChannelMatching[self[-2].name]
+                        if self.recordToChannelMatching: # not first channel
+                            self.recordToChannelMatching[channel.name] = self.recordToChannelMatching[self[-2].name]
+                        else: # first channel
+                            self.recordToChannelMatching[channel.name] = channel.name
+                            self.numpyDataRecordFormat.append(channel.RecordFormat)
+                            self.dataRecordName.append(channel.name)
+                            self.recordLength += channel.nBytes
                 if not embedded_bytes:  # adding bytes
                     self.recordToChannelMatching[channel.name] = channel.name
                     if channel.signalDataType not in (13, 14):
@@ -1160,13 +1210,6 @@ class mdf4(mdf_skeleton):
             To calculate value from channel, you can then use method .getChannelData()
         """
         self.multiProc = multiProc
-        if platform in ('win32', 'win64'):
-            self.multiProc = False  # no multiprocessing for windows platform
-        try:
-            from multiprocessing import Queue, Process
-        except:
-            print('No multiprocessing module found')
-            self.multiProc = False
 
         if self.fileName is None and info is not None:
             self.fileName = info.fileName
@@ -1199,13 +1242,6 @@ class mdf4(mdf_skeleton):
         except IOError:
             raise Exception('Can not find file ' + self.fileName)
 
-        if self.multiProc:
-            # prepare multiprocessing of dataGroups
-            proc = []
-            Q = Queue()
-        L = {}
-
-        masterDataGroup = {}  # datagroup name correspondence with its master channel
         for dataGroup in info['DGBlock'].keys():
             if not info['DGBlock'][dataGroup]['dg_data'] == 0:  # data exists
                 # Pointer to data block
@@ -1215,90 +1251,89 @@ class mdf4(mdf_skeleton):
                 for channelGroup in info['CGBlock'][dataGroup].keys():
                     temp = record(dataGroup, channelGroup)  # create record class
                     temp.loadInfo(info)  # load all info related to record
-                    buf.addRecord(temp)
-                    masterDataGroup[dataGroup] = temp.master['name']
-                    if channelList is not None and masterDataGroup[dataGroup] not in channelList:
-                        channelList.append(masterDataGroup[dataGroup])
+                    buf.addRecord(temp)  # adds record to DATA
+                    if temp.master['name'] is not None:
+                        self.masterChannelList[temp.master['name']] = []
+                        if channelList is not None and temp.master['name'] not in channelList:
+                            channelList.append(temp.master['name'])  # adds master channel in channelList if missing
 
-                buf.read(channelList)  # reads raw data with DATA and DATABlock classes
+                buf.read(channelList)  # reads raw data from data block with DATA and DATABlock classes
 
-                # Convert channels to physical values
-                OkBuf = len(buf) > 0 and 'data' in buf[list(buf.keys())[0]] and buf[list(buf.keys())[0]]['data'] is not None
-                if self.multiProc and OkBuf:
-                    proc.append(Process(target=processDataBlocks4, args=(Q, buf, info, dataGroup, channelList, self.multiProc)))
-                    proc[-1].start()
-                elif OkBuf:  # for debugging purpose, can switch off multiprocessing
-                    L.update(processDataBlocks4(None, buf, info, dataGroup, channelList, self.multiProc))
-                elif buf.type == 'unsorted':
-                    L = buf['data']
-                else:
-                    print('No data in dataGroup ' + str(dataGroup))
+                # processing data from buf then transfer to self
+                for recordID in buf.keys(): # for each record in data block
+                    if 'record' in buf[recordID]:
+                        for chan in buf[recordID]['record']: # for each recordchannel
+                            if chan.name not in self: # channel name not yet existing
+                                channelName = chan.name
+                            else: # channel name conflict between datagroups, appends datagroup number
+                                channelName = chan.name + str(dataGroup)
+                            if (channelList is None or chan.name in channelList) \
+                                    and chan.signalDataType not in (13, 14) \
+                                    and 'invalid_bytes' not in chan.name:
+                                if chan.channelType not in (3, 6):  # not virtual channel
+                                    recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]  # in case record is used for several channels
+                                    if 'data' in buf[recordID] and \
+                                            buf[recordID]['data'] is not None: # no data in channel group
+                                        temp = buf[recordID]['data'].__getattribute__(convertName(recordName))  # extract channel vector
+                                    else:
+                                        temp = None
+                                else:  # virtual channel
+                                    temp = arange(buf[recordID]['record'].numberOfRecords)
+                                
+                                self[channelName] = {}
+                                # Process concatenated bits inside uint8
+                                if buf[recordID]['record'].byte_aligned and \
+                                        0 < chan.bitCount < 64 and chan.bitCount not in (8, 16, 32) \
+                                        and temp.dtype.kind not in ('S', 'U') \
+                                        and temp is not None:  # if channel data do not use complete bytes and Ctypes
+                                    if chan.signalDataType in (0, 1, 2, 3):  # integers
+                                        if chan.bitOffset > 0:
+                                            temp = right_shift(temp, chan.bitOffset)
+                                        mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUnit8
+                                        temp = bitwise_and(temp, mask)
+                                        self[channelName]['data'] = temp
+                                    else:  # should not happen
+                                        print('bit count and offset not applied to correct data type ',  channelName)
+                                        self[channelName]['data'] = temp
+                                else:  # data using full bytes
+                                    self[channelName]['data'] = temp
+
+                                # MLSD
+                                if chan.channelType == 5:
+                                    pass  # print('MLSD masking needed')
+                                
+                                # After all processing of channels,
+                                # prepare final class data with all its keys
+                                if temp is not None: # channel contains data
+                                    self.add_channel(channelName, self[channelName]['data'], \
+                                        buf[recordID]['record'].master['name'], \
+                                        master_type=chan.channelSyncType, \
+                                        unit=chan.unit, \
+                                        description=chan.desc, \
+                                        conversion=chan.conversion)
+                                    if chan.channelType == 4:  # sync channel
+                                        # attach stream to be synchronised
+                                        self[channelName]['attachment'] = chan.attachment(fid, info)
+
+                            elif chan.signalDataType in (13, 14): # CANopen date or time
+                                if chan.signalDataType == 13:
+                                    identifier = ['ms', 'min', 'hour', 'day', 'month', 'year']  # CANopen date
+                                else:  # CANopen time cn_data_type == 14
+                                    identifier = ['ms', 'days']
+                                for name in identifier:
+                                    self[name] = {}
+                                    self[name]['data'] = buf[recordID]['data'].__getattribute__(name + '_title')
+                                    self[name]['unit'] = name
+                                    self[name]['description'] = ''
+                                    self[name]['masterType'] = chan.channelSyncType
+                                    if buf[recordID]['record'].master['name'] is not None:  # master channel exist
+                                        self[name]['master'] = buf[recordID]['record'].master['name']
+                                        self.masterChannelList[self[name]['master']].append(name)
+                            elif 'invalid_bytes' in chan.name and \
+                                    (channelList is None or chan.name in channelList):  # invalid bytes, no bits processing
+                                self[channelName] = {}
+                                self[channelName]['data'] = buf[recordID]['data'].__getattribute__(convertName(chan.name))
                 del buf
-
-        if self.multiProc:
-            for p in proc:
-                L.update(Q.get())  # concatenate results of processes in dict
-            for p in proc:
-                p.join()
-            del Q  # free memory
-
-        # After all processing of channels,
-        # prepare final class data with all its keys
-        for dataGroup in list(info['DGBlock'].keys()):
-            if not info['DGBlock'][dataGroup]['dg_data'] == 0:  # data exists
-                if masterDataGroup and dataGroup in masterDataGroup:  # master channel exist
-                    self.masterChannelList[masterDataGroup[dataGroup]] = []
-                for channelGroup in list(info['CGBlock'][dataGroup].keys()):
-                    for channel in list(info['CNBlock'][dataGroup][channelGroup].keys()):
-                        channelName = info['CNBlock'][dataGroup][channelGroup][channel]['name']
-                        if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] in(2, 3):
-                            channelName += str(dataGroup)
-                        if channelName in L and len(L[channelName]) != 0:
-                            if masterDataGroup and dataGroup in masterDataGroup:  # master channel exist
-                                master_channel = masterDataGroup[dataGroup]
-                            else:
-                                master_channel = ''
-                            if 'unit' in list(info['CCBlock'][dataGroup][channelGroup][channel].keys()):
-                                unit = info['CCBlock'][dataGroup][channelGroup][channel]['unit']
-                            elif 'unit' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
-                                unit = info['CNBlock'][dataGroup][channelGroup][channel]['unit']
-                            else:
-                                unit = ''
-                            if 'Comment' in unit:
-                                unit = unit['Comment']
-                            if 'Comment' in list(info['CNBlock'][dataGroup][channelGroup][channel].keys()):
-                                desc = info['CNBlock'][dataGroup][channelGroup][channel]['Comment']
-                                if desc is not None and 'description' in desc:
-                                    desc = desc['description']
-                                if desc is not None and 'name' in desc:
-                                    desc = desc['name']
-                            else:
-                                desc = ''
-                            self.add_channel(channelName, L[channelName], master_channel, \
-                                master_type=info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type'], \
-                                unit=unit, \
-                                description=desc, \
-                                conversion=info['CCBlock'][dataGroup][channelGroup][channel])
-                            L.pop(channelName, None)  # free memory
-                            if info['CNBlock'][dataGroup][channelGroup][channel]['cn_type'] == 4:  # sync channel
-                                # attach stream to be synchronised
-                                self[channelName]['attachment'] = ATBlock(fid, info['CNBlock'][dataGroup][channelGroup][channel]['cn_data'])
-                         
-                        elif info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type'] in (13, 14):
-                            if info['CNBlock'][dataGroup][channelGroup][channel]['cn_data_type'] == 13:
-                                identifier = ['ms', 'min', 'hour', 'day', 'month', 'year']  # CANopen date
-                            else:  # CANopen time cn_data_type == 14
-                                identifier = ['ms', 'days']
-                            for name in identifier:
-                                self[name] = {}
-                                self[name]['data'] = L[name]
-                                self[name]['unit'] = name
-                                self[name]['description'] = ''
-                                self[name]['masterType'] = info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type']
-                                if masterDataGroup:  # master channel exist
-                                    self[name]['master'] = master_channel
-                                    self.masterChannelList[masterDataGroup[dataGroup]].append(name)
-
         fid.close()  # close file
 
         if convertAfterRead:
@@ -1510,91 +1545,6 @@ def datatypeformat4(signalDataType, numberOfBits):
         dataType = '>' + dataType
 
     return dataType
-
-def processDataBlocks4(Q, buf, info, dataGroup, channelList, multiProc):
-    """Put raw data from buf to a dict L and processes nested nBit channels
-
-    Parameters
-    ----------------
-    Q : multiprocessing.Queue, optional
-        Queue for multiprocessing
-    buf : DATA class
-        contains raw data
-    info : info class
-        contains information from MDF Blocks
-    dataGroup : int
-        data group number according to info class
-    channelList : list of str, optional
-        list of channel names to be processed
-    multiProc : bool
-        flag to return Queue or dict
-
-    Returns
-    -----------
-    Q : multiprocessing.Queue
-        updates Queue containing L dict
-    L : dict
-        dict of channels
-    """
-    L = {}
-
-    if channelList is None:
-        allChannel = True
-    else:
-        allChannel = False
-    # Processes Bits, metadata and conversion
-    for recordID in buf.keys():
-        #channelGroup = buf[recordID]['record'].channelGroup
-        for chan in buf[recordID]['record']:
-            channelName = chan.name
-            if (allChannel or channelName in channelList) and chan.signalDataType not in (13, 14) \
-                    and 'invalid_bytes' not in channelName:
-                #channel = chan.channelNumber
-                if chan.channelType not in (3, 6):  # not virtual channel
-                    recordName = buf[recordID]['record'].recordToChannelMatching[channelName]  # in case record is used for several channels
-                    temp = buf[recordID]['data'].__getattribute__(convertName(recordName))  # extract channel vector
-                else:  # virtual channel
-                    temp = arange(buf[recordID]['record'].numberOfRecords)
-#                if info['CNBlock'][dataGroup][channelGroup][channel]['cn_sync_type'] in (2, 3, 4):  # master channel
-#                    channelName = 'master' + str(dataGroup)
-
-                # Process concatenated bits inside uint8
-                if buf[recordID]['record'].byte_aligned and \
-                        0 < chan.bitCount < 64 and chan.bitCount not in (8, 16, 32) \
-                        and temp.dtype.kind not in ('S', 'U'):  # if channel data do not use complete bytes and Ctypes
-                    if chan.signalDataType in (0, 1, 2, 3):  # integers
-                        if chan.bitOffset > 0:
-                            temp = right_shift(temp, chan.bitOffset)
-                        mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUnit8
-                        temp = bitwise_and(temp, mask)
-                        L[channelName] = temp
-                    else:  # should not happen
-                        print('bit count and offset not applied to correct data type ',  channelName)
-                        L[channelName] = temp
-                else:  # data using full bytes
-                    L[channelName] = temp
-
-                # MLSD
-                if chan.channelType == 5:
-                    pass  # print('MLSD masking needed')
-
-            elif chan.signalDataType == 13 and (allChannel or channelName in channelList):
-                L['ms'] = buf[recordID]['data'].__getattribute__('ms_title')
-                L['min'] = buf[recordID]['data'].__getattribute__('min_title')
-                L['hour'] = buf[recordID]['data'].__getattribute__('hour_title')
-                L['day'] = buf[recordID]['data'].__getattribute__('day_title')
-                L['month'] = buf[recordID]['data'].__getattribute__('month_title')
-                L['year'] = buf[recordID]['data'].__getattribute__('year_title')
-            elif chan.signalDataType == 14 and (allChannel or channelName in channelList):
-                L['ms'] = buf[recordID]['data'].__getattribute__('ms_title')
-                L['days'] = buf[recordID]['data'].__getattribute__('days_title')
-            elif 'invalid_bytes' in channelName and (allChannel or channelName in channelList):  # invalid bytes
-                L[channelName] = buf[recordID]['data'].__getattribute__(convertName(channelName))
-        
-    if multiProc:
-        Q.put(L)
-    else:
-        return L
 
 
 def convertChannelData4(channel, channelName, convert_tables, multiProc=False, Q=None):
