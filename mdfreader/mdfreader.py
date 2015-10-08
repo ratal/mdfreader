@@ -389,25 +389,6 @@ class mdf(mdf3, mdf4):
         else:
             return self._convertAllChannel4()
 
-    def getChannelUnit(self, channelName):
-        """Returns channel unit string
-        Implemented for a future integration of pint
-
-        Parameters
-        ----------------
-        channelName : str
-            channel name
-
-        Returns
-        -----------
-        str
-            unit string description
-        """
-        if 'unit' in self[channelName]:
-            return self[channelName]['unit']
-        else:
-            return ''
-
     def plot(self, channels):
         """Plot channels with Matplotlib
 
