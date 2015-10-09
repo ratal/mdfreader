@@ -423,13 +423,14 @@ class mdf(mdf3, mdf4):
                         else:  # no time channel found
                             plt.plot(data)
                     else:  # not resampled
-                        if self[channelName]['master'] in list(self.keys()):  # master channel is proper channel name
-                            plt.plot(self.getChannelData(self[channelName]['master']), data)
-                            plt.xlabel(self[channelName]['master'] + ' [' + self.getChannelUnit(self[channelName]['master']) + ']')
+                        master_name = self.getChannelMaster(channelName)
+                        if master_name in list(self.keys()):  # master channel is proper channel name
+                            plt.plot(self.getChannelData(master_name), data)
+                            plt.xlabel(master_name + ' [' + self.getChannelUnit(master_name) + ']')
                         else:
                             plt.plot(data)
 
-                    plt.title(self[channelName]['description'])
+                    plt.title(self.getChannelDesc(channelName))
                     if self.getChannelUnit(channelName) == {}:
                         plt.ylabel(channelName)
                     else:
@@ -493,12 +494,12 @@ class mdf(mdf3, mdf4):
                         masterData = linspace(min(minTime), max(maxTime), num=max(length))
                     else:
                         masterData = arange(min(minTime), max(maxTime), samplingTime)
-                    self.add_channel(masterChannelName, \
+                    self.add_channel(0, masterChannelName, \
                         masterData, \
                         masterChannelName, \
-                        master_type=self[master]['masterType'], \
+                        master_type=self.getChannelMasterType(master), \
                         unit=self.getChannelUnit(master), \
-                        description=self[master]['description'], \
+                        description=self.getChannelDesc(master), \
                         conversion=None)
             else:
                 masterChannelName = masterChannel # master channel defined in argument
@@ -508,12 +509,12 @@ class mdf(mdf3, mdf4):
             # resample all channels to one sampling time vector
             if len(list(self.masterChannelList.keys())) > 1:  # Not yet resampled or only 1 datagroup
                 if masterChannel is None and masterData is not None:  # create master channel if not proposed
-                    self.add_channel(masterChannelName, \
+                    self.add_channel(0, masterChannelName, \
                         masterData, \
                         masterChannelName, \
-                        master_type=self[master]['masterType'], \
+                        master_type=self.getChannelMasterType(master), \
                         unit=self.getChannelUnit(master), \
-                        description=self[master]['description'], \
+                        description=self.getChannelDesc(master), \
                         conversion=None)
 
                 # Interpolate channels
@@ -523,16 +524,16 @@ class mdf(mdf3, mdf4):
                 for Name in list(self.keys()):
                     try:
                         if Name not in list(self.masterChannelList.keys()):  # not a master channel
-                            timevect = self.getChannelData(self[Name]['master'])
+                            timevect = self.getChannelData(self.getChannelMaster(Name))
                             if not self.getChannelData(Name).dtype.kind in ('S', 'U'):  # if channel not array of string
-                                self[Name]['data'] = interp(masterData, timevect, self.getChannelData(Name))
+                                self.setChannelData(Name, interp(masterData, timevect, self.getChannelData(Name)))
                             else:  # can not interpolate strings, remove channel containing string
                                 self.remove_channel(Name)
                     except:
                         if len(timevect) != len(self.getChannelData(Name)):
-                            print((Name + ' and master channel ' + self[Name][masterChannelName] + ' do not have same length'))
+                            print((Name + ' and master channel ' + self.getChannelMaster(Name) + ' do not have same length'))
                         elif not all(diff(timevect) > 0):
-                            print((Name + ' has non regularly increasing master channel ' + self[Name][masterChannelName]))
+                            print((Name + ' has non regularly increasing master channel ' + self.getChannelMaster(Name)))
                 # remove time channels in masterChannelList
                 for ind in list(self.masterChannelList.keys()):
                     if ind != masterChannelName and ind in self:
@@ -543,8 +544,8 @@ class mdf(mdf3, mdf4):
                 masterData = self.getChannelData(list(self.masterChannelList.keys())[0])
                 masterData = arange(masterData[0], masterData[-1], samplingTime)
                 for Name in list(self.keys()):
-                    timevect = self.getChannelData(self[Name]['master'])
-                    self[Name]['data'] = interp(masterData, timevect, self.getChannelData(Name))
+                    timevect = self.getChannelData(self.getChannelMaster(Name))
+                    self.setChannelData(Name, interp(masterData, timevect, self.getChannelData(Name)))
             elif samplingTime is None:
                 print('Already resampled')
         else:
@@ -690,11 +691,11 @@ class mdf(mdf3, mdf4):
             if len(list(self.masterChannelList.keys())) == 1:  # mdf resampled
                 var[name] = f.createVariable(CleanedName, type, (list(self.masterChannelList.keys())[0], ))
             else:  # not resampled
-                var[name] = f.createVariable(CleanedName, type, (self[name]['master'], ))
+                var[name] = f.createVariable(CleanedName, type, (self.getChannelMaster(name), ))
             # Create attributes
             setAttribute(var[name], 'title', CleanedName)
             setAttribute(var[name], 'units', self.getChannelUnit(name))
-            setAttribute(var[name], 'Description', self[name]['description'])
+            setAttribute(var[name], 'Description', self.getChannelDesc(name))
             if name in list(self.masterChannelList.keys()):
                 setAttribute(var[name], 'Type', 'Master Channel')
                 setAttribute(var[name], 'datatype', 'master')
@@ -764,12 +765,13 @@ class mdf(mdf3, mdf4):
             grp = {}
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
-                if 'master' in self[channel] and self[channel]['master'] not in list(groups.keys()):
+                masterName = self.getChannelMaster(channel)
+                if 'master' in self[channel] and masterName not in list(groups.keys()):
                     # create new data group
                     ngroups += 1
-                    if self[channel]['master']!='' \
-                            and self[channel]['master'] is not None:
-                        group_name = self[channel]['master']
+                    if masterName!='' \
+                            and masterName is not None:
+                        group_name = masterName
                     else:
                         group_name = 'master'+str(ngroups)
                     groups[group_name] = ngroups
@@ -778,7 +780,7 @@ class mdf(mdf3, mdf4):
                     dset = grp[groups[group_name]].create_dataset(channel, data=channelData)
                     setAttribute(dset, 'unit', self.getChannelUnit(channel))
                     if 'description' in self[channel]:
-                        setAttribute(dset, 'description', self[channel]['description'])
+                        setAttribute(dset, 'description', self.getChannelDesc(channel))
         else:  # resampled or only one time for all channels : no groups
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
@@ -787,7 +789,7 @@ class mdf(mdf3, mdf4):
                     dset = filegroup.create_dataset(channelName, data=channelData)
                     setAttribute(dset, 'unit', self.getChannelUnit(channel))
                     if 'description' in self[channel]:
-                        setAttribute(dset, 'description', self[channel]['description'])
+                        setAttribute(dset, 'description', self.getChannelDesc(channel))
         f.close()
 
     def exportToMatlab(self, filename=None):
@@ -997,24 +999,8 @@ class mdf(mdf3, mdf4):
                 # avoid to remove master channels otherwise problems with resample
                 removeChannels.append(channel)
         if not len(removeChannels) == 0:
-            [self.masterChannelList[self[channel]['master']].remove(channel) for channel in removeChannels]
+            [self.masterChannelList[self.getChannelMaster(channel)].remove(channel) for channel in removeChannels]
             [self.pop(channel) for channel in removeChannels]
-
-    def copy(self):
-        """copy a mdf class
-
-        Returns:
-        ------------
-        mdf class instance
-            copy of a mdf class
-        """
-        yop = mdf()
-        yop.multiProc = self.multiProc
-        yop.fileName = self.fileName
-        yop.masterChannelList = self.masterChannelList
-        for channel in list(self.keys()):
-            yop[channel] = self[channel]
-        return yop
 
     def mergeMdf(self, mdfClass):
         """Merges data of 2 mdf classes
@@ -1039,20 +1025,20 @@ class mdf(mdf3, mdf4):
             mdfData = mdfClass.getChannelData(channel)
             if channel in mdfClass and channel in self:  # channel exists in both class
                 if not channel == 'master':
-                    self[channel]['data'] = hstack((data, mdfData))
+                    self.setChannelData(channel, hstack((data, mdfData)))
                 else:
                     offset = mean(diff(mdfData))  # sampling
                     offset = data[-1] + offset  # time offset
-                    self[channel]['data'] = hstack((data, mdfData + offset))
+                    self.setChannelData(channel, hstack((data, mdfData + offset)))
             elif channel in mdfClass:  # new channel for self from mdfClass
                 self[channel] = mdfClass[channel]  # initialise all fields, units, descriptions, etc.
                 refill = empty(initialTimeSize)
                 refill.fil(nan)  # fill with NANs
-                self[channel]['data'] = hstack((refill, mdfData))  # readjust against time
+                self.setChannelData(channel, hstack((refill, mdfData)))  # readjust against time
             else:  # channel missing in mdfClass
                 refill = empty(len(mdfClass.getChannelData('master')))
                 refill.fill(nan)  # fill with NANs
-                self[channel]['data'] = hstack((data, refill))
+                self.setChannelData(channel, hstack((data, refill)))
 
     def convertToPandas(self, sampling=None):
         """converts mdf data structure into pandas dataframe(s)
@@ -1082,7 +1068,7 @@ class mdf(mdf3, mdf4):
             datetimeInfo = datetime64(datetime.now())
         originalKeys = list(self.keys())
         for group in list(self.masterChannelList.keys()):
-            if self[group]['masterType']!=1:
+            if self.getChannelMasterType(group)!=1:
                 print('Warning: master channel is not time, not appropriate conversion for pandas')
             temp = {}
             # convert time channel into timedelta

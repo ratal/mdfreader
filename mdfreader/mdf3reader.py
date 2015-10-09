@@ -737,24 +737,25 @@ class mdf3(mdf_skeleton):
             returns numpy array converted to physical values according to conversion type
         """
         if 'conversion' in self[channelName]:  # there is conversion property
-            if self[channelName]['conversion']['type'] == 0:
-                return linearConv(self[channelName]['data'], self[channelName]['conversion']['parameters'])
-            elif self[channelName]['conversion']['type'] == 1:
-                return tabInterpConv(self[channelName]['data'], self[channelName]['conversion']['parameters'])
-            elif self[channelName]['conversion']['type'] == 2:
-                return tabConv(self[channelName]['data'], self[channelName]['conversion']['parameters'])
-            elif self[channelName]['conversion']['type'] == 6:
-                return polyConv(self[channelName]['data'], self[channelName]['conversion']['parameters'])
-            elif self[channelName]['conversion']['type'] == 7:
-                return expConv(self[channelName]['data'], self[channelName]['conversion']['parameters'])
-            elif self[channelName]['conversion']['type'] == 8:
-                return logConv(self[channelName]['data'], self[channelName]['conversion']['parameters'])
-            elif self[channelName]['conversion']['type'] == 9:
-                return rationalConv(self[channelName]['data'], self[channelName]['conversion']['parameters'])
-            elif self[channelName]['conversion']['type'] == 10:
-                return formulaConv(self[channelName]['data'], self[channelName]['conversion']['parameters'])
-            elif self[channelName]['conversion']['type'] == 12:
-                return textRangeTableConv(self[channelName]['data'], self[channelName]['conversion']['parameters'])
+            conversion = self[channelName]['conversion']
+            if conversion['type'] == 0:
+                return linearConv(self[channelName]['data'], conversion['parameters'])
+            elif conversion['type'] == 1:
+                return tabInterpConv(self[channelName]['data'], conversion['parameters'])
+            elif conversion['type'] == 2:
+                return tabConv(self[channelName]['data'], conversion['parameters'])
+            elif conversion['type'] == 6:
+                return polyConv(self[channelName]['data'], conversion['parameters'])
+            elif conversion['type'] == 7:
+                return expConv(self[channelName]['data'], conversion['parameters'])
+            elif conversion['type'] == 8:
+                return logConv(self[channelName]['data'], conversion['parameters'])
+            elif conversion['type'] == 9:
+                return rationalConv(self[channelName]['data'], conversion['parameters'])
+            elif conversion['type'] == 10:
+                return formulaConv(self[channelName]['data'], conversion['parameters'])
+            elif conversion['type'] == 12:
+                return textRangeTableConv(self[channelName]['data'], conversion['parameters'])
             else:
                 return self[channelName]['data']
         else:
@@ -931,12 +932,13 @@ class mdf3(mdf_skeleton):
             fid.write(pack(UINT16, numChannels))  # Number of channels
             pointers['CG'][dataGroup]['dataRecordSize'] = fid.tell()
             fid.write(pack(UINT16, 0))  # Size of data record
-            nRecords = len(self[masterChannel]['data'])
+            masterData = self.getChannelData(masterChannel)
+            nRecords = len(masterData)
             fid.write(pack(UINT32, nRecords))  # Number of records
             fid.write(pack(LINK, 0))  # pointer to sample reduction block, not used
             sampling = 0
-            if self[masterChannel]['data'] is not None and len(self[masterChannel]['data']) > 0 and self[masterChannel]['data'].dtype.kind not in ['S', 'U']:
-                sampling = average(diff(self[masterChannel]['data']))
+            if masterData is not None and nRecords > 0 and masterData.dtype.kind not in ['S', 'U']:
+                sampling = average(diff(masterData))
 
             # Channel blocks writing
             pointers['CN'][dataGroup] = {}
@@ -970,10 +972,10 @@ class mdf3(mdf_skeleton):
                 # make channel name in 32 bytes
                 writeChar(fid, channel, size=31)  # channel name
                 # channel description
-                desc = self[channel]['description']
+                desc = self.getChannelDesc(channel)
                 writeChar(fid, desc, size=127)  # channel description
                 fid.write(pack(UINT16, bitOffset))  # bit position
-                data = self[channel]['data']  # channel data
+                data = self.getChannelData(channel)  # channel data
                 temp = data
                 if PythonVersion >= 3 and data.dtype.kind in ['S', 'U']:
                     temp = temp.encode('latin1', 'replace')
@@ -1048,7 +1050,7 @@ class mdf3(mdf_skeleton):
                     fid.write(pack(BOOL, 0))  # No value range valid
                     fid.write(pack(REAL, 0))  # Min value
                     fid.write(pack(REAL, 0))  # Max value
-                writeChar(fid, self[channel]['unit'], size=19)  # channel description
+                writeChar(fid, self.getChannelUnit(channel), size=19)  # channel description
                 fid.write(pack(UINT16, 65535))  # conversion already done during reading
                 fid.write(pack(UINT16, 0))  # additional size information, not necessary for 65535 conversion type ?
             # number of channels in CG

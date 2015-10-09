@@ -1384,12 +1384,14 @@ class mdf4(mdf_skeleton):
             Q = Queue()
             L = {}
             for channelName in self:
-                if 'conversion' in self.getChannel(channelName):
-                    if self[channelName]['conversion']['type'] in (1, 2):  # more time in multi proc
+                channel = self.getChannel(channelName)
+                if 'conversion' in channel:
+                    conversion = self.getChannelConversion(channelName)
+                    if conversion['type'] in (1, 2):  # more time in multi proc
                         self._convertChannel4(channelName)
                     else:
                         proc.append(Process(target=convertChannelData4, \
-                                args=(self.getChannel(channelName), channelName, self.convert_tables, True, Q)))
+                                args=(channel, channelName, self.convert_tables, True, Q)))
                         proc[-1].start()
             for p in proc:
                 L.update(Q.get())  # concatenate results of processes in dict
@@ -1569,26 +1571,27 @@ def convertChannelData4(channel, channelName, convert_tables, multiProc=False, Q
     if 'conversion' in channel:  # there is conversion property
         text_type = channel['data'].dtype.kind in ['S', 'U', 'V']  # channel of string or not ?
         conversion_type = channel['conversion']['type']
+        conversion_parameter = channel['conversion']['parameters']
         if conversion_type == 1 and not text_type:
-            vect = linearConv(vect, channel['conversion']['parameters']['cc_val'])
+            vect = linearConv(vect, conversion_parameter['cc_val'])
         elif conversion_type == 2 and not text_type:
-            vect = rationalConv(vect, channel['conversion']['parameters']['cc_val'])
+            vect = rationalConv(vect, conversion_parameter['cc_val'])
         elif conversion_type == 3 and not text_type:
-            vect = formulaConv(vect, channel['conversion']['parameters']['cc_ref']['Comment'])
+            vect = formulaConv(vect, conversion_parameter['cc_ref']['Comment'])
         elif conversion_type == 4 and not text_type:
-            vect = valueToValueTableWInterpConv(vect, channel['conversion']['parameters']['cc_val'])
+            vect = valueToValueTableWInterpConv(vect, conversion_parameter['cc_val'])
         elif conversion_type == 5 and not text_type:
-            vect = valueToValueTableWOInterpConv(vect, channel['conversion']['parameters']['cc_val'])
+            vect = valueToValueTableWOInterpConv(vect, conversion_parameter['cc_val'])
         elif conversion_type == 6 and not text_type and convert_tables:
-            vect = valueRangeToValueTableConv(vect, channel['conversion']['parameters']['cc_val'])
+            vect = valueRangeToValueTableConv(vect, conversion_parameter['cc_val'])
         elif conversion_type == 7 and not text_type and convert_tables:
-            vect = valueToTextConv(vect, channel['conversion']['parameters']['cc_val'], channel['conversion']['parameters']['cc_ref'])
+            vect = valueToTextConv(vect, conversion_parameter['cc_val'], conversion_parameter['cc_ref'])
         elif conversion_type == 8 and not text_type and convert_tables:
-            vect = valueRangeToTextConv(vect, channel['conversion']['parameters']['cc_val'], channel['conversion']['parameters']['cc_ref'])
+            vect = valueRangeToTextConv(vect, conversion_parameter['cc_val'], conversion_parameter['cc_ref'])
         elif conversion_type == 9 and text_type and convert_tables:
-            vect = textToValueConv(vect, channel['conversion']['parameters']['cc_val'], channel['conversion']['parameters']['cc_ref'])
+            vect = textToValueConv(vect, conversion_parameter['cc_val'], conversion_parameter['cc_ref'])
         elif conversion_type == 10 and text_type and convert_tables:
-            vect = textToTextConv(vect, channel['conversion']['parameters']['cc_ref'])
+            vect = textToTextConv(vect, conversion_parameter['cc_ref'])
     L = {}
     L[channelName] = vect
     if multiProc:

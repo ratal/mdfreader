@@ -266,3 +266,23 @@ class mdf_skeleton(dict):
                 output += '    ' + array_repr(self.getChannelData(c), precision=3, suppress_small=True) \
                     + ' ' + self.getChannelUnit(c) + '\n'
         return output
+
+    def copy(self):
+        """copy a mdf class
+
+        Returns:
+        ------------
+        mdf class instance
+            copy of a mdf class
+        """
+        yop = mdf_skeleton()
+        yop.multiProc = self.multiProc
+        yop.fileName = self.fileName
+        yop.masterChannelList = self.masterChannelList
+        yop.file_metadata = self.file_metadata
+        yop.MDFVersionNumber = self.MDFVersionNumber
+        yop.filterChannelNames = self.filterChannelNames
+        yop.convert_tables = self.convert_tables
+        for channel in list(self.keys()):
+            yop[channel] = self[channel]
+        return yop
