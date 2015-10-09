@@ -26,6 +26,7 @@ dataField = 'data'
 masterField = 'master'
 masterTypeField = 'masterType'
 conversionField = 'conversion'
+attachmentField = 'attachment'
 
 class mdf_skeleton(dict):
 
@@ -98,7 +99,7 @@ class mdf_skeleton(dict):
         if fileName is not None:
             self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames)
     
-    def add_channel(self, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None):
+    def add_channel(self, dataGroup, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None):
         """ adds channel to mdf dict.
 
         Parameters
@@ -121,6 +122,9 @@ class mdf_skeleton(dict):
         conversion : info class, optional
             conversion description from info class
         """
+        if channel_name in self:
+            channel_name += '_' + str(dataGroup)
+        self[channel_name] = {}
         self.setChannelData(channel_name, data)
         self.setChannelUnit(channel_name, unit)
         self.setChannelDesc(channel_name, description)
@@ -163,6 +167,13 @@ class mdf_skeleton(dict):
         """
         self.masterChannelList[self.getChannelMaster(channel_name)].pop(channel_name)
         return self.pop(channel_name)
+    
+    def remove_channel_conversion(self, channelName):
+        return self._remove_channel_field(channelName, conversionField)
+    
+    def _remove_channel_field(self, channelName, field):
+        if field in self.getChannel(channelName):
+            return self[channelName].pop(field)
 
     def getChannelUnit(self, channelName):
         """Returns channel unit string
@@ -178,55 +189,70 @@ class mdf_skeleton(dict):
         str
             unit string description
         """
-        return self._getChannel(channelName, field = unitField)
+        return self._getChannelField(channelName, field = unitField)
     
     def getChannelDesc(self, channelName):
-        return self._getChannel(channelName, field = descriptionField)
+        return self._getChannelField(channelName, field = descriptionField)
     
     def getChannelMaster(self, channelName):
-        return self._getChannel(channelName, field = masterField)
+        return self._getChannelField(channelName, field = masterField)
     
     def getChannelMasterType(self, channelName):
-        return self._getChannel(channelName, field = masterTypeField)
+        return self._getChannelField(channelName, field = masterTypeField)
     
     def getChannelConversion(self, channelName):
-        return self._getChannel(channelName, field = conversionField)
+        return self._getChannelField(channelName, field = conversionField)
+    
+    def getChannel(self, channelName):
+        return self[channelName]
         
-    def _getChannel(self, channelName, field=None):
+    def _getChannelField(self, channelName, field=None):
+        channel = self.getChannel(channelName)
         if channelName in self:
-            if field in self[channelName]:
-                return self[channelName][field]
+            if field in channel:
+                return channel[field]
             else:
                 return ''
         else:
             return None
 
     def setChannelUnit(self, channelName, unit):
-        return self._setChannel(channelName, unit, field = unitField)
+        self._setChannel(channelName, unit, field = unitField)
 
     def setChannelData(self, channelName, data):
-        return self._setChannel(channelName, data, field = dataField)
+        self._setChannel(channelName, data, field = dataField)
 
     def setChannelDesc(self, channelName, desc):
-        return self._setChannel(channelName, desc, field = descriptionField)
+        self._setChannel(channelName, desc, field = descriptionField)
     
     def setChannelMaster(self, channelName, master):
-        return self._setChannel(channelName, master, field = masterField)
+        self._setChannel(channelName, master, field = masterField)
     
-    def setChannelMasterType(self, channelName, master):
-        return self._setChannel(channelName, master, field = masterTypeField)
+    def setChannelMasterType(self, channelName, masterType):
+        self._setChannel(channelName, masterType, field = masterTypeField)
     
-    def setChannelConversion(self, channelName, master):
-        return self._setChannel(channelName, master, field = conversionField)
+    def setChannelConversion(self, channelName, conversion):
+        self._setChannel(channelName, conversion, field = conversionField)
+        
+    def setChannelAttachment(self, channelName, attachment):
+        self._setChannel(channelName, attachment, field = attachmentField)
     
     def _setChannel(self, channelName, item, field=None):
         if channelName in self:
-            if self[channelName] is not dict:
-                self[channelName] = {}
             self[channelName][field] = item
         else:
             raise KeyError('Channel not in dictionary')
     
+    def add_metadata(self, author='', organisation='', project='', \
+            subject='', comment='', date='', time=''):
+        self.file_metadata['author'] = author
+        self.file_metadata['organisation'] = organisation
+        self.file_metadata['project'] = project
+        self.file_metadata['subject'] = subject
+        self.file_metadata['comment'] = comment
+        self.file_metadata['date'] = date
+        self.file_metadata['time'] = time
+        
     def __repr__(self):
         output = 'file name : ' + self.fileName + '\n'
         for m in self.file_metadata.keys():

@@ -627,83 +627,76 @@ class mdf3(mdf_skeleton):
             info = info3(self.fileName, None, self.filterChannelNames)
 
         # reads metadata
-        self.file_metadata['author'] = info['HDBlock']['Author']
-        self.file_metadata['organisation'] = info['HDBlock']['Organization']
-        self.file_metadata['project'] = info['HDBlock']['ProjectName']
-        self.file_metadata['subject'] = info['HDBlock']['Subject']
         try:
-            self.comment = info['HDBlock']['TXBlock']['Text']
+            comment = info['HDBlock']['TXBlock']['Text']
         except:
-            pass
-        self.file_metadata['time'] = info['HDBlock']['Time']
-        self.file_metadata['date'] = info['HDBlock']['Date']
+            comment = ''
         # converts date to be compatible with ISO8601
-        day, month, year = self.file_metadata['date'].split(':')
-        self.file_metadata['date'] = year + '-' + month + '-' + day
+        day, month, year = info['HDBlock']['Date'].split(':')
+        ddate = year + '-' + month + '-' + day
+        self.add_metadata(author=info['HDBlock']['Author'], \
+                organisation=info['HDBlock']['Organization'], \
+                project=info['HDBlock']['ProjectName'], \
+                subject=info['HDBlock']['Subject'], comment=comment, \
+                    date=ddate, time=info['HDBlock']['Time'])
 
         try:
             fid = open(self.fileName, 'rb')
         except IOError:
             raise Exception('Can not find file ' + self.fileName)
         
-        D = {}
+
         # Read data from file
         for dataGroup in info['DGBlock'].keys():
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
-                D[dataGroup] = DATA(fid, pointerToData)
+                D = DATA(fid, pointerToData)
 
                 for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
                     temp = record(dataGroup, channelGroup)  # create record class
                     temp.loadInfo(info)  # load all info related to record
 
                     if temp.numberOfRecords != 0:  # continue if there are at least some records
-                        D[dataGroup].addRecord(temp)
+                        D.addRecord(temp)
 
-                D[dataGroup].read(channelList)
+                D.read(channelList) # reads datablock potentially containing several channel groups
+
+                for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
+                    recordID = info['CGBlock'][dataGroup][channelGroup]['recordID']
+                    numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
+                    if numberOfRecords != 0:
+                        for channel in range(info['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
+                            channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
+                            recordName = D[recordID]['record'].recordToChannelMatching[channelName]  # in case record is used for several channels
+                            temp = D[recordID]['data'].__getattribute__(str(recordName) + '_title')
+                            master_channel = 'master' + str(dataGroup)
+                            if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:  # time channel
+                                channelName = master_channel
+                            if (allChannel or channelName in channelList) and len(temp) != 0:
+                                if 'physicalUnit' in info['CCBlock'][dataGroup][channelGroup][channel]:
+                                    unitStr = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
+                                else:
+                                    unitStr = ''
+                                
+                                # Process concatenated bits inside uint8
+                                bitCount = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
+                                if not bitCount // 8.0 == bitCount / 8.0:  # if channel data do not use complete bytes
+                                    mask = int(pow(2, bitCount) - 1)  # masks isBitUint8
+                                    if info['CNBlock'][dataGroup][channelGroup][channel]['signalDataType'] in (0, 1, 9, 10, 13, 14):  # integers
+                                        bitOffset = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfTheFirstBits'] % 8
+                                        temp = right_shift(temp, bitOffset)
+                                        temp = bitwise_and(temp, mask)
+                                    else:  # should not happen
+                                        print('bit count and offset not applied to correct data type')
+
+                                self.add_channel(dataGroup, channelName, temp, master_channel, \
+                                        master_type=1, \
+                                        unit=unitStr, \
+                                        description=info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription'], \
+                                        conversion=info['CCBlock'][dataGroup][channelGroup][channel])
 
         fid.close()  # close file
-
-        # After all processing of channels,
-        # prepare final class data with all its keys
-        for dataGroup in range(info['HDBlock']['numberOfDataGroups']):
-            for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
-                recordID = info['CGBlock'][dataGroup][channelGroup]['recordID']
-                numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
-                if numberOfRecords != 0:
-                    for channel in range(info['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
-                        channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-                        recordName = D[dataGroup][recordID]['record'].recordToChannelMatching[channelName]  # in case record is used for several channels
-                        temp = D[dataGroup][recordID]['data'].__getattribute__(str(recordName) + '_title')
-                        master_channel = 'master' + str(dataGroup)
-                        if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:  # time channel
-                            channelName = master_channel
-                        if (allChannel or channelName in channelList) and len(temp) != 0:
-                            if 'physicalUnit' in info['CCBlock'][dataGroup][channelGroup][channel]:
-                                unitStr = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
-                            else:
-                                unitStr = ''
-                            
-                            # Process concatenated bits inside uint8
-                            bitCount = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
-                            if not bitCount // 8.0 == bitCount / 8.0:  # if channel data do not use complete bytes
-                                mask = int(pow(2, bitCount) - 1)  # masks isBitUint8
-                                if info['CNBlock'][dataGroup][channelGroup][channel]['signalDataType'] in (0, 1, 9, 10, 13, 14):  # integers
-                                    bitOffset = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfTheFirstBits'] % 8
-                                    temp = right_shift(temp, bitOffset)
-                                    temp = bitwise_and(temp, mask)
-                                    #self[channelName]['data'] = temp
-                                else:  # should not happen
-                                    print('bit count and offset not applied to correct data type')
-
-                            self.add_channel(channelName, temp, master_channel, \
-                                    master_type=1, \
-                                    unit=unitStr, \
-                                    description=info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription'], \
-                                    conversion=info['CCBlock'][dataGroup][channelGroup][channel])
-            del D[dataGroup]
-
         if convertAfterRead:
             self._convertAllChannel3()
 
@@ -775,9 +768,8 @@ class mdf3(mdf_skeleton):
         channelName : str
             Name of channel
         """
-        if 'conversion' in self[channelName]:
-            self[channelName]['data'] = self._convert3(channelName)
-            self[channelName].pop('conversion')
+        self.setChannelData(channelName, self._convert3(channelName))
+        self.remove_channel_conversion(channelName)
 
     def _convertAllChannel3(self):
         """Converts all channels from raw data to converted data according to CCBlock information

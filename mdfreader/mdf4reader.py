@@ -1223,20 +1223,25 @@ class mdf4(mdf_skeleton):
 
         # reads metadata
         fileDateTime = gmtime(info['HDBlock']['hd_start_time_ns'] / 1000000000)
-        self.date = strftime('%Y-%m-%d', fileDateTime)
-        self.time = strftime('%H:%M:%S', fileDateTime)
-        if 'Comment' in list(info['HDBlock'].keys()):
-            if 'author' in list(info['HDBlock']['Comment'].keys()):
-                self.file_metadata['author'] = info['HDBlock']['Comment']['author']
-            if 'department' in list(info['HDBlock']['Comment'].keys()):
-                self.file_metadata['organisation'] = info['HDBlock']['Comment']['department']
-            if 'project' in list(info['HDBlock']['Comment'].keys()):
-                self.file_metadata['project'] = info['HDBlock']['Comment']['project']
-            if 'subject' in list(info['HDBlock']['Comment'].keys()):
-                self.file_metadata['subject'] = info['HDBlock']['Comment']['subject']
-            if 'TX' in list(info['HDBlock']['Comment'].keys()):
-                self.file_metadata['comment'] = info['HDBlock']['Comment']['TX']
-
+        ddate = strftime('%Y-%m-%d', fileDateTime)
+        ttime = strftime('%H:%M:%S', fileDateTime)
+        def returnField(obj, field):
+            if field in obj:
+                return obj[field]
+            else:
+                return ''
+        if 'Comment' in info['HDBlock']:
+            Comment =  info['HDBlock']['Comment']
+            author = returnField(Comment, 'author')
+            organisation = returnField(Comment, 'department')
+            project = returnField(Comment,'project')
+            subject = returnField(Comment,'subject')
+            comment = returnField(Comment,'TX')
+            self.add_metadata(author=author, organisation=organisation, \
+                    project=project, subject=subject, comment=comment, \
+                    date=ddate, time=ttime)
+        else:
+            self.add_metadata(date=ddate, time=ttime)
         try:
             fid = open(self.fileName, 'rb')
         except IOError:
@@ -1263,13 +1268,9 @@ class mdf4(mdf_skeleton):
                 for recordID in buf.keys(): # for each record in data block
                     if 'record' in buf[recordID]:
                         for chan in buf[recordID]['record']: # for each recordchannel
-                            if chan.name not in self: # channel name not yet existing
-                                channelName = chan.name
-                            else: # channel name conflict between datagroups, appends datagroup number
-                                channelName = chan.name + str(dataGroup)
                             if (channelList is None or chan.name in channelList) \
                                     and chan.signalDataType not in (13, 14) \
-                                    and 'invalid_bytes' not in chan.name:
+                                    and 'invalid_bytes' not in chan.name: # normal channel
                                 if chan.channelType not in (3, 6):  # not virtual channel
                                     recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]  # in case record is used for several channels
                                     if 'data' in buf[recordID] and \
@@ -1280,7 +1281,6 @@ class mdf4(mdf_skeleton):
                                 else:  # virtual channel
                                     temp = arange(buf[recordID]['record'].numberOfRecords)
                                 
-                                self[channelName] = {}
                                 # Process concatenated bits inside uint8
                                 if buf[recordID]['record'].byte_aligned and \
                                         0 < chan.bitCount < 64 and chan.bitCount not in (8, 16, 32) \
@@ -1291,21 +1291,17 @@ class mdf4(mdf_skeleton):
                                             temp = right_shift(temp, chan.bitOffset)
                                         mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUnit8
                                         temp = bitwise_and(temp, mask)
-                                        self[channelName]['data'] = temp
                                     else:  # should not happen
-                                        print('bit count and offset not applied to correct data type ',  channelName)
-                                        self[channelName]['data'] = temp
+                                        print('bit count and offset not applied to correct data type ',  chan.name)
                                 else:  # data using full bytes
-                                    self[channelName]['data'] = temp
+                                    pass
 
                                 # MLSD
                                 if chan.channelType == 5:
                                     pass  # print('MLSD masking needed')
                                 
-                                # After all processing of channels,
-                                # prepare final class data with all its keys
                                 if temp is not None: # channel contains data
-                                    self.add_channel(channelName, self[channelName]['data'], \
+                                    self.add_channel(dataGroup, chan.name, temp, \
                                         buf[recordID]['record'].master['name'], \
                                         master_type=chan.channelSyncType, \
                                         unit=chan.unit, \
@@ -1313,7 +1309,7 @@ class mdf4(mdf_skeleton):
                                         conversion=chan.conversion)
                                     if chan.channelType == 4:  # sync channel
                                         # attach stream to be synchronised
-                                        self[channelName]['attachment'] = chan.attachment(fid, info)
+                                        self.setChannelAttachment(chan.name, chan.attachment(fid, info))
 
                             elif chan.signalDataType in (13, 14): # CANopen date or time
                                 if chan.signalDataType == 13:
@@ -1321,18 +1317,20 @@ class mdf4(mdf_skeleton):
                                 else:  # CANopen time cn_data_type == 14
                                     identifier = ['ms', 'days']
                                 for name in identifier:
-                                    self[name] = {}
-                                    self[name]['data'] = buf[recordID]['data'].__getattribute__(name + '_title')
-                                    self[name]['unit'] = name
-                                    self[name]['description'] = ''
-                                    self[name]['masterType'] = chan.channelSyncType
-                                    if buf[recordID]['record'].master['name'] is not None:  # master channel exist
-                                        self[name]['master'] = buf[recordID]['record'].master['name']
-                                        self.masterChannelList[self[name]['master']].append(name)
+                                    self.add_channel(dataGroup, name, \
+                                        buf[recordID]['data'].__getattribute__(name + '_title'), \
+                                        buf[recordID]['record'].master['name'], \
+                                        master_type=chan.channelSyncType, \
+                                        unit=name, \
+                                        description=chan.desc)
                             elif 'invalid_bytes' in chan.name and \
                                     (channelList is None or chan.name in channelList):  # invalid bytes, no bits processing
-                                self[channelName] = {}
-                                self[channelName]['data'] = buf[recordID]['data'].__getattribute__(convertName(chan.name))
+                                self.add_channel(dataGroup, chan.name, \
+                                        buf[recordID]['data'].__getattribute__(convertName(chan.name)), \
+                                        buf[recordID]['record'].master['name'], \
+                                        master_type=0, \
+                                        unit='', \
+                                        description='')
                 del buf
         fid.close()  # close file
 
@@ -1358,7 +1356,8 @@ class mdf4(mdf_skeleton):
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if channelName in self:
-            return convertChannelData4(self[channelName], channelName, self.convert_tables)[channelName]
+            return convertChannelData4(self.getChannel(channelName), \
+                    channelName, self.convert_tables)[channelName]
         else:
             raise KeyError(channelName + ' channel not in dictionary')
             
@@ -1371,9 +1370,8 @@ class mdf4(mdf_skeleton):
         channelName : str
             Name of channel
         """
-        self[channelName]['data'] = convertChannelData4(self[channelName], channelName, self.convert_tables)[channelName]
-        if 'conversion' in self[channelName]:
-            self[channelName].pop('conversion')
+        self.setChannelData(channelName, self._getChannelData4(channelName))
+        self.remove_channel_conversion(channelName)
 
     def _convertAllChannel4(self):
         """Converts all channels from raw data to converted data according to CCBlock information
@@ -1386,12 +1384,12 @@ class mdf4(mdf_skeleton):
             Q = Queue()
             L = {}
             for channelName in self:
-                if 'conversion' in self[channelName]:
+                if 'conversion' in self.getChannel(channelName):
                     if self[channelName]['conversion']['type'] in (1, 2):  # more time in multi proc
-                        self[channelName]['data'] = convertChannelData4(self[channelName], channelName, self.convert_tables)[channelName]
-                        self[channelName].pop('conversion')
+                        self._convertChannel4(channelName)
                     else:
-                        proc.append(Process(target=convertChannelData4, args=(self[channelName], channelName, self.convert_tables, True, Q)))
+                        proc.append(Process(target=convertChannelData4, \
+                                args=(self.getChannel(channelName), channelName, self.convert_tables, True, Q)))
                         proc[-1].start()
             for p in proc:
                 L.update(Q.get())  # concatenate results of processes in dict
@@ -1400,9 +1398,8 @@ class mdf4(mdf_skeleton):
             del Q  # free memory
             for channelName in self:
                 if channelName in L:
-                    self[channelName]['data'] = L[channelName]
-                    if 'conversion' in self[channelName]:
-                        self[channelName].pop('conversion')
+                    self.setChannelData(channelName, L[channelName])
+                    self.remove_channel_conversion(channelName)
 
 
 def convertName(channelName):
