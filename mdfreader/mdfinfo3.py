@@ -634,12 +634,12 @@ class info3(dict):
                         value = ''
                     if PythonVersion < 3:
                         if removeTrailing0:
-                            Block[fieldName] = value.replace('\x00', '')
+                            Block[fieldName] = value.decode('latin1', 'replace').encode('utf-8').rstrip('\x00')
                         else:
-                            Block[fieldName] = value
+                            Block[fieldName] = value.decode('latin1', 'replace').encode('utf-8')
                     else:
                         if removeTrailing0:
-                            Block[fieldName] = value.decode('latin1', 'replace').replace('\x00', '')  # decode bytes
+                            Block[fieldName] = value.decode('latin1', 'replace').rstrip('\x00')  # decode bytes
                         else:
                             Block[fieldName] = value.decode('latin1', 'replace')
                 else:  # numeric

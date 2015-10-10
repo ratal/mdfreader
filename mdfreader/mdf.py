@@ -204,7 +204,10 @@ class mdf_skeleton(dict):
         return self._getChannelField(channelName, field = conversionField)
     
     def getChannel(self, channelName):
-        return self[channelName]
+        if channelName in self:
+            return self[channelName]
+        else:
+            return None
         
     def _getChannelField(self, channelName, field=None):
         channel = self.getChannel(channelName)

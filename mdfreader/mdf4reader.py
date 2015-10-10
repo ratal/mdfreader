@@ -832,7 +832,7 @@ class record(list):
         self.numpyDataRecordFormat = []
         self.dataRecordName = []
         self.master = {}
-        self.master['name'] = None
+        self.master['name'] = 'master_' + str(dataGroup) + '_' + str(channelGroup)
         self.master['number'] = None
         self.Flags = 0
         self.VLSD_CG = {}
@@ -907,7 +907,7 @@ class record(list):
         for channelNumber in list(info['CNBlock'][self.dataGroup][self.channelGroup].keys()):
             channel = recordChannel(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize)
             if channel.channelType in (2, 3):  # master channel found
-                if self.master['name'] is None or channel.channelSyncType==1:  # new master channel found
+                if self.master['number'] is None or channel.channelSyncType==1:  # new master channel found
                     # or more than 1 master channel, priority to time channel
                     self.master['number'] = channelNumber
                     self.master['name'] = channel.name

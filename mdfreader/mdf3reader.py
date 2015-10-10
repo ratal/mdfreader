@@ -651,26 +651,26 @@ class mdf3(mdf_skeleton):
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
-                D = DATA(fid, pointerToData)
+                buf = DATA(fid, pointerToData)
 
                 for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
                     temp = record(dataGroup, channelGroup)  # create record class
                     temp.loadInfo(info)  # load all info related to record
 
                     if temp.numberOfRecords != 0:  # continue if there are at least some records
-                        D.addRecord(temp)
+                        buf.addRecord(temp)
 
-                D.read(channelList) # reads datablock potentially containing several channel groups
+                buf.read(channelList) # reads datablock potentially containing several channel groups
 
                 for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
                     recordID = info['CGBlock'][dataGroup][channelGroup]['recordID']
                     numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
+                    master_channel = 'master_' + str(dataGroup) + '_' + str(channelGroup)
                     if numberOfRecords != 0:
                         for channel in range(info['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
                             channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-                            recordName = D[recordID]['record'].recordToChannelMatching[channelName]  # in case record is used for several channels
-                            temp = D[recordID]['data'].__getattribute__(str(recordName) + '_title')
-                            master_channel = 'master' + str(dataGroup)
+                            recordName = buf[recordID]['record'].recordToChannelMatching[channelName]  # in case record is used for several channels
+                            temp = buf[recordID]['data'].__getattribute__(str(recordName) + '_title')
                             if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:  # time channel
                                 channelName = master_channel
                             if (allChannel or channelName in channelList) and len(temp) != 0:

@@ -51,7 +51,7 @@ PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
 
-def convertMatlabName(channel):
+def _convertMatlabName(channel):
     """Removes non allowed characters for a Matlab variable name
 
     Parameters
@@ -668,8 +668,8 @@ class mdf(mdf3, mdf4):
         setAttribute(f, 'Subject', self.file_metadata['subject'])
         setAttribute(f, 'Comment', self.file_metadata['comment'])
         # Create dimensions having name of all time channels
-        for time in list(self.masterChannelList.keys()):
-            f.createDimension(time, len(self.getChannelData(time)))
+        for master in list(self.masterChannelList.keys()):
+            f.createDimension(master, len(self.getChannelData(self.masterChannelList[master][0])))
         # Create variables definition, dimension and attributes
         var = {}
         for name in list(self.keys()):
@@ -785,7 +785,7 @@ class mdf(mdf3, mdf4):
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
-                    channelName = convertMatlabName(channel)
+                    channelName = _convertMatlabName(channel)
                     dset = filegroup.create_dataset(channelName, data=channelData)
                     setAttribute(dset, 'unit', self.getChannelUnit(channel))
                     if 'description' in self[channel]:
@@ -823,7 +823,7 @@ class mdf(mdf3, mdf4):
         for channel in list(self.keys()):
             data = self.getChannelData(channel)
             if data.dtype.kind not in ('S', 'U', 'V'):  # does not like special characters chains, skip
-                channelName = convertMatlabName(channel)
+                channelName = _convertMatlabName(channel)
                 temp[channelName] = data
         try:  # depends of version used , compression can be used
             savemat(filename, temp, long_field_names=True, format='5', do_compression=True, oned_as='column')
@@ -947,7 +947,6 @@ class mdf(mdf3, mdf4):
                     ws.cell(row=0, column=j).value = channels[j]
                     ws.cell(row=1, column=j).value = self.getChannelUnit(channels[j])
             for j in range(maxCols):
-                print(channels[j])
                 data = self.getChannelData(channels[j])
                 if data.dtype in ['int8', 'int16', 'uint8', 'uint16']:
                     for r in range(len(data)):
@@ -1068,15 +1067,22 @@ class mdf(mdf3, mdf4):
             datetimeInfo = datetime64(datetime.now())
         originalKeys = list(self.keys())
         for group in list(self.masterChannelList.keys()):
-            if self.getChannelMasterType(group)!=1:
+            if group not in self.masterChannelList[group]:
+                print('no master channel in group ' + group)
+            elif self.getChannelMasterType(group)!=1:
                 print('Warning: master channel is not time, not appropriate conversion for pandas')
             temp = {}
             # convert time channel into timedelta
-            time = datetimeInfo + array(self.getChannelData(group) * 10E6, dtype='timedelta64[us]')
-            for channel in self.masterChannelList[group]:
-                temp[channel] = pd.Series(self.getChannelData(channel), index=time)
-            self[group + '_group'] = pd.DataFrame(temp)
-            self[group + '_group'].pop(group)  # delete time channel, no need anymore
+            if group in self.masterChannelList[group]:
+                time = datetimeInfo + array(self.getChannelData(group) * 10E6, dtype='timedelta64[us]')
+                for channel in self.masterChannelList[group]:
+                    temp[channel] = pd.Series(self.getChannelData(channel), index=time)
+                self[group + '_group'] = pd.DataFrame(temp)
+                self[group + '_group'].pop(group)  # delete time channel, no need anymore
+            else: # no master channel in channel group
+                for channel in self.masterChannelList[group]:
+                    temp[channel] = pd.Series(self.getChannelData(channel))
+                self[group + '_group'] = pd.DataFrame(temp)
         # clean rest of self from data and time channel information
         [self[channel].pop('data') for channel in originalKeys]
         [self[channel].pop('master') for channel in originalKeys if 'master' in self[channel]]
