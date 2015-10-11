@@ -241,6 +241,12 @@ class recordChannel():
     --------------
     name : str
         Name of channel
+    unit : str, default empty string
+        channel unit
+    desc : str
+        channel description
+    conversion : info class
+        conversion dictionnary
     channelNumber : int
         channel number corresponding to mdfinfo3.info3 class
     signalDataType : int
@@ -305,6 +311,15 @@ class recordChannel():
         self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['channelType']
         self.posBeg = recordIDsize + self.byteOffset
         self.posEnd = recordIDsize + self.byteOffset + self.nBytes
+        if 'physicalUnit' in info['CCBlock'][dataGroup][channelGroup][channelNumber]:
+            self.unit = info['CCBlock'][dataGroup][channelGroup][channelNumber]['physicalUnit']
+        else:
+            self.unit = ''
+        if 'signalDescription' in info['CNBlock'][dataGroup][channelGroup][channelNumber]:
+            self.desc = info['CNBlock'][dataGroup][channelGroup][channelNumber]['signalDescription']
+        else:
+            self.desc = ''
+        self.conversion = info['CCBlock'][dataGroup][channelGroup][channelNumber]
 
     def __str__(self):
         output = str(self.channelNumber) + ' '
@@ -314,6 +329,8 @@ class recordChannel():
         output += str(self.RecordFormat) + ' '
         output += str(self.bitOffset) + ' '
         output += str(self.byteOffset)
+        output += 'unit ' + self.unit
+        output += 'description ' + self.desc
         return output
 
 
@@ -662,40 +679,32 @@ class mdf3(mdf_skeleton):
 
                 buf.read(channelList) # reads datablock potentially containing several channel groups
 
-                for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
-                    recordID = info['CGBlock'][dataGroup][channelGroup]['recordID']
-                    numberOfRecords = info['CGBlock'][dataGroup][channelGroup]['numberOfRecords']
-                    master_channel = 'master_' + str(dataGroup) + '_' + str(channelGroup)
-                    if numberOfRecords != 0:
-                        for channel in range(info['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
-                            channelName = info['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-                            recordName = buf[recordID]['record'].recordToChannelMatching[channelName]  # in case record is used for several channels
+                for recordID in buf.keys():
+                    if 'record' in buf[recordID]:
+                        master_channel = buf[recordID]['record'].master['name']
+                        if master_channel in self.keys():
+                            master_channel += '_' + str(dataGroup) + '_' + str(recordID)
+                        for chan in buf[recordID]['record']: # for each recordchannel
+                            recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]  # in case record is used for several channels
                             temp = buf[recordID]['data'].__getattribute__(str(recordName) + '_title')
-                            if info['CNBlock'][dataGroup][channelGroup][channel]['channelType'] == 1:  # time channel
-                                channelName = master_channel
-                            if (allChannel or channelName in channelList) and len(temp) != 0:
-                                if 'physicalUnit' in info['CCBlock'][dataGroup][channelGroup][channel]:
-                                    unitStr = info['CCBlock'][dataGroup][channelGroup][channel]['physicalUnit']
-                                else:
-                                    unitStr = ''
-                                
+
+                            if (allChannel or chan.name in channelList) and len(temp) != 0:
                                 # Process concatenated bits inside uint8
-                                bitCount = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfBits']
-                                if not bitCount // 8.0 == bitCount / 8.0:  # if channel data do not use complete bytes
-                                    mask = int(pow(2, bitCount) - 1)  # masks isBitUint8
-                                    if info['CNBlock'][dataGroup][channelGroup][channel]['signalDataType'] in (0, 1, 9, 10, 13, 14):  # integers
-                                        bitOffset = info['CNBlock'][dataGroup][channelGroup][channel]['numberOfTheFirstBits'] % 8
-                                        temp = right_shift(temp, bitOffset)
+                                if not chan.bitCount // 8.0 == chan.bitCount / 8.0:  # if channel data do not use complete bytes
+                                    mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
+                                    if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
+                                        temp = right_shift(temp, chan.bitOffset)
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
                                         print('bit count and offset not applied to correct data type')
-
-                                self.add_channel(dataGroup, channelName, temp, master_channel, \
+                                
+                                self.add_channel(dataGroup, chan.name, temp, \
+                                        master_channel, \
                                         master_type=1, \
-                                        unit=unitStr, \
-                                        description=info['CNBlock'][dataGroup][channelGroup][channel]['signalDescription'], \
-                                        conversion=info['CCBlock'][dataGroup][channelGroup][channel])
-
+                                        unit=chan.unit, \
+                                        description=chan.desc, \
+                                        conversion=chan.conversion)
+                del buf
         fid.close()  # close file
         if convertAfterRead:
             self._convertAllChannel3()

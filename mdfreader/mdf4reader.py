@@ -1267,6 +1267,9 @@ class mdf4(mdf_skeleton):
                 # processing data from buf then transfer to self
                 for recordID in buf.keys(): # for each record in data block
                     if 'record' in buf[recordID]:
+                        master_channel = buf[recordID]['record'].master['name']
+                        if master_channel in self.keys():
+                            master_channel += '_' + str(dataGroup) + '_' + str(recordID)
                         for chan in buf[recordID]['record']: # for each recordchannel
                             if (channelList is None or chan.name in channelList) \
                                     and chan.signalDataType not in (13, 14) \

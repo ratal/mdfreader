@@ -65,7 +65,10 @@ def _convertMatlabName(channel):
         channel name compatible for Matlab
     """
     if PythonVersion < 3:
-        channel = channel.decode('utf-8')
+        try:
+            channel = channel.decode('utf-8')
+        except:
+            print('channel name can not be decoded : ' + channel)
     channelName = channel.replace('[', '_ls_')
     channelName = channelName.replace(']', '_rs_')
     channelName = channelName.replace('$', '')
