@@ -381,6 +381,8 @@ class record(list):
         self.numpyDataRecordFormat = []
         self.dataRecordName = []
         self.master = {}
+        self.master['name'] = 'master_' + str(dataGroup)
+        self.master['number'] = None
         self.recordToChannelMatching = {}
         self.channelNames = []
 
@@ -413,7 +415,7 @@ class record(list):
         self.numberOfRecords = info['CGBlock'][self.dataGroup][self.channelGroup]['numberOfRecords']
         for channelNumber in list(info['CNBlock'][self.dataGroup][self.channelGroup].keys()):
             channel = recordChannel(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize)
-            if channel.channelType == 1:  # master channel found
+            if self.master['number'] is None or channel.channelType == 1:  # master channel found
                 self.master['name'] = channel.name
                 self.master['number'] = channelNumber
             self.append(channel)
@@ -683,7 +685,7 @@ class mdf3(mdf_skeleton):
                     if 'record' in buf[recordID]:
                         master_channel = buf[recordID]['record'].master['name']
                         if master_channel in self.keys():
-                            master_channel += '_' + str(dataGroup) + '_' + str(recordID)
+                            master_channel += '_' + str(dataGroup)
                         for chan in buf[recordID]['record']: # for each recordchannel
                             recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]  # in case record is used for several channels
                             temp = buf[recordID]['data'].__getattribute__(str(recordName) + '_title')

@@ -76,12 +76,21 @@ def _convertMatlabName(channel):
     channelName = channelName.replace('\\', '_bs_')
     channelName = channelName.replace('/', '_fs_')
     channelName = channelName.replace('(', '_lp_')
-    channelName = channelName.replace(',', '_rp_')
+    channelName = channelName.replace(')', '_rp_')
+    channelName = channelName.replace(',', '_c_')
     channelName = channelName.replace('@', '_am_')
     channelName = channelName.replace(' ', '_')
     channelName = channelName.replace(':', '_co_')
     channelName = channelName.replace('-', '_hy_')
     channelName = channelName.replace('-', '_hy_')
+    def cleanName(name):
+        allowedStr = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.'
+        buf = ''
+        for c in name:
+            if c in allowedStr:
+                buf += c
+        return buf
+    channelName = cleanName(channelName)
     return channelName
 
 
@@ -595,7 +604,10 @@ class mdf(mdf3, mdf4):
                         if self.getChannelUnit(name) is bytes:
                             units.append(self.getChannelUnit(name).encode('unicode', 'ignore'))
                         else:
-                            units.append(self.getChannelUnit(name))
+                            try:
+                                units.append(self.getChannelUnit(name).encode('latin-1','replace'))
+                            except:
+                                units.append(self.getChannelUnit(name))
                 writer.writerow(units)  # writes units
             else:
                 writer.writerow([self.getChannelUnit(name) \

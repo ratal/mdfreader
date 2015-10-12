@@ -832,7 +832,7 @@ class record(list):
         self.numpyDataRecordFormat = []
         self.dataRecordName = []
         self.master = {}
-        self.master['name'] = 'master_' + str(dataGroup) + '_' + str(channelGroup)
+        self.master['name'] = 'master_' + str(dataGroup)
         self.master['number'] = None
         self.Flags = 0
         self.VLSD_CG = {}
@@ -1269,7 +1269,7 @@ class mdf4(mdf_skeleton):
                     if 'record' in buf[recordID]:
                         master_channel = buf[recordID]['record'].master['name']
                         if master_channel in self.keys():
-                            master_channel += '_' + str(dataGroup) + '_' + str(recordID)
+                            master_channel += '_' + str(dataGroup)
                         for chan in buf[recordID]['record']: # for each recordchannel
                             if (channelList is None or chan.name in channelList) \
                                     and chan.signalDataType not in (13, 14) \
@@ -1305,7 +1305,7 @@ class mdf4(mdf_skeleton):
                                 
                                 if temp is not None: # channel contains data
                                     self.add_channel(dataGroup, chan.name, temp, \
-                                        buf[recordID]['record'].master['name'], \
+                                        master_channel, \
                                         master_type=chan.channelSyncType, \
                                         unit=chan.unit, \
                                         description=chan.desc, \
@@ -1322,7 +1322,7 @@ class mdf4(mdf_skeleton):
                                 for name in identifier:
                                     self.add_channel(dataGroup, name, \
                                         buf[recordID]['data'].__getattribute__(name + '_title'), \
-                                        buf[recordID]['record'].master['name'], \
+                                        master_channel, \
                                         master_type=chan.channelSyncType, \
                                         unit=name, \
                                         description=chan.desc)
@@ -1330,7 +1330,7 @@ class mdf4(mdf_skeleton):
                                     (channelList is None or chan.name in channelList):  # invalid bytes, no bits processing
                                 self.add_channel(dataGroup, chan.name, \
                                         buf[recordID]['data'].__getattribute__(convertName(chan.name)), \
-                                        buf[recordID]['record'].master['name'], \
+                                        master_channel, \
                                         master_type=0, \
                                         unit='', \
                                         description='')
