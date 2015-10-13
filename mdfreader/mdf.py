@@ -57,6 +57,8 @@ class mdf_skeleton(dict):
         adds channel to mdf dict
     remove_channel(channel_name)
         removes channel from mdf dict and returns its content
+    copy()
+        copy a mdf class
     """
 
     def __init__(self, fileName=None, channelList=None, convertAfterRead=True, filterChannelNames=False):

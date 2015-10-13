@@ -266,8 +266,6 @@ class mdf(mdf3, mdf4):
         keeps only list of channels and removes the other channels
     mergeMdf( mdfClass ):
         Merges data of 2 mdf classes
-    copy()
-        copy a mdf class
 
     Notes
     --------
