@@ -688,32 +688,35 @@ class mdf(mdf3, mdf4):
         for name in list(self.keys()):
             data = self.getChannelData(name)
             if data.dtype == 'float64':
-                type = 'd'
+                dataType = 'd'
             elif data.dtype == 'float32':
-                type = 'f'
+                dataType = 'f'
             elif data.dtype in ['int8', 'int16', 'uint8', 'uint16']:
-                type = 'h'
+                dataType = 'h'
             elif data.dtype in ['int32', 'uint32']:
-                type = 'i'
+                dataType = 'i'
             elif data.dtype.kind in ['S', 'U']:
-                type = 'c'
+                dataType = 'c'
             else:
-                print(('Can not process numpy type ' + str(data.dtype) + ' of channel'))
-            # create variable
-            CleanedName = cleanName(name)
-            if len(list(self.masterChannelList.keys())) == 1:  # mdf resampled
-                var[name] = f.createVariable(CleanedName, type, (list(self.masterChannelList.keys())[0], ))
-            else:  # not resampled
-                var[name] = f.createVariable(CleanedName, type, (self.getChannelMaster(name), ))
-            # Create attributes
-            setAttribute(var[name], 'title', CleanedName)
-            setAttribute(var[name], 'units', self.getChannelUnit(name))
-            setAttribute(var[name], 'Description', self.getChannelDesc(name))
-            if name in list(self.masterChannelList.keys()):
-                setAttribute(var[name], 'Type', 'Master Channel')
-                setAttribute(var[name], 'datatype', 'master')
-            else:
-                setAttribute(var[name], 'Type', 'Data Channel')
+                dataType = None
+                print(('Can not process numpy type ' + str(data.dtype)\
+                     + ' of channel ' + name))
+            if dataType is not None:
+                # create variable
+                CleanedName = cleanName(name)
+                if len(list(self.masterChannelList.keys())) == 1:  # mdf resampled
+                    var[name] = f.createVariable(CleanedName, dataType, (list(self.masterChannelList.keys())[0], ))
+                else:  # not resampled
+                    var[name] = f.createVariable(CleanedName, dataType, (self.getChannelMaster(name), ))
+                # Create attributes
+                setAttribute(var[name], 'title', CleanedName)
+                setAttribute(var[name], 'units', self.getChannelUnit(name))
+                setAttribute(var[name], 'Description', self.getChannelDesc(name))
+                if name in list(self.masterChannelList.keys()):
+                    setAttribute(var[name], 'Type', 'Master Channel')
+                    setAttribute(var[name], 'datatype', 'master')
+                else:
+                    setAttribute(var[name], 'Type', 'Data Channel')
         # put data in variables
         for name in list(self.keys()):
             var[name] = self.getChannelData(name)
