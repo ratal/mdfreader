@@ -268,8 +268,13 @@ class mdf_skeleton(dict):
                 output += d + '\n'
             for c in self.masterChannelList[d]:
                 output += '  ' + c + ' : ' + str(self.getChannelDesc(c)) + '\n'
-                output += '    ' + array_repr(self.getChannelData(c), precision=3, suppress_small=True) \
-                    + ' ' + self.getChannelUnit(c) + '\n'
+                output += '    '
+                data = self.getChannelData(c)
+                if data.dtype.kind != 'V': # not byte, impossible to represent
+                    output += array_repr(data, \
+                        precision=3, suppress_small=True)
+                unit = self.getChannelUnit(c)
+                output += ' ' + unit + '\n'
         return output
 
     def copy(self):
