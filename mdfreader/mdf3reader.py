@@ -407,6 +407,7 @@ class record(list):
         info : mdfinfo3.info3 class
         channelNumber : int
             channel number in mdfinfo3.info3 class
+
         """
         self.append(recordChannel(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize))
         self.channelNames.append(self[-1].name)
@@ -417,6 +418,7 @@ class record(list):
         Parameters
         ----------------
         info : mdfinfo3.info3 class
+
         """
         self.recordIDsize = info['DGBlock'][self.dataGroup]['numberOfRecordIDs']
         self.recordID = info['CGBlock'][self.dataGroup][self.channelGroup]['recordID']
@@ -446,6 +448,7 @@ class record(list):
 
     def readSortedRecord(self, fid, pointer, channelList=None):
         """ reads record, only one channel group per datagroup
+
         Parameters
         ----------------
         fid : float
@@ -465,6 +468,7 @@ class record(list):
         If channelList is None, read data using numpy.core.records.fromfile that is rather quick.
         However, in case of large file, you can use channelList to load only interesting channels or
         only one channel on demand, but be aware it might be much slower.
+
         """
         fid.seek(pointer)
         if channelList is None:  # reads all, quickest but memory consuming
