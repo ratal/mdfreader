@@ -984,6 +984,7 @@ class record(list):
 
     def readSortedRecord(self, fid, pointer, channelList=None):
         """ reads record, only one channel group per datagroup
+
         Parameters
         ----------------
         fid : float
@@ -1049,7 +1050,8 @@ class record(list):
         Returns
         -----------
         rec : dict
-            # returns dictionary of channel with its corresponding values
+            returns dictionary of channel with its corresponding values
+
         """
         temp = {}
         if channelList is None:
