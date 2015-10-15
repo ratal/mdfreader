@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-""" mdf module describing basic mdf structure and methods
+""" mdf_skeleton module describing basic mdf structure and methods
 
 Created on Thu Sept 24 2015
 
@@ -30,7 +30,7 @@ attachmentField = 'attachment'
 
 class mdf_skeleton(dict):
 
-    """ mdf class
+    """ mdf_skeleton class
 
     Attributes
     --------------
@@ -59,6 +59,8 @@ class mdf_skeleton(dict):
         removes channel from mdf dict and returns its content
     copy()
         copy a mdf class
+    add_metadata(author, organisation, project, subject, comment, date, time)
+        adds basic metadata from file
     """
 
     def __init__(self, fileName=None, channelList=None, convertAfterRead=True, filterChannelNames=False):
@@ -106,15 +108,14 @@ class mdf_skeleton(dict):
 
         Parameters
         ----------------
+        dataGroup : int
+            dataGroup number. Is appended to master name for non unique channel names
         channel_name : str
             channel name
-
         data : numpy array
             numpy array of channel's data
-
         master_channel : str
             master channel name
-
         master_type : int, optional
             master channel type : 0=None, 1=Time, 2=Angle, 3=Distance, 4=index
         unit : str, optional
@@ -171,9 +172,32 @@ class mdf_skeleton(dict):
         return self.pop(channel_name)
     
     def remove_channel_conversion(self, channelName):
+        """ removes conversion key from mdf channel dict.
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        
+        Returns
+        -------
+        removed value from dict
+        """
         return self._remove_channel_field(channelName, conversionField)
     
     def _remove_channel_field(self, channelName, field):
+        """general purpose function to remove key from channel dict in mdf
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        field : str
+            channel dict key
+        Returns
+        -------
+        removed value from dict
+        """
         if field in self.getChannel(channelName):
             return self[channelName].pop(field)
 
@@ -194,24 +218,91 @@ class mdf_skeleton(dict):
         return self._getChannelField(channelName, field = unitField)
     
     def getChannelDesc(self, channelName):
+        """Extract channel description information from mdf structure
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        
+        Returns
+        -------
+        channel description string
+        """
         return self._getChannelField(channelName, field = descriptionField)
     
     def getChannelMaster(self, channelName):
+        """Extract channel master name from mdf structure
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        
+        Returns
+        -------
+        channel master name string
+        """
         return self._getChannelField(channelName, field = masterField)
     
     def getChannelMasterType(self, channelName):
+        """Extract channel master type information from mdf structure
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        
+        Returns
+        -------
+        channel mater type integer
+        """
         return self._getChannelField(channelName, field = masterTypeField)
     
     def getChannelConversion(self, channelName):
+        """Extract channel conversion dict from mdf structure
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        
+        Returns
+        -------
+        channel conversion dict
+        """
         return self._getChannelField(channelName, field = conversionField)
     
     def getChannel(self, channelName):
+        """Extract channel dict from mdf structure
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        
+        Returns
+        -------
+        channel dictionnary containing data, description, unit, etc.
+        """
         if channelName in self:
             return self[channelName]
         else:
             return None
         
     def _getChannelField(self, channelName, field=None):
+        """General purpose function to extract channel dict key value from mdf class
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        field : str
+            channel dict key
+        Returns
+        -------
+        channel description string
+        """
         channel = self.getChannel(channelName)
         if channelName in self:
             if field in channel:
@@ -222,27 +313,101 @@ class mdf_skeleton(dict):
             return None
 
     def setChannelUnit(self, channelName, unit):
+        """Modifies unit of channel
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        unit : str
+            channel unit
+        """
         self._setChannel(channelName, unit, field = unitField)
 
     def setChannelData(self, channelName, data):
+        """Modifies data of channel
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        data : numpy array
+            channel data
+        """
         self._setChannel(channelName, data, field = dataField)
 
     def setChannelDesc(self, channelName, desc):
+        """Modifies description of channel
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        desc : str
+            channel description
+        """
         self._setChannel(channelName, desc, field = descriptionField)
     
     def setChannelMaster(self, channelName, master):
+        """Modifies channel master name
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        master : str
+            master channel name
+        """
         self._setChannel(channelName, master, field = masterField)
     
     def setChannelMasterType(self, channelName, masterType):
+        """Modifies master channel type
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        masterType : int
+            master channel type
+        """
         self._setChannel(channelName, masterType, field = masterTypeField)
     
     def setChannelConversion(self, channelName, conversion):
+        """Modifies conversion dict of channel
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        conversion : dict
+            conversion dictionnary
+        """
         self._setChannel(channelName, conversion, field = conversionField)
         
     def setChannelAttachment(self, channelName, attachment):
+        """Modifies channel attachment
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        attachment
+            channel attachment
+        """
         self._setChannel(channelName, attachment, field = attachmentField)
     
     def _setChannel(self, channelName, item, field=None):
+        """General purpose method to modify channel values
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        item
+            new replacing item
+        field : str
+            channel dict key of item
+        """
         if channelName in self:
             self[channelName][field] = item
         else:
@@ -250,6 +415,24 @@ class mdf_skeleton(dict):
     
     def add_metadata(self, author='', organisation='', project='', \
             subject='', comment='', date='', time=''):
+        """adds basic metadata to mdf class
+
+        Parameters
+        ----------------
+        author : str
+            author of file
+        organisation : str
+            organisation of author
+        project : str
+        subject : str
+        comment : str
+        date : str
+        time : str
+
+        Note
+        =====
+        All fields are optional, default being empty string
+        """
         self.file_metadata['author'] = author
         self.file_metadata['organisation'] = organisation
         self.file_metadata['project'] = project
@@ -259,6 +442,15 @@ class mdf_skeleton(dict):
         self.file_metadata['time'] = time
         
     def __repr__(self):
+        """representation a mdf_skeleton class data strucutre
+
+        Returns:
+        ------------
+        string of mdf class ordered as below
+        master_channel_name
+            channel_name   description
+            numpy_array    unit
+        """
         output = 'file name : ' + self.fileName + '\n'
         for m in self.file_metadata.keys():
             output += m + ' : ' + str(self.file_metadata[m]) + '\n'
