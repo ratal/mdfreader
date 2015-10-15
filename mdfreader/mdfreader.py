@@ -493,7 +493,8 @@ class mdf(mdf3, mdf4):
                 length = []
                 masterChannelName = 'master'
                 for master in list(self.masterChannelList.keys()):
-                    if master != '' and master is not None and self.masterChannelList[master]:
+                    if master is not None and master != '' and \
+                            master in self and self.masterChannelList[master]:
                         masterData = self.getChannelData(master)
                         if master in self and len(masterData) > 5:  # consider groups having minimum size
                             minTime.append(masterData[0])
