@@ -1467,24 +1467,26 @@ def arrayformat4(signalDataType, numberOfBits):
             print('Unsupported number of bit for floating point ' + str(numberOfBits))
 
     elif signalDataType == 6:  # string ISO-8859-1 Latin
-        dataType = 'S' + str(numberOfBits // 8)  # not directly processed
+        dataType = 'S' + str(numberOfBits // 8)
     elif signalDataType == 7:  # UTF-8
-        dataType = 'U'  # not directly processed
-    elif signalDataType in (8, 9):  # UTF-16
-        dataType = 'U'  # not directly processed
+        dataType = 'U'
+    elif signalDataType == 8:  # UTF-16 low endian
+        dataType = '<V' + str(numberOfBits // 8)
+    elif signalDataType == 9:  # UTF-16 big endian
+        dataType = '>V' + str(numberOfBits // 8)
     elif signalDataType == 10:  # bytes array
-        dataType = 'V' + str(numberOfBits // 8)  # not directly processed
+        dataType = 'V' + str(numberOfBits // 8)
     elif signalDataType in (11, 12):  # MIME sample or MIME stream
-        dataType = 'V' + str(int(numberOfBits / 8))  # not directly processed
+        dataType = 'V' + str(int(numberOfBits / 8))
     elif signalDataType in (13, 14):  # CANOpen date or time
         dataType = None
     else:
         print('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits)
 
     # deal with byte order
-    if signalDataType in (0, 2, 4, 8):  # low endian
+    if signalDataType in (0, 2, 4):  # low endian
         dataType = '<' + dataType
-    elif signalDataType in (1, 3, 5, 9):  # big endian
+    elif signalDataType in (1, 3, 5):  # big endian
         dataType = '>' + dataType
 
     return dataType
