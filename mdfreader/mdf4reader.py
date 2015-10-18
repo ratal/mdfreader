@@ -1007,6 +1007,7 @@ class record(list):
         """
         if channelList is None:  # reads all, quickest but memory consuming
             if self.byte_aligned:
+                #print(self.numpyDataRecordFormat)
                 return fromfile(fid, dtype=self.numpyDataRecordFormat, shape=self.numberOfRecords, names=self.dataRecordName)
             else:
                 return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), channelList)
@@ -1289,8 +1290,8 @@ class mdf4(mdf_skeleton):
                                 # Process concatenated bits inside uint8
                                 if buf[recordID]['record'].byte_aligned and \
                                         0 < chan.bitCount < 64 and chan.bitCount not in (8, 16, 32) \
-                                        and temp.dtype.kind not in ('S', 'U') \
-                                        and temp is not None:  # if channel data do not use complete bytes and Ctypes
+                                        and temp is not None\
+                                        and temp.dtype.kind not in ('S', 'U'):  # if channel data do not use complete bytes and Ctypes
                                     if chan.signalDataType in (0, 1, 2, 3):  # integers
                                         if chan.bitOffset > 0:
                                             temp = right_shift(temp, chan.bitOffset)
@@ -1301,11 +1302,18 @@ class mdf4(mdf_skeleton):
                                 else:  # data using full bytes
                                     pass
 
-                                # MLSD
-                                if chan.channelType == 5:
-                                    pass  # print('MLSD masking needed')
-                                
                                 if temp is not None: # channel contains data
+                                    # string data decoding
+                                    if temp.dtype.kind != 'U':
+                                        if chan.signalDataType == 6: # string ISO-8859-1 Latin 
+                                            temp = temp.decode('latin-1', 'ignore')
+                                        elif chan.signalDataType == 7: # UTF-8
+                                            temp = temp.decode('UTF-8', 'ignore')
+                                        elif chan.signalDataType == 8: # UTF-16 low endian
+                                            temp = temp.decode('UTF-16LE', 'ignore')
+                                        elif chan.signalDataType == 9: # UTF-16 big endian
+                                            temp = temp.decode('UTF-16BE', 'ignore')
+                                    # channel creation
                                     self.add_channel(dataGroup, chan.name, temp, \
                                         master_channel, \
                                         master_type=chan.channelSyncType, \
@@ -1469,11 +1477,11 @@ def arrayformat4(signalDataType, numberOfBits):
     elif signalDataType == 6:  # string ISO-8859-1 Latin
         dataType = 'S' + str(numberOfBits // 8)
     elif signalDataType == 7:  # UTF-8
-        dataType = 'U'
+        dataType = 'S' + str(numberOfBits // 8)
     elif signalDataType == 8:  # UTF-16 low endian
-        dataType = '<V' + str(numberOfBits // 8)
+        dataType = 'S' + str(numberOfBits // 8)
     elif signalDataType == 9:  # UTF-16 big endian
-        dataType = '>V' + str(numberOfBits // 8)
+        dataType = 'S' + str(numberOfBits // 8)
     elif signalDataType == 10:  # bytes array
         dataType = 'V' + str(numberOfBits // 8)
     elif signalDataType in (11, 12):  # MIME sample or MIME stream
@@ -1484,9 +1492,9 @@ def arrayformat4(signalDataType, numberOfBits):
         print('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits)
 
     # deal with byte order
-    if signalDataType in (0, 2, 4):  # low endian
+    if signalDataType in (0, 2, 4, 8):  # low endian
         dataType = '<' + dataType
-    elif signalDataType in (1, 3, 5):  # big endian
+    elif signalDataType in (1, 3, 5, 9):  # big endian
         dataType = '>' + dataType
 
     return dataType
