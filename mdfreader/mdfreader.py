@@ -984,7 +984,7 @@ class mdf(mdf3, mdf4):
             buf = bigmat
             for col in range(maxCols):
                 data = self.getChannelData(channels[col])
-                if data.dtype.kind not in ['S', 'U']:
+                if data.dtype.kind not in ('S', 'U', 'V'):
                     chanlen = len(data)
                     if chanlen < maxRows:
                         buf[:] = None
@@ -1093,12 +1093,16 @@ class mdf(mdf3, mdf4):
             if group in self.masterChannelList[group]:
                 time = datetimeInfo + array(self.getChannelData(group) * 10E6, dtype='timedelta64[us]')
                 for channel in self.masterChannelList[group]:
-                    temp[channel] = pd.Series(self.getChannelData(channel), index=time)
+                    data = self.getChannelData(channel)
+                    if data.ndim == 1:
+                        temp[channel] = pd.Series(data, index=time)
                 self[group + '_group'] = pd.DataFrame(temp)
                 self[group + '_group'].pop(group)  # delete time channel, no need anymore
             else: # no master channel in channel group
                 for channel in self.masterChannelList[group]:
-                    temp[channel] = pd.Series(self.getChannelData(channel))
+                    data = self.getChannelData(channel)
+                    if data.ndim == 1:
+                        temp[channel] = pd.Series(data)
                 self[group + '_group'] = pd.DataFrame(temp)
         # clean rest of self from data and time channel information
         [self[channel].pop('data') for channel in originalKeys]
