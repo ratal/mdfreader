@@ -748,7 +748,7 @@ class mdf3(mdf_skeleton):
         if channelName in self:
             return self._convert3(channelName)
         else:
-            raise KeyError('Channel not in dictionary')
+            raise KeyError('Channel ' + channelName + ' not in mdf dictionary')
             return channelName
 
     def _convert3(self, channelName):
