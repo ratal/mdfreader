@@ -1032,14 +1032,14 @@ class mdf(mdf3, mdf4):
         create union of both channel lists and fill with Nan for unknown sections in channels
         """
         self.convertAllChannel()  # make sure all channels are converted
-        unionedList = list(mdfClass.keys()) and list(self.keys())
         if not len(list(self.masterChannelList.keys())) == 1:
             raise Exception('Data not resampled')
+        unionedList = list(mdfClass.keys()) and list(self.keys())
         initialTimeSize = len(self.getChannelData('master'))
         for channel in unionedList:
-            data = self.getChannelData(channel)
-            mdfData = mdfClass.getChannelData(channel)
             if channel in mdfClass and channel in self:  # channel exists in both class
+                data = self.getChannelData(channel)
+                mdfData = mdfClass.getChannelData(channel)
                 if not channel == 'master':
                     self.setChannelData(channel, hstack((data, mdfData)))
                 else:
@@ -1047,11 +1047,13 @@ class mdf(mdf3, mdf4):
                     offset = data[-1] + offset  # time offset
                     self.setChannelData(channel, hstack((data, mdfData + offset)))
             elif channel in mdfClass:  # new channel for self from mdfClass
+                mdfData = mdfClass.getChannelData(channel)
                 self[channel] = mdfClass[channel]  # initialise all fields, units, descriptions, etc.
                 refill = empty(initialTimeSize)
                 refill.fil(nan)  # fill with NANs
                 self.setChannelData(channel, hstack((refill, mdfData)))  # readjust against time
             else:  # channel missing in mdfClass
+                data = self.getChannelData(channel)
                 refill = empty(len(mdfClass.getChannelData('master')))
                 refill.fill(nan)  # fill with NANs
                 self.setChannelData(channel, hstack((data, refill)))
