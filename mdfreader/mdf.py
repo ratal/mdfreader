@@ -460,9 +460,9 @@ class mdf_skeleton(dict):
                 output += d + '\n'
             for c in self.masterChannelList[d]:
                 output += '  ' + c + ' : '
-                desc = str(self.getChannelDesc(c))
+                desc = self.getChannelDesc(c)
                 if desc is not None:
-                    output += desc
+                    output += str(desc)
                 output += '\n    '
                 data = self.getChannelData(c)
                 if data.dtype.kind != 'V': # not byte, impossible to represent
