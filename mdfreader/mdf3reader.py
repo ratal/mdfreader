@@ -73,7 +73,7 @@ def tabInterpConv(data, conv):  # 1 Tabular with interpolation
     -----------
     converted data to physical value
     """
-    tmp = array([(key, val['int'], val['phy']) for (key, val) in conv.items()])
+    tmp = array([(key, val['int'], val['phys']) for (key, val) in conv.items()])
     return interp(data, tmp[:,1], tmp[:,2])
 
 def tabConv(data, conv):  # 2 Tabular
@@ -89,7 +89,7 @@ def tabConv(data, conv):  # 2 Tabular
     -----------
     converted data to physical value
     """
-    tmp = array([(key, val['int'], val['phy']) for (key, val) in conv.items()])
+    tmp = array([(key, val['int'], val['phys']) for (key, val) in conv.items()])
     indexes = searchsorted(tmp[:, 1], data)
     return tmp[indexes, 2]
 
