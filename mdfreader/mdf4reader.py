@@ -87,7 +87,8 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
 
     if parent_block['id'] in ('##DT', '##RD', b'##DT', b'##RD'):  # normal data block
         if sortedFlag:
-            if channelList is None and record.byte_aligned: # No channel list and length of records corresponds to C datatypes
+            if channelList is None and not record.hiddenBytes and\
+                    record.byte_aligned: # No channel list and length of records corresponds to C datatypes
                 return fromstring(parent_block['data'], dtype=record.numpyDataRecordFormat, shape=record.numberOfRecords, names=record.dataRecordName)
             else: # record is not byte aligned or channelList not None
                 return record.readBitarray(parent_block['data'], channelList)
@@ -120,7 +121,7 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
         parent_block['data'] = decompress_datablock(parent_block['data'], parent_block['dz_zip_type'],
                 parent_block['dz_zip_parameter'], parent_block['dz_org_data_length'])
         if channelList is None and sortedFlag:  # reads all blocks if sorted block and no channelList defined
-            if record.byte_aligned:
+            if record.byte_aligned and not record.hiddenBytes:
                 record.numberOfRecords = parent_block['dz_org_data_length'] // record.CGrecordLength
                 return fromstring(parent_block['data'], dtype=record.numpyDataRecordFormat, shape=record.numberOfRecords, names=record.dataRecordName)
             else:
@@ -806,8 +807,10 @@ class record(list):
         list of recordChannel being VLSD
     MLSD : dict
         copy from info['MLSD'] if existing
-    byte_aligned : Bool
+    byte_aligned : Bool, True by default
         flag for byte aligned record
+    hiddenBytes : Bool, False by default
+        flag in case of non declared channels in record, forces to use readBitarray
     invalid_channel : Default None
         invalid_byte class if existing in record otherwise None
 
@@ -841,6 +844,7 @@ class record(list):
         self.recordToChannelMatching = {}
         self.channelNames = []
         self.byte_aligned = True
+        self.hiddenBytes = False
         self.invalid_channel = None
 
     def __repr__(self):
@@ -981,6 +985,9 @@ class record(list):
             self.recordToChannelMatching[self.invalid_channel.name] = self.invalid_channel.name
             self.numpyDataRecordFormat.append(self.invalid_channel.RecordFormat)
             self.dataRecordName.append(self.invalid_channel.name)
+        # check for hidden bytes
+        if self.CGrecordLength > self.recordLength:
+            self.hiddenBytes = True
 
     def readSortedRecord(self, fid, pointer, channelList=None):
         """ reads record, only one channel group per datagroup
