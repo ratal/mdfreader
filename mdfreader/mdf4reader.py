@@ -381,7 +381,11 @@ class DATA(dict):
                     self[recordID]['data'] = rec.view(recarray)
         else:  # unsorted DataGroup
             self.type = 'unsorted'
-            self['data'] = self.load(self, zip=None, nameList=channelList, sortedFlag=False)
+            data = self.load(self, zip=None, nameList=channelList, sortedFlag=False)
+            for recordID in list(self.keys()):
+                self[recordID]['data'] = {}
+                for channel in self[recordID]['record']:
+                    self[recordID]['data'][convertName(channel.name)] = data[channel.name]
 
     def load(self, record, zip=None, nameList=None, sortedFlag=True):  # reads sorted data
         """Reads data block from record definition
@@ -1288,7 +1292,10 @@ class mdf4(mdf_skeleton):
                                     recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]  # in case record is used for several channels
                                     if 'data' in buf[recordID] and \
                                             buf[recordID]['data'] is not None: # no data in channel group
-                                        temp = buf[recordID]['data'].__getattribute__(convertName(recordName))  # extract channel vector
+                                        if isinstance(buf[recordID]['data'],recarray):
+                                            temp = buf[recordID]['data'].__getattribute__(convertName(recordName))  # extract channel vector
+                                        else:
+                                            temp = buf[recordID]['data'][convertName(recordName)] 
                                     else:
                                         temp = None
                                 else:  # virtual channel
