@@ -862,6 +862,7 @@ class record(list):
         output += 'Numpy records format : \n'
         for record in self.numpyDataRecordFormat:
             output += str(record) + '\n'
+        output += 'VLSD_CG' + str(self.VLSD_CG)
         return output
     def addChannel(self, info, channelNumber):
         """ add a channel in class
@@ -1271,7 +1272,9 @@ class mdf4(mdf_skeleton):
                     temp = record(dataGroup, channelGroup)  # create record class
                     temp.loadInfo(info)  # load all info related to record
                     buf.addRecord(temp)  # adds record to DATA
-                    if temp.master['name'] is not None:
+                    recordID = info['CGBlock'][dataGroup][channelGroup]['cg_record_id']
+                    if temp.master['name'] is not None \
+                            and buf[recordID]['record'].channelNames:
                         self.masterChannelList[temp.master['name']] = []
                         if channelList is not None and temp.master['name'] not in channelList:
                             channelList.append(temp.master['name'])  # adds master channel in channelList if missing
@@ -1300,7 +1303,7 @@ class mdf4(mdf_skeleton):
                                         temp = None
                                 else:  # virtual channel
                                     temp = arange(buf[recordID]['record'].numberOfRecords)
-                                
+
                                 # Process concatenated bits inside uint8
                                 if buf[recordID]['record'].byte_aligned and \
                                         0 < chan.bitCount < 64 and chan.bitCount not in (8, 16, 32) \
@@ -1358,7 +1361,7 @@ class mdf4(mdf_skeleton):
                                         master_type=0, \
                                         unit='', \
                                         description='')
-                del buf
+                    del buf[recordID]
         fid.close()  # close file
 
         if convertAfterRead:
