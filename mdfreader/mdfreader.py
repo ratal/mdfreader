@@ -1096,7 +1096,7 @@ class mdf(mdf3, mdf4):
                 time = datetimeInfo + array(self.getChannelData(group) * 10E6, dtype='timedelta64[us]')
                 for channel in self.masterChannelList[group]:
                     data = self.getChannelData(channel)
-                    if data.ndim == 1:
+                    if data.ndim == 1 and data.shape == time.shape:
                         temp[channel] = pd.Series(data, index=time)
                 self[group + '_group'] = pd.DataFrame(temp)
                 self[group + '_group'].pop(group)  # delete time channel, no need anymore
