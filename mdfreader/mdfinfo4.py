@@ -168,7 +168,26 @@ class IDBlock(MDFBlock):
         self['id_prog'] = self.mdfblockreadCHAR(fid, 8)
         self['id_reserved1'] = self.mdfblockreadBYTE(fid, 4)
         self['id_ver'] = self.mdfblockread(fid, UINT16, 1)
-        self['id_reserved2'] = self.mdfblockreadBYTE(fid, 34)
+        self['id_reserved2'] = self.mdfblockreadBYTE(fid, 30)
+        self['id_unfi_flags'] = self.mdfblockread(fid, UINT16, 1)
+        self['id_custom_unfi_flags'] = self.mdfblockread(fid, UINT16, 1)
+        # treatment of unfinalised file
+        if self['id_ver'] > 410 and 'UnFin' in self['id_file']:
+            print('  /!\ unfinalised file')
+            if self['id_unfi_flags'] & 1:
+                print('Update of cycle counters for CG/CA blocks required')
+            if self['id_unfi_flags'] & (1 << 1):
+                print('Update of cycle counters for SR blocks required')
+            if self['id_unfi_flags'] & (1 << 2):
+                print('Update of length for last DT block required')
+            if self['id_unfi_flags'] & (1 << 3):
+                print('Update of length for last RD block required')
+            if self['id_unfi_flags'] & (1 << 4):
+                print('Update of last DL block in each chained list of DL blocks required')
+            if self['id_unfi_flags'] & (1 << 5):
+                print('Update of cg_data_bytes and cg_inval_bytes in VLSD CG block required')
+            if self['id_unfi_flags'] & (1 << 6):
+                print('Update of offset values for VLSD channel required in case a VLSD CG block is used')
 
 
 class HDBlock(MDFBlock):
