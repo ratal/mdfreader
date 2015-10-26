@@ -996,7 +996,7 @@ class mdf(mdf3, mdf4):
                     buf[:] = None
                     bigmat = vstack((bigmat, buf))
             bigmat = delete(bigmat, 0, 0)
-            [ws.append(list(bigmat[:, row]) for row in range(maxRows)]
+            [ws.append(list(bigmat[:, row])) for row in range(maxRows)]
         print('Writing file, please wait')
         wb.save(filename)
 
