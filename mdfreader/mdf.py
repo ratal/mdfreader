@@ -462,14 +462,18 @@ class mdf_skeleton(dict):
                 output += '  ' + c + ' : '
                 desc = self.getChannelDesc(c)
                 if desc is not None:
-                    output += str(desc)
+                    try:
+                        output += str(desc)
+                    except:
+                        pass
                 output += '\n    '
                 data = self.getChannelData(c)
                 if data.dtype.kind != 'V': # not byte, impossible to represent
                     output += array_repr(data, \
                         precision=3, suppress_small=True)
                 unit = self.getChannelUnit(c)
-                output += ' ' + unit + '\n'
+                if unit is not None:
+                    output += ' ' + unit + '\n'
         return output
 
     def copy(self):
