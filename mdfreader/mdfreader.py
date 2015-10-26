@@ -957,20 +957,20 @@ class mdf(mdf3, mdf4):
             # write header
             if PythonVersion < 3:
                 for j in range(maxCols):
-                    ws.cell(row=0, column=j).value = channels[j].decode('utf-8', 'ignore')
-                    ws.cell(row=1, column=j).value = self.getChannelUnit(channels[j]).decode('utf-8', 'ignore')
+                    ws.cell(row=1, column=j+1).value = channels[j]
+                    ws.cell(row=2, column=j+1).value = self.getChannelUnit(channels[j])
             else:
                 for j in range(maxCols):
-                    ws.cell(row=0, column=j).value = channels[j]
-                    ws.cell(row=1, column=j).value = self.getChannelUnit(channels[j])
+                    ws.cell(row=1, column=j+1).value = channels[j]
+                    ws.cell(row=2, column=j+1).value = self.getChannelUnit(channels[j])
             for j in range(maxCols):
                 data = self.getChannelData(channels[j])
-                if data.dtype in ['int8', 'int16', 'uint8', 'uint16']:
+                if data.dtype.kind in ('i', 'u') or 'f4' in data.dtype.str:
                     for r in range(len(data)):
-                        ws.cell(row=r + 2, column=j).value = float64(data[r])
-                else:
+                        ws.cell(row=r + 3, column=j+1).value = float64(data[r])
+                elif data.dtype.kind not in ('V', 'U'):
                     for r in range(len(data)):
-                        ws.cell(row=r + 2, column=j).value = data[r]
+                        ws.cell(row=r + 3, column=j+1).value = data[r]
         else:  # resampled data
             wb = openpyxl.workbook.Workbook(optimized_write=True, encoding='utf-8')
             ws = wb.create_sheet()
@@ -996,7 +996,7 @@ class mdf(mdf3, mdf4):
                     buf[:] = None
                     bigmat = vstack((bigmat, buf))
             bigmat = delete(bigmat, 0, 0)
-            [ws.append(bigmat[:, row]) for row in range(maxRows)]
+            [ws.append(list(bigmat[:, row]) for row in range(maxRows)]
         print('Writing file, please wait')
         wb.save(filename)
 
