@@ -1112,6 +1112,7 @@ class mdf(mdf3, mdf4):
         self.masterGroups = []  # save time groups name in list
         [self.masterGroups.append(group + '_group') for group in list(self.masterChannelList.keys())]
         self.masterChannelList = {}
+        self._pandasframe = True
 
 if __name__ == "__main__":
     try:

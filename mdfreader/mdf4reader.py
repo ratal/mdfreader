@@ -1167,7 +1167,7 @@ class record(list):
 
 class mdf4(mdf_skeleton):
 
-    """ mdf file reader class from version 4.0 to 4.1
+    """ mdf file reader class from version 4.0 to 4.1.1
 
     Attributes
     --------------

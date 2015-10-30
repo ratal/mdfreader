@@ -18,6 +18,7 @@ mdf module
 --------------------------
 """
 from numpy import array_repr, set_printoptions
+import pandas as pd
 set_printoptions(threshold=100, edgeitems=1)
 
 descriptionField = 'description'
@@ -97,12 +98,14 @@ class mdf_skeleton(dict):
         self.MDFVersionNumber = 300
         self.filterChannelNames = filterChannelNames
         self.convert_tables = False
+        self._pandasframe = False
         # clears class from previous reading and avoid to mess up
         self.clear()
         self.fileName = fileName
         if fileName is not None:
             self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames)
-    
+
+
     def add_channel(self, dataGroup, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None):
         """ adds channel to mdf dict.
 
@@ -155,7 +158,8 @@ class mdf_skeleton(dict):
                     self[channel_name]['conversion']['parameters']['cc_val'] = conversion['cc_val']
                 if 'cc_ref' in conversion:
                     self[channel_name]['conversion']['parameters']['cc_ref'] = conversion['cc_ref']
-    
+
+
     def remove_channel(self, channel_name):
         """ removes channel from mdf dict.
 
@@ -170,7 +174,8 @@ class mdf_skeleton(dict):
         """
         self.masterChannelList[self.getChannelMaster(channel_name)].pop(channel_name)
         return self.pop(channel_name)
-    
+
+
     def remove_channel_conversion(self, channelName):
         """ removes conversion key from mdf channel dict.
 
@@ -184,7 +189,8 @@ class mdf_skeleton(dict):
         removed value from dict
         """
         return self._remove_channel_field(channelName, conversionField)
-    
+
+
     def _remove_channel_field(self, channelName, field):
         """general purpose function to remove key from channel dict in mdf
 
@@ -201,6 +207,7 @@ class mdf_skeleton(dict):
         if field in self.getChannel(channelName):
             return self[channelName].pop(field)
 
+
     def getChannelUnit(self, channelName):
         """Returns channel unit string
         Implemented for a future integration of pint
@@ -216,7 +223,8 @@ class mdf_skeleton(dict):
             unit string description
         """
         return self._getChannelField(channelName, field = unitField)
-    
+
+
     def getChannelDesc(self, channelName):
         """Extract channel description information from mdf structure
 
@@ -230,7 +238,8 @@ class mdf_skeleton(dict):
         channel description string
         """
         return self._getChannelField(channelName, field = descriptionField)
-    
+
+
     def getChannelMaster(self, channelName):
         """Extract channel master name from mdf structure
 
@@ -244,7 +253,8 @@ class mdf_skeleton(dict):
         channel master name string
         """
         return self._getChannelField(channelName, field = masterField)
-    
+
+
     def getChannelMasterType(self, channelName):
         """Extract channel master type information from mdf structure
 
@@ -258,7 +268,8 @@ class mdf_skeleton(dict):
         channel mater type integer
         """
         return self._getChannelField(channelName, field = masterTypeField)
-    
+
+
     def getChannelConversion(self, channelName):
         """Extract channel conversion dict from mdf structure
 
@@ -272,7 +283,8 @@ class mdf_skeleton(dict):
         channel conversion dict
         """
         return self._getChannelField(channelName, field = conversionField)
-    
+
+
     def getChannel(self, channelName):
         """Extract channel dict from mdf structure
 
@@ -289,7 +301,8 @@ class mdf_skeleton(dict):
             return self[channelName]
         else:
             return None
-        
+
+
     def _getChannelField(self, channelName, field=None):
         """General purpose function to extract channel dict key value from mdf class
 
@@ -312,6 +325,7 @@ class mdf_skeleton(dict):
         else:
             return None
 
+
     def setChannelUnit(self, channelName, unit):
         """Modifies unit of channel
 
@@ -323,6 +337,7 @@ class mdf_skeleton(dict):
             channel unit
         """
         self._setChannel(channelName, unit, field = unitField)
+
 
     def setChannelData(self, channelName, data):
         """Modifies data of channel
@@ -336,6 +351,7 @@ class mdf_skeleton(dict):
         """
         self._setChannel(channelName, data, field = dataField)
 
+
     def setChannelDesc(self, channelName, desc):
         """Modifies description of channel
 
@@ -347,7 +363,8 @@ class mdf_skeleton(dict):
             channel description
         """
         self._setChannel(channelName, desc, field = descriptionField)
-    
+
+
     def setChannelMaster(self, channelName, master):
         """Modifies channel master name
 
@@ -359,7 +376,8 @@ class mdf_skeleton(dict):
             master channel name
         """
         self._setChannel(channelName, master, field = masterField)
-    
+
+
     def setChannelMasterType(self, channelName, masterType):
         """Modifies master channel type
 
@@ -371,7 +389,8 @@ class mdf_skeleton(dict):
             master channel type
         """
         self._setChannel(channelName, masterType, field = masterTypeField)
-    
+
+
     def setChannelConversion(self, channelName, conversion):
         """Modifies conversion dict of channel
 
@@ -383,7 +402,8 @@ class mdf_skeleton(dict):
             conversion dictionnary
         """
         self._setChannel(channelName, conversion, field = conversionField)
-        
+
+
     def setChannelAttachment(self, channelName, attachment):
         """Modifies channel attachment
 
@@ -395,7 +415,8 @@ class mdf_skeleton(dict):
             channel attachment
         """
         self._setChannel(channelName, attachment, field = attachmentField)
-    
+
+
     def _setChannel(self, channelName, item, field=None):
         """General purpose method to modify channel values
 
@@ -412,7 +433,8 @@ class mdf_skeleton(dict):
             self[channelName][field] = item
         else:
             raise KeyError('Channel not in dictionary')
-    
+
+
     def add_metadata(self, author='', organisation='', project='', \
             subject='', comment='', date='', time=''):
         """adds basic metadata to mdf class
@@ -440,7 +462,8 @@ class mdf_skeleton(dict):
         self.file_metadata['comment'] = comment
         self.file_metadata['date'] = date
         self.file_metadata['time'] = time
-        
+
+
     def __repr__(self):
         """representation a mdf_skeleton class data strucutre
 
@@ -454,27 +477,37 @@ class mdf_skeleton(dict):
         output = 'file name : ' + self.fileName + '\n'
         for m in self.file_metadata.keys():
             output += m + ' : ' + str(self.file_metadata[m]) + '\n'
-        output += '\nchannels listed by data groups:\n'
-        for d in self.masterChannelList.keys():
-            if d is not None:
-                output += d + '\n'
-            for c in self.masterChannelList[d]:
-                output += '  ' + c + ' : '
-                desc = self.getChannelDesc(c)
-                if desc is not None:
-                    try:
-                        output += str(desc)
-                    except:
-                        pass
-                output += '\n    '
-                data = self.getChannelData(c)
-                if data.dtype.kind != 'V': # not byte, impossible to represent
-                    output += array_repr(data, \
-                        precision=3, suppress_small=True)
-                unit = self.getChannelUnit(c)
-                if unit is not None:
-                    output += ' ' + unit + '\n'
-        return output
+        if not self._pandasframe:
+            output += '\nchannels listed by data groups:\n'
+            for d in self.masterChannelList.keys():
+                if d is not None:
+                    output += d + '\n'
+                for c in self.masterChannelList[d]:
+                    output += '  ' + c + ' : '
+                    desc = self.getChannelDesc(c)
+                    if desc is not None:
+                        try:
+                            output += str(desc)
+                        except:
+                            pass
+                    output += '\n    '
+                    data = self.getChannelData(c)
+                    if data.dtype.kind != 'V': # not byte, impossible to represent
+                        output += array_repr(data, \
+                            precision=3, suppress_small=True)
+                    unit = self.getChannelUnit(c)
+                    if unit is not None:
+                        output += ' ' + unit + '\n'
+            return output
+        else:
+            pd.set_option('max_rows', 3)
+            pd.set_option('expand_frame_repr', True)
+            pd.set_option('max_colwidth', 6)
+            for master in self.masterGroups:
+                output += master
+                output += str(self[master])
+            return output
+
 
     def copy(self):
         """copy a mdf class
