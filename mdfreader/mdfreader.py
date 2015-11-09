@@ -963,14 +963,16 @@ class mdf(mdf3, mdf4):
                 for j in range(maxCols):
                     ws.cell(row=1, column=j+1).value = channels[j]
                     ws.cell(row=2, column=j+1).value = self.getChannelUnit(channels[j])
+            # arrange data
             for j in range(maxCols):
                 data = self.getChannelData(channels[j])
-                if data.dtype.kind in ('i', 'u') or 'f4' in data.dtype.str:
-                    for r in range(len(data)):
-                        ws.cell(row=r + 3, column=j+1).value = float64(data[r])
-                elif data.dtype.kind not in ('V', 'U'):
-                    for r in range(len(data)):
-                        ws.cell(row=r + 3, column=j+1).value = data[r]
+                if data.ndim <= 1: # not an array channel
+                    if data.dtype.kind in ('i', 'u') or 'f4' in data.dtype.str:
+                        for r in range(len(data)):
+                            ws.cell(row=r + 3, column=j+1).value = float64(data[r])
+                    elif data.dtype.kind not in ('V', 'U'):
+                        for r in range(len(data)):
+                            ws.cell(row=r + 3, column=j+1).value = data[r]
         else:  # resampled data
             wb = openpyxl.workbook.Workbook(optimized_write=True, encoding='utf-8')
             ws = wb.create_sheet()
@@ -984,17 +986,18 @@ class mdf(mdf3, mdf4):
             buf = bigmat
             for col in range(maxCols):
                 data = self.getChannelData(channels[col])
-                if data.dtype.kind not in ('S', 'U', 'V'):
-                    chanlen = len(data)
-                    if chanlen < maxRows:
-                        buf[:] = None
-                        buf[0:chanlen] = data
-                        bigmat = vstack((bigmat, buf))
+                if data.ndim <= 1: # not an array channel
+                    if data.dtype.kind not in ('S', 'U', 'V'):
+                        chanlen = len(data)
+                        if chanlen < maxRows:
+                            buf[:] = None
+                            buf[0:chanlen] = data
+                            bigmat = vstack((bigmat, buf))
+                        else:
+                            bigmat = vstack((bigmat, data))
                     else:
-                        bigmat = vstack((bigmat, data))
-                else:
-                    buf[:] = None
-                    bigmat = vstack((bigmat, buf))
+                        buf[:] = None
+                        bigmat = vstack((bigmat, buf))
             bigmat = delete(bigmat, 0, 0)
             [ws.append(list(bigmat[:, row])) for row in range(maxRows)]
         print('Writing file, please wait')

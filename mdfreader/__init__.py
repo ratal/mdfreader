@@ -16,7 +16,7 @@
 __author__ = 'Aymeric Rateau (aymeric.rateau@gmail.com)'
 __copyright__ = 'Copyright (c) 2015 Aymeric Rateau'
 __license__ = 'GPLV3'
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 #if it's run as a script or imported within python, this happens
 if __name__ == 'mdfreader':
