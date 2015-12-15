@@ -1096,7 +1096,7 @@ class mdf(mdf3, mdf4):
             temp = {}
             # convert time channel into timedelta
             if group in self.masterChannelList[group]:
-                time = datetimeInfo + array(self.getChannelData(group) * 10E6, dtype='timedelta64[us]')
+                time = datetimeInfo + array(self.getChannelData(group) * 1E6, dtype='timedelta64[us]')
                 for channel in self.masterChannelList[group]:
                     data = self.getChannelData(channel)
                     if data.ndim == 1 and data.shape == time.shape:
