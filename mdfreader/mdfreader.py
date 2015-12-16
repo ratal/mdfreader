@@ -793,6 +793,8 @@ class mdf(mdf3, mdf4):
                         group_name = 'master'+str(ngroups)
                     groups[group_name] = ngroups
                     grp[ngroups] = filegroup.create_group(group_name)
+                elif 'master' in self[channel] and masterName not in list(groups.keys()):
+                    group_name = masterName
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
                     dset = grp[groups[group_name]].create_dataset(channel, data=channelData)
                     setAttribute(dset, 'unit', self.getChannelUnit(channel))
