@@ -793,7 +793,7 @@ class mdf(mdf3, mdf4):
                         group_name = 'master'+str(ngroups)
                     groups[group_name] = ngroups
                     grp[ngroups] = filegroup.create_group(group_name)
-                elif 'master' in self[channel] and masterName not in list(groups.keys()):
+                elif 'master' in self[channel] and masterName in list(groups.keys()):
                     group_name = masterName
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
                     dset = grp[groups[group_name]].create_dataset(channel, data=channelData)
@@ -955,7 +955,7 @@ class mdf(mdf3, mdf4):
         print('Creating Excel sheet')
         if len(list(self.masterChannelList.keys())) > 1:  # not resampled data, can be long, writing cell by cell !
             wb = openpyxl.workbook.Workbook(encoding='utf-8')
-            ws = wb.get_active_sheet()
+            ws = wb.active #get_active_sheet()
             # write header
             if PythonVersion < 3:
                 for j in range(maxCols):
