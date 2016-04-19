@@ -147,7 +147,7 @@ class info3(dict):
                 # Get pointer to next first Channel block
                 CNpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToFirstCNBlock']
 
-		        snames = set()
+                snames = set()
                 # For each Channel
                 for channel in range(self['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
 
@@ -180,10 +180,10 @@ class info3(dict):
                     if self.filterChannelNames:
                         signalname = signalname.split('.')[-1]  # filters channels modules
 
-		            if signalname in snames:
+                    if signalname in snames:
 			            self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + '_' + str(channel)
 			            print 'WARNING added number to duplicate channel name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-		            else:
+                    else:
 			            self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
 			            snames.add(signalname)
                         #self.channelNameList.append( signalname )
@@ -390,7 +390,7 @@ class info3(dict):
                 # Get pointer to next first Channel block
                 CNpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToFirstCNBlock']
 
-		        snames = set()
+                snames = set()
                 # For each Channel
                 for channel in range(self['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
 
@@ -419,10 +419,10 @@ class info3(dict):
                     if self.filterChannelNames:
                         signalname = signalname.split('.')[-1]
 
-		            if signalname in snames:
+                    if signalname in snames:
 			            self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + str(channel)
 			            print 'WARNING added number to duplicate signal name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName']
-		            else:
+                    else:
 			            self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
 			            snames.add(signalname)
 
