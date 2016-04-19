@@ -181,11 +181,11 @@ class info3(dict):
                         signalname = signalname.split('.')[-1]  # filters channels modules
 
                     if signalname in snames:
-			            self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + '_' + str(channel)
-			            print 'WARNING added number to duplicate channel name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName']
+                        self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + '_' + str(channel)
+                        print('WARNING added number to duplicate channel name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName'])
                     else:
-			            self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
-			            snames.add(signalname)
+                        self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
+                        snames.add(signalname)
                         #self.channelNameList.append( signalname )
 
                     # Read channel description
@@ -420,11 +420,11 @@ class info3(dict):
                         signalname = signalname.split('.')[-1]
 
                     if signalname in snames:
-			            self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + str(channel)
-			            print 'WARNING added number to duplicate signal name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName']
+                        self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + '_' + str(channel)
+                        print('WARNING added number to duplicate signal name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName'])
                     else:
-			            self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
-			            snames.add(signalname)
+                        self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
+                        snames.add(signalname)
 
                     channelNameList.append(signalname)
 

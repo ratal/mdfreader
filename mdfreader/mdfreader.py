@@ -166,7 +166,7 @@ class mdfinfo(dict):
         except IOError:
             raise Exception('Can not find file ' + self.fileName)
         # Check whether file is MDF file -- assumes that every MDF file starts with the letters MDF
-	if not fid.read(3) == 'MDF':
+        if fid.read(3) not in ('MDF', b'MDF'):
             raise Exception('file ' + self.fileName + ' is not an MDF file!')
         # read Identifier block
         fid.seek(28)
