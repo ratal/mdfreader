@@ -147,6 +147,7 @@ class info3(dict):
                 # Get pointer to next first Channel block
                 CNpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToFirstCNBlock']
 
+		snames = set()
                 # For each Channel
                 for channel in range(self['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
 
@@ -162,6 +163,7 @@ class info3(dict):
                     # Clean signal name
                     shortSignalName = self['CNBlock'][dataGroup][channelGroup][channel]['signalName']  # short name of signal
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
+
                     if CNTXpointer > 0:
                         longSignalName = self.mdfblockread3(self.blockformats3('TXFormat'), fid, CNTXpointer)  # long name of signal
                         longSignalName = longSignalName['Text']
@@ -177,7 +179,13 @@ class info3(dict):
                     signalname = signalname[0]
                     if self.filterChannelNames:
                         signalname = signalname.split('.')[-1]  # filters channels modules
-                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
+
+		    if signalname in snames:
+			self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + '_' + str(channel)
+			print 'WARNING added number to duplicate channel name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName']
+		    else:
+			self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
+			snames.add(signalname)
                     #self.channelNameList.append( signalname )
 
                     # Read channel description
@@ -382,6 +390,7 @@ class info3(dict):
                 # Get pointer to next first Channel block
                 CNpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToFirstCNBlock']
 
+		snames = set()
                 # For each Channel
                 for channel in range(self['CGBlock'][dataGroup][channelGroup]['numberOfChannels']):
 
@@ -409,7 +418,13 @@ class info3(dict):
                     signalname = signalname[0]
                     if self.filterChannelNames:
                         signalname = signalname.split('.')[-1]
-                    self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
+
+		    if signalname in snames:
+			self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + str(channel)
+			print 'WARNING added number to duplicate signal name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName']
+		    else:
+			self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
+			snames.add(signalname)
                     channelNameList.append(signalname)
 
         # CLose the file
