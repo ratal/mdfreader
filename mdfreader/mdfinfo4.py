@@ -492,6 +492,7 @@ class CNBlock(MDFBlock):
                 self['unit'] = CommentBlock(fid, self['cn_md_unit'], 'unit')
             if self['cn_tx_name']:  # comments exist
                 self['name'] = CommentBlock(fid, self['cn_tx_name'], MDType='CN')['name']
+            self['name'] = self['name'].replace(':','')
 
 
 class CCBlock(MDFBlock):
