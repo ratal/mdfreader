@@ -721,7 +721,7 @@ class channel():
         self.channelNumber = channelNumber
         self.dataGroup = dataGroup
         self.channelGroup = channelGroup
-        self.signalDataType = 0
+        self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data_type']
         self.channelSyncType = 0
         if self.name == 'ms':
             offset = 0
@@ -768,6 +768,7 @@ class channel():
         self.posByteEnd = self.posByteBeg + self.nBytes
         self.posBitBeg = self.posByteBeg * 8 + self.bitOffset
         self.posBitEnd = self.posBitBeg + self.bitCount
+        self.signalDataType = 0
 
     def setInvalidBytes(self, info, dataGroup, channelGroup, recordIDsize, byte_aligned=True):
         """ invalid_bytes channel initialisation
@@ -1035,7 +1036,7 @@ class record(list):
                         self.recordLength += Channel.nBytes
                     if 'VLSD_CG' in info:  # is there VLSD CG
                         for recordID in info['VLSD_CG']:  # look for VLSD CG Channel
-                            if info['VLSD_CG'][recordID]['cg_cn'] == (self.ChannelGroup, channelNumber):
+                            if info['VLSD_CG'][recordID]['cg_cn'] == (self.channelGroup, channelNumber):
                                 self.VLSD_CG[recordID] = info['VLSD_CG'][recordID]
                                 self.VLSD_CG[recordID]['channel'] = Channel
                                 self.VLSD_CG[recordID]['channelName'] = Channel.name
