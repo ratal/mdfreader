@@ -876,6 +876,8 @@ class record(list):
         flag in case of non declared channels in record, forces to use readBitarray
     invalid_channel : Default None
         invalid_byte class if existing in record otherwise None
+    CANOpen : str, Default None
+        'time' if record contains CANOpen time channel, same for 'date'
 
     Methods
     ------------
@@ -909,6 +911,7 @@ class record(list):
         self.byte_aligned = True
         self.hiddenBytes = False
         self.invalid_channel = None
+        self.CANOpen = None
 
     def __str__(self):
         output = 'Channels : ' + str(len(self)) + '\n'
@@ -998,6 +1001,7 @@ class record(list):
                         self.recordToChannelMatching[name] = name
                         self.numpyDataRecordFormat.append(Channel.RecordFormat)
                     self.recordLength += 7
+                    self.CANOpen = 'date'
                 elif Channel.signalDataType == 14:
                     for name in ('ms', 'days'):
                         Channel = channel()
@@ -1008,6 +1012,7 @@ class record(list):
                         self.recordToChannelMatching[name] = name
                         self.numpyDataRecordFormat.append(Channel.RecordFormat)
                     self.recordLength += 6
+                    self.CANOpen = 'time'
                 else:
                     self.append(Channel)
                     self.channelNames.append(Channel.name)
@@ -1349,6 +1354,11 @@ class mdf4(mdf_skeleton):
                         self.masterChannelList[temp.master['name']] = []
                         if channelList is not None and temp.master['name'] not in channelList:
                             channelList.append(temp.master['name'])  # adds master channel in channelList if missing
+                    if channelList is not None and buf[recordID]['record'].CANOpen: # adds CANOpen channels if existing in not empty channelList
+                        if buf[recordID]['record'].CANOpen == 'time':
+                            channelList.extend(['ms', 'days'])
+                        elif buf[recordID]['record'].CANOpen == 'date':
+                            channelList.extend(['ms', 'min', 'hour', 'day', 'month', 'year'])
 
                 buf.read(channelList)  # reads raw data from data block with DATA and DATABlock classes
 
