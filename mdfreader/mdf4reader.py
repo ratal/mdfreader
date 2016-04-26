@@ -219,7 +219,6 @@ def equalizeStringLength(buf):
         buf[i] += ' ' * (maxlen - len(buf[i]))
     return buf
 
-
 def append_field(rec, name, arr, numpy_dtype=None):
     """ append new field in a recarray
 
@@ -246,7 +245,6 @@ def append_field(rec, name, arr, numpy_dtype=None):
     newrec[name] = arr
     return newrec
 
-
 def change_field_name(arr, old_name, new_name):
     """ modifies name of field in a recarray
 
@@ -270,7 +268,6 @@ def change_field_name(arr, old_name, new_name):
     names = tuple(names)
     arr.dtype.names = names
     return arr
-
 
 def bits_to_bytes(nBits):
     """ Converts number of bits into number of aligned bytes
@@ -298,7 +295,6 @@ def bits_to_bytes(nBits):
             nBytes += 1
     return nBytes
     
-
 class DATA(dict):
 
     """ DATA class is organizing record classes itself made of channel class.
@@ -493,7 +489,6 @@ class DATA(dict):
             list of channel names to be read
         """
         return self[recordID]['record'].readRecordBuf(buf, channelList)
-
 
 class channel():
 
@@ -835,7 +830,6 @@ class channel():
         else:
             raise('asking for invalid byte array but channel is not invalid byte type')
 
-
 class record(list):
 
     """ record class listing channel classes. It is representing a channel group
@@ -916,10 +910,15 @@ class record(list):
         self.hiddenBytes = False
         self.invalid_channel = None
 
-    def __repr__(self):
-        output = 'Channels :\n'
-        for chan in self.channelNames:
-            output += chan + '\n'
+    def __str__(self):
+        output = 'Channels : ' + str(len(self)) + '\n'
+        for chan in self:
+            output += chan.name + '\n'
+            output += str(chan.channelNumber) + ' '
+            output += str(chan.RecordFormat) + ' '
+            output += str(chan.Format) + ' '
+            output += 'ChannelType ' + str(chan.channelType) + ' '
+            output += 'DataType ' + str(chan.signalDataType) + '\n'
         output += 'Datagroup number : ' + str(self.dataGroup) + '\n'
         output += 'Byte aligned : ' + str(self.byte_aligned) + '\n'
         if self.master['name'] is not None:
@@ -991,18 +990,20 @@ class record(list):
             if Channel.channelType in (0, 1, 2, 4, 5):  # not virtual channel
                 if Channel.signalDataType == 13:
                     for name in ('ms', 'min', 'hour', 'day', 'month', 'year'):
+                        Channel = channel() # new object otherwise only modified
                         Channel.setCANOpen(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize, name)
                         self.append(Channel)
-                        self.channelNames.append(Channel.name)
+                        self.channelNames.append(name)
                         self.dataRecordName.append(name)
                         self.recordToChannelMatching[name] = name
                         self.numpyDataRecordFormat.append(Channel.RecordFormat)
                     self.recordLength += 7
                 elif Channel.signalDataType == 14:
                     for name in ('ms', 'days'):
+                        Channel = channel()
                         Channel.setCANOpen(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize, name)
                         self.append(Channel)
-                        self.channelNames.append(Channel.name)
+                        self.channelNames.append(name)
                         self.dataRecordName.append(name)
                         self.recordToChannelMatching[name] = name
                         self.numpyDataRecordFormat.append(Channel.RecordFormat)
@@ -1047,6 +1048,7 @@ class record(list):
             elif Channel.channelType in (3, 6):  # master virtual channel
                 self.append(Channel)  # channel calculated based on record index later in conversion function
                 self.channelNames.append(Channel.name)
+
         if info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']:  # invalid bytes existing
             self.CGrecordLength += info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
             self.recordLength += info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
@@ -1331,7 +1333,8 @@ class mdf4(mdf_skeleton):
             raise Exception('Can not find file ' + self.fileName)
 
         for dataGroup in info['DGBlock'].keys():
-            if not info['DGBlock'][dataGroup]['dg_data'] == 0:  # data exists
+            if not info['DGBlock'][dataGroup]['dg_data'] == 0 and \
+                    info['CGBlock'][dataGroup][0]['cg_cycle_count']:  # data exists
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['dg_data']
                 buf = DATA(fid, pointerToData)
@@ -1357,8 +1360,7 @@ class mdf4(mdf_skeleton):
                             master_channel += '_' + str(dataGroup)
                         for chan in buf[recordID]['record']: # for each channel class
                             if (channelList is None or chan.name in channelList) \
-                                    and chan.signalDataType not in (13, 14) \
-                                    and 'invalid_bytes' not in chan.name: # normal channel
+                                    and not chan.type == 'InvalidBytes': # normal channel
                                 if chan.channelType not in (3, 6):  # not virtual channel
                                     recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]  # in case record is used for several channels
                                     if 'data' in buf[recordID] and \
@@ -1414,19 +1416,7 @@ class mdf4(mdf_skeleton):
                                         # attach stream to be synchronised
                                         self.setChannelAttachment(chan.name, chan.attachment(fid, info))
 
-                            elif chan.signalDataType in (13, 14): # CANopen date or time
-                                if chan.signalDataType == 13:
-                                    identifier = ['ms', 'min', 'hour', 'day', 'month', 'year']  # CANopen date
-                                else:  # CANopen time cn_data_type == 14
-                                    identifier = ['ms', 'days']
-                                for name in identifier:
-                                    self.add_channel(dataGroup, name, \
-                                        buf[recordID]['data'].__getattribute__(name + '_title'), \
-                                        master_channel, \
-                                        master_type=chan.channelSyncType, \
-                                        unit=name, \
-                                        description=chan.desc)
-                            elif 'invalid_bytes' in chan.name and \
+                            elif chan.type == 'InvalidBytes' and \
                                     (channelList is None or chan.name in channelList):  # invalid bytes, no bits processing
                                 self.add_channel(dataGroup, chan.name, \
                                         buf[recordID]['data'].__getattribute__(convertName(chan.name)), \
