@@ -652,12 +652,12 @@ class mdf3(mdf_skeleton):
             self.fileName = info.fileName
         elif fileName is not None:
             self.fileName = fileName
-            
+
         if channelList is None:
             allChannel = True
         else:
             allChannel = False
-        
+
         # Read information block from file
         if info is None:
             info = info3(self.fileName, None, self.filterChannelNames)
@@ -680,7 +680,7 @@ class mdf3(mdf_skeleton):
             fid = open(self.fileName, 'rb')
         except IOError:
             raise Exception('Can not find file ' + self.fileName)
-        
+
 
         # Read data from file
         for dataGroup in info['DGBlock'].keys():
@@ -703,11 +703,15 @@ class mdf3(mdf_skeleton):
                         master_channel = buf[recordID]['record'].master['name']
                         if master_channel in self.keys():
                             master_channel += '_' + str(dataGroup)
-                        for chan in buf[recordID]['record']: # for each recordchannel
+
+                        channels = (c for c in buf[recordID]['record']
+                                    if allChannel or c.name in channelList)
+
+                        for chan in channels: # for each recordchannel
                             recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]  # in case record is used for several channels
                             temp = buf[recordID]['data'].__getattribute__(str(recordName) + '_title')
 
-                            if (allChannel or chan.name in channelList) and len(temp) != 0:
+                            if len(temp) != 0:
                                 # Process concatenated bits inside uint8
                                 if not chan.bitCount // 8.0 == chan.bitCount / 8.0:  # if channel data do not use complete bytes
                                     mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
@@ -716,7 +720,7 @@ class mdf3(mdf_skeleton):
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
                                         print('bit count and offset not applied to correct data type')
-                                
+
                                 self.add_channel(dataGroup, chan.name, temp, \
                                         master_channel, \
                                         master_type=1, \
