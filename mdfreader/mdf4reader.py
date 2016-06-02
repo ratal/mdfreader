@@ -35,12 +35,12 @@ from math import pow
 from sys import version_info, exc_info, byteorder
 from io import open  # for python 3 and 2 consistency
 try:
-    from .mdfinfo4 import info4, MDFBlock, ATBlock
+    from .mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock
     from .mdf import mdf_skeleton
 except:
-    from mdfinfo4 import info4, MDFBlock, ATBlock
+    from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock
     from mdf import mdf_skeleton
-from time import gmtime, strftime, time
+from time import gmtime, strftime
 from multiprocessing import Queue, Process
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -1506,7 +1506,7 @@ class mdf4(mdf_skeleton):
                     self.setChannelData(channelName, L[channelName])
                     self.remove_channel_conversion(channelName)
 
-    def write3(self, fileName=None):
+    def write4(self, fileName=None):
         """Writes simple mdf 4.1 file
 
         Parameters
@@ -1522,82 +1522,29 @@ class mdf4(mdf_skeleton):
 
         pointers = {}  # records pointers of blocks when writing
 
-        # writes characters
-        def writeChar(f, value, size=None):
-            if size is None:
-                temp = value
-            else:
-                if len(value) > size:
-                    temp = value[:size]
-                else:
-                    temp = value + '\0' * (size - len(value))
-                temp += '\0'
-            if self.MDFVersionNumber < 400:
-                if PythonVersion >= 3:
-                    temp = temp.encode('latin1', 'replace')
-                f.write(pack('<' + str(len(temp)) + 's', temp))
-            else:
-                temp = temp.encode('latin1', 'replace')
-                f.write(pack('<' + str(len(temp)) + 's', temp))
-
-        # write pointer of block and come back to current stream position
-        def writePointer(f, pointer, value):
-            currentPosition = f.tell()
-            f.seek(pointer)
-            f.write(pack(LINK, value))
-            f.seek(currentPosition)
-
         # Starts first to write ID and header
         fid = open(fileName, 'wb')  # buffering should automatically be set
-        writeChar(fid, 'MDF     ')
-        writeChar(fid, '4.11    ')
-        writeChar(fid, 'MDFreadr')
-        fid.write(pack(UINT32, 0))  # reserved
-        fid.write(pack(UINT16, 411))  # version 3.0
-        writeChar(fid, '\0' * 30)  # reserved
-        fid.write(pack(UINT16, 0))  # finalisation flag
-        fid.write(pack(UINT16, 0))  # custom finalisation flag
+        # IDBLock writing
+        temp = IDBlock()
+        temp.write(fid)
 
         # Header Block
-        writeChar(fid, '##HD')
-        writeChar(fid, '\0' * 4)  # reserved
-        ndataGroup = len(self.masterChannelList)
-        fid.write(pack(UINT64, 104))  # block size
-        fid.write(pack(UINT64, 6))  # number of links
-        # header link section
-        pointers['HD'] = {}
-        pointers['HD']['DG'] = fid.tell()
-        fid.write(pack(LINK, 272))  # first Data group pointer
-        pointers['HD']['FH'] = fid.tell()
-        fid.write(pack(LINK, 272))  # first file history block pointer
-        pointers['HD']['CH'] = fid.tell()
-        fid.write(pack(LINK, 0))  # pointer to hierarchy Block file
-        pointers['HD']['AT'] = fid.tell()
-        fid.write(pack(LINK, 0))  # pointer to attachment Block
-        pointers['HD']['EV'] = fid.tell()
-        fid.write(pack(LINK, 0))  # pointer to event Block
-        pointers['HD']['MD'] = fid.tell()
-        fid.write(pack(LINK, 0))  # pointer to comment Block
-        # header data section
-        fid.write(pack(UINT64, int(time()*1E9)))  # time in ns
-        fid.write(pack(INT16, int(time.timezone/60)))  # timezone offset in min
-        fid.write(pack(INT16, int(time.daylight*60)))  # time daylight offest in min
-        fid.write(pack(UINT8, 3))  # time flags
-        fid.write(pack(UINT8, 0))  # time class
-        fid.write(pack(UINT8, 0))  # hd flags
-        writeChar(fid, '\0')  # reserved
-        fid.write(pack(REAL, 0))  # start angle in radians
-        fid.write(pack(REAL, 0))  # start distance in meters
+        temp = HDBlock()
+        pointers.update(temp.write(fid))
 
+        # writes Header comments
+        #temp = CommentBlock()
+        #pointers.update(temp.write(fid))
 
         # write DG block
         pointers['DG'] = {}
         pointers['CG'] = {}
         pointers['CN'] = {}
 
+        ndataGroup = len(self.masterChannelList)
         for dataGroup in range(ndataGroup):
             # writes dataGroup Block
-            print('yop')
+            print(pointers)
 
         # print(pointers)
         fid.close()

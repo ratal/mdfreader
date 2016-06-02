@@ -369,7 +369,10 @@ class mdf(mdf3, mdf4):
             self.fileName = fileName
         # makes sure all channels are converted
         self.convertAllChannel()
-        self.write3(fileName=self.fileName)
+        if self.MDFVersionNumber < 400:
+            self.write3(fileName=self.fileName)
+        else:
+            self.write4(fileName=self.fileName)
 
     def getChannelData(self, channelName):
         """Return channel numpy array

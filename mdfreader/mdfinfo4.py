@@ -22,9 +22,10 @@ PythonVersion : float
 mdfinfo4 module
 --------------------------
 """
-from struct import calcsize, unpack
+from struct import calcsize, unpack, pack
 from sys import version_info
 from numpy import sort, zeros
+import time
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -88,6 +89,32 @@ class MDFBlock(dict):
             self['link_count'] = self.mdfblockread(fid, UINT64, 1)
             self['pointer'] = pointer
 
+    def writeHeader(self, fid, Id, block_length, link_count):
+        """ Writes header of a block
+
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        Id : str
+            4 character id of block, for instance '##HD'
+        block_length : int
+            total block length
+        link_count : int
+            number of links in the block
+
+        Returns
+        -------
+        (block_length_pointer, link_count_pointer)
+        """
+        self.writeChar(fid, Id)
+        self.writeChar(fid, '\0' * 4)  # reserved
+        block_length_pointer = fid.tell()
+        fid.write(pack(UINT64, block_length))  # block size
+        link_count_pointer = fid.tell()
+        fid.write(pack(UINT64, link_count))  # number of links
+        return (block_length_pointer, link_count_pointer)
+
     @staticmethod
     def mdfblockread(fid, type, count):
         """ converts a byte array of length count to a given data type
@@ -136,6 +163,31 @@ class MDFBlock(dict):
             return fid.read(count).decode('iso8859-1', 'replace').rstrip('\x00')
 
     @staticmethod
+    def writeChar(fid, value, size=None):
+        """ Writes a char in a block
+
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        value : str
+            char value to write
+        size : int
+            size that should take this char
+        """
+        if size is None:
+            temp = value
+        else:
+            if len(value) > size:
+                temp = value[:size]
+            else:
+                temp = value + '\0' * (size - len(value))
+            temp += '\0'
+        if PythonVersion >= 3:
+            temp = temp.encode('latin1', 'replace')
+        fid.write(pack('<' + str(len(temp)) + 's', temp))
+
+    @staticmethod
     def mdfblockreadBYTE(fid, count):
         """ reads an array of UTF-8 encoded bytes. Removes trailing 0
 
@@ -154,14 +206,36 @@ class MDFBlock(dict):
         else:
             return fid.read(count).decode('UTF-8', 'ignore').rstrip('\x00')
 
+    @staticmethod
+    def writePointer(fid, pointer, value):
+        """ Writes a value at pointer position and comes back to orgianl position
+
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        pointer : float
+            pointer where to write value
+        value : int
+            value to write (LINK)
+        """
+        currentPosition = fid.tell()
+        fid.seek(pointer)
+        fid.write(pack(LINK, value))
+        fid.seek(currentPosition)
+
 
 class IDBlock(MDFBlock):
 
-    """ reads ID Block and save in class dict
+    """ reads or writes ID Block
     """
+    def __init__(self, fid=None):
+        if fid is not None:
+            self.read(fid)
 
-    def __init__(self, fid):
-        # reads IDBlock
+    def read(self, fid):
+        """ reads IDBlock
+        """
         fid.seek(0)
         self['id_file'] = self.mdfblockreadCHAR(fid, 8)
         self['id_vers'] = self.mdfblockreadCHAR(fid, 8)
@@ -189,13 +263,29 @@ class IDBlock(MDFBlock):
             if self['id_unfi_flags'] & (1 << 6):
                 print('Update of offset values for VLSD channel required in case a VLSD CG block is used')
 
+    def write(self, fid):
+        """ Writes IDBlock
+        """
+        self.writeChar(fid, 'MDF     ')
+        self.writeChar(fid, '4.11    ')
+        self.writeChar(fid, 'MDFreadr')
+        fid.write(pack(UINT32, 0))  # reserved
+        fid.write(pack(UINT16, 411))  # version 4.11
+        self.writeChar(fid, '\0' * 30)  # reserved
+        fid.write(pack(UINT16, 0))  # finalisation flag
+        fid.write(pack(UINT16, 0))  # custom finalisation flag
+
 
 class HDBlock(MDFBlock):
 
     """ reads Header block and save in class dict
     """
 
-    def __init__(self, fid, pointer=64):
+    def __init__(self, fid=None, pointer=64):
+        if fid is not None:
+            self.read(fid)
+
+    def read(self, fid=None, pointer=64):
         # block header
         self.loadHeader(fid, pointer)
         # header block
@@ -216,6 +306,36 @@ class HDBlock(MDFBlock):
         self['hd_start_distance'] = self.mdfblockread(fid, REAL, 1)
         if self['hd_md_comment']:  # if comments exist
             self['Comment'] = CommentBlock(fid, self['hd_md_comment'], 'HD')
+
+    def write(self, fid):
+        # write block header
+        self.writeHeader(fid, '##HD', 104, 6)
+        # link section
+        pointers = {}
+        pointers['HD'] = {}
+        pointers['HD']['DG'] = fid.tell()
+        fid.write(pack(LINK, 272))  # first Data group pointer
+        pointers['HD']['FH'] = fid.tell()
+        fid.write(pack(LINK, 272))  # first file history block pointer
+        pointers['HD']['CH'] = fid.tell()
+        fid.write(pack(LINK, 0))  # pointer to hierarchy Block file
+        pointers['HD']['AT'] = fid.tell()
+        fid.write(pack(LINK, 0))  # pointer to attachment Block
+        pointers['HD']['EV'] = fid.tell()
+        fid.write(pack(LINK, 0))  # pointer to event Block
+        pointers['HD']['MD'] = fid.tell()
+        fid.write(pack(LINK, 0))  # pointer to comment Block
+        # data section
+        fid.write(pack(UINT64, int(time.time()*1E9)))  # time in ns
+        fid.write(pack(INT16, int(time.timezone/60)))  # timezone offset in min
+        fid.write(pack(INT16, int(time.daylight*60)))  # time daylight offest in min
+        fid.write(pack(UINT8, 3))  # time flags
+        fid.write(pack(UINT8, 0))  # time class
+        fid.write(pack(UINT8, 0))  # hd flags
+        self.writeChar(fid, '\0')  # reserved
+        fid.write(pack(REAL, 0))  # start angle in radians
+        fid.write(pack(REAL, 0))  # start distance in meters
+        return pointers
 
 
 class FHBlock(MDFBlock):
@@ -264,14 +384,20 @@ class CHBlock(MDFBlock):
 
 class CommentBlock(MDFBlock):
 
-    """ reads Comment block and saves in class dict
-
-    Notes
-    --------
-    Can read xml (MD metadata) or text (TX) comments from several kind of blocks
+    """ reads or writes Comment block and saves in class dict
     """
 
-    def __init__(self, fid, pointer, MDType=None):
+    def __init__(self, fid=None, pointer=None, MDType=None):
+        if fid is not None:
+            self.read(fid, pointer, MDType)
+
+    def read(self, fid, pointer, MDType=None):
+        """ reads Comment block and saves in class dict
+
+        Notes
+        --------
+        Can read xml (MD metadata) or text (TX) comments from several kind of blocks
+        """
         self.namespace = '{http://www.asam.net/mdf/v4}'
         if pointer > 0:
             # block header
@@ -348,6 +474,14 @@ class CommentBlock(MDFBlock):
         field value in xml tree
         """
         return xml_tree.findtext(self.namespace + field)
+
+    def write(self, fid, data):
+        # write block header
+        self.writeHeader(fid, '##HD', 64 + len(data), 0)
+        data += '\0'
+        if PythonVersion >= 3:
+            data = data.encode('latin1', 'replace')
+        fid.write(pack('<' + str(len(data)) + 'U', data))
 
 
 def elementTreeToDict(element):
