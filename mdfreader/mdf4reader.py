@@ -35,10 +35,10 @@ from math import pow
 from sys import version_info, exc_info, byteorder
 from io import open  # for python 3 and 2 consistency
 try:
-    from .mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock
+    from .mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CNBlock
     from .mdf import mdf_skeleton
 except:
-    from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock
+    from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CNBlock
     from mdf import mdf_skeleton
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
