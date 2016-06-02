@@ -1532,19 +1532,17 @@ class mdf4(mdf_skeleton):
         temp = HDBlock()
         pointers.update(temp.write(fid))
 
-        # writes Header comments
-        #temp = CommentBlock()
-        #pointers.update(temp.write(fid))
-
         # write DG block
         pointers['DG'] = {}
         pointers['CG'] = {}
         pointers['CN'] = {}
 
+        print(pointers)
         ndataGroup = len(self.masterChannelList)
         for dataGroup in range(ndataGroup):
             # writes dataGroup Block
-            print(pointers)
+            temp = DGBlock()
+            pointers.update(temp.write(fid))
 
         # print(pointers)
         fid.close()
