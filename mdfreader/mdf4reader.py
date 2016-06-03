@@ -35,10 +35,10 @@ from math import pow
 from sys import version_info, exc_info, byteorder
 from io import open  # for python 3 and 2 consistency
 try:
-    from .mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock
+    from .mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock
     from .mdf import mdf_skeleton
 except:
-    from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock
+    from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock
     from mdf import mdf_skeleton
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
@@ -1531,9 +1531,15 @@ class mdf4(mdf_skeleton):
         # Header Block
         temp = HDBlock()
         pointers.update(temp.write(fid))
+
         # Header Block comments
 
         # file history block
+        temp = FHBlock()
+        MDFBlock.writePointer(fid, pointers['HD']['FH'], fid.tell()) 
+        temp.write(fid)
+        # File History comment
+        
 
         # write DG block
         MDFBlock.writePointer(fid, pointers['HD']['DG'], fid.tell()) # first DG

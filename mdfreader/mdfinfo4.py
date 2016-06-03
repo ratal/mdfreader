@@ -346,7 +346,11 @@ class FHBlock(MDFBlock):
     """ reads File History block and save in class dict
     """
 
-    def __init__(self, fid, pointer):
+    def __init__(self, fid=None, pointer=None):
+        if fid is not None:
+            self.read(fid, pointer)
+
+    def read(self, fid, pointer):
         # block header
         self.loadHeader(fid, pointer)
         # history block
@@ -359,6 +363,24 @@ class FHBlock(MDFBlock):
         self['fh_reserved'] = self.mdfblockreadBYTE(fid, 3)
         if self['fh_md_comment']:  # comments exist
             self['Comment'] = CommentBlock(fid, self['fh_md_comment'], 'FH')
+
+    def write(self, fid):
+        # write block header
+        self.writeHeader(fid, '##FH', 56, 2)
+        # link section
+        pointers = {}
+        pointers['FH'] = {}
+        pointers['FH']['FH'] = fid.tell()
+        fid.write(pack(LINK, 0))  # No next FH
+        pointers['FH']['MD'] = fid.tell()
+        fid.write(pack(LINK, 0))  # comment block
+        # data section
+        fid.write(pack(UINT64, int(time.time()*1E9)))  # time in ns
+        fid.write(pack(INT16, int(time.timezone/60)))  # timezone offset in min
+        fid.write(pack(INT16, int(time.daylight*60)))  # time daylight offest in min
+        fid.write(pack(UINT8, 2))  # time flags
+        self.writeChar(fid, '\0' * 3)  # reserved
+        return pointers
 
 
 class CHBlock(MDFBlock):
