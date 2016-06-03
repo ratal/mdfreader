@@ -35,10 +35,10 @@ from math import pow
 from sys import version_info, exc_info, byteorder
 from io import open  # for python 3 and 2 consistency
 try:
-    from .mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CNBlock
+    from .mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock
     from .mdf import mdf_skeleton
 except:
-    from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CNBlock
+    from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock
     from mdf import mdf_skeleton
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
@@ -1531,20 +1531,95 @@ class mdf4(mdf_skeleton):
         # Header Block
         temp = HDBlock()
         pointers.update(temp.write(fid))
+        # Header Block comments
+
+        # file history block
 
         # write DG block
-        pointers['DG'] = {}
-        pointers['CG'] = {}
-        pointers['CN'] = {}
-
-        print(pointers)
+        MDFBlock.writePointer(fid, pointers['HD']['DG'], fid.tell()) # first DG
         ndataGroup = len(self.masterChannelList)
-        for dataGroup in range(ndataGroup):
+        DG_flag = 0
+        for master in list(self.masterChannelList.keys()):
             # writes dataGroup Block
             temp = DGBlock()
+            DG_pointer = fid.tell()
             pointers.update(temp.write(fid))
+            if DG_flag:
+                MDFBlock.writePointer(fid, pointers['DG']['DG'], DG_flag)  # Next DG
+            DG_flag = DG_pointer
+            MDFBlock.writePointer(fid, pointers['DG']['CG'], fid.tell())  # First CG
 
-        # print(pointers)
+            # write CGBlock
+            temp = CGBlock()
+            cg_cycle_count = len(self.getChannelData(master))
+            cg_data_bytes = 0
+            pointers.update(temp.write(fid, cg_cycle_count, cg_data_bytes))
+            MDFBlock.writePointer(fid, pointers['CG']['CN'], fid.tell())  # first channel block pointer
+
+            # write channels
+            record_byte_offset = 0
+            CN_flag = 0
+            for channel in self.masterChannelList[master]:
+                temp = CNBlock()
+                if master is not channel:
+                    temp['cn_type'] = 0
+                    temp['cn_sync_type'] = 0
+                else:
+                    temp['cn_type'] = 2  # master channel
+                    temp['cn_sync_type'] = 1  # default is time channel
+
+                data = self.getChannelData(channel)
+                cn_numpy_dtype = data.dtype
+                cn_numpy_kind = data.dtype.kind
+                if cn_numpy_dtype in ('uint8', 'uint16', 'uint32', 'uint64'):
+                    data_type = 0  # LE
+                elif cn_numpy_dtype in ('int8', 'int16', 'int32', 'int64'):
+                    data_type = 2  # LE
+                elif cn_numpy_dtype in ('float32', 'float64'):
+                    data_type = 4  # LE
+                elif cn_numpy_kind == 'S':
+                    data_type = 6
+                elif cn_numpy_kind == 'U':
+                    data_type = 7  # UTF-8
+                else:
+                    raise Exception('Not recognized dtype')
+                    return cn_numpy_dtype
+                temp['cn_data_type'] = data_type
+                temp['cn_bit_offset'] = 0 # always byte aligned
+                if cn_numpy_dtype in ('float64', 'int64', 'uint64'):
+                    bit_count = 64
+                    byte_count = 8
+                elif cn_numpy_dtype in ('float32', 'int32', 'uint32'):
+                    bit_count = 32
+                    byte_count = 4
+                elif cn_numpy_dtype in ('uint16', 'int16'):
+                    bit_count = 16
+                    byte_count = 2
+                elif cn_numpy_dtype in ('uint8', 'int8'):
+                    bit_count = 8
+                    byte_count = 1
+                else:
+                    bit_count = 8  # if string, not considered
+                    byte_count = 1
+                temp['cn_byte_offset'] = record_byte_offset
+                record_byte_offset += byte_count
+                temp['cn_bit_count'] = bit_count
+                CN_pointer = fid.tell()
+                pointers.update(temp.write(fid))
+                if CN_flag:
+                    MDFBlock.writePointer(fid, pointers['CN']['CN'], CN_flag)  # Next DG
+                CN_flag = CN_pointer
+                # write channel name
+
+                # write channel unit
+
+                # Conversion blocks writing
+
+            MDFBlock.writePointer(fid, pointers['CG']['cg_data_bytes'], record_byte_offset)
+
+            # data writing
+
+        print(pointers)
         fid.close()
 
 

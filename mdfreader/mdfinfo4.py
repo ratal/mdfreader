@@ -329,7 +329,7 @@ class HDBlock(MDFBlock):
         fid.write(pack(UINT64, int(time.time()*1E9)))  # time in ns
         fid.write(pack(INT16, int(time.timezone/60)))  # timezone offset in min
         fid.write(pack(INT16, int(time.daylight*60)))  # time daylight offest in min
-        fid.write(pack(UINT8, 3))  # time flags
+        fid.write(pack(UINT8, 2))  # time flags
         fid.write(pack(UINT8, 0))  # time class
         fid.write(pack(UINT8, 0))  # hd flags
         self.writeChar(fid, '\0')  # reserved
@@ -545,7 +545,7 @@ class DGBlock(MDFBlock):
 
     def write(self, fid):
         # write block header
-        self.writeHeader(fid, '##DG', 104, 4)
+        self.writeHeader(fid, '##DG', 64, 4)
         # link section
         pointers = {}
         pointers['DG'] = {}
@@ -597,7 +597,7 @@ class CGBlock(MDFBlock):
 
     def write(self, fid, cg_cycle_count, cg_data_bytes):
         # write block header
-        self.writeHeader(fid, '##CG', 144, 6)
+        self.writeHeader(fid, '##CG', 104, 6)
         # link section
         pointers = {}
         pointers['CG'] = {}
@@ -619,6 +619,7 @@ class CGBlock(MDFBlock):
         fid.write(pack(UINT16, 0))  # no flags
         fid.write(pack(UINT16, 0))  # no character specified for path separator
         self.writeChar(fid, '\0' * 4)  # reserved
+        pointers['CG']['cg_data_bytes'] = fid.tell()
         fid.write(pack(UINT32, cg_data_bytes))  # number of bytes taken by data in record
         fid.write(pack(UINT32, 0))  # no invalid bytes
         return pointers
@@ -692,11 +693,11 @@ class CNBlock(MDFBlock):
 
     def write(self, fid):
         # write block header
-        self.writeHeader(fid, '##CN', 144, 8) # no attachement and default X
+        self.writeHeader(fid, '##CN', 160, 8) # no attachement and default X
         # link section
         pointers = {}
         pointers['CN'] = {}
-        pointers['CN']['CN_Next'] = fid.tell()
+        pointers['CN']['CN'] = fid.tell()
         fid.write(pack(LINK, 0))  # Next channel block pointer
         pointers['CN']['CN_Comp'] = fid.tell()
         fid.write(pack(LINK, 0))  # composition of channel pointer
@@ -712,9 +713,25 @@ class CNBlock(MDFBlock):
         fid.write(pack(LINK, 0))  # channel unit comment block pointer
         pointers['CN']['Comment'] = fid.tell()
         fid.write(pack(LINK, 0))  # channel comment block pointer
+        # no attachment and default X pointers
         # data section
-        fid.write(pack(UINT8, 0))  # no recordID
-
+        fid.write(pack(UINT8, self['cn_type']))  # channel type, 0 normal, 2 master
+        fid.write(pack(UINT8, self['cn_sync_type']))  # sync type, 0 None, 1 time, 2 angle, 3 distance, 4 index
+        fid.write(pack(UINT8, self['cn_data_type']))  # data type
+        fid.write(pack(UINT8, self['cn_bit_offset']))  # bit offset
+        fid.write(pack(UINT32, self['cn_byte_offset']))  # byte offset
+        fid.write(pack(UINT32, self['cn_bit_count']))  # bit count
+        fid.write(pack(UINT32, 0))  # no flags
+        fid.write(pack(UINT32, 0))  # no flags
+        fid.write(pack(UINT8, 0))  # precision
+        self.writeChar(fid, '\0')  # reserved
+        fid.write(pack(UINT16, 0))  # attachments count
+        fid.write(pack(REAL, 0))  # val range min
+        fid.write(pack(REAL, 0))  # val range max
+        fid.write(pack(REAL, 0))  # val limit min
+        fid.write(pack(REAL, 0))  # val limit max
+        fid.write(pack(REAL, 0))  # val limit ext min
+        fid.write(pack(REAL, 0))  # val limit ext max
         return pointers
 
 
