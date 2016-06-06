@@ -34,12 +34,12 @@ from struct import unpack as structunpack
 from math import pow
 from sys import version_info, exc_info, byteorder
 from io import open  # for python 3 and 2 consistency
-try:
-    from .mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock
-    from .mdf import mdf_skeleton
-except:
-    from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock
-    from mdf import mdf_skeleton
+#try:
+from mdfreader.mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
+from mdfreader.mdf import mdf_skeleton
+# except:
+#     from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
+#     from mdf import mdf_skeleton
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
 PythonVersion = version_info
@@ -1533,13 +1533,18 @@ class mdf4(mdf_skeleton):
         pointers.update(temp.write(fid))
 
         # Header Block comments
+        MDFBlock.writePointer(fid, pointers['HD']['MD'], fid.tell())
+        temp = CommentBlock()
+        temp.write(fid, self.file_metadata, 'HD')
 
         # file history block
         temp = FHBlock()
-        MDFBlock.writePointer(fid, pointers['HD']['FH'], fid.tell()) 
-        temp.write(fid)
+        MDFBlock.writePointer(fid, pointer, fid.tell()) 
+        pointers.update(temp.write(fid))
         # File History comment
-        
+        MDFBlock.writePointer(fid, pointers['FH']['MD'], fid.tell())
+        temp = CommentBlock()
+        temp.write(fid, u'Created by mdfreader', 'FH')
 
         # write DG block
         MDFBlock.writePointer(fid, pointers['HD']['DG'], fid.tell()) # first DG
@@ -1616,12 +1621,21 @@ class mdf4(mdf_skeleton):
                     MDFBlock.writePointer(fid, pointers['CN']['CN'], CN_flag)  # Next DG
                 CN_flag = CN_pointer
                 # write channel name
+                MDFBlock.writePointer(fid, pointers['CN']['TX'], fid.tell())
+                temp = CommentBlock()
+                temp.write(fid, channel, 'TX')
 
                 # write channel unit
+                unit = self.getChannelUnit(channel)
+                if unit is not None or not len(unit) == 0:
+                    print(unit)
+                    MDFBlock.writePointer(fid, pointers['CN']['Unit'], fid.tell())
+                    temp = CommentBlock()
+                    temp.write(fid, unit, 'TX')
 
                 # Conversion blocks writing
 
-            MDFBlock.writePointer(fid, pointers['CG']['cg_data_bytes'], record_byte_offset)
+            MDFBlock.writePointer(fid, pointers['CG']['cg_data_bytes'], record_byte_offset)  # writes size of record in CG
 
             # data writing
 

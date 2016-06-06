@@ -26,6 +26,7 @@ from struct import calcsize, unpack, pack
 from sys import version_info
 from numpy import sort, zeros
 import time
+from xml.etree.ElementTree import Element, SubElement, Comment, tostring, XMLParser, XML
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -107,6 +108,11 @@ class MDFBlock(dict):
         -------
         (block_length_pointer, link_count_pointer)
         """
+        # make sure beginning of block starts with a multiple of 8 position
+        current_position = fid.tell()
+        remain = current_position % 8
+        if not remain == 0:
+            fid.seek(current_position - remain + 8)
         self.writeChar(fid, Id)
         self.writeChar(fid, '\0' * 4)  # reserved
         block_length_pointer = fid.tell()
@@ -413,6 +419,7 @@ class CommentBlock(MDFBlock):
     """
 
     def __init__(self, fid=None, pointer=None, MDType=None):
+        self.namespace = '{http://www.asam.net/mdf/v4}'
         if fid is not None:
             self.read(fid, pointer, MDType)
 
@@ -423,17 +430,16 @@ class CommentBlock(MDFBlock):
         --------
         Can read xml (MD metadata) or text (TX) comments from several kind of blocks
         """
-        self.namespace = '{http://www.asam.net/mdf/v4}'
+        
         if pointer > 0:
             # block header
             self.loadHeader(fid, pointer)
             if self['id'] in ('##MD', b'##MD'):
                 # Metadata block
                 self['Comment'] = self.mdfblockreadBYTE(fid, self['length'] - 24)  # [:-1] # removes normal 0 at end
-                import xml.etree.ElementTree as ET
-                utf8parser = ET.XMLParser(encoding="utf-8")
+                utf8parser = XMLParser(encoding="utf-8")
                 try:
-                    self['xml_tree'] = ET.XML(self['Comment'].encode('utf-8'), parser=utf8parser)
+                    self['xml_tree'] = XML(self['Comment'].encode('utf-8'), parser=utf8parser)
                     self['xml'] = elementTreeToDict(self['xml_tree'])
                     # specific action per comment block type, extracts specific tags from xml
                     if MDType == 'CN':  # channel comment
@@ -500,13 +506,44 @@ class CommentBlock(MDFBlock):
         """
         return xml_tree.findtext(self.namespace + field)
 
-    def write(self, fid, data, MDType=None):
-        # write block header
-        self.writeHeader(fid, '##MD', 64 + len(data), 0)
-        data += '\0'
-        if PythonVersion >= 3:
-            data = data.encode('latin1', 'replace')
-        fid.write(pack('<' + str(len(data)) + 'U', data))
+    def write(self, fid, data, MDType):
+        
+        if MDType == 'TX':
+            data += '\0'
+            if PythonVersion >= 3:
+                data = data.encode('latin1', 'replace')
+            self.writeHeader(fid, '##TX', 64 + len(data), 0)
+            fid.write(data)
+        else:
+            if MDType == 'HD':
+                root = Element('HDcomment')
+                root.append(Comment('TX'))
+                common_properties = SubElement(root, 'common_properties')
+                e = SubElement(common_properties, 'e', 
+                        {'subject': data['subject'],
+                        'project': data['project'],
+                        'department': data['organisation'],
+                        'author': data['author']
+                        })
+            elif MDType == 'CN':
+                pass
+            elif MDType == 'FH':
+                root = Element('FHcomment')
+                root.append(Comment('TX'))
+                tool_id = SubElement(root, 'tool_id')
+                tool_id.text = 'mdfreader'
+                tool_vendor = SubElement(root, 'tool_vendor')
+                tool_vendor.text = 'mdfreader is under GPL V3'
+                tool_version = SubElement(root, 'tool_version')
+                tool_version.text = '2.2'
+            data = tostring(root)
+            # make sure block is multiple of 8
+            data_lentgth = len(data)
+            remain = data_lentgth % 8
+            if not remain == 0:
+                data += u'\0' * (8 - (remain % 8))
+            self.writeHeader(fid, '##MD', 64 + len(data), 0)
+            fid.write(data)
 
 
 def elementTreeToDict(element):
@@ -762,7 +799,11 @@ class CCBlock(MDFBlock):
     """ reads Channel Conversion block and saves in class dict
     """
 
-    def __init__(self, fid, pointer):
+    def __init__(self, fid=None, pointer=None):
+        if fid is not None:
+            self.read(fid, pointer)
+
+    def read(self, fid, pointer):
         # block header
         if pointer != 0 and pointer is not None:
             fid.seek(pointer)
