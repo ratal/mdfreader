@@ -26,7 +26,7 @@ from struct import calcsize, unpack, pack
 from sys import version_info
 from numpy import sort, zeros
 import time
-from xml.etree.ElementTree import Element, SubElement, Comment, tostring, XMLParser, XML
+from xml.etree.ElementTree import Element, SubElement, Comment, tostring, XMLParser, XML, register_namespace
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -112,14 +112,15 @@ class MDFBlock(dict):
         current_position = fid.tell()
         remain = current_position % 8
         if not remain == 0:
-            fid.seek(current_position - remain + 8)
+            current_position = current_position - remain + 8
+            fid.seek(current_position)
         self.writeChar(fid, Id)
         self.writeChar(fid, '\0' * 4)  # reserved
         block_length_pointer = fid.tell()
         fid.write(pack(UINT64, block_length))  # block size
         link_count_pointer = fid.tell()
         fid.write(pack(UINT64, link_count))  # number of links
-        return (block_length_pointer, link_count_pointer)
+        return current_position
 
     @staticmethod
     def mdfblockread(fid, type, count):
@@ -512,38 +513,48 @@ class CommentBlock(MDFBlock):
             data += '\0'
             if PythonVersion >= 3:
                 data = data.encode('latin1', 'replace')
-            self.writeHeader(fid, '##TX', 64 + len(data), 0)
+            # make sure block is multiple of 8
+            data_lentgth = len(data)
+            remain = data_lentgth % 8
+            if not remain == 0:
+                data += b'\0' * (8 - (remain % 8))
+            block_start = self.writeHeader(fid, '##TX', 64 + len(data), 0)
             fid.write(data)
         else:
+            register_namespace('', 'http://www.asam.net/mdf/v4')
             if MDType == 'HD':
                 root = Element('HDcomment')
-                root.append(Comment('TX'))
+                root.set('xmlns', 'http://www.asam.net/mdf/v4')
+                TX = SubElement(root, 'TX')
+                TX.text = data['comment']
                 common_properties = SubElement(root, 'common_properties')
-                e = SubElement(common_properties, 'e', 
-                        {'subject': data['subject'],
-                        'project': data['project'],
-                        'department': data['organisation'],
-                        'author': data['author']
-                        })
+                e = SubElement(common_properties, 'e') 
+                e.set('subject', data['subject'])
+                e.set('project', data['project'])
+                e.set('department', data['organisation'])
+                e.set('author', data['author'])
             elif MDType == 'CN':
                 pass
             elif MDType == 'FH':
                 root = Element('FHcomment')
-                root.append(Comment('TX'))
+                root.set('xmlns', 'http://www.asam.net/mdf/v4')
+                TX = SubElement(root, 'TX')
+                TX.text = data['comment']
                 tool_id = SubElement(root, 'tool_id')
                 tool_id.text = 'mdfreader'
                 tool_vendor = SubElement(root, 'tool_vendor')
                 tool_vendor.text = 'mdfreader is under GPL V3'
                 tool_version = SubElement(root, 'tool_version')
                 tool_version.text = '2.2'
-            data = tostring(root)
+            data = tostring(root, encoding='unicode')
             # make sure block is multiple of 8
             data_lentgth = len(data)
             remain = data_lentgth % 8
             if not remain == 0:
                 data += u'\0' * (8 - (remain % 8))
             self.writeHeader(fid, '##MD', 64 + len(data), 0)
-            fid.write(data)
+            block_start = fid.write(bytes(data,'utf-8'))
+        return block_start
 
 
 def elementTreeToDict(element):
@@ -603,18 +614,17 @@ class DGBlock(MDFBlock):
             self['Comment'] = CommentBlock(fid, self['dg_md_comment'])
 
     def write(self, fid):
-        # write block header
-        self.writeHeader(fid, '##DG', 64, 4)
-        # link section
         pointers = {}
-        pointers['DG'] = {}
-        pointers['DG']['DG'] = fid.tell()
+        # write block header
+        pointers['block_start'] = self.writeHeader(fid, '##DG', 64, 4)
+        # link section
+        pointers['DG'] = fid.tell()
         fid.write(pack(LINK, 0))  # Next Data group pointer
-        pointers['DG']['CG'] = fid.tell()
+        pointers['CG'] = fid.tell()
         fid.write(pack(LINK, 0))  # first channel group block pointer
-        pointers['DG']['data'] = fid.tell()
+        pointers['data'] = fid.tell()
         fid.write(pack(LINK, 0))  # data block pointer
-        pointers['DG']['TX'] = fid.tell()
+        pointers['TX'] = fid.tell()
         fid.write(pack(LINK, 0))  # comment block pointer
         # data section
         fid.write(pack(UINT8, 0))  # no recordID
@@ -655,22 +665,21 @@ class CGBlock(MDFBlock):
             self['acq_name'] = CommentBlock(fid, self['cg_tx_acq_name'])
 
     def write(self, fid, cg_cycle_count, cg_data_bytes):
-        # write block header
-        self.writeHeader(fid, '##CG', 104, 6)
-        # link section
         pointers = {}
-        pointers['CG'] = {}
-        pointers['CG']['CG'] = fid.tell()
+        # write block header
+        pointers['block_start'] = self.writeHeader(fid, '##CG', 104, 6)
+        # link section
+        pointers['CG'] = fid.tell()
         fid.write(pack(LINK, 0))  # Next channel group pointer
-        pointers['CG']['CN'] = fid.tell()
+        pointers['CN'] = fid.tell()
         fid.write(pack(LINK, 0))  # first channel block pointer
-        pointers['CG']['ACN'] = fid.tell()
+        pointers['ACN'] = fid.tell()
         fid.write(pack(LINK, 0))  # acquisition name pointer
-        pointers['CG']['ACS'] = fid.tell()
+        pointers['ACS'] = fid.tell()
         fid.write(pack(LINK, 0))  # acquisition source pointer
-        pointers['CG']['SR'] = fid.tell()
+        pointers['SR'] = fid.tell()
         fid.write(pack(LINK, 0))  # sample reduction pointer
-        pointers['CG']['TX'] = fid.tell()
+        pointers['TX'] = fid.tell()
         fid.write(pack(LINK, 0))  # comment pointer
         # data section
         fid.write(pack(UINT64, 0))  # no recordID
@@ -678,7 +687,7 @@ class CGBlock(MDFBlock):
         fid.write(pack(UINT16, 0))  # no flags
         fid.write(pack(UINT16, 0))  # no character specified for path separator
         self.writeChar(fid, '\0' * 4)  # reserved
-        pointers['CG']['cg_data_bytes'] = fid.tell()
+        pointers['cg_data_bytes'] = fid.tell()
         fid.write(pack(UINT32, cg_data_bytes))  # number of bytes taken by data in record
         fid.write(pack(UINT32, 0))  # no invalid bytes
         return pointers
@@ -751,26 +760,25 @@ class CNBlock(MDFBlock):
             self['name'] = self['name'].replace(':','')
 
     def write(self, fid):
-        # write block header
-        self.writeHeader(fid, '##CN', 160, 8) # no attachement and default X
-        # link section
         pointers = {}
-        pointers['CN'] = {}
-        pointers['CN']['CN'] = fid.tell()
+        # write block header
+        pointers['block_start'] = self.writeHeader(fid, '##CN', 160, 8) # no attachement and default X
+        # link section
+        pointers['CN'] = fid.tell()
         fid.write(pack(LINK, 0))  # Next channel block pointer
-        pointers['CN']['CN_Comp'] = fid.tell()
+        pointers['CN_Comp'] = fid.tell()
         fid.write(pack(LINK, 0))  # composition of channel pointer
-        pointers['CN']['TX'] = fid.tell()
+        pointers['TX'] = fid.tell()
         fid.write(pack(LINK, 0))  # TXBlock pointer for channel name
-        pointers['CN']['SI'] = fid.tell()
+        pointers['SI'] = fid.tell()
         fid.write(pack(LINK, 0))  # source SIBlock pointer
-        pointers['CN']['CC'] = fid.tell()
+        pointers['CC'] = fid.tell()
         fid.write(pack(LINK, 0))  # Conversion Channel CCBlock pointer
-        pointers['CN']['data'] = fid.tell()
+        pointers['data'] = fid.tell()
         fid.write(pack(LINK, 0))  # channel data pointer
-        pointers['CN']['Unit'] = fid.tell()
+        pointers['Unit'] = fid.tell()
         fid.write(pack(LINK, 0))  # channel unit comment block pointer
-        pointers['CN']['Comment'] = fid.tell()
+        pointers['Comment'] = fid.tell()
         fid.write(pack(LINK, 0))  # channel comment block pointer
         # no attachment and default X pointers
         # data section

@@ -1539,40 +1539,47 @@ class mdf4(mdf_skeleton):
 
         # file history block
         temp = FHBlock()
-        MDFBlock.writePointer(fid, pointer, fid.tell()) 
+        MDFBlock.writePointer(fid, pointers['HD']['FH'], fid.tell()) 
         pointers.update(temp.write(fid))
         # File History comment
         MDFBlock.writePointer(fid, pointers['FH']['MD'], fid.tell())
         temp = CommentBlock()
-        temp.write(fid, u'Created by mdfreader', 'FH')
+        temp.write(fid, self.file_metadata, 'FH')
 
         # write DG block
         MDFBlock.writePointer(fid, pointers['HD']['DG'], fid.tell()) # first DG
-        ndataGroup = len(self.masterChannelList)
+
+        pointers['DG'] = {}
+        pointers['CG'] = {}
+        pointers['CN'] = {}
         DG_flag = 0
-        for master in list(self.masterChannelList.keys()):
+        ndataGroup = len(self.masterChannelList)
+        for dataGroup in range(ndataGroup):
+            masterChannel = list(self.masterChannelList.keys())[dataGroup]
             # writes dataGroup Block
             temp = DGBlock()
             DG_pointer = fid.tell()
-            pointers.update(temp.write(fid))
+            pointers['DG'][dataGroup] = temp.write(fid)
             if DG_flag:
-                MDFBlock.writePointer(fid, pointers['DG']['DG'], DG_flag)  # Next DG
-            DG_flag = DG_pointer
-            MDFBlock.writePointer(fid, pointers['DG']['CG'], fid.tell())  # First CG
+                MDFBlock.writePointer(fid, pointers['DG'][dataGroup-1]['DG'], pointers['DG'][dataGroup]['block_start'])  # Next DG
+            DG_flag = pointers['DG'][dataGroup]['block_start']
+            MDFBlock.writePointer(fid, pointers['DG'][dataGroup]['CG'], fid.tell())  # First CG
 
             # write CGBlock
             temp = CGBlock()
-            cg_cycle_count = len(self.getChannelData(master))
+            cg_cycle_count = len(self.getChannelData(masterChannel))
             cg_data_bytes = 0
-            pointers.update(temp.write(fid, cg_cycle_count, cg_data_bytes))
-            MDFBlock.writePointer(fid, pointers['CG']['CN'], fid.tell())  # first channel block pointer
+            pointers['CG'][dataGroup] = temp.write(fid, cg_cycle_count, cg_data_bytes)
+            MDFBlock.writePointer(fid, pointers['CG'][dataGroup]['CN'], fid.tell())  # first channel block pointer
 
             # write channels
             record_byte_offset = 0
             CN_flag = 0
-            for channel in self.masterChannelList[master]:
+            nChannel = len(self.masterChannelList[masterChannel])
+            for nchannel in range(nChannel):
+                channel = self.masterChannelList[masterChannel][nchannel]
                 temp = CNBlock()
-                if master is not channel:
+                if masterChannel is not channel:
                     temp['cn_type'] = 0
                     temp['cn_sync_type'] = 0
                 else:
@@ -1615,31 +1622,29 @@ class mdf4(mdf_skeleton):
                 temp['cn_byte_offset'] = record_byte_offset
                 record_byte_offset += byte_count
                 temp['cn_bit_count'] = bit_count
-                CN_pointer = fid.tell()
-                pointers.update(temp.write(fid))
+                pointers['CN'][nchannel] = temp.write(fid)
                 if CN_flag:
-                    MDFBlock.writePointer(fid, pointers['CN']['CN'], CN_flag)  # Next DG
-                CN_flag = CN_pointer
+                    MDFBlock.writePointer(fid, pointers['CN'][nchannel-1]['CN'], pointers['CN'][nchannel]['block_start'])  # Next DG
+                CN_flag = pointers['CN'][nchannel]['block_start']
                 # write channel name
-                MDFBlock.writePointer(fid, pointers['CN']['TX'], fid.tell())
+                MDFBlock.writePointer(fid, pointers['CN'][nchannel]['TX'], fid.tell())
                 temp = CommentBlock()
                 temp.write(fid, channel, 'TX')
 
                 # write channel unit
                 unit = self.getChannelUnit(channel)
-                if unit is not None or not len(unit) == 0:
-                    print(unit)
-                    MDFBlock.writePointer(fid, pointers['CN']['Unit'], fid.tell())
+                if unit is not None and not len(unit) == 0:
                     temp = CommentBlock()
-                    temp.write(fid, unit, 'TX')
+                    block_start = temp.write(fid, unit, 'TX')
+                    MDFBlock.writePointer(fid, pointers['CN'][nchannel]['Unit'], block_start)
 
                 # Conversion blocks writing
 
-            MDFBlock.writePointer(fid, pointers['CG']['cg_data_bytes'], record_byte_offset)  # writes size of record in CG
+            MDFBlock.writePointer(fid, pointers['CG'][dataGroup]['cg_data_bytes'], record_byte_offset)  # writes size of record in CG
 
             # data writing
 
-        print(pointers)
+        # print(pointers)
         fid.close()
 
 
