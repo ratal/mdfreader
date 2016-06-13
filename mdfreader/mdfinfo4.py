@@ -528,11 +528,14 @@ class CommentBlock(MDFBlock):
                 TX = SubElement(root, 'TX')
                 TX.text = data['comment']
                 common_properties = SubElement(root, 'common_properties')
-                e = SubElement(common_properties, 'e') 
-                e.set('subject', data['subject'])
-                e.set('project', data['project'])
-                e.set('department', data['organisation'])
-                e.set('author', data['author'])
+                e = SubElement(common_properties, 'e', attrib={'name':'subject'})
+                e.text =  data['subject']
+                e = SubElement(common_properties, 'e', attrib={'name':'project'})
+                e.text =  data['project']
+                e = SubElement(common_properties, 'e', attrib={'name':'department'})
+                e.text =  data['organisation']
+                e = SubElement(common_properties, 'e', attrib={'name':'author'})
+                e.text =  data['author']
             elif MDType == 'CN':
                 pass
             elif MDType == 'FH':

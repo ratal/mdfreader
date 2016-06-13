@@ -28,7 +28,7 @@ mdf4reader module
 """
 from numpy.core.records import fromstring, fromfile
 from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
-from numpy import arange, right_shift, bitwise_and, all, diff, interp
+from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
 from struct import Struct, pack
 from struct import unpack as structunpack
 from math import pow
@@ -1576,8 +1576,13 @@ class mdf4(mdf_skeleton):
             record_byte_offset = 0
             CN_flag = 0
             nChannel = len(self.masterChannelList[masterChannel])
+            nRecords = 0
+            dataList = ()
+            dataTypeList = ''
             for nchannel in range(nChannel):
                 channel = self.masterChannelList[masterChannel][nchannel]
+                data = self.getChannelData(channel)
+                dataList = dataList + (data, )
                 temp = CNBlock()
                 if masterChannel is not channel:
                     temp['cn_type'] = 0
@@ -1585,8 +1590,8 @@ class mdf4(mdf_skeleton):
                 else:
                     temp['cn_type'] = 2  # master channel
                     temp['cn_sync_type'] = 1  # default is time channel
+                    nRecords = len(data)
 
-                data = self.getChannelData(channel)
                 cn_numpy_dtype = data.dtype
                 cn_numpy_kind = data.dtype.kind
                 if cn_numpy_dtype in ('uint8', 'uint16', 'uint32', 'uint64'):
@@ -1622,6 +1627,10 @@ class mdf4(mdf_skeleton):
                 temp['cn_byte_offset'] = record_byte_offset
                 record_byte_offset += byte_count
                 temp['cn_bit_count'] = bit_count
+                if data.dtype.kind not in ['S', 'U']:
+                    dataTypeList += data.dtype.char
+                else:
+                    dataTypeList += str(data.dtype.itemsize) + 's'
                 pointers['CN'][nchannel] = temp.write(fid)
                 if CN_flag:
                     MDFBlock.writePointer(fid, pointers['CN'][nchannel-1]['CN'], pointers['CN'][nchannel]['block_start'])  # Next DG
@@ -1643,6 +1652,13 @@ class mdf4(mdf_skeleton):
             MDFBlock.writePointer(fid, pointers['CG'][dataGroup]['cg_data_bytes'], record_byte_offset)  # writes size of record in CG
 
             # data writing
+            # write data pointer in datagroup
+            temp = MDFBlock()
+            DTposition = temp.writeHeader(fid, '##DT', 24 + record_byte_offset * nRecords, 0)
+            MDFBlock.writePointer(fid, pointers['DG'][dataGroup]['data'], DTposition)
+            records = array(dataList, object).T
+            records = reshape(records, (1, len(self.masterChannelList[masterChannel]) * nRecords), order='C')[0]  # flatten the matrix
+            fid.write(pack('<' + dataTypeList * nRecords, *records))  # dumps data vector from numpy
 
         # print(pointers)
         fid.close()
