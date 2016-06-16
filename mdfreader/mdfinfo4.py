@@ -549,14 +549,14 @@ class CommentBlock(MDFBlock):
                 tool_vendor.text = 'mdfreader is under GPL V3'
                 tool_version = SubElement(root, 'tool_version')
                 tool_version.text = '2.2'
-            data = tostring(root, encoding='unicode')
+            data = tostring(root, encoding='UTF-8')
             # make sure block is multiple of 8
             data_lentgth = len(data)
             remain = data_lentgth % 8
             if not remain == 0:
-                data += u'\0' * (8 - (remain % 8))
+                data += b'\0' * (8 - (remain % 8))
             self.writeHeader(fid, '##MD', 24 + len(data), 0)
-            block_start = fid.write(bytes(data,'utf-8'))
+            block_start = fid.write(data)
         return block_start
 
 
