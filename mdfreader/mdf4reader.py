@@ -1575,79 +1575,86 @@ class mdf4(mdf_skeleton):
             # write channels
             record_byte_offset = 0
             CN_flag = 0
-            nChannel = len(self.masterChannelList[masterChannel])
+            nChannel = 0
             nRecords = 0
             dataList = ()
             dataTypeList = ''
             for nchannel in range(nChannel):
                 channel = self.masterChannelList[masterChannel][nchannel]
-                data = self.getChannelData(channel)
-                dataList = dataList + (data, )
-                temp = CNBlock()
-                if masterChannel is not channel:
-                    temp['cn_type'] = 0
-                    temp['cn_sync_type'] = 0
-                else:
-                    temp['cn_type'] = 2  # master channel
-                    temp['cn_sync_type'] = 1  # default is time channel
-                    nRecords = len(data)
+                if 'invalid_bytes' not in channel:  # no interest to write invalid bytes as channel
+                    nChannel += 1
+                    data = self.getChannelData(channel)
+                    dataList = dataList + (data, )
+                    temp = CNBlock()
+                    if masterChannel is not channel:
+                        temp['cn_type'] = 0
+                        temp['cn_sync_type'] = 0
+                    else:
+                        temp['cn_type'] = 2  # master channel
+                        temp['cn_sync_type'] = 1  # default is time channel
+                        nRecords = len(data)
 
-                cn_numpy_dtype = data.dtype
-                cn_numpy_kind = data.dtype.kind
-                if cn_numpy_dtype in ('uint8', 'uint16', 'uint32', 'uint64'):
-                    data_type = 0  # LE
-                elif cn_numpy_dtype in ('int8', 'int16', 'int32', 'int64'):
-                    data_type = 2  # LE
-                elif cn_numpy_dtype in ('float32', 'float64'):
-                    data_type = 4  # LE
-                elif cn_numpy_kind == 'S':
-                    data_type = 6
-                elif cn_numpy_kind == 'U':
-                    data_type = 7  # UTF-8
-                else:
-                    raise Exception('Not recognized dtype')
-                    return cn_numpy_dtype
-                temp['cn_data_type'] = data_type
-                temp['cn_bit_offset'] = 0 # always byte aligned
-                if cn_numpy_dtype in ('float64', 'int64', 'uint64'):
-                    bit_count = 64
-                    byte_count = 8
-                elif cn_numpy_dtype in ('float32', 'int32', 'uint32'):
-                    bit_count = 32
-                    byte_count = 4
-                elif cn_numpy_dtype in ('uint16', 'int16'):
-                    bit_count = 16
-                    byte_count = 2
-                elif cn_numpy_dtype in ('uint8', 'int8'):
-                    bit_count = 8
-                    byte_count = 1
-                else:
-                    bit_count = 8  # if string, not considered
-                    byte_count = 1
-                temp['cn_byte_offset'] = record_byte_offset
-                record_byte_offset += byte_count
-                temp['cn_bit_count'] = bit_count
-                if data.dtype.kind not in ['S', 'U']:
-                    dataTypeList += data.dtype.char
-                else:
-                    dataTypeList += str(data.dtype.itemsize) + 's'
-                pointers['CN'][nchannel] = temp.write(fid)
-                if CN_flag:
-                    MDFBlock.writePointer(fid, pointers['CN'][nchannel-1]['CN'], pointers['CN'][nchannel]['block_start'])  # Next DG
-                CN_flag = pointers['CN'][nchannel]['block_start']
-                # write channel name
-                MDFBlock.writePointer(fid, pointers['CN'][nchannel]['TX'], fid.tell())
-                temp = CommentBlock()
-                temp.write(fid, channel, 'TX')
-
-                # write channel unit
-                unit = self.getChannelUnit(channel)
-                if unit is not None and not len(unit) == 0:
+                    cn_numpy_dtype = data.dtype
+                    cn_numpy_kind = data.dtype.kind
+                    if cn_numpy_dtype in ('uint8', 'uint16', 'uint32', 'uint64'):
+                        data_type = 0  # LE
+                    elif cn_numpy_dtype in ('int8', 'int16', 'int32', 'int64'):
+                        data_type = 2  # LE
+                    elif cn_numpy_dtype in ('float32', 'float64'):
+                        data_type = 4  # LE
+                    elif cn_numpy_kind == 'S':
+                        data_type = 6
+                    elif cn_numpy_kind == 'U':
+                        data_type = 7  # UTF-8
+                    elif cn_numpy_kind == 'V':
+                        data_type = 10  # bytes
+                    else:
+                        print(cn_numpy_dtype, cn_numpy_kind)
+                        raise Exception('Not recognized dtype')
+                    temp['cn_data_type'] = data_type
+                    temp['cn_bit_offset'] = 0 # always byte aligned
+                    if cn_numpy_dtype in ('float64', 'int64', 'uint64'):
+                        bit_count = 64
+                        byte_count = 8
+                    elif cn_numpy_dtype in ('float32', 'int32', 'uint32'):
+                        bit_count = 32
+                        byte_count = 4
+                    elif cn_numpy_dtype in ('uint16', 'int16'):
+                        bit_count = 16
+                        byte_count = 2
+                    elif cn_numpy_dtype in ('uint8', 'int8'):
+                        bit_count = 8
+                        byte_count = 1
+                    elif cn_numpy_kind in ('S', 'U', 'V'):
+                        byte_count = len(data[0])
+                        bit_count = 8 * byte_count  # if string, not considered
+                    else:
+                        bit_count = 8
+                        byte_count = 1
+                    temp['cn_byte_offset'] = record_byte_offset
+                    record_byte_offset += byte_count
+                    temp['cn_bit_count'] = bit_count
+                    if data.dtype.kind not in ('S', 'U', 'V'):
+                        dataTypeList += data.dtype.char
+                    else:
+                        dataTypeList += str(data.dtype.itemsize) + 's'
+                    pointers['CN'][nchannel] = temp.write(fid)
+                    if CN_flag:
+                        MDFBlock.writePointer(fid, pointers['CN'][nchannel-1]['CN'], pointers['CN'][nchannel]['block_start'])  # Next DG
+                    CN_flag = pointers['CN'][nchannel]['block_start']
+                    # write channel name
+                    MDFBlock.writePointer(fid, pointers['CN'][nchannel]['TX'], fid.tell())
                     temp = CommentBlock()
-                    block_start = temp.write(fid, unit, 'TX')
-                    MDFBlock.writePointer(fid, pointers['CN'][nchannel]['Unit'], block_start)
+                    temp.write(fid, channel, 'TX')
 
-                # Conversion blocks writing
+                    # write channel unit
+                    unit = self.getChannelUnit(channel)
+                    if unit is not None and not len(unit) == 0:
+                        temp = CommentBlock()
+                        block_start = temp.write(fid, unit, 'TX')
+                        MDFBlock.writePointer(fid, pointers['CN'][nchannel]['Unit'], block_start)
+
+                    # Conversion blocks writing
 
             MDFBlock.writePointer(fid, pointers['CG'][dataGroup]['cg_data_bytes'], record_byte_offset)  # writes size of record in CG
 

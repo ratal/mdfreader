@@ -510,15 +510,15 @@ class CommentBlock(MDFBlock):
     def write(self, fid, data, MDType):
         
         if MDType == 'TX':
-            data += '\0'
             if PythonVersion >= 3:
                 data = data.encode('latin1', 'replace')
+            data += b'\0'
             # make sure block is multiple of 8
             data_lentgth = len(data)
             remain = data_lentgth % 8
             if not remain == 0:
                 data += b'\0' * (8 - (remain % 8))
-            block_start = self.writeHeader(fid, '##TX', 64 + len(data), 0)
+            block_start = self.writeHeader(fid, '##TX', 24 + len(data), 0)
             fid.write(data)
         else:
             register_namespace('', 'http://www.asam.net/mdf/v4')
@@ -555,7 +555,7 @@ class CommentBlock(MDFBlock):
             remain = data_lentgth % 8
             if not remain == 0:
                 data += u'\0' * (8 - (remain % 8))
-            self.writeHeader(fid, '##MD', 64 + len(data), 0)
+            self.writeHeader(fid, '##MD', 24 + len(data), 0)
             block_start = fid.write(bytes(data,'utf-8'))
         return block_start
 
