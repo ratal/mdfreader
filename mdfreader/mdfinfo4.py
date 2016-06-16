@@ -549,7 +549,7 @@ class CommentBlock(MDFBlock):
                 tool_vendor.text = 'mdfreader is under GPL V3'
                 tool_version = SubElement(root, 'tool_version')
                 tool_version.text = '2.2'
-            data = tostring(root, encoding='UTF-8')
+            data = tostring(root)
             # make sure block is multiple of 8
             data_lentgth = len(data)
             remain = data_lentgth % 8
