@@ -1576,14 +1576,13 @@ class mdf4(mdf_skeleton):
             # write channels
             record_byte_offset = 0
             CN_flag = 0
-            nChannel = 0
+            nChannel = len(self.masterChannelList[masterChannel])
             nRecords = 0
             dataList = ()
             dataTypeList = ''
             for nchannel in range(nChannel):
                 channel = self.masterChannelList[masterChannel][nchannel]
-                if 'invalid_bytes' not in channel:  # no interest to write invalid bytes as channel
-                    nChannel += 1
+                if channel.find('invalid_bytes') == -1:  # no interest to write invalid bytes as channel
                     data = self.getChannelData(channel)
                     dataList = dataList + (data, )
                     temp = CNBlock()
