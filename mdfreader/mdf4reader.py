@@ -34,12 +34,12 @@ from struct import unpack as structunpack
 from math import pow
 from sys import version_info, exc_info, byteorder
 from io import open  # for python 3 and 2 consistency
-#try:
-from mdfreader.mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
-from mdfreader.mdf import mdf_skeleton
-# except:
-#     from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
-#     from mdf import mdf_skeleton
+try:
+    from .mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
+    from .mdf import mdf_skeleton
+except:
+    from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
+    from mdf import mdf_skeleton
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
 PythonVersion = version_info
@@ -1239,6 +1239,7 @@ class record(list):
                                     for i in range(self.numberOfRecords)]
                         buf[self[chan].name] = asarray(temp)
                 return buf
+
 
 class mdf4(mdf_skeleton):
 
