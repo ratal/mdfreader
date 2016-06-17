@@ -22,8 +22,10 @@ PythonVersion : float
 mdfinfo4 module
 --------------------------
 """
+from __future__ import print_function
+
 from struct import calcsize, unpack, pack
-from sys import version_info
+from sys import version_info, stderr
 from numpy import sort, zeros
 import time
 from xml.etree.ElementTree import Element, SubElement, Comment, tostring, XMLParser, XML, register_namespace
@@ -254,21 +256,21 @@ class IDBlock(MDFBlock):
         self['id_custom_unfi_flags'] = self.mdfblockread(fid, UINT16, 1)
         # treatment of unfinalised file
         if self['id_ver'] > 410 and 'UnFin' in self['id_file']:
-            print('  /!\ unfinalised file')
+            print('  /!\ unfinalised file', file=stderr)
             if self['id_unfi_flags'] & 1:
-                print('Update of cycle counters for CG/CA blocks required')
+                print('Update of cycle counters for CG/CA blocks required', file=stderr)
             if self['id_unfi_flags'] & (1 << 1):
-                print('Update of cycle counters for SR blocks required')
+                print('Update of cycle counters for SR blocks required', file=stderr)
             if self['id_unfi_flags'] & (1 << 2):
-                print('Update of length for last DT block required')
+                print('Update of length for last DT block required', file=stderr)
             if self['id_unfi_flags'] & (1 << 3):
-                print('Update of length for last RD block required')
+                print('Update of length for last RD block required', file=stderr)
             if self['id_unfi_flags'] & (1 << 4):
-                print('Update of last DL block in each chained list of DL blocks required')
+                print('Update of last DL block in each chained list of DL blocks required', file=stderr)
             if self['id_unfi_flags'] & (1 << 5):
-                print('Update of cg_data_bytes and cg_inval_bytes in VLSD CG block required')
+                print('Update of cg_data_bytes and cg_inval_bytes in VLSD CG block required', file=stderr)
             if self['id_unfi_flags'] & (1 << 6):
-                print('Update of offset values for VLSD channel required in case a VLSD CG block is used')
+                print('Update of offset values for VLSD channel required in case a VLSD CG block is used', file=stderr)
 
     def write(self, fid):
         """ Writes IDBlock
@@ -481,11 +483,11 @@ class CommentBlock(MDFBlock):
                         self['formula'] = self.extractXmlField(self['xml_tree'], 'formula')
                     else:
                         if MDType is not None:
-                            print('No recognized MDType')
-                            print(MDType)
+                            print('No recognized MDType', file=stderr)
+                            print(MDType, file=stderr)
                 except:
-                    print('problem parsing metadata for ' + MDType + ' block')
-                    print(self['Comment'])
+                    print('problem parsing metadata for ' + MDType + ' block', file=stderr)
+                    print(self['Comment'], file=stderr)
 
             elif self['id'] in ('##TX', b'##TX'):
                 if MDType == 'CN':  # channel comment
@@ -1161,7 +1163,7 @@ class info4(dict):
         # reads Header HDBlock
         self['HDBlock'].update(HDBlock(fid))
 
-        #print('reads File History blocks, always exists')
+        #print('reads File History blocks, always exists', file=stderr)
         fh = 0  # index of fh blocks
         self['FHBlock'][fh] = {}
         self['FHBlock'][fh] .update(FHBlock(fid, self['HDBlock']['hd_fh_first']))
@@ -1170,7 +1172,7 @@ class info4(dict):
             self['FHBlock'][fh + 1] .update(FHBlock(fid, self['FHBlock'][fh]['fh_fh_next']))
             fh += 1
 
-        # print('reads Channel Hierarchy blocks')
+        # print('reads Channel Hierarchy blocks', file=stderr)
         if self['HDBlock']['hd_ch_first']:
             ch = 0
             self['CHBlock'][ch] = {}
@@ -1393,7 +1395,7 @@ class info4(dict):
                     # reads Attachment Block
                     if self['CNBlock'][dg][cg][cn]['cn_attachment_count'] > 1:
                         for at in range(self['CNBlock'][dg][cg][cn]['cn_attachment_count']):
-                            print(self['CNBlock'][dg][cg][cn]['cn_at_reference'][at])
+                            print(self['CNBlock'][dg][cg][cn]['cn_at_reference'][at], file=stderr)
                             self['CNBlock'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference'][at]))
                     elif self['CNBlock'][dg][cg][cn]['cn_attachment_count'] == 1:
                         self['CNBlock'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference']))
@@ -1454,7 +1456,7 @@ class info4(dict):
                 elif ID in ('##CA', b'##CA'):  # arrays
                     pass
                 else:
-                    print('unknown channel composition')
+                    print('unknown channel composition', file=stderr)
         return MLSDChannels
 
     def readSRBlock(self, fid, pointer):

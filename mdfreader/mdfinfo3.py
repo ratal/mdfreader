@@ -22,7 +22,9 @@ PythonVersion : float
 mdfinfo3 module
 --------------------------
 """
-from sys import version_info
+from __future__ import print_function
+
+from sys import version_info, stderr
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 from numpy import sort, zeros
@@ -182,7 +184,7 @@ class info3(dict):
 
                     if signalname in snames:
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + '_' + str(channel)
-                        print('WARNING added number to duplicate channel name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName'])
+                        print('WARNING added number to duplicate channel name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName'], file=stderr)
                     else:
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
                         snames.add(signalname)
@@ -310,7 +312,7 @@ class info3(dict):
 
                             # Give warning that conversion formula is not being
                             # made
-                            print(('Conversion Formula type (cc_type=' + str(self['CCBlock'][dataGroup][channelGroup][channel]['cc_type']) + ')not supported.'))
+                            print(('Conversion Formula type (cc_type=' + str(self['CCBlock'][dataGroup][channelGroup][channel]['cc_type']) + ')not supported.'), file=stderr)
 
         # CLose the file
         fid.close()
@@ -421,7 +423,7 @@ class info3(dict):
 
                     if signalname in snames:
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + '_' + str(channel)
-                        print('WARNING added number to duplicate signal name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName'])
+                        print('WARNING added number to duplicate signal name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName'], file=stderr)
                     else:
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
                         snames.add(signalname)
@@ -608,7 +610,7 @@ class info3(dict):
                 (UINT16, 1, 'VersionNumber'),
                 (UINT16, 1, 'CodePageNumber'))
         else:
-            print('Block format name error ')
+            print('Block format name error ', file=stderr)
         return formats
 
     #######mdfblockread3####################

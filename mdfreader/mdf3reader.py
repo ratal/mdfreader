@@ -23,12 +23,13 @@ PythonVersion : float
 mdf3reader module
 --------------------------
 """
+from __future__ import print_function
 
 from numpy import average, right_shift, bitwise_and, diff, max, min, interp
 from numpy import asarray, zeros, recarray, array, reshape, searchsorted
 from numpy.core.records import fromfile
 from math import log, exp
-from sys import platform, version_info
+from sys import platform, version_info, stderr
 from time import strftime, time
 from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
@@ -128,7 +129,7 @@ def expConv(data, conv):  # 7 Exponential
     elif conv['P1'] == 0 and conv['P4'] != 0 and conv['P5'] != 0:
         return exp((conv['P3'] / (data - conv['P7']) - conv['P6']) / conv['P4']) / conv['P5']
     else:
-        print('Non possible conversion parameters for channel ')
+        print('Non possible conversion parameters for channel ', file=stderr)
 
 
 def logConv(data, conv):  # 8 Logarithmic
@@ -149,7 +150,7 @@ def logConv(data, conv):  # 8 Logarithmic
     elif conv['P1'] == 0 and conv['P4'] != 0 and conv['P5'] != 0:
         return log((conv['P3'] / (data - conv['P7']) - conv['P6']) / conv['P4']) / conv['P5']
     else:
-        print('Non possible conversion parameters for channel ')
+        print('Non possible conversion parameters for channel ', file=stderr)
 
 
 def rationalConv(data, conv):  # 9 rational
@@ -194,8 +195,8 @@ def formulaConv(data, conv):  # 10 Text Formula
         expr = lambdify(X, formula, modules='numpy', dummify=False)  # formula to function for evaluation
         return expr(data)
     except:
-        print('Please install sympy to convert channel ')
-        print('Failed to convert formulae ' + conv['textFormula'])
+        print('Please install sympy to convert channel ', file=stderr)
+        print('Failed to convert formulae ' + conv['textFormula'], file=stderr)
 
 
 def textRangeTableConv(data, conv):  # 12 Text range table
@@ -230,7 +231,7 @@ def textRangeTableConv(data, conv):  # 12 Text range table
             pass
         return temp
     except:
-        print('Failed to convert text to range table')
+        print('Failed to convert text to range table', file=stderr)
 
 
 class recordChannel():
@@ -719,7 +720,7 @@ class mdf3(mdf_skeleton):
                                         temp = right_shift(temp, chan.bitOffset)
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
-                                        print('bit count and offset not applied to correct data type')
+                                        print('bit count and offset not applied to correct data type', file=stderr)
 
                                 self.add_channel(dataGroup, chan.name, temp, \
                                         master_channel, \
@@ -1098,7 +1099,7 @@ class mdf3(mdf_skeleton):
             records = reshape(records, (1, len(self.masterChannelList[masterChannel]) * nRecords), order='C')[0]  # flatten the matrix
             fid.write(pack('<' + dataTypeList * nRecords, *records))  # dumps data vector from numpy
 
-        # print(pointers)
+        # print(pointers, file=stderr)
         fid.close()
 
 
@@ -1127,7 +1128,7 @@ def _datatypeformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits <= 64:
             dataType = 'Q'
         else:
-            print(('Unsupported number of bits for unsigned int ' + str(signalDataType)))
+            print(('Unsupported number of bits for unsigned int ' + str(signalDataType)), file=stderr)
 
     elif signalDataType in (1, 10, 14):  # signed int
         if numberOfBits <= 8:
@@ -1139,7 +1140,7 @@ def _datatypeformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits <= 64:
             dataType = 'q'
         else:
-            print(('Unsupported number of bits for signed int ' + str(signalDataType)))
+            print(('Unsupported number of bits for signed int ' + str(signalDataType)), file=stderr)
 
     elif signalDataType in (2, 3, 11, 12, 15, 16):  # floating point
         if numberOfBits == 32:
@@ -1147,14 +1148,14 @@ def _datatypeformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits == 64:
             dataType = 'd'
         else:
-            print(('Unsupported number of bit for floating point ' + str(signalDataType)))
+            print(('Unsupported number of bit for floating point ' + str(signalDataType)), file=stderr)
 
     elif signalDataType == 7:  # string
         dataType = str(numberOfBits // 8) + 's'
     elif signalDataType == 8:  # array of bytes
         dataType = str(numberOfBits // 8) + 's'
     else:
-        print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
+        print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits), file=stderr)
 
     # deal with byte order
     if signalDataType in (0, 1, 2, 3):
@@ -1196,7 +1197,7 @@ def _arrayformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits <= 64:
             dataType = 'u8'
         else:
-            print('Unsupported number of bits for unsigned int ' + str(signalDataType) + ' nBits ', numberOfBits)
+            print('Unsupported number of bits for unsigned int ' + str(signalDataType) + ' nBits ', numberOfBits, file=stderr)
 
     elif signalDataType in (1, 10, 14):  # signed int
         if numberOfBits <= 8:
@@ -1208,7 +1209,7 @@ def _arrayformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits <= 64:
             dataType = 'i8'
         else:
-            print('Unsupported number of bits for signed int ' + str(signalDataType) + ' nBits ', numberOfBits)
+            print('Unsupported number of bits for signed int ' + str(signalDataType) + ' nBits ', numberOfBits, file=stderr)
 
     elif signalDataType in (2, 3, 11, 12, 15, 16):  # floating point
         if numberOfBits == 32:
@@ -1216,14 +1217,14 @@ def _arrayformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits == 64:
             dataType = 'f8'
         else:
-            print('Unsupported number of bit for floating point ' + str(signalDataType) + ' nBits ', numberOfBits)
+            print('Unsupported number of bit for floating point ' + str(signalDataType) + ' nBits ', numberOfBits, file=stderr)
 
     elif signalDataType == 7:  # string
         dataType = 'S' + str(numberOfBits // 8)  # not directly processed
     elif signalDataType == 8:  # array of bytes
         dataType = 'V' + str(numberOfBits // 8)  # not directly processed
     else:
-        print('Unsupported Signal Data Type ' + str(signalDataType) + ' nBits ', numberOfBits)
+        print('Unsupported Signal Data Type ' + str(signalDataType) + ' nBits ', numberOfBits, file=stderr)
 
     # deal with byte order
     if signalDataType in (0, 1, 2, 3):
