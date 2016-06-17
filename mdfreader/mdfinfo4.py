@@ -457,11 +457,11 @@ class CommentBlock(MDFBlock):
                     elif MDType == 'HD':  # header comment
                         self['TX'] = self.extractXmlField(self['xml_tree'], 'TX')
                         tmp = self['xml_tree'].find(self.namespace + 'common_properties')
+                        if tmp is None:
+                            tmp = self['xml_tree'].find('common_properties')
                         if tmp is not None:
-                            self[tmp[0].attrib['name']] = tmp[0].text  # subject
-                            self[tmp[1].attrib['name']] = tmp[1].text  # project
-                            self[tmp[2].attrib['name']] = tmp[2].text  # department
-                            self[tmp[3].attrib['name']] = tmp[3].text  # author
+                            for t in tmp:
+                                self[t.attrib['name']] = t.text
                     elif MDType == 'FH':  # File History comment
                         self['TX'] = self.extractXmlField(self['xml_tree'], 'TX')
                         self['tool_id'] = self.extractXmlField(self['xml_tree'], 'tool_id')
@@ -505,7 +505,10 @@ class CommentBlock(MDFBlock):
         -----------
         field value in xml tree
         """
-        return xml_tree.findtext(self.namespace + field)
+        ret = xml_tree.findtext(self.namespace + field)
+        if ret is None:
+            ret = xml_tree.findtext(field)
+        return ret
 
     def write(self, fid, data, MDType):
         
