@@ -1579,6 +1579,7 @@ class mdf4(mdf_skeleton):
             record_byte_offset = 0
             CN_flag = 0
             nChannel = len(self.masterChannelList[masterChannel])
+            number_of_channel = 0
             nRecords = 0
             dataList = ()
             dataTypeList = ''
@@ -1587,6 +1588,7 @@ class mdf4(mdf_skeleton):
                 if channel.find('invalid_bytes') == -1:  # no interest to write invalid bytes as channel
                     data = self.getChannelData(channel)
                     dataList = dataList + (data, )
+                    number_of_channel +=1
                     temp = CNBlock()
                     if masterChannel is not channel:
                         temp['cn_type'] = 0
@@ -1666,7 +1668,7 @@ class mdf4(mdf_skeleton):
             DTposition = temp.writeHeader(fid, '##DT', 24 + record_byte_offset * nRecords, 0)
             MDFBlock.writePointer(fid, pointers['DG'][dataGroup]['data'], DTposition)
             records = array(dataList, object).T
-            records = reshape(records, (1, len(self.masterChannelList[masterChannel]) * nRecords), order='C')[0]  # flatten the matrix
+            records = reshape(records, (1, number_of_channel * nRecords), order='C')[0]  # flatten the matrix
             fid.write(pack('<' + dataTypeList * nRecords, *records))  # dumps data vector from numpy
 
         # print(pointers, file=stderr)
