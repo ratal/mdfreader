@@ -26,13 +26,15 @@ mdf4reader module
 --------------------------
 
 """
+from __future__ import print_function
+
 from numpy.core.records import fromstring, fromfile
 from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
 from struct import Struct, pack
 from struct import unpack as structunpack
 from math import pow
-from sys import version_info, exc_info, byteorder
+from sys import version_info, exc_info, byteorder, stderr
 from io import open  # for python 3 and 2 consistency
 try:
     from .mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
@@ -93,7 +95,7 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
             else: # record is not byte aligned or channelList not None
                 return record.readBitarray(parent_block['data'], channelList)
         else:  # unsorted reading
-            print('not implemented yet unsorted data block reading')  # to be implemented if needed, missing example file
+            print('not implemented yet unsorted data block reading', file=stderr)  # to be implemented if needed, missing example file
 
     elif parent_block['id'] in ('##SD', b'##SD'):
         if record.signalDataType == 6:
@@ -1094,7 +1096,7 @@ class record(list):
         """
         if channelList is None:  # reads all, quickest but memory consuming
             if self.byte_aligned:
-                #print(self.numpyDataRecordFormat)
+                #print(self.numpyDataRecordFormat, file=stderr)
                 return fromfile(fid, dtype=self.numpyDataRecordFormat, shape=self.numberOfRecords, names=self.dataRecordName)
             else:
                 return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), channelList)
@@ -1103,8 +1105,8 @@ class record(list):
                 try:
                     return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), channelList)
                 except:  # still memory efficient but takes time
-                    print('Unexpected error:', exc_info())
-                    print('dataRead crashed, back to python data reading')
+                    print('Unexpected error:', exc_info(), file=stderr)
+                    print('dataRead crashed, back to python data reading', file=stderr)
                     # check if master channel is in the list
                     if not self.master['name'] in channelList:
                         channelList.append(self.master['name'])  # adds master channel
@@ -1188,8 +1190,8 @@ class record(list):
                             buf[self[chan].name] = buf[self[chan].name].newbyteorder()
                 return buf
             except:
-                print('Unexpected error:', exc_info())
-                print('dataRead crashed, back to python data reading')
+                print('Unexpected error:', exc_info(), file=stderr)
+                print('dataRead crashed, back to python data reading', file=stderr)
                 from bitarray import bitarray
                 B = bitarray(endian="little")  # little endian by default
                 B.frombytes(bytes(bita))
@@ -1396,7 +1398,7 @@ class mdf4(mdf_skeleton):
                                         mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUnit8
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
-                                        print('bit count and offset not applied to correct data type ',  chan.name)
+                                        print('bit count and offset not applied to correct data type ',  chan.name, file=stderr)
                                 else:  # data using full bytes
                                     pass
 
@@ -1414,7 +1416,7 @@ class mdf4(mdf_skeleton):
                                                 elif chan.signalDataType == 9: # UTF-16 big endian
                                                     temp[t] = temp[t].decode('UTF-16BE', 'ignore')
                                             except:
-                                                    print('Cannot decode channel ' + chan.name)
+                                                    print('Cannot decode channel ' + chan.name, file=stderr)
                                                     temp[t] = ''
                                     # channel creation
                                     self.add_channel(dataGroup, chan.name, temp, \
@@ -1440,7 +1442,7 @@ class mdf4(mdf_skeleton):
 
         if convertAfterRead:
             self._convertAllChannel4()
-        # print( 'Finished in ' + str( time.clock() - inttime ) )
+        # print( 'Finished in ' + str( time.clock() - inttime ) , file=stderr)
 
     def _getChannelData4(self, channelName):
         """Returns channel numpy array
@@ -1609,7 +1611,7 @@ class mdf4(mdf_skeleton):
                     elif cn_numpy_kind == 'V':
                         data_type = 10  # bytes
                     else:
-                        print(cn_numpy_dtype, cn_numpy_kind)
+                        print(cn_numpy_dtype, cn_numpy_kind, file=stderr)
                         raise Exception('Not recognized dtype')
                     temp['cn_data_type'] = data_type
                     temp['cn_bit_offset'] = 0 # always byte aligned
@@ -1667,7 +1669,7 @@ class mdf4(mdf_skeleton):
             records = reshape(records, (1, len(self.masterChannelList[masterChannel]) * nRecords), order='C')[0]  # flatten the matrix
             fid.write(pack('<' + dataTypeList * nRecords, *records))  # dumps data vector from numpy
 
-        # print(pointers)
+        # print(pointers, file=stderr)
         fid.close()
 
 
@@ -1718,7 +1720,7 @@ def arrayformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 64:
             dataType = 'i8'
         else:
-            print('Unsupported number of bits for signed int ' + str(numberOfBits))
+            print('Unsupported number of bits for signed int ' + str(numberOfBits), file=stderr)
 
     elif signalDataType in (4, 5):  # floating point
         if numberOfBits == 32:
@@ -1726,7 +1728,7 @@ def arrayformat4(signalDataType, numberOfBits):
         elif numberOfBits == 64:
             dataType = 'f8'
         else:
-            print('Unsupported number of bit for floating point ' + str(numberOfBits))
+            print('Unsupported number of bit for floating point ' + str(numberOfBits), file=stderr)
 
     elif signalDataType == 6:  # string ISO-8859-1 Latin
         dataType = 'S' + str(numberOfBits // 8)
@@ -1743,7 +1745,7 @@ def arrayformat4(signalDataType, numberOfBits):
     elif signalDataType in (13, 14):  # CANOpen date or time
         dataType = None
     else:
-        print('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits)
+        print('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits, file=stderr)
 
     # deal with byte order
     if signalDataType in (0, 2, 4, 8):  # low endian
@@ -1792,7 +1794,7 @@ def datatypeformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 64:
             dataType = 'q'
         else:
-            print(('Unsupported number of bits for signed int ' + str(signalDataType)))
+            print(('Unsupported number of bits for signed int ' + str(signalDataType)), file=stderr)
 
     elif signalDataType in (4, 5):  # floating point
         if numberOfBits == 32:
@@ -1800,12 +1802,12 @@ def datatypeformat4(signalDataType, numberOfBits):
         elif numberOfBits == 64:
             dataType = 'd'
         else:
-            print(('Unsupported number of bit for floating point ' + str(signalDataType)))
+            print(('Unsupported number of bit for floating point ' + str(signalDataType)), file=stderr)
 
     elif signalDataType in (6, 7, 8, 9, 10, 11, 12):  # string/bytes
         dataType = str(numberOfBits // 8) + 's'
     else:
-        print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
+        print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits), file=stderr)
     # deal with byte order
     if signalDataType in (0, 2, 4, 8):  # low endian
         dataType = '<' + dataType
@@ -1925,7 +1927,7 @@ def formulaConv(vect, formula):
     try:
         from sympy import lambdify, symbols
     except:
-        print('Please install sympy to convert channel ')
+        print('Please install sympy to convert channel ', file=stderr)
     X = symbols('X')
     expr = lambdify(X, formula, modules='numpy', dummify=False)
     return expr(vect)
@@ -1955,7 +1957,7 @@ def valueToValueTableWOInterpConv(vect, cc_val):
         f = interpolate.interp1d(intVal, physVal, kind='nearest', bounds_error=False)  # nearest
         return f(vect)  # fill with Nan out of bounds while should be bounds
     else:
-        print('X values for interpolation of channel are not increasing')
+        print('X values for interpolation of channel are not increasing', file=stderr)
 
 
 def valueToValueTableWInterpConv(vect, cc_val):
@@ -1977,7 +1979,7 @@ def valueToValueTableWInterpConv(vect, cc_val):
     if all(diff(intVal) > 0):
         return interp(vect, intVal, physVal)  # with interpolation
     else:
-        print('X values for interpolation of channel are not increasing')
+        print('X values for interpolation of channel are not increasing', file=stderr)
 
 
 def valueRangeToValueTableConv(vect, cc_val):

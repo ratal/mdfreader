@@ -31,6 +31,8 @@ PythonVersion : float
 mdfreader module
 --------------------------
 """
+from __future__ import print_function
+
 from io import open
 from struct import unpack
 from math import ceil
@@ -45,7 +47,7 @@ from numpy import nan, datetime64, array
 from datetime import datetime
 
 from argparse import ArgumentParser
-from sys import version_info
+from sys import version_info, stderr
 from os.path import splitext
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -68,7 +70,7 @@ def _convertMatlabName(channel):
         try:
             channel = channel.decode('utf-8')
         except:
-            print('channel name can not be decoded : ' + channel)
+            print('channel name can not be decoded : ' + channel, file=stderr)
     channelName = channel.replace('[', '_ls_')
     channelName = channelName.replace(']', '_rs_')
     channelName = channelName.replace('$', '')
@@ -338,7 +340,7 @@ class mdf(mdf3, mdf4):
         if self.fileName is None:
             self.fileName = fileName
 
-        print(self.fileName)
+        print(self.fileName, file=stderr)
 
         # read file blocks
         info = mdfinfo(self.fileName, filterChannelNames)
@@ -454,7 +456,7 @@ class mdf(mdf3, mdf4):
                     plt.grid(True)
                     plt.show()
             else:
-                print(('Channel ' + channelName + ' not existing'))
+                print(('Channel ' + channelName + ' not existing'), file=stderr)
 
     def allPlot(self):
         # plot all channels in the object, be careful for test purpose only,
@@ -463,7 +465,7 @@ class mdf(mdf3, mdf4):
             try:
                 self.plot(Name)
             except:
-                print(Name)
+                print(Name, file=stderr)
 
     def resample(self, samplingTime=None, masterChannel=None):
         """ Resamples all data groups into one data group having defined
@@ -521,7 +523,7 @@ class mdf(mdf3, mdf4):
             else:
                 masterChannelName = masterChannel # master channel defined in argument
                 if masterChannel not in list(self.masterChannelList.keys()):
-                    print('master channel name not in existing')
+                    print('master channel name not in existing', file=stderr)
                     raise
             # resample all channels to one sampling time vector
             if len(list(self.masterChannelList.keys())) > 1:  # Not yet resampled or only 1 datagroup
@@ -548,9 +550,9 @@ class mdf(mdf3, mdf4):
                                 self.remove_channel(Name)
                     except:
                         if len(timevect) != len(self.getChannelData(Name)):
-                            print((Name + ' and master channel ' + self.getChannelMaster(Name) + ' do not have same length'))
+                            print((Name + ' and master channel ' + self.getChannelMaster(Name) + ' do not have same length'), file=stderr)
                         elif not all(diff(timevect) > 0):
-                            print((Name + ' has non regularly increasing master channel ' + self.getChannelMaster(Name)))
+                            print((Name + ' has non regularly increasing master channel ' + self.getChannelMaster(Name)), file=stderr)
                 # remove time channels in masterChannelList
                 for ind in list(self.masterChannelList.keys()):
                     if ind != masterChannelName and ind in self:
@@ -564,9 +566,9 @@ class mdf(mdf3, mdf4):
                     timevect = self.getChannelData(self.getChannelMaster(Name))
                     self.setChannelData(Name, interp(masterData, timevect, self.getChannelData(Name)))
             elif samplingTime is None:
-                print('Already resampled')
+                print('Already resampled', file=stderr)
         else:
-            print('no data to be resampled')
+            print('no data to be resampled', file=stderr)
 
     def exportToCSV(self, filename=None, sampling=None):
         """Exports mdf data into CSV file
@@ -634,7 +636,7 @@ class mdf(mdf3, mdf4):
                 writer.writerows([list(buf[i, :]) for i in range(r)])
             f.close()
         else:
-            print('no data to be exported')
+            print('no data to be exported', file=stderr)
 
     def exportToNetCDF(self, filename=None, sampling=None):
         """Exports mdf data into netcdf file
@@ -707,7 +709,7 @@ class mdf(mdf3, mdf4):
             else:
                 dataType = None
                 print(('Can not process numpy type ' + str(data.dtype)\
-                     + ' of channel ' + name))
+                     + ' of channel ' + name), file=stderr)
             if dataType is not None:
                 # create variable
                 CleanedName = cleanName(name)
@@ -929,8 +931,8 @@ class mdf(mdf3, mdf4):
                     tooLongChannels.append(channelList[col])  # to later warn user the channel is not completely written
         wb.save(filename)  # writes workbook on HDD
         if len(tooLongChannels) > 0:  # if not empty, some channels have been not processed
-            print('Following channels were too long to be processed completely, maybe you should resample : ')
-            print(tooLongChannels)
+            print('Following channels were too long to be processed completely, maybe you should resample : ', file=stderr)
+            print(tooLongChannels, file=stderr)
 
     def exportToXlsx(self, filename=None):
         """Exports mdf data into excel 2007 and 2010 file
@@ -958,7 +960,7 @@ class mdf(mdf3, mdf4):
         channels = list(self.keys())
         maxRows = max([len(self.getChannelData(channel)) for channel in list(self.keys())])  # find max column length
         maxCols = len(list(self.keys()))  # number of columns
-        print('Creating Excel sheet')
+        print('Creating Excel sheet', file=stderr)
         if len(list(self.masterChannelList.keys())) > 1:  # not resampled data, can be long, writing cell by cell !
             wb = openpyxl.workbook.Workbook(encoding='utf-8')
             ws = wb.active #get_active_sheet()
@@ -1008,7 +1010,7 @@ class mdf(mdf3, mdf4):
                         bigmat = vstack((bigmat, buf))
             bigmat = delete(bigmat, 0, 0)
             [ws.append(list(bigmat[:, row])) for row in range(maxRows)]
-        print('Writing file, please wait')
+        print('Writing file, please wait', file=stderr)
         wb.save(filename)
 
     def keepChannels(self, channelList):
@@ -1098,9 +1100,9 @@ class mdf(mdf3, mdf4):
         originalKeys = list(self.keys())
         for group in list(self.masterChannelList.keys()):
             if group not in self.masterChannelList[group]:
-                print('no master channel in group ' + group)
+                print('no master channel in group ' + group, file=stderr)
             elif self.getChannelMasterType(group)!=1:
-                print('Warning: master channel is not time, not appropriate conversion for pandas')
+                print('Warning: master channel is not time, not appropriate conversion for pandas', file=stderr)
             temp = {}
             # convert time channel into timedelta
             if group in self.masterChannelList[group]:
@@ -1171,4 +1173,4 @@ if __name__ == "__main__":
     if args.plot_channel_list is not None:
         temp.plot(args.plot_channel_list)
     if args.list_channels:
-        print(temp.masterChannelList)
+        print(temp.masterChannelList, file=stderr)
