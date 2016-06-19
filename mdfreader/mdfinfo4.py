@@ -515,8 +515,7 @@ class CommentBlock(MDFBlock):
     def write(self, fid, data, MDType):
         
         if MDType == 'TX':
-            if PythonVersion >= 3:
-                data = data.encode('latin1', 'replace')
+            data = data.encode('utf-8', 'replace')
             data += b'\0'
             # make sure block is multiple of 8
             data_lentgth = len(data)
