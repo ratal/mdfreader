@@ -80,4 +80,3 @@ Command example in ipython:
 >>> info.listChannels('NameOfFile') # returns the list of channels
 
 pip package existing: pip install mdfreader
-Can be downloaded at this `link <https://drive.google.com/open?id=0B7B2LHSheZ5qdU9HaXJBMkpQQU0&authuser=0>`_
