@@ -242,7 +242,7 @@ class mdf(mdf3, mdf4):
     read( fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False )
         reads mdf file version 3.x and 4.x
     write( fileName=None )
-        writes simple mdf 3.3 file
+        writes simple mdf file
     getChannelData( channelName )
         returns channel numpy array
     convertAllChannel()
@@ -299,6 +299,7 @@ class mdf(mdf3, mdf4):
     >>> yop.exporttoExcel()
     >>> yop.exporttoXlsx()
     >>> yop.convertToPandas() # converts data groups into pandas dataframes
+    >>> yop.write() # writes mdf file
     >>> yop.keepChannels({'channel1','channel2','channel3'}) # drops all the channels except the one in argument
     >>> yop.getChannelData('channelName') # returns channel numpy array
     """

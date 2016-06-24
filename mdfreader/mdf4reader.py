@@ -1585,8 +1585,8 @@ class mdf4(mdf_skeleton):
             dataTypeList = ''
             for nchannel in range(nChannel):
                 channel = self.masterChannelList[masterChannel][nchannel]
-                if channel.find('invalid_bytes') == -1:  # no interest to write invalid bytes as channel
-                    data = self.getChannelData(channel)
+                data = self.getChannelData(channel)
+                if channel.find('invalid_bytes') == -1 and len(data) > 0:  # no interest to write invalid bytes as channel
                     dataList = dataList + (data, )
                     number_of_channel +=1
                     temp = CNBlock()

@@ -12,7 +12,7 @@ The structure of the mdf dictionary, for each channel: mdf[channelName] below ke
 - master : vector name corresponding to master channel
 - masterType : type of master channel (time, angle, distance, etc.)
 - description : physical meaning of channel
-- conversion: (optional) dictionary describing how to convert raw data into meaningful/physical data
+- conversion: (exist when reading with convertAfterRead=False) dictionary describing how to convert raw data into meaningful/physical data
 mdf object main attribute: masterChannelList, a dict containing one list of channel names per datagroup
 
 
@@ -28,7 +28,7 @@ It is also possible to export mdf data into:
 - Excel 95 to 2003 (needs xlwt, really slooow, be careful about data size)
 - Excel 2007/2010 (needs openpyxl, slow if not resampled data)
 - Matlab .mat (needs scipy.io)
-- MDF 3.3 simplified file. It allows you to modify data, units, description and save it again
+- MDF simplified file. It allows you to modify data, units, description and save it again in the same major mdf version (3.x->3.3, 4.x-> 4.1)
 - Pandas dataframe(s) (only in command line). One dataframe per raster.
 
 Compatibility:
@@ -56,8 +56,28 @@ In the case of big files and lack of memory, you can optionally:
 
 Warning:
 ========
-MDF 4.x specification is much complex compared to 3.x and its implementation is young. Even though I tested it with around 150 different files, chances of bug is higher with version 4.x compared to 3.x
+MDF 4.x specification is much complex compared to 3.x and its implementation is young. Chances of bug are higher with version 4.x compared to 3.x
 
 For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
 
+Command example in ipython:
+===========================
+>>> import mdfreader
+>>> yop=mdfreader.mdf('NameOfFile') # loads whole mdf file content in yop mdf object
+>>> yop.keys() # list channels names
+>>> yop.masterChannelList() # list channels grouped by raster or master channel
+>>> yop.plot('channelName') or yop.plot({'channel1','channel2'})
+>>> yop.resample(0.1) or yop.resample(channelName='master3')
+>>> yop.exportoCSV(sampling=0.01)
+>>> yop.exportNetCDF()
+>>> yop.exporttoHDF5()
+>>> yop.exporttoMatlab()
+>>> yop.convertToPandas() # converts data groups into pandas dataframes
+>>> yop.write() # writes mdf file
+>>> yop.keepChannels({'channel1','channel2','channel3'}) # drops all the channels except the one in argument
+>>> yop.getChannelData('channelName') # returns channel numpy array
+>>> info=mdfreader.mdfinfo() # create a mdfinfo instance
+>>> info.listChannels('NameOfFile') # returns the list of channels
+
+pip package existing: pip install mdfreader
 Can be downloaded at this `link <https://drive.google.com/open?id=0B7B2LHSheZ5qdU9HaXJBMkpQQU0&authuser=0>`_
