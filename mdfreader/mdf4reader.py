@@ -1335,17 +1335,13 @@ class mdf4(mdf_skeleton):
                     date=ddate, time=ttime)
         else:
             self.add_metadata(date=ddate, time=ttime)
-        try:
-            fid = open(self.fileName, 'rb')
-        except IOError:
-            raise Exception('Can not find file ' + self.fileName)
 
         for dataGroup in info['DGBlock'].keys():
             if not info['DGBlock'][dataGroup]['dg_data'] == 0 and \
                     info['CGBlock'][dataGroup][0]['cg_cycle_count']:  # data exists
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['dg_data']
-                buf = DATA(fid, pointerToData)
+                buf = DATA(info.fid, pointerToData)
 
                 for channelGroup in info['CGBlock'][dataGroup].keys():
                     temp = record(dataGroup, channelGroup)  # create record class
@@ -1427,7 +1423,7 @@ class mdf4(mdf_skeleton):
                                         conversion=chan.conversion)
                                     if chan.channelType == 4:  # sync channel
                                         # attach stream to be synchronised
-                                        self.setChannelAttachment(chan.name, chan.attachment(fid, info))
+                                        self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
 
                             elif chan.type == 'InvalidBytes' and \
                                     (channelList is None or chan.name in channelList):  # invalid bytes, no bits processing
@@ -1438,7 +1434,7 @@ class mdf4(mdf_skeleton):
                                         unit='', \
                                         description='')
                     del buf[recordID]
-        fid.close()  # close file
+        info.fid.close()  # close file
 
         if convertAfterRead:
             self._convertAllChannel4()

@@ -341,7 +341,7 @@ class info3(dict):
                         self['CNBlock'][dg][cg][cn] = self['CNBlock'][dg][cg].pop(orderedMap[cn][0] + nChannel)
                         self['CCBlock'][dg][cg][cn] = self['CCBlock'][dg][cg].pop(orderedMap[cn][0] + nChannel)
 
-    def listChannels3(self, fileName=None):
+    def listChannels3(self, fileName=None, fid=None):
         """ reads data, channel group and channel blocks to list channel names
 
         Attributes
@@ -357,7 +357,8 @@ class info3(dict):
         if fileName is not None:
             self.fileName = fileName
         # Open file
-        fid = open(self.fileName, 'rb')
+        if fid is None and fileName is not None:
+            fid = open(self.fileName, 'rb')
         channelNameList = []
 
         # Read header block (HDBlock) information

@@ -24,6 +24,11 @@ mdfinfo4 module
 """
 from __future__ import print_function
 
+try:
+    from .mdf import _open_MDF
+except:
+    from mdf import _open_MDF
+
 from struct import calcsize, unpack, pack
 from sys import version_info, stderr
 from numpy import sort, zeros
@@ -479,7 +484,7 @@ class CommentBlock(MDFBlock):
                     elif MDType == 'CC':
                         self['TX'] = self.extractXmlField(self['xml_tree'], 'TX')
                         self['names'] = self.extractXmlField(self['xml_tree'], 'names')
-                        self['ho:COMPU_METHOD'] = self.extractXmlField(self['xml_tree'], 'ho:COMPU_METHOD')
+                        self['COMPU_METHOD'] = self.extractXmlField(self['xml_tree'], 'COMPU_METHOD')
                         self['formula'] = self.extractXmlField(self['xml_tree'], 'formula')
                     else:
                         if MDType is not None:
@@ -1138,15 +1143,17 @@ class info4(dict):
         self['CCBlock'] = {}  # Conversion block
         self['ATBlock'] = {}  # Attachment block
         self.fileName = fileName
-        if fileName is not None and fid is None:
-            try:
-                fid = open(self.fileName, 'rb')
-            except IOError:
-                raise IOError('Can not find file ' + self.fileName)
-            self.readinfo(fid)
+        if fid is None and fileName is not None:
+            # Open file
+            (self.fid, self.fileName, self.zipfile) = _open_MDF(self.fileName)
+        if self.fileName is not None and fid is None:
+            self.readinfo(self.fid)
             # Close the file
-            fid.close()
-        elif fileName is None and fid is not None:
+            self.fid.close()
+            if self.zipfile: # temporary uncompressed file, to be removed
+                remove(fileName)
+        elif self.fileName is None and fid is not None:
+            # called by mdfreader.mdfinfo
             self.readinfo(fid)
 
     def readinfo(self, fid):
@@ -1507,7 +1514,7 @@ class info4(dict):
                 atBlocks[at] = (ATBlock(fid, atBlocks[at - 1]['at_at_next']))
             return atBlocks
 
-    def listChannels4(self, fileName=None):
+    def listChannels4(self, fileName=None, fid=None):
         """ Read MDF file and extract its complete structure
 
         Parameters
@@ -1522,7 +1529,9 @@ class info4(dict):
         if fileName is not None:
             self.fileName = fileName
         # Open file
-        fid = open(self.fileName, 'rb')
+        if fid is None and fileName is not None:
+            # Open file
+            (fid, fileName, zipfile) = _open_MDF(self.fileName)
         channelNameList = []
         # reads Header HDBlock
         self['HDBlock'].update(HDBlock(fid))

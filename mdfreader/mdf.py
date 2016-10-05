@@ -19,6 +19,8 @@ mdf module
 """
 from numpy import array_repr, set_printoptions
 import pandas as pd
+from io import open
+from zipfile import is_zipfile, ZipFile
 set_printoptions(threshold=100, edgeitems=1)
 
 descriptionField = 'description'
@@ -528,3 +530,37 @@ class mdf_skeleton(dict):
         for channel in list(self.keys()):
             yop[channel] = self[channel]
         return yop
+
+def _open_MDF(fileName):
+    """ Opens mdf, make a few checks and returns fid
+
+    Parameters
+    -----------
+    filename : str
+    filename string
+
+    Returns:
+    --------
+    fid
+    file identifier
+    """
+
+    try:
+        fid = open(fileName, 'rb')
+    except IOError:
+        raise Exception('Can not find file ' + fileName)
+    zipfile = False
+    # Check whether file is MDF file -- assumes that every MDF file starts with the letters MDF
+    if fid.read(3) not in ('MDF', b'MDF'):
+        if is_zipfile(fileName):
+            # this is .mfxz file, compressed zip file
+            zipfile = True
+            fid.close()
+            zip_class = ZipFile(fileName, 'r')
+            zip_name = zip_class.namelist()[0]  # there should be only one file
+            zip_name = zip_class.extract(zip_name)  # locally extracts file
+            fid = open(zip_name, 'rb')
+            fileName = zip_name
+        else:
+            raise Exception('file ' + fileName + ' is not an MDF file!')
+    return (fid, fileName, zipfile)

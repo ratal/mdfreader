@@ -39,9 +39,11 @@ from math import ceil
 try:
     from .mdf3reader import mdf3
     from .mdf4reader import mdf4
+    from .mdf import _open_MDF
 except:
     from mdf3reader import mdf3
     from mdf4reader import mdf4
+    from mdf import _open_MDF
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
 from numpy import nan, datetime64, array
 from datetime import datetime
@@ -49,6 +51,7 @@ from datetime import datetime
 from argparse import ArgumentParser
 from sys import version_info, stderr
 from os.path import splitext
+from os import remove
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -113,6 +116,12 @@ class mdfinfo(dict):
         file name
     mdfversion : int
         mdf file version number
+    filterChannelNames : bool
+        flag to filter long channel names including module names separated by a '.'
+    fid
+        file identifier
+    zipfile : Bool
+        flag to identify compressed file in pkzip, .mfxz extension
 
     Methods
     ------------
@@ -127,11 +136,11 @@ class mdfinfo(dict):
     >>> FILENAME='toto.dat'
     >>> yop=mdfreader.mdfinfo(FILENAME)
     or if you are just interested to have only list of channels
-    >>> yop=mdfreader.mdfinfo() # creates new instance f mdfinfo class
-    >>> yop=mdfreader.listChannels(FILENAME) # returns a simple list of channel names
+    >>> yop=mdfreader.mdfinfo() # creates new instance of mdfinfo class
+    >>> yop.listChannels(FILENAME) # returns a simple list of channel names
     """
 
-    def __init__(self, fileName=None, filterChannelNames=False):
+    def __init__(self, fileName=None, filterChannelNames=False, fid=None):
 
         """ You can give optionally to constructor a file name that will be parsed
 
@@ -141,14 +150,19 @@ class mdfinfo(dict):
             file name
         filterChannelNames : bool, optional
             flag to filter long channel names including module names separated by a '.'
+        fid : file identifier, optional
         """
 
         self.fileName = fileName
-        self.mdfversion = 0
+        self.filterChannelNames = filterChannelNames
+        self.mdfversion = 410
+        self.fid = fid
+        self.zipfile = False
         if fileName is not None:
-            self.readinfo(fileName, filterChannelNames)
+            self.readinfo(fileName, fid)
 
-    def readinfo(self, fileName=None, filterChannelNames=False):
+
+    def readinfo(self, fileName=None, fid=None):
 
         """ Reads MDF file and extracts its complete structure
 
@@ -156,30 +170,29 @@ class mdfinfo(dict):
         ----------------
         fileName : str, optional
             file name. If not input, uses fileName attribute
-        filterChannelNames : bool, optional
-            flag to filter long channel names including module names separated by a '.'
+        fid : file identifier, optional
         """
 
-        if self.fileName is None:
+        if self.fileName is None or fileName is not None:
             self.fileName = fileName
+
         # Open file
-        try:
-            fid = open(self.fileName, 'rb')
-        except IOError:
-            raise Exception('Can not find file ' + self.fileName)
-        # Check whether file is MDF file -- assumes that every MDF file starts with the letters MDF
-        if fid.read(3) not in ('MDF', b'MDF'):
-            raise Exception('file ' + self.fileName + ' is not an MDF file!')
+        if self.fid is None or (self.fid is not None and self.fid.closed):
+            (self.fid, self.fileName, self.zipfile) = _open_MDF(self.fileName)
+
         # read Identifier block
-        fid.seek(28)
-        MDFVersionNumber = unpack('<H', fid.read(2))
+        self.fid.seek(28)
+        MDFVersionNumber = unpack('<H', self.fid.read(2))
         self.mdfversion = MDFVersionNumber[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
             from .mdfinfo3 import info3
-            self.update(info3(None, fid, filterChannelNames))
+            self.update(info3(None, self.fid, self.filterChannelNames))
         else:  # MDF version 4.x
             from .mdfinfo4 import info4
-            self.update(info4(None, fid))
+            self.update(info4(None, self.fid))
+            if self.zipfile and fid is None: # not from mdfreader.read()
+                remove(self.fileName)
+
 
     def listChannels(self, fileName=None):
 
@@ -196,25 +209,24 @@ class mdfinfo(dict):
             list of channel names
         """
 
-        if self.fileName is None:
+        if self.fileName is None or fileName is not None:
             self.fileName = fileName
         # Open file
-        try:
-            fid = open(self.fileName, 'rb')
-        except IOError:
-            raise Exception('Can not find file ' + self.fileName)
+        (self.fid, self.fileName, zipfile) = _open_MDF(self.fileName)
         # read Identifier block
-        fid.seek(28)
-        MDFVersionNumber = unpack('<H', fid.read(2))
+        self.fid.seek(28)
+        MDFVersionNumber = unpack('<H', self.fid.read(2))
         self.mdfversion = MDFVersionNumber[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
             from .mdfinfo3 import info3
             channelNameList = info3()
-            nameList = channelNameList.listChannels3(self.fileName)
+            nameList = channelNameList.listChannels3(self.fileName, self.fid)
         else:
             from .mdfinfo4 import info4
             channelNameList = info4()
-            nameList = channelNameList.listChannels4(self.fileName)
+            nameList = channelNameList.listChannels4(self.fileName, self.fid)
+            if zipfile: # not from mdfreader.read()
+                remove(self.fileName)
         return nameList
 
 
@@ -353,7 +365,7 @@ class mdf(mdf3, mdf4):
             self.read4(self.fileName, info, multiProc, channelList, convertAfterRead, filterChannelNames=False)
 
     def write(self, fileName=None):
-        """Writes simple mdf 3.3 file
+        """Writes simple mdf file, same format as originally read, default is 4.x
 
         Parameters
         ----------------
@@ -367,6 +379,8 @@ class mdf(mdf3, mdf4):
         """
         if fileName is None:
             splitName = splitext(self.fileName)
+            if splitName[-1] in ('.mfxz', '.MFXZ'):
+                splitName[-1] = '.mfx'  # do not resave in compressed file
             self.fileName = splitName[-2] + '_New' + splitName[-1]
         else:
             self.fileName = fileName
@@ -1136,7 +1150,7 @@ if __name__ == "__main__":
         None
     parser = ArgumentParser(prog='mdfreader', description='reads mdf file')
     parser.add_argument('--export', dest='export', default=None, \
-            choices=['CSV', 'HDF5', 'Matlab', 'Xlsx', 'Excel', 'NetCDF', 'MDF3'], \
+            choices=['CSV', 'HDF5', 'Matlab', 'Xlsx', 'Excel', 'NetCDF', 'MDF'], \
             help='Export after parsing to defined file type')
     parser.add_argument('--list_channels', dest='list_channels', action='store_true', \
             help='list of channels in file')
@@ -1169,7 +1183,7 @@ if __name__ == "__main__":
             temp.exportToExcel()
         elif args.export == 'NetCDF':
             temp.exportToNetCDF()
-        elif args.export == 'MDF3':
+        elif args.export == 'MDF':
             temp.write()
     if args.plot_channel_list is not None:
         temp.plot(args.plot_channel_list)
