@@ -887,9 +887,9 @@ class mdf(mdf3, mdf4):
 
         Notes
         --------
-        xlwt is not fast for even for small files, consider other binary formats like HDF5 or Matlab
+        xlwt is not fast even for small files, consider other binary formats like HDF5 or Matlab
         If there are more than 256 channels, data will be saved over different worksheets
-        Also Excel 203 is becoming rare these days
+        Also Excel 2003 is becoming rare these days, prefer using exportToXlsx
         """
         try:
             if PythonVersion < 3:
@@ -977,7 +977,7 @@ class mdf(mdf3, mdf4):
         maxCols = len(list(self.keys()))  # number of columns
         print('Creating Excel sheet', file=stderr)
         if len(list(self.masterChannelList.keys())) > 1:  # not resampled data, can be long, writing cell by cell !
-            wb = openpyxl.workbook.Workbook(encoding='utf-8')
+            wb = openpyxl.workbook.Workbook()
             ws = wb.active #get_active_sheet()
             # write header
             if PythonVersion < 3:
