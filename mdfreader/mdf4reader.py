@@ -1884,7 +1884,10 @@ def linearConv(vect, cc_val):
     """
     P1 = cc_val[0]
     P2 = cc_val[1]
-    return vect * P2 + P1
+    if P2 == 1.0 and P1 in (0.0, -0.0):
+        return vect  # keeps dtype probably more compact than float64
+    else:
+        return vect * P2 + P1
 
 
 def rationalConv(vect, cc_val):
