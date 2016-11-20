@@ -859,7 +859,7 @@ class CCBlock(MDFBlock):
                         self['cc_ref'][i] = temp['Comment']
                     elif ID in ('##CC', b'##CC'):  # for table conversion
                         # much more complicated nesting conversions !!!
-                        self['cc_ref'][i] = CCBlock(fid, self['cc_ref'][i])['name']['Comment']
+                        self['cc_ref'][i] = CCBlock(fid, self['cc_ref'][i])
             if self['cc_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock(fid, self['cc_md_comment'], MDType='CC')
             if self['cc_md_unit']:  # comments exist
