@@ -999,7 +999,7 @@ class mdf(mdf3, mdf4):
                         for r in range(len(data)):
                             ws.cell(row=r + 3, column=j+1).value = data[r]
         else:  # resampled data
-            wb = openpyxl.workbook.Workbook(optimized_write=True, encoding='utf-8')
+            wb = openpyxl.workbook.Workbook()
             ws = wb.create_sheet()
             # write header
             ws.append(channels)
