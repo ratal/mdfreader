@@ -174,7 +174,7 @@ class mdf_skeleton(dict):
         -------
         value of mdf dict key=channel_name
         """
-        self.masterChannelList[self.getChannelMaster(channel_name)].pop(channel_name)
+        self.masterChannelList[self.getChannelMaster(channel_name)].remove(channel_name)
         return self.pop(channel_name)
 
 
