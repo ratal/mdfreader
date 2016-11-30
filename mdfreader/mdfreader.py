@@ -967,6 +967,7 @@ class mdf(mdf3, mdf4):
         """
         try:
             import openpyxl
+            from openpyxl.utils.exceptions import IllegalCharacterError
         except:
             raise ImportError('Module openpyxl missing')
         if filename is None:
@@ -991,13 +992,16 @@ class mdf(mdf3, mdf4):
             # arrange data
             for j in range(maxCols):
                 data = self.getChannelData(channels[j])
-                if data.ndim <= 1: # not an array channel
-                    if data.dtype.kind in ('i', 'u') or 'f4' in data.dtype.str:
-                        for r in range(len(data)):
-                            ws.cell(row=r + 3, column=j+1).value = float64(data[r])
-                    elif data.dtype.kind not in ('V', 'U'):
-                        for r in range(len(data)):
-                            ws.cell(row=r + 3, column=j+1).value = data[r]
+                try:
+                    if data.ndim <= 1: # not an array channel
+                        if data.dtype.kind in ('i', 'u') or 'f4' in data.dtype.str:
+                            for r in range(len(data)):
+                                ws.cell(row=r + 3, column=j+1).value = float64(data[r])
+                        elif data.dtype.kind not in ('V', 'U'):
+                            for r in range(len(data)):
+                                ws.cell(row=r + 3, column=j+1).value = data[r]
+                except IllegalCharacterError:
+                    print('could not export ' + channels[j])
         else:  # resampled data
             wb = openpyxl.workbook.Workbook()
             ws = wb.create_sheet()
