@@ -611,7 +611,10 @@ class mdf(mdf3, mdf4):
             if PythonVersion < 3:
                 f = open(filename, "wb")
             else:
-                f = open(filename, "wt", encoding='latin-1')
+                if self.MDFVersionNumber >= 400:
+                    f = open(filename, "wt", encoding='utf8') # mdf4 encoding is unicode
+                else: # mdf3 encoding is latin-
+                    f = open(filename, "wt", encoding='latin-1')
             writer = csv.writer(f, dialect=csv.excel)
             # writes header
             writer.writerow([name for name in list(self.keys()) \
@@ -827,8 +830,7 @@ class mdf(mdf3, mdf4):
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
-                    channelName = _convertMatlabName(channel)
-                    dset = filegroup.create_dataset(channelName, data=channelData)
+                    dset = filegroup.create_dataset(channel, data=channelData)
                     setAttribute(dset, 'unit', self.getChannelUnit(channel))
                     if 'description' in self[channel]:
                         setAttribute(dset, 'description', self.getChannelDesc(channel))
