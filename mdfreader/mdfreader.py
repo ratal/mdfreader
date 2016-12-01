@@ -868,7 +868,10 @@ class mdf(mdf3, mdf4):
             data = self.getChannelData(channel)
             if data.dtype.kind not in ('S', 'U', 'V'):  # does not like special characters chains, skip
                 channelName = _convertMatlabName(channel)
-                temp[channelName] = data
+                if len(channelName) >0  and channelName is not None:
+                    temp[channelName] = data
+                elif channelName is not None:
+                    print('Could not export ' + channel + ', name is not compatible with Matlab')
         try:  # depends of version used , compression can be used
             savemat(filename, temp, long_field_names=True, format='5', do_compression=True, oned_as='column')
         except:
