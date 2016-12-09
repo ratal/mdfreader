@@ -91,6 +91,7 @@ def DATABlock(record, parent_block, channelList=None, sortedFlag=True):
         if sortedFlag:
             if channelList is None and not record.hiddenBytes and\
                     record.byte_aligned: # No channel list and length of records corresponds to C datatypes
+                # print(record) # for debugging purpose
                 return fromstring(parent_block['data'], dtype=record.numpyDataRecordFormat, shape=record.numberOfRecords, names=record.dataRecordName)
             else: # record is not byte aligned or channelList not None
                 return record.readBitarray(parent_block['data'], channelList)
@@ -916,7 +917,10 @@ class record(list):
         self.CANOpen = None
 
     def __str__(self):
-        output = 'Channels : ' + str(len(self)) + '\n'
+        totalbits = 0 # counting number of bits
+        totalbytes = 0 # total number of bytes
+        output = 'Record class content print\n'
+        output += 'Total number of channels : ' + str(len(self)) + '\n'
         for chan in self:
             output += chan.name + '\n'
             output += str(chan.channelNumber) + ' '
@@ -924,8 +928,14 @@ class record(list):
             output += str(chan.Format) + ' '
             output += 'ChannelType ' + str(chan.channelType) + ' '
             output += 'DataType ' + str(chan.signalDataType) + '\n'
+            totalbits += chan.bitCount
+            totalbytes += chan.nBytes
+        output += 'Total bits : ' + str(totalbits) + '\n'
+        output += 'Calculated total bytes : ' + str(totalbytes) + '\n'
+        output += 'CG block record bytes length : ' + str(self.CGrecordLength) + '\n'
         output += 'Datagroup number : ' + str(self.dataGroup) + '\n'
         output += 'Byte aligned : ' + str(self.byte_aligned) + '\n'
+        output += 'Hidden bytes : ' + str(self.hiddenBytes) + '\n'
         if self.master['name'] is not None:
             output += 'Master channel : ' + self.master['name'] + '\n'
         output += 'Numpy records format : \n'
@@ -1095,8 +1105,8 @@ class record(list):
         only one channel on demand, but be aware it might be much slower.
         """
         if channelList is None:  # reads all, quickest but memory consuming
-            if self.byte_aligned:
-                #print(self.numpyDataRecordFormat, file=stderr)
+            if self.byte_aligned and not self.hiddenBytes:
+                # print(self) # for debugging purpose
                 return fromfile(fid, dtype=self.numpyDataRecordFormat, shape=self.numberOfRecords, names=self.dataRecordName)
             else:
                 return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), channelList)
