@@ -608,33 +608,44 @@ class mdf(mdf3, mdf4):
             if filename is None:
                 filename = splitext(self.fileName)[0]
                 filename = filename + '.csv'
-            if PythonVersion < 3:
-                f = open(filename, "wb")
-            else:
-                if self.MDFVersionNumber >= 400:
-                    f = open(filename, "wt", encoding='utf8') # mdf4 encoding is unicode
-                else: # mdf3 encoding is latin-
-                    f = open(filename, "wt", encoding='latin-1')
-            writer = csv.writer(f, dialect=csv.excel)
+            if self.MDFVersionNumber >= 400:
+                encoding = 'utf8' # mdf4 encoding is unicode
+            else: 
+                encoding = 'latin-1' # mdf3 encoding is latin-1
             # writes header
-            writer.writerow([name for name in list(self.keys()) \
-                    if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V') \
-                    and self.getChannelData(name).ndim <= 1])  # writes channel names
             if PythonVersion < 3:
                 units = []
+                names = []
+                f = open(filename, "wb")
+                writer = csv.writer(f, dialect=csv.excel)
                 for name in list(self.keys()):
                     data = self.getChannelData(name)
+                    unit = self.getChannelUnit(name)
                     if data.dtype.kind not in ('S', 'U', 'V') \
                             and data.ndim <= 1:
-                        if self.getChannelUnit(name) is bytes:
-                            units.append(self.getChannelUnit(name).encode('unicode', 'ignore'))
+                        if name is bytes:
+                            names.append(name.encode(encoding, 'ignore'))
                         else:
                             try:
-                                units.append(self.getChannelUnit(name).encode('latin-1','replace'))
+                                names.append(name.encode(encoding,'replace'))
                             except:
-                                units.append(self.getChannelUnit(name))
+                                names.append(name)
+                        if self.getChannelUnit(name) is bytes:
+                            units.append(unit.encode(encoding, 'ignore'))
+                        else:
+                            try:
+                                units.append(unit.encode(encoding,'replace'))
+                            except:
+                                units.append(unit)
+                writer.writerow(names) # writes channel names
                 writer.writerow(units)  # writes units
             else:
+                f = open(filename, "wt", encoding=encoding)
+                writer = csv.writer(f, dialect=csv.excel)
+                writer.writerow([name for name in list(self.keys()) \
+                        if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V') \
+                        and self.getChannelData(name).ndim <= 1])  # writes channel names
+                # writes units
                 writer.writerow([self.getChannelUnit(name) \
                         for name in list(self.keys()) 
                         if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V') \
