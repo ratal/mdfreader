@@ -654,6 +654,14 @@ class channel():
             else:
                 array_desc = str(self.CABlock['ca_dim_size'])
             self.dataFormat = array_desc + self.dataFormat
+            # nested array
+            Block = self.CABlock
+            while 'CABlock' in Block:
+                self.type = 'NestedCA'
+                print('nested array ',dataGroup,channelGroup,channelNumber)
+                if 'CABlock' in Block: # another nested CABlock
+                    Block = Block['CABlock']
+                print('nested array management, under development')
         else:  # not channel array
             self.dataFormat = arrayformat4(self.signalDataType, self.bitCount)
         self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_type']
