@@ -506,7 +506,7 @@ class channel():
     desc : str
         channel description
     type : str
-        channel type. Can be 'standard', 'CANOpen' or 'InvalidBytes'
+        channel type. Can be 'standard', 'NestedCA', 'CANOpen' or 'InvalidBytes'
     conversion : info class
         conversion dictionnary
     channelNumber : int
@@ -646,22 +646,25 @@ class channel():
             self.little_endian = True
         if info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_composition'] and \
                 'CABlock' in info['CNBlock'][dataGroup][channelGroup][channelNumber]:  # channel array
-            self.dataFormat = arrayformat4(self.signalDataType, self.bitCount)
             self.CABlock = info['CNBlock'][dataGroup][channelGroup][channelNumber]['CABlock']
+            self.dataFormat = arrayformat4(self.signalDataType, self.bitCount)
             self.nBytes *= self.CABlock['PNd']  # calculates total array size in bytes
-            if self.CABlock['ca_ndim'] > 1:
-                array_desc = str(tuple(self.CABlock['ca_dim_size']))
-            else:
-                array_desc = str(self.CABlock['ca_dim_size'])
-            self.dataFormat = array_desc + self.dataFormat
-            # nested array
+            array_desc = self.CABlock['ca_dim_size']
             Block = self.CABlock
-            while 'CABlock' in Block:
+            while 'CABlock' in Block: # nested array
+                Block = Block['CABlock']
                 self.type = 'NestedCA'
-                print('nested array ',dataGroup,channelGroup,channelNumber)
-                if 'CABlock' in Block: # another nested CABlock
-                    Block = Block['CABlock']
-                print('nested array management, under development')
+                self.nBytes *= Block['PNd']
+                Block['ca_dim_size']
+                if type(array_desc) is list:
+                    array_desc.append(Block['ca_dim_size'])
+                else:
+                    array_desc = [array_desc, Block['ca_dim_size']]
+            if type(array_desc) is list:
+                array_desc = str(tuple(array_desc))
+            else:
+                array_desc = str(array_desc)
+            self.dataFormat = array_desc + self.dataFormat
         else:  # not channel array
             self.dataFormat = arrayformat4(self.signalDataType, self.bitCount)
         self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_type']
