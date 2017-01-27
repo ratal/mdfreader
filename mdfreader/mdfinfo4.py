@@ -1355,9 +1355,10 @@ class info4(dict):
                 # reads Channel Array Block
                 if self['CNBlock'][dg][cg][cn]['cn_composition']:  # composition but can be either structure of channels or array
                     fid.seek(self['CNBlock'][dg][cg][cn]['cn_composition'])
-                    if fid.read(4) in ('##CA', b'##CA'):
+                    id = fid.read(4)
+                    if id in ('##CA', b'##CA'):
                         self['CNBlock'][dg][cg][cn]['CABlock'] = CABlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
-                    elif self.mdfblockreadCHAR(fid, 4) in ('##CN', b'##CN'):
+                    elif id in ('##CN', b'##CN'):
                         self['CNBlock'][dg][cg][cn]['CNBlock'] = CNBlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
                     else:
                         raise('unknown channel composition')
