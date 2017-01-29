@@ -108,7 +108,7 @@ class mdf_skeleton(dict):
             self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames)
 
 
-    def add_channel(self, dataGroup, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None):
+    def add_channel(self, dataGroup, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None, info=None):
         """ adds channel to mdf dict.
 
         Parameters
@@ -129,6 +129,8 @@ class mdf_skeleton(dict):
             channel description
         conversion : info class, optional
             conversion description from info class
+        info : info class for CNBlock, optional
+            used for CABlock axis creation and channel conversion
         """
         if channel_name in self:
             channel_name += '_' + str(dataGroup)
@@ -144,7 +146,7 @@ class mdf_skeleton(dict):
             self.setChannelMasterType(channel_name, 1)
         else: #  mdf4
             self.setChannelMasterType(channel_name, master_type)
-        if conversion is not None:
+        if conversion is not None: # 
             self[channel_name]['conversion'] = {}
             self[channel_name]['conversion']['type'] = conversion['cc_type']
             self[channel_name]['conversion']['parameters'] = {}
@@ -160,6 +162,21 @@ class mdf_skeleton(dict):
                     self[channel_name]['conversion']['parameters']['cc_val'] = conversion['cc_val']
                 if 'cc_ref' in conversion:
                     self[channel_name]['conversion']['parameters']['cc_ref'] = conversion['cc_ref']
+        if info is not None: # axis from CABlock
+            CABlock = info
+            axis=[]
+            while 'CABlock' in CABlock:
+                CABlock = CABlock['CABlock']
+                if 'ca_axis_value' in CABlock:
+                    if type(CABlock['ca_dim_size']) is list:
+                        index = 0
+                        for ndim in CABlock['ca_dim_size']:
+                            axis.append(tuple(CABlock['ca_axis_value'][index:index+ndim]))
+                            index += ndim
+                    else:
+                        axis = CABlock['ca_axis_value']
+            self[channel_name]['axis'] = axis
+
 
 
     def remove_channel(self, channel_name):

@@ -1441,7 +1441,8 @@ class mdf4(mdf_skeleton):
                                         master_type=chan.channelSyncType, \
                                         unit=chan.unit, \
                                         description=chan.desc, \
-                                        conversion=chan.conversion)
+                                        conversion=chan.conversion, \
+                                        info=info['CNBlock'][dataGroup][channelGroup][chan.channelNumber])
                                     if chan.channelType == 4:  # sync channel
                                         # attach stream to be synchronised
                                         self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
@@ -1453,7 +1454,8 @@ class mdf4(mdf_skeleton):
                                         master_channel, \
                                         master_type=0, \
                                         unit='', \
-                                        description='')
+                                        description='', \
+                                        info=None)
                     del buf[recordID]
         info.fid.close()  # close file
 

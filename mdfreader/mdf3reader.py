@@ -727,7 +727,8 @@ class mdf3(mdf_skeleton):
                                         master_type=1, \
                                         unit=chan.unit, \
                                         description=chan.desc, \
-                                        conversion=chan.conversion)
+                                        conversion=chan.conversion, \
+                                        info=None)
                 del buf
         fid.close()  # close file
         if convertAfterRead:
