@@ -509,6 +509,8 @@ class channel():
         channel type. Can be 'standard', 'NestedCA', 'CANOpen' or 'InvalidBytes'
     conversion : info class
         conversion dictionnary
+    CNBlock : info class
+        Channel Block info class
     channelNumber : int
         channel number corresponding to mdfinfo3.info3 class
     channelGroup : int
@@ -571,7 +573,7 @@ class channel():
         """ channel class constructor
         """
         self.name = ''
-        type = 'standard'
+        self.type = 'standard'
         self.channelNumber = 0
         self.dataGroup = 0
         self.channelGroup = 0
@@ -597,9 +599,11 @@ class channel():
         self.unit = ''
         self.desc = ''
         self.conversion = None
+        self.CNBlock = None
 
     def __str__(self):
         output = str(self.channelNumber) + ' '
+        output += str(self.type) + ' '
         output += str(self.RecordFormat) + ' '
         output += str(self.Format) + ' '
         output += 'ChannelType ' + str(self.channelType) + ' '
@@ -634,6 +638,7 @@ class channel():
         self.type = 'standard'
         self.name = info['CNBlock'][dataGroup][channelGroup][channelNumber]['name']
         self.channelNumber = channelNumber
+        self.CNBlock = info['CNBlock'][dataGroup][channelGroup][channelNumber]
         self.dataGroup = dataGroup
         self.channelGroup = channelGroup
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data_type']
@@ -728,6 +733,7 @@ class channel():
         self.name = name
         self.unit = name
         self.channelNumber = channelNumber
+        self.CNBlock = info['CNBlock'][dataGroup][channelGroup][channelNumber]
         self.dataGroup = dataGroup
         self.channelGroup = channelGroup
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data_type']
@@ -1442,7 +1448,7 @@ class mdf4(mdf_skeleton):
                                         unit=chan.unit, \
                                         description=chan.desc, \
                                         conversion=chan.conversion, \
-                                        info=info['CNBlock'][dataGroup][channelGroup][chan.channelNumber])
+                                        info=chan.CNBlock)
                                     if chan.channelType == 4:  # sync channel
                                         # attach stream to be synchronised
                                         self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
