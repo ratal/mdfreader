@@ -656,7 +656,7 @@ class info3(dict):
                             Block[fieldName] = value.decode('latin1', 'replace').encode('utf-8').rstrip('\x00')
                         else:
                             Block[fieldName] = value.decode('latin1', 'replace').encode('utf-8')
-                    else:
+                    elif value:
                         if removeTrailing0:
                             Block[fieldName] = value.decode('latin1', 'replace').rstrip('\x00')  # decode bytes
                         else:
