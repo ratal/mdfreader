@@ -36,22 +36,19 @@ from __future__ import print_function
 from io import open
 from struct import unpack
 from math import ceil
-try:
-    from .mdf3reader import mdf3
-    from .mdf4reader import mdf4
-    from .mdf import _open_MDF
-except:
-    from mdf3reader import mdf3
-    from mdf4reader import mdf4
-    from mdf import _open_MDF
+from os.path import dirname, abspath, splitext
+from os import remove
+from sys import version_info, stderr, path
+root = dirname(dirname(abspath(__file__)))
+path.append(root)
+from mdf3reader import mdf3
+from mdf4reader import mdf4
+from mdf import _open_MDF
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
 from numpy import nan, datetime64, array
 from datetime import datetime
-
 from argparse import ArgumentParser
-from sys import version_info, stderr
-from os.path import splitext
-from os import remove
+
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -185,16 +182,10 @@ class mdfinfo(dict):
         MDFVersionNumber = unpack('<H', self.fid.read(2))
         self.mdfversion = MDFVersionNumber[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
-            try:
-                from .mdfinfo3 import info3
-            except:
-                from mdfinfo3 import info3
+            from mdfinfo3 import info3
             self.update(info3(None, self.fid, self.filterChannelNames))
         else:  # MDF version 4.x
-            try:
-                from .mdfinfo4 import info4
-            except:
-                from mdfinfo4 import info4
+            from mdfinfo4 import info4
             self.update(info4(None, self.fid))
             if self.zipfile and fid is None: # not from mdfreader.read()
                 remove(self.fileName)
@@ -224,17 +215,11 @@ class mdfinfo(dict):
         MDFVersionNumber = unpack('<H', self.fid.read(2))
         self.mdfversion = MDFVersionNumber[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
-            try:
-                from .mdfinfo3 import info3
-            except:
-                from mdfinfo3 import info3
+            from mdfinfo3 import info3
             channelNameList = info3()
             nameList = channelNameList.listChannels3(self.fileName, self.fid)
         else:
-            try:
-                from .mdfinfo4 import info4
-            except:
-                from mdfinfo4 import info4
+            from mdfinfo4 import info4
             channelNameList = info4()
             nameList = channelNameList.listChannels4(self.fileName, self.fid)
             if zipfile: # not from mdfreader.read()

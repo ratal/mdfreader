@@ -24,13 +24,13 @@ mdfinfo4 module
 """
 from __future__ import print_function
 
-try:
-    from .mdf import _open_MDF
-except:
-    from mdf import _open_MDF
-
 from struct import calcsize, unpack, pack
-from sys import version_info, stderr
+from os.path import dirname, abspath
+from sys import version_info, stderr, path
+root = dirname(dirname(abspath(__file__)))
+path.append(root)
+from mdf import _open_MDF
+
 from numpy import sort, zeros
 import time
 from xml.etree.ElementTree import Element, SubElement, Comment, tostring, XMLParser, XML, register_namespace

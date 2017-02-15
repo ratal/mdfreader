@@ -29,16 +29,16 @@ from numpy import average, right_shift, bitwise_and, diff, max, min, interp
 from numpy import asarray, zeros, recarray, array, reshape, searchsorted
 from numpy.core.records import fromfile
 from math import log, exp
-from sys import platform, version_info, stderr
 from time import strftime, time
 from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
-try:
-    from .mdf import mdf_skeleton
-    from .mdfinfo3 import info3
-except:
-    from mdf import mdf_skeleton
-    from mdfinfo3 import info3
+from sys import platform, version_info, stderr, path
+from os.path import dirname, abspath
+root = dirname(dirname(abspath(__file__)))
+path.append(root)
+from mdf import mdf_skeleton
+from mdfinfo3 import info3
+
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 

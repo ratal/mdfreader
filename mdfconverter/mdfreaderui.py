@@ -6,16 +6,15 @@ Module implementing MainWindow.
 from PyQt4.QtGui import QMainWindow, QFileDialog, QAction
 from PyQt4.QtCore import pyqtSignature, SIGNAL
 
-try:
-    from .Ui_mdfreaderui import Ui_MainWindow
-except:
-    from Ui_mdfreaderui import Ui_MainWindow
+from sys import version_info, path
+from os.path import dirname, abspath
+root = dirname(dirname(abspath(__file__)))
+path.append(root)
+from Ui_mdfreaderui import Ui_MainWindow
 from io import open
 from multiprocessing import Pool, cpu_count
 from mdfreader import *
 
-from sys import version_info
-from os import path
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 MultiProc = True  # multiprocess switch, for debug purpose put False
@@ -57,7 +56,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         """
         if self.defaultPath is None:
             self.fileNames = QFileDialog.getOpenFileNames(self, "Select Measurement Files", filter=("MDF file (*.dat *.mdf *.mf4 *.mfx *.mfxz)"))
-            self.defaultPath = path.dirname(str(self.fileNames[0]))
+            self.defaultPath = dirname(str(self.fileNames[0]))
         else:
             self.fileNames = QFileDialog.getOpenFileNames(self, "Select Measurement Files", self.defaultPath, filter=("MDF file (*.dat *.mdf *.mf4 *.mfx *.mfxz)"))
         if not len(self.fileNames) == 0:

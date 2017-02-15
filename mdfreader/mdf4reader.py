@@ -34,14 +34,13 @@ from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
 from struct import Struct, pack
 from struct import unpack as structunpack
 from math import pow
-from sys import version_info, exc_info, byteorder, stderr
 from io import open  # for python 3 and 2 consistency
-try:
-    from .mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
-    from .mdf import mdf_skeleton
-except:
-    from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
-    from mdf import mdf_skeleton
+from sys import version_info, exc_info, byteorder, stderr, path
+from os.path import dirname, abspath
+root = dirname(dirname(abspath(__file__)))
+path.append(root)
+from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
+from mdf import mdf_skeleton
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
 PythonVersion = version_info
@@ -1059,7 +1058,7 @@ class record(list):
                             embedded_bytes = True
                             if self.recordToChannelMatching: # not first channel
                                 self.recordToChannelMatching[Channel.name] = self.recordToChannelMatching[self[-2].name]
-                            else: # first channel
+                            else: # first channels
                                 self.recordToChannelMatching[Channel.name] = Channel.name
                                 self.numpyDataRecordFormat.append(Channel.RecordFormat)
                                 self.dataRecordName.append(Channel.name)
