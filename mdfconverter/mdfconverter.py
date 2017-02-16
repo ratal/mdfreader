@@ -2,7 +2,7 @@
 
 from sys import argv, exit, path
 from os.path import dirname, abspath
-root = dirname(dirname(abspath(__file__)))
+root = dirname(abspath(__file__))
 path.append(root)
 from mdfreaderui import MainWindow
 from multiprocessing import freeze_support

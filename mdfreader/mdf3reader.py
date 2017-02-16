@@ -34,7 +34,7 @@ from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
 from sys import platform, version_info, stderr, path
 from os.path import dirname, abspath
-root = dirname(dirname(abspath(__file__)))
+root = dirname(abspath(__file__))
 path.append(root)
 from mdf import mdf_skeleton
 from mdfinfo3 import info3

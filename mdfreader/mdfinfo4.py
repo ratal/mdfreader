@@ -27,7 +27,7 @@ from __future__ import print_function
 from struct import calcsize, unpack, pack
 from os.path import dirname, abspath
 from sys import version_info, stderr, path
-root = dirname(dirname(abspath(__file__)))
+root = dirname(abspath(__file__))
 path.append(root)
 from mdf import _open_MDF
 

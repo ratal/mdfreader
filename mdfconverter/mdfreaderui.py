@@ -8,7 +8,7 @@ from PyQt4.QtCore import pyqtSignature, SIGNAL
 
 from sys import version_info, path
 from os.path import dirname, abspath
-root = dirname(dirname(abspath(__file__)))
+root = dirname(abspath(__file__))
 path.append(root)
 from Ui_mdfreaderui import Ui_MainWindow
 from io import open

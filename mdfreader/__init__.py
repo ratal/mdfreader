@@ -20,13 +20,16 @@ __version__ = "0.2.4"
 
 from sys import path
 from os.path import dirname, abspath
-root = dirname(dirname(abspath(__file__)))
+root = dirname(abspath(__file__))
 path.append(root)
 #if it's run as a script or imported within python, this happens
 if __name__ == 'mdfreader':
+    try:
+        from mdfreader.mdfreader import mdf,mdfinfo
+    except ImportError: # python 2-3 differences, not understood
+        from mdfreader import mdf,mdfinfo
     from mdf import mdf_skeleton
     from mdf3reader import mdf3
     from mdf4reader import mdf4
     from mdfinfo3 import info3
     from mdfinfo4 import info4, MDFBlock, ATBlock
-    from mdfreader import mdf,mdfinfo

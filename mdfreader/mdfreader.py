@@ -39,7 +39,7 @@ from math import ceil
 from os.path import dirname, abspath, splitext
 from os import remove
 from sys import version_info, stderr, path
-root = dirname(dirname(abspath(__file__)))
+root = dirname(abspath(__file__))
 path.append(root)
 from mdf3reader import mdf3
 from mdf4reader import mdf4

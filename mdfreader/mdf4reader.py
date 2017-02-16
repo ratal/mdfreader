@@ -37,7 +37,7 @@ from math import pow
 from io import open  # for python 3 and 2 consistency
 from sys import version_info, exc_info, byteorder, stderr, path
 from os.path import dirname, abspath
-root = dirname(dirname(abspath(__file__)))
+root = dirname(abspath(__file__))
 path.append(root)
 from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
 from mdf import mdf_skeleton
