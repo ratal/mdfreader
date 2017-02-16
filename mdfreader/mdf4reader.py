@@ -1624,7 +1624,7 @@ class mdf4(mdf_skeleton):
 
                     cn_numpy_dtype = data.dtype
                     cn_numpy_kind = data.dtype.kind
-                    if cn_numpy_dtype in ('uint8', 'uint16', 'uint32', 'uint64'):
+                    if cn_numpy_dtype in ('uint8', 'uint16', 'uint32', 'uint64', 'bool'):
                         data_type = 0  # LE
                     elif cn_numpy_dtype in ('int8', 'int16', 'int32', 'int64'):
                         data_type = 2  # LE
@@ -1650,7 +1650,7 @@ class mdf4(mdf_skeleton):
                     elif cn_numpy_dtype in ('uint16', 'int16'):
                         bit_count = 16
                         byte_count = 2
-                    elif cn_numpy_dtype in ('uint8', 'int8'):
+                    elif cn_numpy_dtype in ('uint8', 'int8', 'bool'):
                         bit_count = 8
                         byte_count = 1
                     elif cn_numpy_kind in ('S', 'U', 'V'):
