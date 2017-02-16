@@ -1021,7 +1021,7 @@ class mdf3(mdf_skeleton):
                     numberOfBits = 32
                 elif data.dtype in ('uint16', 'int16'):
                     numberOfBits = 16
-                elif data.dtype in ('uint8', 'int8'):
+                elif data.dtype in ('uint8', 'int8', 'bool'):
                     numberOfBits = 8
                 else:
                     numberOfBits = 8  # if string, not considered
@@ -1030,7 +1030,7 @@ class mdf3(mdf_skeleton):
                 bitOffset += numberOfBits
                 if data.dtype == 'float64':
                     dataType = 3
-                elif data.dtype in ('uint8', 'uint16', 'uint32', 'uint64'):
+                elif data.dtype in ('uint8', 'uint16', 'uint32', 'uint64', 'bool'):
                     dataType = 0
                 elif data.dtype in ('int8', 'int16', 'int32', 'int64'):
                     dataType = 1
