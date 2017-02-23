@@ -28,6 +28,7 @@ from __future__ import print_function
 from numpy import average, right_shift, bitwise_and, diff, max, min, interp
 from numpy import asarray, zeros, recarray, array, reshape, searchsorted
 from numpy.core.records import fromfile
+from numpy.core.defchararray import encode as ncode
 from math import log, exp
 from time import strftime, time
 from struct import pack, Struct
@@ -1012,7 +1013,7 @@ class mdf3(mdf_skeleton):
                 data = self.getChannelData(channel)  # channel data
                 temp = data
                 if PythonVersion >= 3 and data.dtype.kind in ['S', 'U']:
-                    temp = temp.encode('latin1', 'replace')
+                    temp = ncode(temp, encoding='latin1', errors='replace')
                 dataList = dataList + (temp, )
                 if data.dtype in ('float64', 'int64', 'uint64'):
                     numberOfBits = 64
