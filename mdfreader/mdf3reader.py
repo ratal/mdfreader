@@ -1014,7 +1014,6 @@ class mdf3(mdf_skeleton):
                 if PythonVersion >= 3 and data.dtype.kind in ['S', 'U']:
                     temp = temp.encode('latin1', 'replace')
                 dataList = dataList + (temp, )
-
                 if data.dtype in ('float64', 'int64', 'uint64'):
                     numberOfBits = 64
                 elif data.dtype in ('float32', 'int32', 'uint32'):
@@ -1024,10 +1023,7 @@ class mdf3(mdf_skeleton):
                 elif data.dtype in ('uint8', 'int8', 'bool'):
                     numberOfBits = 8
                 else:
-                    numberOfBits = 8  # if string, not considered
-                recordNumberOfBits += numberOfBits
-                fid.write(pack(UINT16, numberOfBits))  # Number of bits
-                bitOffset += numberOfBits
+                    numberOfBits = 8  # if string, considered later
                 if data.dtype == 'float64':
                     dataType = 3
                 elif data.dtype in ('uint8', 'uint16', 'uint32', 'uint64', 'bool'):
@@ -1045,6 +1041,10 @@ class mdf3(mdf_skeleton):
                     dataTypeList += data.dtype.char
                 else:
                     dataTypeList += str(data.dtype.itemsize) + 's'
+                    numberOfBits = 8 * data.dtype.itemsize
+                bitOffset += numberOfBits
+                recordNumberOfBits += numberOfBits
+                fid.write(pack(UINT16, numberOfBits))  # Number of bits
                 fid.write(pack(UINT16, dataType))  # Signal data type
                 if data.dtype.kind not in ['S', 'U']:
                     fid.write(pack(BOOL, 1))  # Value range valid
