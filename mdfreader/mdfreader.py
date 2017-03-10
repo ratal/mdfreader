@@ -350,7 +350,7 @@ class mdf(mdf3, mdf4):
         if self.fileName is None:
             self.fileName = fileName
 
-        print(self.fileName, file=stderr)
+        # print(self.fileName, file=stderr)  # you can uncomment to show the file process from a batch
 
         # read file blocks
         info = mdfinfo(self.fileName, filterChannelNames)
