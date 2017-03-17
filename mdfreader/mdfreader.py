@@ -558,6 +558,9 @@ class mdf(mdf3, mdf4):
                             timevect = self.getChannelData(self.getChannelMaster(Name))
                             if not self.getChannelData(Name).dtype.kind in ('S', 'U'):  # if channel not array of string
                                 self.setChannelData(Name, interp(masterData, timevect, self.getChannelData(Name)))
+                                self.setChannelMaster(Name, masterChannelName)
+                                self.setChannelMasterType(Name, self.getChannelMasterType(master))
+                                self.remove_channel_conversion(Name)
                             else:  # can not interpolate strings, remove channel containing string
                                 self.remove_channel(Name)
                     except:
@@ -568,7 +571,7 @@ class mdf(mdf3, mdf4):
                 # remove time channels in masterChannelList
                 for ind in list(self.masterChannelList.keys()):
                     if ind != masterChannelName and ind in self:
-                        del self[ind]
+                        self.remove_channel(ind)
                 self.masterChannelList = {}  # empty dict
                 self.masterChannelList[masterChannelName] = list(self.keys())
             elif len(list(self.masterChannelList.keys())) == 1 and samplingTime is not None: # resamples only 1 datagroup
@@ -577,6 +580,9 @@ class mdf(mdf3, mdf4):
                 for Name in list(self.keys()):
                     timevect = self.getChannelData(self.getChannelMaster(Name))
                     self.setChannelData(Name, interp(masterData, timevect, self.getChannelData(Name)))
+                    self.setChannelMaster(Name, masterChannelName)
+                    self.setChannelMasterType(Name, self.getChannelMasterType(master))
+                    self.remove_channel_conversion(Name)
             elif samplingTime is None:
                 print('Already resampled', file=stderr)
         else:
