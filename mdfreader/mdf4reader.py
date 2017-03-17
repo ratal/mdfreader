@@ -40,7 +40,7 @@ from os.path import dirname, abspath
 root = dirname(abspath(__file__))
 path.append(root)
 from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
-from mdf import mdf_skeleton
+from mdf import mdf_skeleton, _bits_to_bytes
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
 PythonVersion = version_info
@@ -271,31 +271,6 @@ def change_field_name(arr, old_name, new_name):
     arr.dtype.names = names
     return arr
 
-def bits_to_bytes(nBits):
-    """ Converts number of bits into number of aligned bytes
-    
-    Parameters
-    -------------
-    nBits : int
-        number of bits
-        
-    Returns
-    ----------
-    number of equivalent bytes
-    """
-    if nBits <= 8:
-        nBytes = 1
-    elif nBits <= 16:
-        nBytes = 2
-    elif nBits <= 32:
-        nBytes = 4
-    elif nBits <= 64:
-        nBytes = 8
-    else:
-        nBytes = nBits // 8
-        if not nBits %8  == 0:
-            nBytes += 1
-    return nBytes
     
 class DATA(dict):
 
@@ -643,7 +618,7 @@ class channel():
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_data_type']
         self.channelSyncType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_sync_type']
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_count']
-        self.nBytes = bits_to_bytes(self.bitCount)
+        self.nBytes = _bits_to_bytes(self.bitCount)
         if self.signalDataType in (1, 3, 5, 9):  # endianness
             self.little_endian = False
         else:
@@ -771,7 +746,7 @@ class channel():
                 self.desc = 'year'
             else:
                 raise('CANopen type not understood')
-        self.nBytes = bits_to_bytes(self.bitCount)
+        self.nBytes = _bits_to_bytes(self.bitCount)
         self.little_endian = True
         self.channelType = 0
         self.maxLengthVLSDRecord = 0  # initialises max length of SDBlock elements to 0 for later calculation
@@ -1734,7 +1709,7 @@ def arrayformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 64:
             dataType = 'u8'
         else:
-            dataType = str(bits_to_bytes(numberOfBits) // 8) + 'V'
+            dataType = str(_bits_to_bytes(numberOfBits) // 8) + 'V'
 
     elif signalDataType in (2, 3):  # signed int
         if numberOfBits <= 8:
@@ -1808,7 +1783,7 @@ def datatypeformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 64:
             dataType = 'Q'
         else:
-            dataType = str(bits_to_bytes(numberOfBits) // 8) + 's'
+            dataType = str(_bits_to_bytes(numberOfBits) // 8) + 's'
 
     elif signalDataType in (2, 3):  # signed int
         if numberOfBits <= 8:
