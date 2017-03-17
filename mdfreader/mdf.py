@@ -581,3 +581,29 @@ def _open_MDF(fileName):
         else:
             raise Exception('file ' + fileName + ' is not an MDF file!')
     return (fid, fileName, zipfile)
+
+def _bits_to_bytes(nBits):
+    """ Converts number of bits into number of aligned bytes
+    
+    Parameters
+    -------------
+    nBits : int
+        number of bits
+        
+    Returns
+    ----------
+    number of equivalent bytes
+    """
+    if nBits <= 8:
+        nBytes = 1
+    elif nBits <= 16:
+        nBytes = 2
+    elif nBits <= 32:
+        nBytes = 4
+    elif nBits <= 64:
+        nBytes = 8
+    else:
+        nBytes = nBits // 8
+        if not nBits %8  == 0:
+            nBytes += 1
+    return nBytes
