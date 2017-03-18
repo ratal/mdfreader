@@ -33,7 +33,7 @@ from math import log, exp
 from time import strftime, time
 from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
-from sys import platform, version_info, stderr, path
+from sys import platform, exc_info, byteorder, version_info, stderr, path
 from os.path import dirname, abspath
 root = dirname(abspath(__file__))
 path.append(root)
@@ -77,6 +77,7 @@ def tabInterpConv(data, conv):  # 1 Tabular with interpolation
     """
     tmp = array([(key, val['int'], val['phys']) for (key, val) in conv.items()])
     return interp(data, tmp[:,1], tmp[:,2])
+
 
 def tabConv(data, conv):  # 2 Tabular
     """ apply Tabular conversion to data
@@ -497,22 +498,49 @@ class record(list):
                 # check if master channel is in the list
                 if not self.master['name'] in channelList:
                     channelList.append(self.master['name'])  # adds master channel
-                rec = {}
-                recChan = []
-                numpyDataRecordFormat = []
-                for channel in channelList:  # initialise data structure
-                    rec[channel] = 0
-                for channel in self:  # list of Channels from channelList
-                    if channel.name in channelList:
-                        recChan.append(channel)
-                        numpyDataRecordFormat.append(channel.RecordFormat)
-                rec = zeros((self.numberOfRecords, ), dtype=numpyDataRecordFormat)
-                recordLength = self.recordIDnumber + self.CGrecordLength
-                for r in range(self.numberOfRecords):  # for each record,
-                    buf = fid.read(recordLength)
-                    for channel in recChan:
-                        rec[channel.name][r] = channel.CFormat.unpack(buf[channel.posByteBeg:channel.posByteEnd])[0]
-                return rec.view(recarray)
+                try:  # use rather cython compiled code for performance
+                    from .dataRead import dataRead
+                    convertDataType3to4 = {0: 0, 1: 2, 2: 4, 3: 4, \
+                        7: 6, 8: 10, \
+                        9: 1, 10: 3, 11: 5, 12: 5, \
+                        13: 0, 14: 2, 15: 4,16: 4}  # converts data type from mdf 3.x to 4.x
+                    bita = fid.read(self.dataBlockLength)
+                    format = []
+                    for channel in self:
+                        if channel.name in channelList:
+                            format.append(channel.RecordFormat)
+                    buf = recarray(self.numberOfRecords, format)
+                    for chan in range(len(self)):
+                        if self[chan].name in channelList:
+                            buf[self[chan].name] = dataRead(bytes(bita), self[chan].bitCount, \
+                                    convertDataType3to4[self[chan].signalDataType], self[chan].RecordFormat[1], \
+                                    self.numberOfRecords, self.CGrecordLength, \
+                                    self[chan].bitOffset, self[chan].posByteBeg, \
+                                    self[chan].posByteEnd)
+                            # dataRead already took care of byte order, switch to native
+                            if (buf[self[chan].name].dtype.byteorder == '>' and byteorder == 'little') or \
+                                    buf[self[chan].name].dtype.byteorder == '<' and byteorder == 'big':
+                                buf[self[chan].name] = buf[self[chan].name].newbyteorder()
+                    return buf
+                except:
+                    print('Unexpected error:', exc_info(), file=stderr)
+                    print('dataRead crashed, back to python data reading', file=stderr)
+                    rec = {}
+                    recChan = []
+                    numpyDataRecordFormat = []
+                    for channel in channelList:  # initialise data structure
+                        rec[channel] = 0
+                    for channel in self:  # list of Channels from channelList
+                        if channel.name in channelList:
+                            recChan.append(channel)
+                            numpyDataRecordFormat.append(channel.RecordFormat)
+                    rec = zeros((self.numberOfRecords, ), dtype=numpyDataRecordFormat)
+                    recordLength = self.recordIDnumber + self.CGrecordLength
+                    for r in range(self.numberOfRecords):  # for each record,
+                        buf = fid.read(recordLength)
+                        for channel in recChan:
+                            rec[channel.name][r] = channel.CFormat.unpack(buf[channel.posByteBeg:channel.posByteEnd])[0]
+                    return rec.view(recarray)
 
     def readRecordBuf(self, buf, channelList=None):
         """ read stream of record bytes
