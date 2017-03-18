@@ -370,6 +370,8 @@ class record(list):
         channel names to be stored, useful for low memory consumption but slow
     hiddenBytes : Bool, False by default
         flag in case of non declared channels in record
+    byte_aligned : Bool, True by default
+        flag for byte aligned record
 
     Methods
     ------------
@@ -396,6 +398,7 @@ class record(list):
         self.recordToChannelMatching = {}
         self.channelNames = []
         self.hiddenBytes = False
+        self.byte_aligned = True
 
     def __repr__(self):
         output = 'Channels :\n'
@@ -447,13 +450,30 @@ class record(list):
                 self.master['number'] = channelNumber
             self.append(channel)
             self.channelNames.append(channel.name)
-            if len(self) > 1 and channel.byteOffset == self[-2].byteOffset:  # several channels in one byte, ubit1 or ubit2
-                self.recordToChannelMatching[channel.name] = self.recordToChannelMatching[self[-2].name]
-            else:  # adding bytes
+            # Checking if several channels are embedded in bytes
+            embedded_bytes = False
+            if len(self) > 1:
+                # all channels are already ordered in record based on byte_offset and bit_offset
+                # so just comparing with previous channel
+                if channel.byteOffset >= self[-2].byteOffset and \
+                        channel.posBitBeg < 8 * (self[-2].byteOffset + self[-2].nBytes) and \
+                        channel.posBitEnd > 8 * (self[-2].byteOffset + self[-2].nBytes):  # not byte aligned
+                    self.byte_aligned = False
+                if channel.posBitBeg >= 8 * self[-2].byteOffset \
+                        and channel.posBitEnd <= 8 * (self[-2].byteOffset + self[-2].nBytes):  # bit(s) in byte(s)
+                    embedded_bytes = True
+                    if self.recordToChannelMatching: # not first channel
+                        self.recordToChannelMatching[channel.name] = self.recordToChannelMatching[self[-2].name]
+                    else: # first channels
+                        self.recordToChannelMatching[channel.name] = channel.name
+                        self.numpyDataRecordFormat.append(channel.RecordFormat)
+                        self.dataRecordName.append(channel.name)
+                        self.recordLength += channel.nBytes
+            if not embedded_bytes:  # adding bytes
                 self.recordToChannelMatching[channel.name] = channel.name
                 self.numpyDataRecordFormat.append(channel.RecordFormat)
                 self.dataRecordName.append(channel.name)
-                self.recordLength += channel.nBytes
+                self.recordLength += channel.nBytes            
         if self.recordIDnumber == 2:  # second record ID at end of record
             self.dataRecordName.append('RecordID' + str(self.channelGroup) + '_2')
             format = (self.dataRecordName[-1], self.dataRecordName[-1] + '_title')
@@ -462,6 +482,7 @@ class record(list):
         # check for hidden bytes
         if self.CGrecordLength > self.recordLength:
             self.hiddenBytes = True
+
 
     def readSortedRecord(self, fid, pointer, channelList=None):
         """ reads record, only one channel group per datagroup
@@ -488,7 +509,7 @@ class record(list):
 
         """
         fid.seek(pointer)
-        if channelList is None and not self.hiddenBytes:  # reads all, quickest but memory consuming
+        if channelList is None and not self.hiddenBytes and self.byte_aligned:  # reads all, quickest but memory consuming
             return fromfile(fid, dtype=self.numpyDataRecordFormat, shape=self.numberOfRecords, names=self.dataRecordName)
         else:  # reads only some channels from a sorted data block
             if channelList is None:
