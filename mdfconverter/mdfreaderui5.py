@@ -13,15 +13,8 @@ from io import open
 from multiprocessing import Pool, cpu_count
 from mdfreader import *
 
-try: # first try pyQt5
-    from PyQt5.QtWidgets import QMainWindow, QFileDialog, QAction
-    from Ui_mdfreaderui5 import Ui_MainWindow
-    print('pyQt5')
-except ImportError: # if QT5 not existing, looking for Qt4
-    from PyQt4.QtGui import QMainWindow, QFileDialog, QAction
-    from PyQt4.QtCore import pyqtSignature, SIGNAL
-    from Ui_mdfreaderui4 import Ui_MainWindow
-    print('pyQt4')
+from PyQt5.QtWidgets import QMainWindow, QFileDialog, QAction
+from Ui_mdfreaderui5 import Ui_MainWindow
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -57,7 +50,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.FileList.addAction(self.actionFileRemove)
         self.connect(self.actionFileRemove, SIGNAL("triggered()"), self.FileRemove)
 
-    @pyqtSignature("")
+    #@pyqtSignature("")
     def on_browse_clicked(self):
         """
         Will open a dialog to browse for files
@@ -86,7 +79,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.channelList.clear()
         [self.channelList.takeItem(0) for i in range(self.channelList.count())]
 
-    @pyqtSignature("")
+    #@pyqtSignature("")
     def on_Convert_clicked(self):
         """
        Will convert mdf files into selected format
@@ -173,7 +166,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                     print(file)
                 self.mdfClass.__init__()  # clear memory
 
-    @pyqtSignature("QListWidgetItem*")
+    #@pyqtSignature("QListWidgetItem*")
     def on_FileList_itemClicked(self, item):
         """
         If user click on file list
@@ -186,56 +179,56 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.channelList.addItems(ChannelList)
         self.mdfinfoClass.__init__()  # clean object to free memory
 
-    @pyqtSignature("bool")
+    #@pyqtSignature("bool")
     def on_matlab_clicked(self, checked):
         """
         Selects Matlab conversion
         """
         self.convertSelection = 'Matlab'
 
-    @pyqtSignature("bool")
+    #@pyqtSignature("bool")
     def on_netcdf_clicked(self, checked):
         """
         Selects netcdf conversion.
         """
         self.convertSelection = 'netcdf'
 
-    @pyqtSignature("bool")
+    #@pyqtSignature("bool")
     def on_hdf5_clicked(self, checked):
         """
         Selects hdf5 conversion.
         """
         self.convertSelection = 'hdf5'
 
-    @pyqtSignature("bool")
+    #@pyqtSignature("bool")
     def on_csv_clicked(self, checked):
         """
         Selects csv conversion.
         """
         self.convertSelection = 'csv'
 
-    @pyqtSignature("bool")
+    #@pyqtSignature("bool")
     def on_excel_clicked(self, checked):
         """
         Selects excel conversion.
         """
         self.convertSelection = 'excel'
 
-    @pyqtSignature("bool")
+    #@pyqtSignature("bool")
     def on_excel2010_clicked(self, checked):
         """
         Selects excel conversion.
         """
         self.convertSelection = 'excel2010'
 
-    @pyqtSignature("bool")
+    #@pyqtSignature("bool")
     def on_mdf3_clicked(self, checked):
         """
         Selects MDF3.3 conversion.
         """
         self.convertSelection = 'mdf3'
 
-    @pyqtSignature("")
+    #@pyqtSignature("")
     def on_LabFileBrowse_clicked(self):
         """
         selects lab file from browser.
@@ -294,7 +287,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.SelectedChannelList.clear()
         self.SelectedChannelList.addItems(channelList)
 
-    @pyqtSignature("bool")
+    #@pyqtSignature("bool")
     def on_MergeFiles_toggled(self, checked):
         """
         Slot documentation goes here.

@@ -3,17 +3,19 @@
 """
 Module implementing MainWindow.
 """
-from PyQt4.QtGui import QMainWindow, QFileDialog, QAction
-from PyQt4.QtCore import pyqtSignature, SIGNAL
 
 from sys import version_info, path
 from os.path import dirname, abspath
 root = dirname(abspath(__file__))
 path.append(root)
-from Ui_mdfreaderui import Ui_MainWindow
+
 from io import open
 from multiprocessing import Pool, cpu_count
 from mdfreader import *
+
+from PyQt4.QtGui import QMainWindow, QFileDialog, QAction
+from PyQt4.QtCore import pyqtSignature, SIGNAL
+from Ui_mdfreaderui4 import Ui_MainWindow
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
