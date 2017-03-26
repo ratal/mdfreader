@@ -1,15 +1,21 @@
-﻿from PyQt4 import QtGui
-
-from sys import argv, exit, path
+﻿from sys import argv, exit, path
 from os.path import dirname, abspath
 root = dirname(abspath(__file__))
 path.append(root)
-from mdfreaderui import MainWindow
+
 from multiprocessing import freeze_support
+
+try: # first try pyQt5
+	from PyQt5.QtWidgets import QApplication
+	from mdfreaderui5 import MainWindow
+
+except ImportError: # if QT5 not existing, looking for Qt4
+	from PyQt4.QtGui import QApplication
+	from mdfreaderui4 import MainWindow
 
 def main():
     freeze_support()
-    app = QtGui.QApplication(argv)
+    app = QApplication(argv)
     myapp = MainWindow()
     myapp.show()
     exit(app.exec_())
