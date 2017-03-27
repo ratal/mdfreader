@@ -5,13 +5,12 @@ path.append(root)
 
 from multiprocessing import freeze_support
 
-try: # first try pyQt5
-	from PyQt5.QtWidgets import QApplication
-	from mdfreaderui5 import MainWindow
-
-except ImportError: # if QT5 not existing, looking for Qt4
+try: # first try pyQt4
 	from PyQt4.QtGui import QApplication
 	from mdfreaderui4 import MainWindow
+except ImportError: # if Qt4 not existing, looking for Qt5
+	from PyQt5.QtWidgets import QApplication
+	from mdfreaderui5 import MainWindow
 
 def main():
     freeze_support()

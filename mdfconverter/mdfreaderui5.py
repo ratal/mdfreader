@@ -42,24 +42,23 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.defaultPath = None  # default path to open for browsing files
         self.actionPlotSelectedChannel = QAction("Plot", self.SelectedChannelList)  # context menu to allow plot of channel
         self.SelectedChannelList.addAction(self.actionPlotSelectedChannel)
-        self.connect(self.actionPlotSelectedChannel, SIGNAL("triggered()"), self.plotSelected)
+        self.actionPlotSelectedChannel.triggered.connect(self.plotSelected)
         self.actionPlotChannel = QAction("Plot", self.channelList)  # context menu to allow plot of channel
         self.channelList.addAction(self.actionPlotChannel)
-        self.connect(self.actionPlotChannel, SIGNAL("triggered()"), self.plot)
+        self.actionPlotChannel.triggered.connect(self.plot)
         self.actionFileRemove = QAction("Delete", self.FileList)  # context menu to remove selected file from list
         self.FileList.addAction(self.actionFileRemove)
-        self.connect(self.actionFileRemove, SIGNAL("triggered()"), self.FileRemove)
+        self.actionFileRemove.triggered.connect(self.FileRemove)
 
-    #@pyqtSignature("")
     def on_browse_clicked(self):
         """
         Will open a dialog to browse for files
         """
         if self.defaultPath is None:
-            self.fileNames = QFileDialog.getOpenFileNames(self, "Select Measurement Files", filter=("MDF file (*.dat *.mdf *.mf4 *.mfx *.mfxz)"))
+            self.fileNames = QFileDialog.getOpenFileNames(self, "Select Measurement Files", filter=("MDF file (*.dat *.mdf *.mf4 *.mfx *.mfxz)"))[0]
             self.defaultPath = dirname(str(self.fileNames[0]))
         else:
-            self.fileNames = QFileDialog.getOpenFileNames(self, "Select Measurement Files", self.defaultPath, filter=("MDF file (*.dat *.mdf *.mf4 *.mfx *.mfxz)"))
+            self.fileNames = QFileDialog.getOpenFileNames(self, "Select Measurement Files", self.defaultPath, filter=("MDF file (*.dat *.mdf *.mf4 *.mfx *.mfxz)"))[0]
         if not len(self.fileNames) == 0:
             self.FileList.addItems(self.fileNames)
             self.mdfinfoClass.__init__()
@@ -67,7 +66,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
             self.cleanSelectedChannelList()
             ChannelList = convertChannelList(self.mdfinfoClass.listChannels(str(self.fileNames[0])))
             self.SelectedChannelList.addItems(ChannelList)
-            self.FileList.setItemSelected(self.FileList.item(0), True)
+            self.FileList.item(0).setSelected(True)
 
     def cleanSelectedChannelList(self):
         # remove all items from list
@@ -79,7 +78,6 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.channelList.clear()
         [self.channelList.takeItem(0) for i in range(self.channelList.count())]
 
-    #@pyqtSignature("")
     def on_Convert_clicked(self):
         """
        Will convert mdf files into selected format
@@ -166,7 +164,6 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                     print(file)
                 self.mdfClass.__init__()  # clear memory
 
-    #@pyqtSignature("QListWidgetItem*")
     def on_FileList_itemClicked(self, item):
         """
         If user click on file list
@@ -179,61 +176,53 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.channelList.addItems(ChannelList)
         self.mdfinfoClass.__init__()  # clean object to free memory
 
-    #@pyqtSignature("bool")
-    def on_matlab_clicked(self, checked):
+    def on_matlab_clicked(self):
         """
         Selects Matlab conversion
         """
         self.convertSelection = 'Matlab'
 
-    #@pyqtSignature("bool")
-    def on_netcdf_clicked(self, checked):
+    def on_netcdf_clicked(self):
         """
         Selects netcdf conversion.
         """
         self.convertSelection = 'netcdf'
 
-    #@pyqtSignature("bool")
-    def on_hdf5_clicked(self, checked):
+    def on_hdf5_clicked(self):
         """
         Selects hdf5 conversion.
         """
         self.convertSelection = 'hdf5'
 
-    #@pyqtSignature("bool")
-    def on_csv_clicked(self, checked):
+    def on_csv_clicked(self):
         """
         Selects csv conversion.
         """
         self.convertSelection = 'csv'
 
-    #@pyqtSignature("bool")
-    def on_excel_clicked(self, checked):
+    def on_excel_clicked(self):
         """
         Selects excel conversion.
         """
         self.convertSelection = 'excel'
 
-    #@pyqtSignature("bool")
-    def on_excel2010_clicked(self, checked):
+    def on_excel2010_clicked(self):
         """
         Selects excel conversion.
         """
         self.convertSelection = 'excel2010'
 
-    #@pyqtSignature("bool")
-    def on_mdf3_clicked(self, checked):
+    def on_mdf3_clicked(self):
         """
         Selects MDF3.3 conversion.
         """
         self.convertSelection = 'mdf3'
 
-    #@pyqtSignature("")
     def on_LabFileBrowse_clicked(self):
         """
         selects lab file from browser.
         """
-        self.labFileName = QFileDialog.getOpenFileName(self, "Select Lab Files", filter=("Lab file (*.lab)"))
+        self.labFileName = QFileDialog.getOpenFileName(self, "Select Lab Files", filter=("Lab file (*.lab)"))[0]
         if not len(self.labFileName) == 0:
             self.LabFile.del_()  # clear linedit
             self.LabFile.insert(str(self.labFileName))  # replace linedit field by browsed file name
@@ -287,8 +276,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.SelectedChannelList.clear()
         self.SelectedChannelList.addItems(channelList)
 
-    #@pyqtSignature("bool")
-    def on_MergeFiles_toggled(self, checked):
+    def on_MergeFiles_toggled(self):
         """
         Slot documentation goes here.
         """
