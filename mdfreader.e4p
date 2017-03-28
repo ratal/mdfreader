@@ -1,44 +1,50 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE Project SYSTEM "Project-5.1.dtd">
 <!-- eric project file for project mdfreader -->
-<!-- Saved: 2015-09-24, 20:31:04 -->
-<!-- Copyright (C) 2015 Aymeric Rateau, aymeric.rateau@gmail.com -->
+<!-- Saved: 2017-03-26, 10:19:55 -->
+<!-- Copyright (C) 2017 Aymeric Rateau, aymeric.rateau@gmail.com -->
 <Project version="5.1">
   <Language>en</Language>
   <Hash>a4292a9bac002b3553cfe312b60bdcab5d0a8287</Hash>
-  <ProgLanguage mixed="1">Python2</ProgLanguage>
-  <ProjectType>Qt4</ProjectType>
+  <ProgLanguage mixed="1">Python3</ProgLanguage>
+  <ProjectType>Qt5</ProjectType>
   <Description>Utility to read MDF data format and convert to several other data formats</Description>
   <Version>13</Version>
   <Author>Aymeric Rateau</Author>
   <Email>aymeric.rateau@gmail.com</Email>
-  <Eol index="-1"/>
   <Sources>
-    <Source>mdfreader/mdfreader.py</Source>
-    <Source>mdfreader/__init__.py</Source>
-    <Source>mdfForVeuszPlugin.py</Source>
-    <Source>mdfconverter/__init__.py</Source>
-    <Source>mdfconverter/mdfreaderui.py</Source>
-    <Source>mdfconverter/Ui_mdfreaderui.py</Source>
-    <Source>mdfconverter/mdfconverter.py</Source>
-    <Source>mdfreader/mdfinfo4.py</Source>
-    <Source>mdfreader/mdfinfo3.py</Source>
-    <Source>mdfreader/mdf3reader.py</Source>
-    <Source>mdfreader/mdf4reader.py</Source>
-    <Source>README</Source>
     <Source>LICENSE</Source>
-    <Source>setup.py</Source>
-    <Source>mdfreader/tests/tests.py</Source>
+    <Source>README</Source>
+    <Source>mdfForVeuszPlugin.py</Source>
+    <Source>mdfconverter/Ui_mdfreaderui.py</Source>
+    <Source>mdfconverter/Ui_mdfreaderui4.py</Source>
+    <Source>mdfconverter/Ui_mdfreaderui5.py</Source>
+    <Source>mdfconverter/__init__.py</Source>
+    <Source>mdfconverter/mdfconverter.py</Source>
+    <Source>mdfconverter/mdfreaderui4.py</Source>
+    <Source>mdfconverter/mdfreaderui5.py</Source>
+    <Source>mdfreader/__init__.py</Source>
     <Source>mdfreader/__main__.py</Source>
     <Source>mdfreader/dataRead.pyx</Source>
     <Source>mdfreader/mdf.py</Source>
+    <Source>mdfreader/mdf3reader.py</Source>
+    <Source>mdfreader/mdf4reader.py</Source>
+    <Source>mdfreader/mdfinfo3.py</Source>
+    <Source>mdfreader/mdfinfo4.py</Source>
+    <Source>mdfreader/mdfreader.py</Source>
+    <Source>mdfreader/tests/tests.py</Source>
+    <Source>setup.py</Source>
   </Sources>
-  <Forms/>
+  <Forms>
+    <Form>mdfconverter/mdfreaderui.ui</Form>
+  </Forms>
   <Translations/>
   <Resources/>
   <Interfaces/>
   <Others>
     <Other>.issues</Other>
+    <Other>MANIFEST.in</Other>
+    <Other>setup.cfg</Other>
   </Others>
   <MainScript>mdfreader/mdfreader.py</MainScript>
   <Vcs>

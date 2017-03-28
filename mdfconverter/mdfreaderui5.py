@@ -11,7 +11,7 @@ path.append(root)
 
 from io import open
 from multiprocessing import Pool, cpu_count
-from mdfreader import *
+import mdfreader
 
 from PyQt5.QtWidgets import QMainWindow, QFileDialog, QAction
 from Ui_mdfreaderui5 import Ui_MainWindow
@@ -34,8 +34,8 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         QMainWindow.__init__(self, parent)
         self.setupUi(self)
         self.fileNames = []  # files to convert
-        self.mdfClass = mdf()  # instance of mdf
-        self.mdfinfoClass = mdfinfo()  # instance of mdfinfo
+        self.mdfClass = mdfreader.mdf()  # instance of mdf
+        self.mdfinfoClass = mdfreader.mdfinfo()  # instance of mdfinfo
         self.convertSelection = 'Matlab'  # by default Matlab conversion is selected
         self.MergeFiles = False  # by default
         self.labFileName = []  # .lab file name
@@ -288,7 +288,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
 
 def processMDF(fileName, channelist, resampleFlag, resampleValue, convertFlag, convertSelection):
     # Will process file according to defined options
-    yop = mdf()
+    yop = mdfreader.mdf()
     yop.multiProc = False  # already multiprocessed
     yop.convertAfterRead = True
     yop.read(fileName)  # reads complete file

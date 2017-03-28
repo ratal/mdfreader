@@ -1109,6 +1109,26 @@ class mdf(mdf3, mdf4):
                 refill.fill(nan)  # fill with NANs
                 self.setChannelData(channel, hstack((data, refill)))
 
+    def copy(self):
+        """copy a mdf class
+
+        Returns:
+        ------------
+        mdf class instance
+            copy of a mdf class
+        """
+        yop = mdf()
+        yop.multiProc = self.multiProc
+        yop.fileName = self.fileName
+        yop.masterChannelList = self.masterChannelList
+        yop.file_metadata = self.file_metadata
+        yop.MDFVersionNumber = self.MDFVersionNumber
+        yop.filterChannelNames = self.filterChannelNames
+        yop.convert_tables = self.convert_tables
+        for channel in list(self.keys()):
+            yop[channel] = self[channel]
+        return yop
+
     def convertToPandas(self, sampling=None):
         """converts mdf data structure into pandas dataframe(s)
 

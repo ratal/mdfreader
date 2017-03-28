@@ -493,9 +493,13 @@ class mdf_skeleton(dict):
             channel_name   description
             numpy_array    unit
         """
-        output = 'file name : ' + self.fileName + '\n'
+        if self.fileName is not None:
+            output = 'file name : ' + self.fileName + '\n'
+        else:
+            output = ''
         for m in self.file_metadata.keys():
-            output += m + ' : ' + str(self.file_metadata[m]) + '\n'
+            if self.file_metadata[m] is not None:
+                output += m + ' : ' + str(self.file_metadata[m]) + '\n'
         if not self._pandasframe:
             output += '\nchannels listed by data groups:\n'
             for d in self.masterChannelList.keys():
@@ -533,8 +537,8 @@ class mdf_skeleton(dict):
 
         Returns:
         ------------
-        mdf class instance
-            copy of a mdf class
+        mdf_skeleton class instance
+            copy of a mdf_skeleton class
         """
         yop = mdf_skeleton()
         yop.multiProc = self.multiProc
