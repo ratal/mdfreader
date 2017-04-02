@@ -1301,7 +1301,7 @@ class info4(dict):
             # as it will not use cn_byte_offset
             # first, calculate new mapping/order
             nChannel = len(self['CNBlock'][dg][cg])
-            Map = zeros(shape=len(self['CNBlock'][dg][cg]), dtype=[('index', 'u4'), ('bit_offset', 'u4')])
+            Map = zeros(shape=nChannel, dtype=[('index', 'u4'), ('bit_offset', 'u4')])
             for cn in range(nChannel):
                 Map[cn] = (cn, self['CNBlock'][dg][cg][cn]['cn_byte_offset'] * 8 + self['CNBlock'][dg][cg][cn]['cn_bit_offset'])
             orderedMap = sort(Map, order='bit_offset')
@@ -1348,6 +1348,8 @@ class info4(dict):
                     break
 
         if self['CGBlock'][dg][cg]['cg_cn_first']:  # Can be NIL for VLSD
+            # reads Channel Conversion Block
+            self['CCBlock'][dg][cg][cn] = CCBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
             if not channelNameList:
                 # reads Channel Source Information
                 self['CNBlock'][dg][cg][cn]['SIBlock'] = SIBlock(fid, self['CNBlock'][dg][cg][cn]['cn_si_source'])
@@ -1370,14 +1372,14 @@ class info4(dict):
                 elif self['CNBlock'][dg][cg][cn]['cn_attachment_count'] == 1:
                     self['CNBlock'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference']))
 
-                # reads Channel Conversion Block
-                self['CCBlock'][dg][cg][cn] = CCBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
             while self['CNBlock'][dg][cg][cn]['cn_cn_next']:
                 cn = cn + 1
                 self['CNBlock'][dg][cg][cn] = CNBlock(fid, self['CNBlock'][dg][cg][cn - 1]['cn_cn_next'])
                 # check for MLSD
                 if self['CNBlock'][dg][cg][cn]['cn_type'] == 5:
                     MLSDChannels.append(cn)
+                # reads Channel Conversion Block
+                self['CCBlock'][dg][cg][cn] = CCBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
                 if not channelNameList:
                     # reads Channel Source Information
                     self['CNBlock'][dg][cg][cn]['SIBlock'] = SIBlock(fid, self['CNBlock'][dg][cg][cn]['cn_si_source'])
@@ -1407,9 +1409,6 @@ class info4(dict):
                             self['CNBlock'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference'][at]))
                     elif self['CNBlock'][dg][cg][cn]['cn_attachment_count'] == 1:
                         self['CNBlock'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CNBlock'][dg][cg][cn]['cn_at_reference']))
-
-                    # reads Channel Conversion Block
-                    self['CCBlock'][dg][cg][cn] = CCBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
 
         MLSDChannels = self.readComposition(fid, dg, cg, MLSDChannels, channelNameList=False)
 
