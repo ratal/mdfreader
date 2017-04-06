@@ -601,6 +601,8 @@ class DATA(dict):
         file identifier
     pointerToData : int
         position of Data block in mdf file
+    BlockLength : int
+        total size of data block
 
     Methods
     ------------
@@ -617,6 +619,7 @@ class DATA(dict):
     def __init__(self, fid, pointer):
         self.fid = fid
         self.pointerToData = pointer
+        self.BlockLength = 0
 
     def addRecord(self, record):
         """Adds a new record in DATA class dict
@@ -628,6 +631,7 @@ class DATA(dict):
         """
         self[record.recordID] = {}
         self[record.recordID]['record'] = record
+        self.BlockLength += record.dataBlockLength
 
     def read(self, channelList):
         """Reads data block
@@ -641,7 +645,6 @@ class DATA(dict):
             recordID = list(self.keys())[0]
             self[recordID]['data'] = self.loadSorted(self[recordID]['record'], nameList=channelList)
         elif len(self) >= 2:  # unsorted DataGroup
-            print('unsorted')
             data = self.loadUnSorted(nameList=channelList)
             for recordID in list(self.keys()):
                 self[recordID]['data'] = {}
@@ -681,7 +684,7 @@ class DATA(dict):
         numpy recarray of data
         """
         self.fid.seek(self.pointerToData)
-        stream = fid.read(self.dataBlockLength)
+        stream = self.fid.read(self.BlockLength)
         # reads only the channels using offset functions, channel by channel.
         buf = {}
         position = 0
