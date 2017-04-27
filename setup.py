@@ -95,7 +95,7 @@ entry_points={
        'mdfconverter=mdfconverter.mdfconverter:main',
    ],
 }
-ext_modules=cythonize(Extension('dataRead', ['mdfreader/dataRead.pyx'], include_dirs=[numpy.get_include()]))
+ext_modules=cythonize(Extension('dataRead', ['dataRead.pyx'], include_dirs=[numpy.get_include()]))
 
 try:
     setup(name=name, version=version, description=description, long_description=long_description,

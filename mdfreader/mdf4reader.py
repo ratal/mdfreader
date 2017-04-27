@@ -1177,7 +1177,7 @@ class record(list):
         if format:  # at least some channels should be parsed
             buf = recarray(self.numberOfRecords, format)
             try: # use rather cython compiled code for performance
-                from .dataRead import dataRead
+                from dataRead import dataRead
                 for chan in range(len(self)):
                     if self[chan].name in channelList:
                         buf[self[chan].name] = dataRead(bytes(bita), self[chan].bitCount, \

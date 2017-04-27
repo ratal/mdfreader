@@ -520,7 +520,7 @@ class record(list):
                 if not self.master['name'] in channelList:
                     channelList.append(self.master['name'])  # adds master channel
                 try:  # use rather cython compiled code for performance
-                    from .dataRead import dataRead
+                    from dataRead import dataRead
                     convertDataType3to4 = {0: 0, 1: 2, 2: 4, 3: 4, \
                         7: 6, 8: 10, \
                         9: 1, 10: 3, 11: 5, 12: 5, \
