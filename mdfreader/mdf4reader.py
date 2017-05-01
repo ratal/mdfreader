@@ -1056,6 +1056,7 @@ class record(list):
             elif Channel.channelType in (3, 6):  # master virtual channel
                 self.append(Channel)  # channel calculated based on record index later in conversion function
                 self.channelNames.append(Channel.name)
+                self.recordToChannelMatching[Channel.name] = Channel.name
 
         if info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']:  # invalid bytes existing
             self.CGrecordLength += info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
