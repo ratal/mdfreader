@@ -1213,14 +1213,17 @@ class info4(dict):
         channelNameList : bool
             Flag to reads only channel blocks for listChannels4 method
         """
+        self['ChannelNamesByDG'] = {}
         if self['HDBlock']['hd_dg_first']:
             dg = 0
+            self['ChannelNamesByDG'][dg] = set()
             self['DGBlock'][dg] = {}
             self['DGBlock'][dg].update(DGBlock(fid, self['HDBlock']['hd_dg_first']))
             # reads Channel Group blocks
             self.readCGBlock(fid, dg, channelNameList)
             while self['DGBlock'][dg]['dg_dg_next']:
                 dg += 1
+                self['ChannelNamesByDG'][dg] = set()
                 self['DGBlock'][dg] = {}
                 self['DGBlock'][dg].update(DGBlock(fid, self['DGBlock'][dg - 1]['dg_dg_next']))
                 # reads Channel Group blocks
@@ -1341,11 +1344,9 @@ class info4(dict):
         if self['CNBlock'][dg][cg][cn]['cn_type'] == 5:
             MLSDChannels.append(cn)
         # check if already existing channel name
-        for cgp in self['CNBlock'][dg]:
-            for chan in self['CNBlock'][dg][cgp]:
-                if not chan == cn and self['CNBlock'][dg][cgp][chan]['name'] == self['CNBlock'][dg][cg][cn]['name']:
-                    self['CNBlock'][dg][cg][cn]['name'] = self['CNBlock'][dg][cg][cn]['name'] + str(cg)
-                    break
+        if self['CNBlock'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:
+            self['CNBlock'][dg][cg][cn]['name'] = self['CNBlock'][dg][cg][cn]['name'] + str(cg) + '_'  + str(cn)
+        self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][cn]['name'])
 
         if self['CGBlock'][dg][cg]['cg_cn_first']:  # Can be NIL for VLSD
             # reads Channel Conversion Block
@@ -1385,12 +1386,10 @@ class info4(dict):
                     self['CNBlock'][dg][cg][cn]['SIBlock'] = SIBlock(fid, self['CNBlock'][dg][cg][cn]['cn_si_source'])
 
                     # check if already existing channel name
-                    for cgp in self['CNBlock'][dg]:
-                        for chan in self['CNBlock'][dg][cgp]:
-                            if not chan == cn and self['CNBlock'][dg][cgp][chan]['name'] == self['CNBlock'][dg][cg][cn]['name']:
-                                self['CNBlock'][dg][cg][cn]['name'] = self['CNBlock'][dg][cg][cn]['name'] + str(cg)
-                                break
-
+                    if self['CNBlock'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:
+                        self['CNBlock'][dg][cg][cn]['name'] = self['CNBlock'][dg][cg][cn]['name'] + str(cg) + '_'  + str(cn)
+                    self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][cn]['name'])
+                    
                     # reads Channel Array Block
                     if self['CNBlock'][dg][cg][cn]['cn_composition']:  # composition but can be either structure of channels or array
                         fid.seek(self['CNBlock'][dg][cg][cn]['cn_composition'])

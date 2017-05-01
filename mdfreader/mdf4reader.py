@@ -1171,15 +1171,22 @@ class record(list):
         if channelList is None:
             channelList = self.channelNames
         format = []
+        
+        # set is more efficient for large number of channels (n^2 vs n*log(n)):
+        channelSet = frozenset(channelList)
+        addedChannelsSet = set() # make sure every signal is taken only once.
+        
         for channel in self:
-            if channel.name in channelList:
+            if channel.name in channelSet:
                 format.append(channel.RecordFormat)
+                addedChannelsSet.add(channel.name)
+                
         if format:  # at least some channels should be parsed
             buf = recarray(self.numberOfRecords, format)
             try: # use rather cython compiled code for performance
                 from dataRead import dataRead
                 for chan in range(len(self)):
-                    if self[chan].name in channelList:
+                    if self[chan].name in channelSet:
                         buf[self[chan].name] = dataRead(bytes(bita), self[chan].bitCount, \
                                 self[chan].signalDataType, self[chan].RecordFormat[1], \
                                 self.numberOfRecords, self.CGrecordLength, \
@@ -1214,7 +1221,7 @@ class record(list):
                 # read data
                 record_bit_size = self.CGrecordLength * 8
                 for chan in range(len(self)):
-                    if self[chan].name in channelList:
+                    if self[chan].name in channelSet:
                         temp = [B[self[chan].posBitBeg + record_bit_size * i:\
                                 self[chan].posBitEnd + record_bit_size * i]\
                                  for i in range(self.numberOfRecords)]
