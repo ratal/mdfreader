@@ -509,6 +509,7 @@ class record(list):
 
         """
         fid.seek(pointer)
+        channelSet = set(channelList)
         if channelList is None and not self.hiddenBytes and self.byte_aligned:  # reads all, quickest but memory consuming
             return fromfile(fid, dtype=self.numpyDataRecordFormat, shape=self.numberOfRecords, names=self.dataRecordName)
         else:  # reads only some channels from a sorted data block
@@ -517,7 +518,7 @@ class record(list):
             # memory efficient but takes time
             if len(list(set(channelList) & set(self.channelNames))) > 0:  # are channelList in this dataGroup
                 # check if master channel is in the list
-                if not self.master['name'] in channelList:
+                if not self.master['name'] in channelSet:
                     channelList.append(self.master['name'])  # adds master channel
                 try:  # use rather cython compiled code for performance
                     from dataRead import dataRead
@@ -528,11 +529,11 @@ class record(list):
                     bita = fid.read(self.dataBlockLength)
                     format = []
                     for channel in self:
-                        if channel.name in channelList:
+                        if channel.name in channelSet:
                             format.append(channel.RecordFormat)
                     buf = recarray(self.numberOfRecords, format)
                     for chan in range(len(self)):
-                        if self[chan].name in channelList:
+                        if self[chan].name in channelSet:
                             buf[self[chan].name] = dataRead(bytes(bita), self[chan].bitCount, \
                                     convertDataType3to4[self[chan].signalDataType], self[chan].RecordFormat[1], \
                                     self.numberOfRecords, self.CGrecordLength, \
@@ -549,10 +550,10 @@ class record(list):
                     rec = {}
                     recChan = []
                     numpyDataRecordFormat = []
-                    for channel in channelList:  # initialise data structure
+                    for channel in channelSet:  # initialise data structure
                         rec[channel] = 0
                     for channel in self:  # list of Channels from channelList
-                        if channel.name in channelList:
+                        if channel.name in channelSet:
                             recChan.append(channel)
                             numpyDataRecordFormat.append(channel.RecordFormat)
                     rec = zeros((self.numberOfRecords, ), dtype=numpyDataRecordFormat)
@@ -582,8 +583,9 @@ class record(list):
         temp = {}
         if channelList is None:
             channelList = self.channelNames
+        channelSet = set(channelList)
         for Channel in self:  # list of channel classes from channelList
-            if Channel.name in channelList:
+            if Channel.name in channelSet:
                 temp[Channel.name] = Channel.CFormat.unpack(buf[Channel.posByteBeg:Channel.posByteEnd])[0]
         return temp  # returns dictionary of channel with its corresponding values
 
@@ -827,8 +829,9 @@ class mdf3(mdf_skeleton):
                         if master_channel in self.keys():
                             master_channel += '_' + str(dataGroup)
 
+                        channelSet = set(channelList)
                         channels = (c for c in buf[recordID]['record']
-                                    if allChannel or c.name in channelList)
+                                    if allChannel or c.name in channelSet)
 
                         for chan in channels: # for each recordchannel
                             recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]  # in case record is used for several channels
