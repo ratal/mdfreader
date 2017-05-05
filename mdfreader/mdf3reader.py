@@ -550,7 +550,7 @@ class record(list):
                     rec = {}
                     recChan = []
                     numpyDataRecordFormat = []
-                    for channel in channelSet:  # initialise data structure
+                    for channel in channelList:  # initialise data structure
                         rec[channel] = 0
                     for channel in self:  # list of Channels from channelList
                         if channel.name in channelSet:
