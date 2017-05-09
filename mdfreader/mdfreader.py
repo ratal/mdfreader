@@ -1061,8 +1061,9 @@ class mdf(mdf3, mdf4):
         """
         channelList = [channel for channel in channelList]
         removeChannels = []
+        channelSet = set(channelList)
         for channel in list(self.keys()):
-            if channel not in channelList and 'master' not in channel and channel not in list(self.masterChannelList.keys()):
+            if channel not in channelSet and 'master' not in channel and channel not in set(self.masterChannelList.keys()):
                 # avoid to remove master channels otherwise problems with resample
                 removeChannels.append(channel)
         if not len(removeChannels) == 0:
