@@ -37,7 +37,7 @@ from sys import platform, exc_info, byteorder, version_info, stderr, path
 from os.path import dirname, abspath
 root = dirname(abspath(__file__))
 path.append(root)
-from mdf import mdf_skeleton, _bits_to_bytes
+from mdf import mdf_skeleton, _bits_to_bytes, _convertName
 from mdfinfo3 import info3
 
 PythonVersion = version_info
@@ -266,8 +266,10 @@ class Channel():
         position of channel record in complete record in bytes
     bitOffset : int
         bit position of channel value inside byte in case of channel having bit count below 8
+    recAttributeName : str
+        channel name compliant to a valid python identifier (recarray attribute)
     RecordFormat : list of str
-        dtype format used for numpy.core.records functions ((name,name_title),str_stype)
+        dtype format used for numpy.core.records functions ((name_title,name),str_stype)
     channelType : int
         channel type
     posByteBeg : int
@@ -309,7 +311,8 @@ class Channel():
         recordbitOffset = info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfTheFirstBits']
         self.byteOffset = recordbitOffset // 8
         self.bitOffset = recordbitOffset % 8
-        self.RecordFormat = ((self.name, self.name + '_title'), self.dataFormat)
+        self.recAttributeName = _convertName(self.name)
+        self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
         self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['channelType']
         self.posByteBeg = recordIDnumber + self.byteOffset
         self.posByteEnd = recordIDnumber + self.byteOffset + self.nBytes
@@ -377,8 +380,8 @@ class record(list):
     ------------
     addChannel(info, channelNumber)
     loadInfo(info)
-    readSortedRecord(fid, pointer, channelList=None)
-    readUnsortedRecord(buf, channelList=None)
+    readSortedRecord(fid, pointer, channelSet=None)
+    readUnsortedRecord(buf, channelSet=None)
     """
 
     def __init__(self, dataGroup, channelGroup):
@@ -440,7 +443,7 @@ class record(list):
         self.dataBlockLength = self.CGrecordLength * self.numberOfRecords
         if self.recordIDnumber > 0:  # record ID existing at beginning of record
             self.dataRecordName.append('RecordID' + str(self.channelGroup))
-            format = (self.dataRecordName[-1], self.dataRecordName[-1] + '_title')
+            format = (self.dataRecordName[-1] + '_title', self.dataRecordName[-1])
             self.numpyDataRecordFormat.append((format, 'uint8'))
             self.dataBlockLength = (self.CGrecordLength + 1) * self.numberOfRecords
         for channelNumber in list(info['CNBlock'][self.dataGroup][self.channelGroup].keys()):
@@ -463,20 +466,20 @@ class record(list):
                         and channel.posBitEnd <= 8 * (self[-2].byteOffset + self[-2].nBytes):  # bit(s) in byte(s)
                     embedded_bytes = True
                     if self.recordToChannelMatching: # not first channel
-                        self.recordToChannelMatching[channel.name] = self.recordToChannelMatching[self[-2].name]
+                        self.recordToChannelMatching[channel.name] = self.recordToChannelMatching[self[-2].recAttributeName]
                     else: # first channels
-                        self.recordToChannelMatching[channel.name] = channel.name
+                        self.recordToChannelMatching[channel.name] = channel.recAttributeName
                         self.numpyDataRecordFormat.append(channel.RecordFormat)
                         self.dataRecordName.append(channel.name)
                         self.recordLength += channel.nBytes
             if not embedded_bytes:  # adding bytes
-                self.recordToChannelMatching[channel.name] = channel.name
+                self.recordToChannelMatching[channel.name] = channel.recAttributeName
                 self.numpyDataRecordFormat.append(channel.RecordFormat)
                 self.dataRecordName.append(channel.name)
                 self.recordLength += channel.nBytes            
         if self.recordIDnumber == 2:  # second record ID at end of record
             self.dataRecordName.append('RecordID' + str(self.channelGroup) + '_2')
-            format = (self.dataRecordName[-1], self.dataRecordName[-1] + '_title')
+            format = (self.dataRecordName[-1] + '_title', self.dataRecordName[-1])
             self.numpyDataRecordFormat.append((format, 'uint8'))
             self.dataBlockLength = (self.CGrecordLength + 2) * self.numberOfRecords
         # check for hidden bytes
@@ -484,7 +487,7 @@ class record(list):
             self.hiddenBytes = True
 
 
-    def readSortedRecord(self, fid, pointer, channelList=None):
+    def readSortedRecord(self, fid, pointer, channelSet=None):
         """ reads record, only one channel group per datagroup
 
         Parameters
@@ -493,7 +496,7 @@ class record(list):
             file identifier
         pointer
             position in file of data block beginning
-        channelList : list of str, optional
+        channelSet : Set of str, optional
             list of channel to read
 
         Returns
@@ -503,23 +506,22 @@ class record(list):
 
         Notes
         --------
-        If channelList is None, read data using numpy.core.records.fromfile that is rather quick.
-        However, in case of large file, you can use channelList to load only interesting channels or
+        If channelSet is None, read data using numpy.core.records.fromfile that is rather quick.
+        However, in case of large file, you can use channelSet to load only interesting channels or
         only one channel on demand, but be aware it might be much slower.
 
         """
         fid.seek(pointer)
-        channelSet = set(channelList)
-        if channelList is None and not self.hiddenBytes and self.byte_aligned:  # reads all, quickest but memory consuming
+        if channelSet is None and not self.hiddenBytes and self.byte_aligned:  # reads all, quickest but memory consuming
             return fromfile(fid, dtype=self.numpyDataRecordFormat, shape=self.numberOfRecords, names=self.dataRecordName)
         else:  # reads only some channels from a sorted data block
-            if channelList is None:
-                channelList = self.channelNames
+            if channelSet is None:
+                channelSet = set(self.channelNames)
             # memory efficient but takes time
-            if len(list(set(channelList) & set(self.channelNames))) > 0:  # are channelList in this dataGroup
+            if len(list(channelSet & set(self.channelNames))) > 0:  # are channelSet in this dataGroup
                 # check if master channel is in the list
                 if not self.master['name'] in channelSet:
-                    channelList.append(self.master['name'])  # adds master channel
+                    channelSet.add(self.master['name'])  # adds master channel
                 try:  # use rather cython compiled code for performance
                     from dataRead import dataRead
                     convertDataType3to4 = {0: 0, 1: 2, 2: 4, 3: 4, \
@@ -550,9 +552,9 @@ class record(list):
                     rec = {}
                     recChan = []
                     numpyDataRecordFormat = []
-                    for channel in channelList:  # initialise data structure
+                    for channel in channelSet:  # initialise data structure
                         rec[channel] = 0
-                    for channel in self:  # list of Channels from channelList
+                    for channel in self:  # list of Channels from channelSet
                         if channel.name in channelSet:
                             recChan.append(channel)
                             numpyDataRecordFormat.append(channel.RecordFormat)
@@ -564,14 +566,14 @@ class record(list):
                             rec[channel.name][r] = channel.CFormat.unpack(buf[channel.posByteBeg:channel.posByteEnd])[0]
                     return rec.view(recarray)
 
-    def readRecordBuf(self, buf, channelList=None):
+    def readRecordBuf(self, buf, channelSet=None):
         """ read stream of record bytes
 
         Parameters
         ----------------
         buf : stream
             stream of bytes read in file
-        channelList : list of str, optional
+        channelSet : Set of str, optional
             list of channel to read
 
         Returns
@@ -581,10 +583,9 @@ class record(list):
 
         """
         temp = {}
-        if channelList is None:
-            channelList = self.channelNames
-        channelSet = set(channelList)
-        for Channel in self:  # list of channel classes from channelList
+        if channelSet is None:
+            channelSet = set(self.channelNames)
+        for Channel in self:  # list of channel classes from channelSet
             if Channel.name in channelSet:
                 temp[Channel.name] = Channel.CFormat.unpack(buf[Channel.posByteBeg:Channel.posByteEnd])[0]
         return temp  # returns dictionary of channel with its corresponding values
@@ -610,7 +611,7 @@ class DATA(dict):
     ------------
     addRecord(record)
         Adds a new record in DATA class dict
-    read(channelList)
+    read(channelSet)
         Reads data block
     loadSorted(record, nameList=None)
         Reads sorted data block from record definition
@@ -635,23 +636,23 @@ class DATA(dict):
         self[record.recordID]['record'] = record
         self.BlockLength += record.dataBlockLength
 
-    def read(self, channelList):
+    def read(self, channelSet):
         """Reads data block
 
         Parameters
         ----------------
-        channelList : list of str, optional
+        channelSet : set of str, optional
             list of channel names
         """
         if len(self) == 1:  # sorted dataGroup
             recordID = list(self.keys())[0]
-            self[recordID]['data'] = self.loadSorted(self[recordID]['record'], nameList=channelList)
+            self[recordID]['data'] = self.loadSorted(self[recordID]['record'], nameList=channelSet)
         elif len(self) >= 2:  # unsorted DataGroup
-            data = self.loadUnSorted(nameList=channelList)
+            data = self.loadUnSorted(nameList=channelSet)
             for recordID in list(self.keys()):
                 self[recordID]['data'] = {}
                 for channel in self[recordID]['record']:
-                    self[recordID]['data'][convertName(channel.name)] = data[channel.name]
+                    self[recordID]['data'][channel.recAttributeName] = data[channel.name]
         else:  # empty data group
             pass
 
@@ -662,7 +663,7 @@ class DATA(dict):
         ----------------
         record class
             channel group definition listing record channel classes
-        channelList : list of str, optional
+        channelSet : set of str, optional
             list of channel names
 
         Returns
@@ -678,7 +679,7 @@ class DATA(dict):
         ----------------
         record class
             channel group definition listing record channel classes
-        channelList : list of str, optional
+        channelSet : set of str, optional
             list of channel names
 
         Returns
@@ -698,7 +699,7 @@ class DATA(dict):
         # read data
         while position < len(stream):
             recordID = recordIdCFormat.unpack(stream[position:position + 1])[0]
-            temp = self[recordID]['record'].readRecordBuf(stream[position:position + record[recordID]['record'].CGrecordLength + 1], channelList)
+            temp = self[recordID]['record'].readRecordBuf(stream[position:position + record[recordID]['record'].CGrecordLength + 1], nameList)
             position += record[recordID]['record'].CGrecordLength
             for channelName in temp:
                 buf[channelName].append(temp[channelName])  # to remove append
@@ -779,9 +780,9 @@ class mdf3(mdf_skeleton):
             self.fileName = fileName
 
         if channelList is None:
-            allChannel = True
+            channelSet = None
         else:
-            allChannel = False
+            channelSet = set(channelList)
 
         # Read information block from file
         if info is None:
@@ -821,7 +822,7 @@ class mdf3(mdf_skeleton):
                     if temp.numberOfRecords != 0:  # continue if there are at least some records
                         buf.addRecord(temp)
 
-                buf.read(channelList) # reads datablock potentially containing several channel groups
+                buf.read(channelSet) # reads datablock potentially containing several channel groups
 
                 for recordID in buf.keys():
                     if 'record' in buf[recordID]:
@@ -829,13 +830,12 @@ class mdf3(mdf_skeleton):
                         if master_channel in self.keys():
                             master_channel += '_' + str(dataGroup)
 
-                        channelSet = set(channelList)
                         channels = (c for c in buf[recordID]['record']
-                                    if allChannel or c.name in channelSet)
+                                    if channelSet is None or c.name in channelSet)
 
                         for chan in channels: # for each recordchannel
                             recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]  # in case record is used for several channels
-                            temp = buf[recordID]['data'].__getattribute__(str(recordName) + '_title')
+                            temp = buf[recordID]['data'].__getattribute__(recordName)
 
                             if len(temp) != 0:
                                 # Process concatenated bits inside uint8
