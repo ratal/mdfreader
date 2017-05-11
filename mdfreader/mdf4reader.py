@@ -348,7 +348,7 @@ class DATA(dict):
                     rec = self[recordID]['data']  # recarray from data block
                     # determine maximum length of values in VLSD for array dtype
                     # record[cn].maxLengthVLSDRecord=max(diff(rec[convertName(record[cn].name)])-4)
-                    temp = temp.load(record[cn], zip=None, nameList=channelSet, sortedFlag=True)
+                    temp = temp.load(record, zip=None, nameList=channelSet, sortedFlag=True)
                     rec = change_field_name(rec, convertName(record[cn].name), convertName(record[cn].name) + '_offset')
                     rec = append_field(rec, convertName(record[cn].name), temp)
                     self[recordID]['data'] = rec.view(recarray)
