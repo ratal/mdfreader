@@ -22,6 +22,9 @@ import pandas as pd
 from io import open
 from zipfile import is_zipfile, ZipFile
 set_printoptions(threshold=100, edgeitems=1)
+from sys import version_info
+PythonVersion = version_info
+PythonVersion = PythonVersion[0]
 
 descriptionField = 'description'
 unitField = 'unit'
@@ -611,3 +614,33 @@ def _bits_to_bytes(nBits):
         if not nBits %8  == 0:
             nBytes += 1
     return nBytes
+
+def _convertName(channelName):
+    """ Check if channelName is valid python identifier"""
+
+
+    if PythonVersion < 3: # python 2
+        channelIdentifier = channelName.encode('utf-8')
+        channelIdentifier = _sanitize_identifier(channelIdentifier)
+
+    else: # python 3
+        channelIdentifier = str(channelName)
+        channelIdentifier = _sanitize_identifier(channelIdentifier)
+
+    return channelIdentifier
+
+def _gen_valid_identifier(seq):
+    # get an iterator
+    itr = iter(seq)
+    # pull characters until we get a legal one for first in identifer
+    for ch in itr:
+        if ch == '_' or ch.isalpha():
+            yield ch
+            break
+    # pull remaining characters and yield legal ones for identifier
+    for ch in itr:
+        if ch == '_' or ch.isalpha() or ch.isdigit():
+            yield ch
+
+def _sanitize_identifier(name):
+    return ''.join(_gen_valid_identifier(name))
