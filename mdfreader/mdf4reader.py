@@ -90,7 +90,7 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
         if sortedFlag:
             if channelSet is None and not record.hiddenBytes and\
                     record.byte_aligned: # No channel list and length of records corresponds to C datatypes
-                # print(record) # for debugging purpose
+                #print(record) # for debugging purpose
                 return fromstring(parent_block['data'], dtype=record.numpyDataRecordFormat, shape=record.numberOfRecords, names=record.dataRecordName)
             else: # record is not byte aligned or channelSet not None
                 return record.readBitarray(parent_block['data'], channelSet)
@@ -98,13 +98,16 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
             print('not implemented yet unsorted data block reading', file=stderr)  # to be implemented if needed, missing example file
 
     elif parent_block['id'] in ('##SD', b'##SD'):
-        if record.signalDataType == 6:
+        for chan in record:
+            if chan.channelType==1: # channel should be a VLSD type
+                break 
+        if chan.signalDataType == 6:
             format = 'ISO8859'
-        elif record.signalDataType == 7:
+        elif chan.signalDataType == 7:
             format = 'utf-8'
-        elif record.signalDataType == 8:
+        elif chan.signalDataType == 8:
             format = '<utf-16'
-        elif record.signalDataType == 9:
+        elif chan.signalDataType == 9:
             format = '>utf-16'
         pointer = 0
         buf = []  # buf=array(record.numberOfRecords,dtype='s'+str(record.maxLengthVLSDRecord))
@@ -348,7 +351,7 @@ class DATA(dict):
                     rec = self[recordID]['data']  # recarray from data block
                     # determine maximum length of values in VLSD for array dtype
                     # record[cn].maxLengthVLSDRecord=max(diff(rec[_convertName(record[cn].name)])-4)
-                    temp = temp.load(record[cn], zip=None, nameList=channelSet, sortedFlag=True)
+                    temp = temp.load(record, zip=None, nameList=channelSet, sortedFlag=True)
                     rec = change_field_name(rec, record[cn].recAttributeName, record[cn].recAttributeName + '_offset')
                     rec = append_field(rec, record[cn].recAttributeName, temp)
                     self[recordID]['data'] = rec.view(recarray)
@@ -358,7 +361,7 @@ class DATA(dict):
             for recordID in list(self.keys()):
                 self[recordID]['data'] = {}
                 for channel in self[recordID]['record']:
-                    self[recordID]['data'][channel.recAttributeName] = data[channel.name]
+                    self[recordID]['data'][channel.recAttributeName] = data[channel.recAttributeName]
 
     def load(self, record, zip=None, nameList=None, sortedFlag=True):  # reads sorted data
         """Reads data block from record definition
@@ -702,7 +705,7 @@ class channel():
         recordIDsize : int
             size of record ID in Bytes
         name : str
-            name of channel. Should be in ('ms', 'day', 'days', 'hour', 'month', 'min', 'year')
+            name of channel. Should be in ('ms', 'day', 'days', 'hour', 'month', 'minute', 'year')
         """
         self.type = 'CANOpen'
         self.name = name
@@ -730,9 +733,9 @@ class channel():
         else:
             self.bitCount = 8
             self.dataFormat = '<u1'
-            if self.name == 'min':
+            if self.name == 'minute':
                 offset = 2
-                self.desc = 'min'
+                self.desc = 'minute'
             elif self.name == 'hour':
                 offset = 3
                 self.desc = 'hour'
@@ -779,7 +782,7 @@ class channel():
             Flag for byte alignement
         """
         self.type = 'InvalidBytes'
-        self.name = u'invalid_bytes' + str(dataGroup)
+        self.name = 'invalid_bytes' + str(dataGroup)
         self.unit = ''
         self.desc = ''
         self.conversion = ''
@@ -916,7 +919,7 @@ class record(list):
         output = 'Record class content print\n'
         output += 'Total number of channels : ' + str(len(self)) + '\n'
         for chan in self:
-            output += chan.name + '\n'
+            output += chan.name + '   ' + chan.recAttributeName + '\n'
             output += str(chan.channelNumber) + ' '
             output += str(chan.RecordFormat) + ' '
             output += str(chan.Format) + ' '
@@ -949,7 +952,7 @@ class record(list):
         """
         Channel = channel()
         self.append(Channel.set(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize))
-        self.channelNames.append(self[-1].name)
+        self.channelNames.append(self[-1].recAttributeName)
 
     def loadInfo(self, info):
         """ gathers records related from info class
@@ -998,7 +1001,7 @@ class record(list):
                     self.master['name'] = Channel.name
             if Channel.channelType in (0, 1, 2, 4, 5):  # not virtual channel
                 if Channel.signalDataType == 13:
-                    for name in ('ms', 'min', 'hour', 'day', 'month', 'year'):
+                    for name in ('ms', 'minute', 'hour', 'day', 'month', 'year'):
                         Channel = channel() # new object otherwise only modified
                         Channel.setCANOpen(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize, name)
                         self.append(Channel)
@@ -1021,7 +1024,7 @@ class record(list):
                     self.CANOpen = 'time'
                 else:
                     self.append(Channel)
-                    self.channelNames.append(Channel.name)
+                    self.channelNames.append(Channel.recAttributeName)
                     # Checking if several channels are embedded in bytes
                     embedded_bytes = False
                     if len(self) > 1:
@@ -1035,31 +1038,31 @@ class record(list):
                                 and Channel.posBitEnd <= 8 * (self[-2].byteOffset + self[-2].nBytes):  # bit(s) in byte(s)
                             embedded_bytes = True
                             if self.recordToChannelMatching: # not first channel
-                                self.recordToChannelMatching[Channel.name] = self.recordToChannelMatching[self[-2].recAttributeName]
+                                self.recordToChannelMatching[Channel.recAttributeName] = self.recordToChannelMatching[self[-2].recAttributeName]
                             else: # first channels
-                                self.recordToChannelMatching[Channel.name] = Channel.recAttributeName
+                                self.recordToChannelMatching[Channel.recAttributeName] = Channel.recAttributeName
                                 self.numpyDataRecordFormat.append(Channel.RecordFormat)
-                                self.dataRecordName.append(Channel.name)
+                                self.dataRecordName.append(Channel.recAttributeName)
                                 self.recordLength += Channel.nBytes
                     if not embedded_bytes:  # adding bytes
-                        self.recordToChannelMatching[Channel.name] = Channel.recAttributeName
+                        self.recordToChannelMatching[Channel.recAttributeName] = Channel.recAttributeName
                         self.numpyDataRecordFormat.append(Channel.RecordFormat)
-                        self.dataRecordName.append(Channel.name)
+                        self.dataRecordName.append(Channel.recAttributeName)
                         self.recordLength += Channel.nBytes
                     if 'VLSD_CG' in info:  # is there VLSD CG
                         for recordID in info['VLSD_CG']:  # look for VLSD CG Channel
                             if info['VLSD_CG'][recordID]['cg_cn'] == (self.channelGroup, channelNumber):
                                 self.VLSD_CG[recordID] = info['VLSD_CG'][recordID]
                                 self.VLSD_CG[recordID]['channel'] = Channel
-                                self.VLSD_CG[recordID]['channelName'] = Channel.name
+                                self.VLSD_CG[recordID]['channelName'] = Channel.recAttributeName
                                 self[-1].VLSD_CG_Flag = True
                                 break
                     if Channel.channelType == 1:  # VLSD channel
                         self.VLSD.append(Channel.channelNumber)
             elif Channel.channelType in (3, 6):  # master virtual channel
                 self.append(Channel)  # channel calculated based on record index later in conversion function
-                self.channelNames.append(Channel.name)
-                self.recordToChannelMatching[Channel.name] = Channel.recAttributeName
+                self.channelNames.append(Channel.recAttributeName)
+                self.recordToChannelMatching[Channel.recAttributeName] = Channel.recAttributeName
 
         if info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']:  # invalid bytes existing
             self.CGrecordLength += info['CGBlock'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
@@ -1068,10 +1071,10 @@ class record(list):
             invalid_bytes.setInvalidBytes(info, self.dataGroup, self.channelGroup, self.recordIDsize, self.byte_aligned)
             self.invalid_channel = invalid_bytes
             self.append(self.invalid_channel)
-            self.channelNames.append(self.invalid_channel.name)
-            self.recordToChannelMatching[self.invalid_channel.name] = self.invalid_channel.recAttributeName
+            self.channelNames.append(self.invalid_channel.recAttributeName)
+            self.recordToChannelMatching[self.invalid_channel.recAttributeName] = self.invalid_channel.recAttributeName
             self.numpyDataRecordFormat.append(self.invalid_channel.RecordFormat)
-            self.dataRecordName.append(self.invalid_channel.name)
+            self.dataRecordName.append(self.invalid_channel.recAttributeName)
         # check for hidden bytes
         if self.CGrecordLength > self.recordLength:
             self.hiddenBytes = True
@@ -1129,7 +1132,7 @@ class record(list):
                     for r in range(self.numberOfRecords):  # for each record,
                         buf = fid.read(recordLength)
                         for channel in recChan:
-                            rec[channel.name][r] = channel.CFormat.unpack(buf[channel.posByteBeg:channel.posByteEnd])[0]
+                            rec[channel.recAttributeName][r] = channel.CFormat.unpack(buf[channel.posByteBeg:channel.posByteEnd])[0]
                     return rec.view(recarray)
 
     def readRecordBuf(self, buf, channelSet=None):
@@ -1153,7 +1156,7 @@ class record(list):
             channelSet = self.channelNames
         for Channel in self:  # list of channel classes from channelSet
             if Channel.name in channelSet and not Channel.VLSD_CG_Flag:
-                temp[Channel.name] = Channel.CFormat.unpack(buf[Channel.posByteBeg:Channel.posByteEnd])[0]
+                temp[Channel.recAttributeName] = Channel.CFormat.unpack(buf[Channel.posByteBeg:Channel.posByteEnd])[0]
         return temp  # returns dictionary of channel with its corresponding values
 
     def readBitarray(self, bita, channelSet=None):
@@ -1173,26 +1176,26 @@ class record(list):
         """
         # initialise data structure
         if channelSet is None:
-            channelSet = self.channelNames
+            channelSet = set(self.channelNames)
         format = []
         for channel in self:
-            if channel.name in channelSet:
+            if channel.recAttributeName in channelSet:
                 format.append(channel.RecordFormat)
         if format:  # at least some channels should be parsed
             buf = recarray(self.numberOfRecords, format)
             try: # use rather cython compiled code for performance
                 from dataRead import dataRead
                 for chan in range(len(self)):
-                    if self[chan].name in channelSet:
-                        buf[self[chan].name] = dataRead(bytes(bita), self[chan].bitCount, \
+                    if self[chan].recAttributeName in channelSet:
+                        buf[self[chan].recAttributeName] = dataRead(bytes(bita), self[chan].bitCount, \
                                 self[chan].signalDataType, self[chan].RecordFormat[1], \
                                 self.numberOfRecords, self.CGrecordLength, \
                                 self[chan].bitOffset, self[chan].posByteBeg, \
                                 self[chan].posByteEnd)
                         # dataRead already took care of byte order, switch to native
-                        if (buf[self[chan].name].dtype.byteorder == '>' and byteorder == 'little') or \
-                                buf[self[chan].name].dtype.byteorder == '<' and byteorder == 'big':
-                            buf[self[chan].name] = buf[self[chan].name].newbyteorder()
+                        if (buf[self[chan].recAttributeName].dtype.byteorder == '>' and byteorder == 'little') or \
+                                buf[self[chan].recAttributeName].dtype.byteorder == '<' and byteorder == 'big':
+                            buf[self[chan].recAttributeName] = buf[self[chan].recAttributeName].newbyteorder()
                 return buf
             except:
                 print('Unexpected error:', exc_info(), file=stderr)
@@ -1218,7 +1221,7 @@ class record(list):
                 # read data
                 record_bit_size = self.CGrecordLength * 8
                 for chan in range(len(self)):
-                    if self[chan].name in channelSet:
+                    if self[chan].recAttributeName in channelSet:
                         temp = [B[self[chan].posBitBeg + record_bit_size * i:\
                                 self[chan].posBitEnd + record_bit_size * i]\
                                  for i in range(self.numberOfRecords)]
@@ -1244,7 +1247,7 @@ class record(list):
                         else:
                             temp = [temp[i].tobytes() \
                                     for i in range(self.numberOfRecords)]
-                        buf[self[chan].name] = asarray(temp)
+                        buf[self[chan].recAttributeName] = asarray(temp)
                 return buf
 
 
@@ -1368,7 +1371,7 @@ class mdf4(mdf_skeleton):
                         if buf[recordID]['record'].CANOpen == 'time':
                             channelSet.add(['ms', 'days'])
                         elif buf[recordID]['record'].CANOpen == 'date':
-                            channelSet.add(['ms', 'min', 'hour', 'day', 'month', 'year'])
+                            channelSet.add(['ms', 'minute', 'hour', 'day', 'month', 'year'])
 
                 buf.read(channelSet)  # reads raw data from data block with DATA and DATABlock classes
 
@@ -1382,7 +1385,7 @@ class mdf4(mdf_skeleton):
                             if (channelSet is None or chan.name in channelSet) \
                                     and not chan.type == 'InvalidBytes': # normal channel
                                 if chan.channelType not in (3, 6):  # not virtual channel
-                                    recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]  # in case record is used for several channels
+                                    recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName]  # in case record is used for several channels
                                     if 'data' in buf[recordID] and \
                                             buf[recordID]['data'] is not None: # no data in channel group
                                         if isinstance(buf[recordID]['data'],recarray):

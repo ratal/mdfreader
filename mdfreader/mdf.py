@@ -21,6 +21,9 @@ from numpy import array_repr, set_printoptions
 import pandas as pd
 from io import open
 from zipfile import is_zipfile, ZipFile
+from itertools import chain
+from random import choice
+from string import ascii_letters
 set_printoptions(threshold=100, edgeitems=1)
 from sys import version_info
 PythonVersion = version_info
@@ -620,13 +623,16 @@ def _convertName(channelName):
 
 
     if PythonVersion < 3: # python 2
-        channelIdentifier = channelName.encode('utf-8')
-        channelIdentifier = _sanitize_identifier(channelIdentifier)
+        #channelIdentifier = channelName.encode('utf-8')
+        channelIdentifier = _sanitize_identifier(channelName).encode('utf-8')
+        #channelIdentifier = channelName.encode('utf-8')
 
     else: # python 3
-        channelIdentifier = str(channelName)
-        channelIdentifier = _sanitize_identifier(channelIdentifier)
-
+        #channelIdentifier = str(channelName)
+        channelIdentifier = str(_sanitize_identifier(channelName))
+        #channelIdentifier = str(channelName)
+    if not channelIdentifier: # all characters of channel ar not compliant to python
+        channelIdentifier = ''.join([random.choice(ascii_letters) for n in range(32)])# generate random name for recarray
     return channelIdentifier
 
 def _gen_valid_identifier(seq):
@@ -637,6 +643,9 @@ def _gen_valid_identifier(seq):
         if ch == '_' or ch.isalpha():
             yield ch
             break
+        elif ch.isdigit():
+            itr = chain(itr,ch)
+
     # pull remaining characters and yield legal ones for identifier
     for ch in itr:
         if ch == '_' or ch.isalpha() or ch.isdigit():
