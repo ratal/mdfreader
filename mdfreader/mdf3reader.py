@@ -693,14 +693,14 @@ class DATA(dict):
         position = 0
         recordIdCFormat = Struct('B')
         # initialise data structure
-        for recordID in record:
-            for channelName in record[recordID]['record'].channelNames:
+        for recordID in self:
+            for channelName in self[recordID]['record'].channelNames:
                 buf[channelName] = []
         # read data
         while position < len(stream):
             recordID = recordIdCFormat.unpack(stream[position:position + 1])[0]
             temp = self[recordID]['record'].readRecordBuf(stream[position:position + record[recordID]['record'].CGrecordLength + 1], nameList)
-            position += record[recordID]['record'].CGrecordLength
+            position += self[recordID]['record'].CGrecordLength
             for channelName in temp:
                 buf[channelName].append(temp[channelName])  # to remove append
         # convert list to array
