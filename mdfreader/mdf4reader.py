@@ -1248,6 +1248,10 @@ class record(list):
                             temp = [temp[i].tobytes() \
                                     for i in range(self.numberOfRecords)]
                         buf[self[chan].recAttributeName] = asarray(temp)
+                        # dataRead already took care of byte order, switch to native
+                        if (buf[self[chan].recAttributeName].dtype.byteorder == '>' and byteorder == 'little') or \
+                                buf[self[chan].recAttributeName].dtype.byteorder == '<' and byteorder == 'big':
+                            buf[self[chan].recAttributeName] = buf[self[chan].recAttributeName].newbyteorder()
                 return buf
 
 
