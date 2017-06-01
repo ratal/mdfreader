@@ -593,10 +593,10 @@ class record(list):
 
 class DATA(dict):
 
-    """ DATA class is organizing record classes itself made of recordchannel.
+    """ DATA class is organizing record classes itself made of channel.
     This class inherits from dict. Keys are corresponding to channel group recordID
     A DATA class corresponds to a data block, a dict of record classes (one per channel group)
-    Each record class contains a list of recordchannel class representing the structure of channel record.
+    Each record class contains a list of channel class representing the structure of channel record.
 
     Attributes
     --------------
@@ -699,8 +699,8 @@ class DATA(dict):
         # read data
         while position < len(stream):
             recordID = recordIdCFormat.unpack(stream[position:position + 1])[0]
-            temp = self[recordID]['record'].readRecordBuf(stream[position:position + record[recordID]['record'].CGrecordLength + 1], nameList)
-            position += self[recordID]['record'].CGrecordLength
+            temp = self[recordID]['record'].readRecordBuf(stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
+            position += self[recordID]['record'].CGrecordLength + 1 # recordId is only unit8
             for channelName in temp:
                 buf[channelName].append(temp[channelName])  # to remove append
         # convert list to array
@@ -835,7 +835,10 @@ class mdf3(mdf_skeleton):
 
                         for chan in channels: # for each recordchannel
                             recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName]  # in case record is used for several channels
-                            temp = buf[recordID]['data'].__getattribute__(recordName)
+                            if isinstance(buf[recordID]['data'],recarray):
+                                temp = buf[recordID]['data'].__getattribute__(recordName)
+                            else:
+                                temp = buf[recordID]['data'][recordName]
 
                             if len(temp) != 0:
                                 # Process concatenated bits inside uint8
