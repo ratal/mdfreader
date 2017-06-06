@@ -722,17 +722,21 @@ class channel():
             if self.signalDataType == 13:
                 self.bitCount = 16
                 self.dataFormat = '<u2'
+                self.Format = 'H'
             else:
                 self.bitCount = 32
                 self.dataFormat = '<u4'
+                self.Format = 'I'
         elif self.name == 'days':
             self.bitCount = 16
             self.dataFormat = '<u2'
+            self.Format = 'H'
             offset = 4
             self.desc = 'days'
         else:
             self.bitCount = 8
             self.dataFormat = '<u1'
+            self.Format = 'B'
             if self.name == 'minute':
                 offset = 2
                 self.desc = 'minute'
@@ -756,6 +760,7 @@ class channel():
         self.maxLengthVLSDRecord = 0  # initialises max length of SDBlock elements to 0 for later calculation
         self.recAttributeName = self.name
         self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
+        self.CFormat = Struct(self.Format)
         self.bitOffset = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_offset'] + offset*8
         self.byteOffset = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_byte_offset'] + offset
         self.posByteBeg = recordIDsize + self.byteOffset
