@@ -518,7 +518,7 @@ class record(list):
             if channelSet is None:
                 channelSet = self.channelNames
             # memory efficient but takes time
-            if len(list(channelSet & self.channelNames)) > 0:  # are channelSet in this dataGroup
+            if len(channelSet & self.channelNames) > 0:  # are channelSet in this dataGroup
                 # check if master channel is in the list
                 if not self.master['name'] in channelSet:
                     channelSet.add(self.master['name'])  # adds master channel

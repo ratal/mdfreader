@@ -1115,7 +1115,7 @@ class record(list):
             else:
                 return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), channelSet)
         else:  # reads only some channels from a sorted data block
-            if len(list(channelSet & self.channelNames)) > 0:  # are channelSet in this dataGroup
+            if len(channelSet & self.channelNames) > 0:  # are channelSet in this dataGroup
                 try:
                     return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), channelSet)
                 except:  # still memory efficient but takes time
