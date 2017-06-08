@@ -369,7 +369,7 @@ class record(list):
         define name and number of master channel
     recordToChannelMatching : dict
         helps to identify nested bits in byte
-    channelNames : list
+    channelNames : set
         channel names to be stored, useful for low memory consumption but slow
     hiddenBytes : Bool, False by default
         flag in case of non declared channels in record
@@ -399,7 +399,7 @@ class record(list):
         self.master['name'] = 'master_' + str(dataGroup)
         self.master['number'] = None
         self.recordToChannelMatching = {}
-        self.channelNames = []
+        self.channelNames = set()
         self.hiddenBytes = False
         self.byte_aligned = True
 
@@ -426,7 +426,7 @@ class record(list):
 
         """
         self.append(Channel(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDnumber))
-        self.channelNames.append(self[-1].recAttributeName)
+        self.channelNames.add(self[-1].name)
 
     def loadInfo(self, info):
         """ gathers records related from info class
@@ -452,7 +452,7 @@ class record(list):
                 self.master['name'] = channel.name
                 self.master['number'] = channelNumber
             self.append(channel)
-            self.channelNames.append(channel.recAttributeName)
+            self.channelNames.add(channel.name)
             # Checking if several channels are embedded in bytes
             embedded_bytes = False
             if len(self) > 1:
@@ -470,7 +470,7 @@ class record(list):
                     else: # first channels
                         self.recordToChannelMatching[channel.recAttributeName] = channel.recAttributeName
                         self.numpyDataRecordFormat.append(channel.RecordFormat)
-                        self.dataRecordName.append(channel.name)
+                        self.dataRecordName.append(channel.recAttributeName)
                         self.recordLength += channel.nBytes
             if not embedded_bytes:  # adding bytes
                 self.recordToChannelMatching[channel.recAttributeName] = channel.recAttributeName
@@ -516,9 +516,9 @@ class record(list):
             return fromfile(fid, dtype=self.numpyDataRecordFormat, shape=self.numberOfRecords, names=self.dataRecordName)
         else:  # reads only some channels from a sorted data block
             if channelSet is None:
-                channelSet = set(self.channelNames)
+                channelSet = self.ChannelNames
             # memory efficient but takes time
-            if len(list(channelSet & set(self.channelNames))) > 0:  # are channelSet in this dataGroup
+            if len(list(channelSet & self.ChannelNames)) > 0:  # are channelSet in this dataGroup
                 # check if master channel is in the list
                 if not self.master['name'] in channelSet:
                     channelSet.add(self.master['name'])  # adds master channel
@@ -584,9 +584,9 @@ class record(list):
         """
         temp = {}
         if channelSet is None:
-            channelSet = set(self.channelNames)
+            channelSet = self.channelNames
         for Channel in self:  # list of channel classes from channelSet
-            if Channel.recAttributeName in channelSet:
+            if Channel.name in channelSet:
                 temp[Channel.recAttributeName] = Channel.CFormat.unpack(buf[Channel.posByteBeg:Channel.posByteEnd])[0]
         return temp  # returns dictionary of channel with its corresponding values
 
@@ -694,7 +694,7 @@ class DATA(dict):
         recordIdCFormat = Struct('B')
         # initialise data structure
         for recordID in self:
-            for channelName in self[recordID]['record'].channelNames:
+            for channelName in self[recordID]['record'].recAttributeName:
                 buf[channelName] = []
         # read data
         while position < len(stream):
