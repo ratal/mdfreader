@@ -516,9 +516,9 @@ class record(list):
             return fromfile(fid, dtype=self.numpyDataRecordFormat, shape=self.numberOfRecords, names=self.dataRecordName)
         else:  # reads only some channels from a sorted data block
             if channelSet is None:
-                channelSet = self.ChannelNames
+                channelSet = self.channelNames
             # memory efficient but takes time
-            if len(list(channelSet & self.ChannelNames)) > 0:  # are channelSet in this dataGroup
+            if len(list(channelSet & self.channelNames)) > 0:  # are channelSet in this dataGroup
                 # check if master channel is in the list
                 if not self.master['name'] in channelSet:
                     channelSet.add(self.master['name'])  # adds master channel
