@@ -1379,9 +1379,9 @@ class mdf4(mdf_skeleton):
                             channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
                     if channelSet is not None and buf[recordID]['record'].CANOpen: # adds CANOpen channels if existing in not empty channelSet
                         if buf[recordID]['record'].CANOpen == 'time':
-                            channelSet.add(['ms', 'days'])
+                            channelSet.update(['ms', 'days'])
                         elif buf[recordID]['record'].CANOpen == 'date':
-                            channelSet.add(['ms', 'minute', 'hour', 'day', 'month', 'year'])
+                            channelSet.update(['ms', 'minute', 'hour', 'day', 'month', 'year'])
 
                 buf.read(channelSet)  # reads raw data from data block with DATA and DATABlock classes
 
