@@ -16,7 +16,7 @@
 __author__ = 'Aymeric Rateau (aymeric.rateau@gmail.com)'
 __copyright__ = 'Copyright (c) 2015 Aymeric Rateau'
 __license__ = 'GPLV3'
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 
 from sys import path
 from os.path import dirname, abspath

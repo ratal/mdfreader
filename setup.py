@@ -6,7 +6,7 @@ from distutils.extension import Extension
 from Cython.Build import cythonize
 
 name='mdfreader'
-version = '0.2.4'
+version = '0.2.5'
 
 description='A Measured Data Format file parser'
 
