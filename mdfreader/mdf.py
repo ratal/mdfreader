@@ -632,7 +632,7 @@ def _convertName(channelName):
         channelIdentifier = str(_sanitize_identifier(channelName))
         #channelIdentifier = str(channelName)
     if not channelIdentifier: # all characters of channel ar not compliant to python
-        channelIdentifier = ''.join([random.choice(ascii_letters) for n in range(32)])# generate random name for recarray
+        channelIdentifier = ''.join([choice(ascii_letters) for n in range(32)])# generate random name for recarray
     return channelIdentifier
 
 def _gen_valid_identifier(seq):
