@@ -694,7 +694,7 @@ class DATA(dict):
         recordIdCFormat = Struct('B')
         # initialise data structure
         for recordID in self:
-            for channelName in self[recordID]['record'].recAttributeName:
+            for channelName in self[recordID]['record'].dataRecordName:
                 buf[channelName] = []
         # read data
         while position < len(stream):
