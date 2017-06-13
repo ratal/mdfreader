@@ -1398,10 +1398,7 @@ class mdf4(mdf_skeleton):
                                     recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName]  # in case record is used for several channels
                                     if 'data' in buf[recordID] and \
                                             buf[recordID]['data'] is not None: # no data in channel group
-                                        if isinstance(buf[recordID]['data'],recarray):
-                                            temp = buf[recordID]['data'].__getattribute__(recordName)  # extract channel vector
-                                        else:
-                                            temp = buf[recordID]['data'][recordName] 
+                                        temp = buf[recordID]['data'][recordName]  # extract channel vector
                                     else:
                                         temp = None
                                 else:  # virtual channel

@@ -835,10 +835,7 @@ class mdf3(mdf_skeleton):
 
                         for chan in channels: # for each recordchannel
                             recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName]  # in case record is used for several channels
-                            if isinstance(buf[recordID]['data'],recarray):
-                                temp = buf[recordID]['data'].__getattribute__(recordName)
-                            else:
-                                temp = buf[recordID]['data'][recordName]
+                            temp = buf[recordID]['data'][recordName]
 
                             if len(temp) != 0:
                                 # Process concatenated bits inside uint8

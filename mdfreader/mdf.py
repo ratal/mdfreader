@@ -17,7 +17,7 @@ Dependencies
 mdf module
 --------------------------
 """
-from numpy import array_repr, set_printoptions
+from numpy import array_repr, set_printoptions, recarray
 import pandas as pd
 from io import open
 from zipfile import is_zipfile, ZipFile
@@ -28,6 +28,7 @@ set_printoptions(threshold=100, edgeitems=1)
 from sys import version_info
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
+_notAllowedChannelNames = set(dir(recarray))
 
 descriptionField = 'description'
 unitField = 'unit'
@@ -633,6 +634,8 @@ def _convertName(channelName):
         #channelIdentifier = str(channelName)
     if not channelIdentifier: # all characters of channel ar not compliant to python
         channelIdentifier = ''.join([choice(ascii_letters) for n in range(32)])# generate random name for recarray
+    if channelIdentifier in _notAllowedChannelNames:
+        channelIdentifier += '_' #  limitation from recarray object attribute
     return channelIdentifier
 
 def _gen_valid_identifier(seq):
