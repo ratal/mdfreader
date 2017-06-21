@@ -395,6 +395,8 @@ class record(list):
     loadInfo(info)
     readSortedRecord(fid, pointer, channelSet=None)
     readRecordBuf(buf, channelSet=None)
+    readRecordBits(buf, channelSet=None)
+    changeChannelName(channelName)
     """
 
     def __init__(self, dataGroup, channelGroup):
@@ -603,6 +605,49 @@ class record(list):
                 temp[Channel.recAttributeName] = Channel.CFormat.unpack(buf[Channel.posByteBeg:Channel.posByteEnd])[0]
         return temp  # returns dictionary of channel with its corresponding values
 
+    def readRecordBits(self, buf, channelSet=None):
+        """ read stream of record bits by bits in case of not aligned or hidden bytes
+
+        Parameters
+        ----------------
+        buf : stream
+            stream of bytes read in file
+        channelSet : Set of str, optional
+            list of channel to read
+
+        Returns
+        -----------
+        rec : dict
+            returns dictionary of channel with its corresponding values
+
+        """
+        print(not self.hiddenBytes,self.byte_aligned)
+        print(self.recordID)
+        print('not yet implemented reading of hidden or not aligned bytes for unsorted data')
+
+    def changeChannelName(self, channelName):
+        """ In case of duplicate channel names within several channel groups
+        for unsorted data, rename channel name
+
+        Parameters
+        ------------
+        channelName : str
+            channelName to be modified to avoid duplicates in unsorted channel groups
+        """
+        ind = self.dataRecordName.index(channelName) - 1
+        OldrecAttributeName = self[ind].recAttributeName
+        OldName = self[ind].name
+        self[ind].changeChannelName(self.channelGroup)
+        recAttributeName = self[ind].recAttributeName
+        if self.recordToChannelMatching[OldrecAttributeName] == OldrecAttributeName:
+            self.recordToChannelMatching.pop(OldrecAttributeName)
+            self.recordToChannelMatching[recAttributeName] = recAttributeName
+        if self.master['name'] == OldName: # channel to change is master
+            self.master['name'] = self[ind].name
+        self.dataRecordName[ind] = recAttributeName
+        self.channelNames.remove(OldName)
+        self.channelNames.add(self[ind].name)
+
 
 class DATA(dict):
 
@@ -710,19 +755,7 @@ class DATA(dict):
         for recordID in self:
             intersec = set(self[recordID]['record'].dataRecordName) & temp
             for name in intersec: # duplicate channels found
-                ind = self[recordID]['record'].dataRecordName.index(name) - 1
-                OldrecAttributeName = self[recordID]['record'][ind].recAttributeName
-                OldName = self[recordID]['record'][ind].name
-                self[recordID]['record'][ind].changeChannelName(self[recordID]['record'].channelGroup)
-                recAttributeName = self[recordID]['record'][ind].recAttributeName
-                if self[recordID]['record'].recordToChannelMatching[OldrecAttributeName] == OldrecAttributeName:
-                    self[recordID]['record'].recordToChannelMatching.pop(OldrecAttributeName)
-                    self[recordID]['record'].recordToChannelMatching[recAttributeName] = recAttributeName
-                if self[recordID]['record'].master['name'] == OldName: # channel to change is master
-                    self[recordID]['record'].master['name'] = self[recordID]['record'][ind].name
-                self[recordID]['record'].dataRecordName[ind] = recAttributeName
-                self[recordID]['record'].channelNames.remove(OldName)
-                self[recordID]['record'].channelNames.add(self[recordID]['record'][ind].name)
+                self[recordID]['record'].changeChannelName(name)
             temp.update(self[recordID]['record'].dataRecordName)
         # initialise data structure
         for recordID in self:
@@ -731,7 +764,10 @@ class DATA(dict):
         # read data
         while position < len(stream):
             recordID = recordIdCFormat.unpack(stream[position:position + 1])[0]
-            temp = self[recordID]['record'].readRecordBuf(stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
+            if not self[recordID]['record'].hiddenBytes and self[recordID]['record'].byte_aligned:
+                temp = self[recordID]['record'].readRecordBuf(stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
+            else: # do read bytes but bits in record
+                temp = self[recordID]['record'].readRecordBits(stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
             position += self[recordID]['record'].CGrecordLength + 1 # recordId is only unit8
             for channelName in temp:
                 buf[channelName].append(temp[channelName])  # to remove append
