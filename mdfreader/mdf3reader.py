@@ -340,6 +340,19 @@ class Channel():
         output += 'description ' + self.desc
         return output
 
+    def changeChannelName(self, channelGroup):
+        """ In case of duplicate channel names within several channel groups
+        for unsorted data, rename channel name
+
+        Parameters
+        ------------
+        channelGroup : int
+            channelGroup bumber
+        """
+        self.name += '_' + str(channelGroup)
+        self.recAttributeName = _convertName(self.name)
+        self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
+
 
 class record(list):
 
@@ -381,7 +394,7 @@ class record(list):
     addChannel(info, channelNumber)
     loadInfo(info)
     readSortedRecord(fid, pointer, channelSet=None)
-    readUnsortedRecord(buf, channelSet=None)
+    readRecordBuf(buf, channelSet=None)
     """
 
     def __init__(self, dataGroup, channelGroup):
@@ -615,7 +628,7 @@ class DATA(dict):
         Reads data block
     loadSorted(record, nameList=None)
         Reads sorted data block from record definition
-    load(nameList=None)
+    loadUnSorted(nameList=None)
         Reads unsorted data block, not yet implemented
     """
 
@@ -692,6 +705,25 @@ class DATA(dict):
         buf = {}
         position = 0
         recordIdCFormat = Struct('B')
+        # several channel groups per data block, check for duplicate channel names
+        temp = set()
+        for recordID in self:
+            intersec = set(self[recordID]['record'].dataRecordName) & temp
+            for name in intersec: # duplicate channels found
+                ind = self[recordID]['record'].dataRecordName.index(name) - 1
+                OldrecAttributeName = self[recordID]['record'][ind].recAttributeName
+                OldName = self[recordID]['record'][ind].name
+                self[recordID]['record'][ind].changeChannelName(self[recordID]['record'].channelGroup)
+                recAttributeName = self[recordID]['record'][ind].recAttributeName
+                if self[recordID]['record'].recordToChannelMatching[OldrecAttributeName] == OldrecAttributeName:
+                    self[recordID]['record'].recordToChannelMatching.pop(OldrecAttributeName)
+                    self[recordID]['record'].recordToChannelMatching[recAttributeName] = recAttributeName
+                if self[recordID]['record'].master['name'] == OldName: # channel to change is master
+                    self[recordID]['record'].master['name'] = self[recordID]['record'][ind].name
+                self[recordID]['record'].dataRecordName[ind] = recAttributeName
+                self[recordID]['record'].channelNames.remove(OldName)
+                self[recordID]['record'].channelNames.add(self[recordID]['record'][ind].name)
+            temp.update(self[recordID]['record'].dataRecordName)
         # initialise data structure
         for recordID in self:
             for channelName in self[recordID]['record'].dataRecordName:
@@ -827,7 +859,7 @@ class mdf3(mdf_skeleton):
                 for recordID in buf.keys():
                     if 'record' in buf[recordID]:
                         master_channel = buf[recordID]['record'].master['name']
-                        if master_channel in self.keys():
+                        if master_channel in set(self.keys()):
                             master_channel += '_' + str(dataGroup)
 
                         channels = (c for c in buf[recordID]['record']
