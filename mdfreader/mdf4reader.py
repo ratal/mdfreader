@@ -86,7 +86,7 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
     This function will read DTBlock, RDBlock, DZBlock (compressed), RDBlock (VLSD), sorted or unsorted
     """
 
-    def readUnsorted(record, parent_block, channelSet=None, sortedFlag=True)
+    def readUnsorted(record, parent_block, channelSet=None, sortedFlag=True):
         # reads only the channels using offset functions, channel by channel.
         buf = {}
         position = 0
