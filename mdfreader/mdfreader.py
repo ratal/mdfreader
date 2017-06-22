@@ -815,6 +815,7 @@ class mdf(mdf3, mdf4):
         setAttribute(filegroup, 'ProjectName', self.file_metadata['project'])
         setAttribute(filegroup, 'Subject', self.file_metadata['subject'])
         setAttribute(filegroup, 'Comment', self.file_metadata['comment'])
+        masterTypeDict = {0:'None',1:'Time',2:'Angle',3:'Distance',4:'Index'}
         if len(list(self.masterChannelList.keys())) > 1:
             # if several time groups of channels, not resampled
             groups = {}
@@ -833,6 +834,9 @@ class mdf(mdf3, mdf4):
                         group_name = 'master'+str(ngroups)
                     groups[group_name] = ngroups
                     grp[ngroups] = filegroup.create_group(group_name)
+                    setAttribute(grp[ngroups], 'master', masterName)
+                    setAttribute(grp[ngroups], 'masterType', \
+                            masterTypeDict[self.getChannelMasterType(channel)])
                 elif 'master' in self[channel] and masterName in list(groups.keys()):
                     group_name = masterName
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
@@ -841,6 +845,10 @@ class mdf(mdf3, mdf4):
                     if 'description' in self[channel]:
                         setAttribute(dset, 'description', self.getChannelDesc(channel))
         else:  # resampled or only one time for all channels : no groups
+            masterName = self.masterChannelList.keys()[0]
+            setAttribute(filegroup, 'master', masterName)
+            setAttribute(filegroup, 'masterType', \
+                    masterTypeDict[self.getChannelMasterType(masterName)])
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
