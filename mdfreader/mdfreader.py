@@ -753,7 +753,7 @@ class mdf(mdf3, mdf4):
                 setAttribute(var[name], 'title', CleanedName)
                 setAttribute(var[name], 'units', self.getChannelUnit(name))
                 setAttribute(var[name], 'Description', self.getChannelDesc(name))
-                if name in list(self.masterChannelList.keys()):
+                if name in set(self.masterChannelList.keys()):
                     setAttribute(var[name], 'Type', 'Master Channel')
                     setAttribute(var[name], 'datatype', 'master')
                 else:
