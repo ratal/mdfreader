@@ -42,11 +42,11 @@ Mdfreader is mostly relying on numpy/scipy/matplotlib.
 Reading channels defined by a formula will require sympy.
 Cython is required to compile dataRead module for reading mdf4 not byte aligned data. However, if cython compilation fails, bitarray becomes required
 Export requirements (optional): scipy, csv, h5py, xlwt(3), openpyxl, pandas
-Mdfconverter user interface requires pyQT
+Mdfconverter user interface requires PyQt
 
-User interface: mdfconverter (PyQt4)
+User interface: mdfconverter (PyQt4&PyQt5)
 ==================================
-User interface in PyQT4 to convert batch of files is also written. You can launch it with command mdfconverter. By right clicking a channel in the interface list, you can plot it. You can also drag-drop channels between columns to tune import list. Channel list from a .lab text file can be imported. You can optionally merge several files into one and even resample all of them.
+User interface in PyQt4 or PyQt5 to convert batch of files is also written. You can launch it with command mdfconverter. By right clicking a channel in the interface list, you can plot it. You can also drag-drop channels between columns to tune import list. Channel list from a .lab text file can be imported. You can optionally merge several files into one and even resample all of them.
 
 Others:
 =======
@@ -64,6 +64,7 @@ Command example in ipython:
 ===========================
 >>> import mdfreader
 >>> yop=mdfreader.mdf('NameOfFile') # loads whole mdf file content in yop mdf object
+>>> yop=mdfreader.mdf('NameOfFile',channelList=listOfChannels,convertAfterRead=False) # For max speed and smallest memory footprint
 >>> yop.keys() # list channels names
 >>> yop.masterChannelList # dict containing pairs (key=masterChannelName : value=listOfChannelNamesForThisMaster)
 >>> yop.plot('channelName') or yop.plot({'channel1','channel2'})
