@@ -86,6 +86,46 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
     This function will read DTBlock, RDBlock, DZBlock (compressed), RDBlock (VLSD), sorted or unsorted
     """
 
+    def readUnsorted(record, parent_block, channelSet=None, sortedFlag=True)
+        # reads only the channels using offset functions, channel by channel.
+        buf = {}
+        position = 0
+        recordIdCFormat = record[list(record.keys())[0]]['record'].recordIDCFormat
+        recordIDsize = record[list(record.keys())[0]]['record'].recordIDsize
+        VLSDStruct = Struct('I')
+        # initialise data structure
+        for recordID in record:
+            for channelName in record[recordID]['record'].dataRecordName:
+                buf[channelName] = []  # empty(record.numberOfRecords,dtype=record[recordID]['record'].dataFormat)
+                # index[channelName]=0
+        # read data
+        while position < len(parent_block['data']):
+            recordID = recordIdCFormat.unpack(parent_block['data'][position:position + recordIDsize])[0]
+            if not record[recordID]['record'].Flags & 0b1:  # not VLSD CG)
+                temp = record.readRecord(recordID, parent_block['data'][position:position + record[recordID]['record'].CGrecordLength + 1], channelSet)
+                position += record[recordID]['record'].CGrecordLength
+                for channelName in temp:
+                    buf[channelName].append(temp[channelName])
+            else:  # VLSD CG
+                position += recordIDsize
+                VLSDLen = VLSDStruct.unpack(parent_block['data'][position:position + 4])[0]  # VLSD length
+                position += 4
+                temp = parent_block['data'][position:position + VLSDLen - 1]
+                if record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType == 6:
+                    temp = temp.decode('ISO8859')
+                elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType == 7:
+                    temp = temp.decode('utf-8')
+                elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType == 8:
+                    temp = temp.decode('<utf-16')
+                elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType == 9:
+                    temp = temp.decode('>utf-16')
+                buf[record[recordID]['record'].VLSD_CG[recordID]['channelName']].append(temp)
+                position += VLSDLen
+        # convert list to array
+        for chan in buf:
+            buf[chan] = array(buf[chan])
+        return buf
+
     if parent_block['id'] in ('##DT', '##RD', b'##DT', b'##RD'):  # normal data block
         if sortedFlag:
             if channelSet is None and not record.hiddenBytes and\
@@ -95,7 +135,7 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
             else: # record is not byte aligned or channelSet not None
                 return record.readBitarray(parent_block['data'], channelSet)
         else:  # unsorted reading
-            print('not implemented yet unsorted data block reading', file=stderr)  # to be implemented if needed, missing example file
+            return readUnsorted(record, parent_block, channelSet, sortedFlag)  # never tested, missing example file
 
     elif parent_block['id'] in ('##SD', b'##SD'):
         for chan in record:
@@ -134,46 +174,9 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
         elif channelSet is not None and sortedFlag:  # sorted data but channel list requested
             return record.readBitarray(parent_block['data'], channelSet)
         else:  # unsorted reading
-            # reads only the channels using offset functions, channel by channel.
-            buf = {}
-            position = 0
-            recordIdCFormat = record[list(record.keys())[0]]['record'].recordIDCFormat
-            recordIDsize = record[list(record.keys())[0]]['record'].recordIDsize
-            VLSDStruct = Struct('I')
-            # initialise data structure
-            for recordID in record:
-                for channelName in record[recordID]['record'].dataRecordName:
-                    buf[channelName] = []  # empty(record.numberOfRecords,dtype=record[recordID]['record'].dataFormat)
-                    # index[channelName]=0
-            # read data
-            while position < len(parent_block['data']):
-                recordID = recordIdCFormat.unpack(parent_block['data'][position:position + recordIDsize])[0]
-                if not record[recordID]['record'].Flags & 0b1:  # not VLSD CG)
-                    temp = record.readRecord(recordID, parent_block['data'][position:position + record[recordID]['record'].CGrecordLength + 1], channelSet)
-                    position += record[recordID]['record'].CGrecordLength
-                    for channelName in temp:
-                        buf[channelName].append(temp[channelName])  # to remove append
-                        # buf[channelName][index[recordID]]=temp[channelName]
-                        # index[recordID] += 1
-                else:  # VLSD CG
-                    position += recordIDsize
-                    VLSDLen = VLSDStruct.unpack(parent_block['data'][position:position + 4])[0]  # VLSD length
-                    position += 4
-                    temp = parent_block['data'][position:position + VLSDLen - 1]
-                    if record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType == 6:
-                        temp = temp.decode('ISO8859')
-                    elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType == 7:
-                        temp = temp.decode('utf-8')
-                    elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType == 8:
-                        temp = temp.decode('<utf-16')
-                    elif record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType == 9:
-                        temp = temp.decode('>utf-16')
-                    buf[record[recordID]['record'].VLSD_CG[recordID]['channelName']].append(temp)
-                    position += VLSDLen
-            # convert list to array
-            for chan in buf:
-                buf[chan] = array(buf[chan])
-            return buf
+            return readUnsorted(record, parent_block, channelSet, sortedFlag)
+
+        
 
 def decompress_datablock(block, zip_type, zip_parameter, org_data_length):
     """ decompress datablock.
