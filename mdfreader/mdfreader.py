@@ -43,7 +43,7 @@ root = dirname(abspath(__file__))
 path.append(root)
 from mdf3reader import mdf3
 from mdf4reader import mdf4
-from mdf import _open_MDF
+from mdf import _open_MDF, descriptionField, unitField, masterField, masterTypeField
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
 from numpy import nan, datetime64, array
 from datetime import datetime
@@ -824,38 +824,38 @@ class mdf(mdf3, mdf4):
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
                 masterName = self.getChannelMaster(channel)
-                if 'master' in self[channel] and masterName not in list(groups.keys()):
+                if masterField in self[channel] and masterName not in list(groups.keys()):
                     # create new data group
                     ngroups += 1
                     if masterName!='' \
                             and masterName is not None:
                         group_name = masterName
                     else:
-                        group_name = 'master'+str(ngroups)
+                        group_name = masterField+str(ngroups)
                     groups[group_name] = ngroups
                     grp[ngroups] = filegroup.create_group(group_name)
-                    setAttribute(grp[ngroups], 'master', masterName)
-                    setAttribute(grp[ngroups], 'masterType', \
+                    setAttribute(grp[ngroups], masterField, masterName)
+                    setAttribute(grp[ngroups], masterTypeField, \
                             masterTypeDict[self.getChannelMasterType(channel)])
-                elif 'master' in self[channel] and masterName in list(groups.keys()):
+                elif masterField in self[channel] and masterName in list(groups.keys()):
                     group_name = masterName
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
                     dset = grp[groups[group_name]].create_dataset(channel, data=channelData)
-                    setAttribute(dset, 'unit', self.getChannelUnit(channel))
-                    if 'description' in self[channel]:
-                        setAttribute(dset, 'description', self.getChannelDesc(channel))
+                    setAttribute(dset, unitField, self.getChannelUnit(channel))
+                    if descriptionField in self[channel]:
+                        setAttribute(dset, descriptionField, self.getChannelDesc(channel))
         else:  # resampled or only one time for all channels : no groups
             masterName = self.masterChannelList.keys()[0]
-            setAttribute(filegroup, 'master', masterName)
-            setAttribute(filegroup, 'masterType', \
+            setAttribute(filegroup, masterField, masterName)
+            setAttribute(filegroup, masterTypeField, \
                     masterTypeDict[self.getChannelMasterType(masterName)])
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
                     dset = filegroup.create_dataset(channel, data=channelData)
-                    setAttribute(dset, 'unit', self.getChannelUnit(channel))
-                    if 'description' in self[channel]:
-                        setAttribute(dset, 'description', self.getChannelDesc(channel))
+                    setAttribute(dset, unitField, self.getChannelUnit(channel))
+                    if descriptionField in self[channel]:
+                        setAttribute(dset, descriptionField, self.getChannelDesc(channel))
         f.close()
 
     def exportToMatlab(self, filename=None):
