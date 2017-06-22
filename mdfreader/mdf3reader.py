@@ -395,7 +395,7 @@ class record(list):
     loadInfo(info)
     readSortedRecord(fid, pointer, channelSet=None)
     readRecordBuf(buf, channelSet=None)
-    readRecordBits(buf, channelSet=None)
+    readRecordBits(bita, channelSet=None)
     changeChannelName(channelName)
     """
 
@@ -605,7 +605,7 @@ class record(list):
                 temp[Channel.recAttributeName] = Channel.CFormat.unpack(buf[Channel.posByteBeg:Channel.posByteEnd])[0]
         return temp  # returns dictionary of channel with its corresponding values
 
-    def readRecordBits(self, buf, channelSet=None):
+    def readRecordBits(self, bita, channelSet=None):
         """ read stream of record bits by bits in case of not aligned or hidden bytes
 
         Parameters
@@ -621,9 +621,49 @@ class record(list):
             returns dictionary of channel with its corresponding values
 
         """
-        print(not self.hiddenBytes,self.byte_aligned)
-        print(self.recordID)
-        print('not yet implemented reading of hidden or not aligned bytes for unsorted data')
+        from bitarray import bitarray
+        B = bitarray(endian="little")  # little endian by default
+        B.frombytes(bytes(bita))
+        def signedInt(temp, extension):
+            """ extend bits of signed data managing two's complement
+            """
+            extension.setall(False)
+            extensionInv = bitarray(extension, endian='little')
+            extensionInv.setall(True)
+            signBit = temp[-1]
+            if not signBit:  # positive value, extend with 0
+                temp.extend(extension)
+            else:  # negative value, extend with 1
+                signBit = temp.pop(-1)
+                temp.extend(extensionInv)
+                temp.append(signBit)
+            return temp
+        # read data
+        temp = {}
+        if channelSet is None:
+            channelSet = self.channelNames
+        for Channel in self:  # list of channel classes from channelSet
+            if Channel.name in channelSet:
+                temp[Channel.recAttributeName] = B[Channel.posBitBeg : Channel.posBitEnd]
+                nbytes = len(temp[Channel.recAttributeName].tobytes())
+                if not nbytes == Channel.nBytes:
+                    byte = bitarray(8 * (Channel.nBytes - nbytes), endian='little')
+                    byte.setall(False)
+                    if Channel.signalDataType not in (1, 10, 14):  # not signed integer
+                        temp[Channel.recAttributeName].extend(byte)
+                    else:  # signed integer (two's complement), keep sign bit and extend with bytes
+                        temp[Channel.recAttributeName] = signedInt(temp[Channel.recAttributeName], byte)
+                nTrailBits = Channel.nBytes*8 - Channel.bitCount
+                if Channel.signalDataType in (1, 10, 14) and \
+                        nbytes == Channel.nBytes and \
+                        nTrailBits > 0:  # Ctype byte length but signed integer
+                    trailBits = bitarray(nTrailBits, endian='little')
+                    temp[Channel.recAttributeName] = signedInt(temp[Channel.recAttributeName], trailBits)
+                if 's' not in Channel.Format:
+                    temp[Channel.recAttributeName] = Channel.CFormat.unpack(temp[Channel.recAttributeName].tobytes())[0]
+                else:
+                    temp[Channel.recAttributeName] = temp[Channel.recAttributeName].tobytes()
+        return temp  # returns dictionary of channel with its corresponding values
 
     def changeChannelName(self, channelName):
         """ In case of duplicate channel names within several channel groups
