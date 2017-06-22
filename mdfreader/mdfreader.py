@@ -815,7 +815,7 @@ class mdf(mdf3, mdf4):
         setAttribute(filegroup, 'ProjectName', self.file_metadata['project'])
         setAttribute(filegroup, 'Subject', self.file_metadata['subject'])
         setAttribute(filegroup, 'Comment', self.file_metadata['comment'])
-        masterTypeDict = {0:'None',1:'Time',2:'Angle',3:'Distance',4:'Index'}
+        masterTypeDict = {0:'None',1:'Time',2:'Angle',3:'Distance',4:'Index',None:'None'}
         if len(list(self.masterChannelList.keys())) > 1:
             # if several time groups of channels, not resampled
             groups = {}
