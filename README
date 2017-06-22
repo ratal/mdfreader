@@ -65,7 +65,7 @@ Command example in ipython:
 >>> import mdfreader
 >>> yop=mdfreader.mdf('NameOfFile') # loads whole mdf file content in yop mdf object
 >>> yop.keys() # list channels names
->>> yop.masterChannelList # list channels grouped by raster or master channel
+>>> yop.masterChannelList # dict containing pairs (key=masterChannelName : value=listOfChannelNamesForThisMaster)
 >>> yop.plot('channelName') or yop.plot({'channel1','channel2'})
 >>> yop.resample(0.1) or yop.resample(channelName='master3')
 >>> yop.exportoCSV(sampling=0.01)
