@@ -845,7 +845,7 @@ class mdf(mdf3, mdf4):
                     if descriptionField in self[channel]:
                         setAttribute(dset, descriptionField, self.getChannelDesc(channel))
         else:  # resampled or only one time for all channels : no groups
-            masterName = self.masterChannelList.keys()[0]
+            masterName = list(self.masterChannelList.keys())[0]
             setAttribute(filegroup, masterField, masterName)
             setAttribute(filegroup, masterTypeField, \
                     masterTypeDict[self.getChannelMasterType(masterName)])
