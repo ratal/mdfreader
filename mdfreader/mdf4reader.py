@@ -1052,6 +1052,8 @@ class record(list):
                                 self.numpyDataRecordFormat.append(Channel.RecordFormat)
                                 self.dataRecordName.append(Channel.recAttributeName)
                                 self.recordLength += Channel.nBytes
+                    elif len(self) == 1 and Channel.posBitBeg >= 8: 
+                        self.hiddenBytes = True
                     if not embedded_bytes:  # adding bytes
                         self.recordToChannelMatching[Channel.recAttributeName] = Channel.recAttributeName
                         self.numpyDataRecordFormat.append(Channel.RecordFormat)

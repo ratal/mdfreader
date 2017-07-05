@@ -487,6 +487,8 @@ class record(list):
                         self.numpyDataRecordFormat.append(channel.RecordFormat)
                         self.dataRecordName.append(channel.recAttributeName)
                         self.recordLength += channel.nBytes
+            elif len(self) == 1 and channel.posBitBeg >= 8: 
+                self.hiddenBytes = True
             if not embedded_bytes:  # adding bytes
                 self.recordToChannelMatching[channel.recAttributeName] = channel.recAttributeName
                 self.numpyDataRecordFormat.append(channel.RecordFormat)
@@ -659,7 +661,7 @@ class record(list):
                         nTrailBits > 0:  # Ctype byte length but signed integer
                     trailBits = bitarray(nTrailBits, endian='little')
                     temp[Channel.recAttributeName] = signedInt(temp[Channel.recAttributeName], trailBits)
-                if 's' not in Channel.Format:
+                if 's' not in Channel.dataFormat:
                     temp[Channel.recAttributeName] = Channel.CFormat.unpack(temp[Channel.recAttributeName].tobytes())[0]
                 else:
                     temp[Channel.recAttributeName] = temp[Channel.recAttributeName].tobytes()
