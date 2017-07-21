@@ -322,7 +322,7 @@ class info3(dict):
         # as it will not use cn_byte_offset
         # first, calculate new mapping/order
         for dg in range(self['HDBlock']['numberOfDataGroups']):
-            for cg in range(self['DGBlock'][dataGroup]['numberOfChannelGroups']):
+            for cg in range(self['DGBlock'][dg]['numberOfChannelGroups']):
                 nChannel = len(self['CNBlock'][dg][cg])
                 Map = zeros(shape=len(self['CNBlock'][dg][cg]), dtype=[('index', 'u4'), ('first_bit', 'u4')])
                 for cn in range(nChannel):
