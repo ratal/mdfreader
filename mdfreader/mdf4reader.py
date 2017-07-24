@@ -685,10 +685,12 @@ class channel():
             self.unit = self.unit['Comment']
         if 'Comment' in list(info['CNBlock'][dataGroup][channelGroup][channelNumber].keys()):
             self.desc = info['CNBlock'][dataGroup][channelGroup][channelNumber]['Comment']
-            if self.desc is not None and 'description' in self.desc:
-                self.desc = self.desc['description']
-            if self.desc is not None and 'name' in self.desc:
-                self.desc = self.desc['name']
+            if (self.desc is not None) and isinstance(self.desc, dict):
+                if 'description' in self.desc:
+                    self.desc = self.desc['description']
+                elif 'name' in self.desc:
+                    print(self.desc,type(self.desc),type(self.desc) is not str)
+                    self.desc = self.desc['name']
         else:
             self.desc = ''
         self.conversion = info['CCBlock'][dataGroup][channelGroup][channelNumber]
