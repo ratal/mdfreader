@@ -6,13 +6,13 @@ from distutils.extension import Extension
 from Cython.Build import cythonize
 
 name='mdfreader'
-version = '0.2.5'
+version = '0.2.6'
 
 description='A Measured Data Format file parser'
 
 here = path.abspath(path.dirname(__file__))
 # Get the long description from the relevant file
-with open(path.join(here, 'README'), encoding='utf-8') as f:
+with open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 long_description=long_description
 
