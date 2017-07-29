@@ -3,10 +3,11 @@
 
 Abstract:
 =========
-This Module imports MDF files (Measured Data Format V3.x and V4.x), typically from INCA (ETAS), CANape or CANOe. It is widely used in automotive industry to record data from ECUs. The main module mdfreader.py inherits from 2 modules (One pair for each MDF version X) : The first one to read the file's blocks descriptions (mdfinfoX) and the second (mdfXreader) to read the raw data from the file. It can optionally run multithreaded and I am proud to say I did not see any other tool reading faster this kind of files --> makes it suitable to process big amount of data in a batch, generally data from endurance evaluation.
+This Module imports MDF files (Measured Data Format V3.x and V4.x), typically from INCA (ETAS), CANape or CANOe. It is widely used in automotive industry to record data from ECUs. The main module mdfreader.py inherits from 2 modules (One pair for each MDF version X) : The first one to read the file's blocks descriptions (mdfinfoX) and the second (mdfXreader) to read the raw data from the file. It can optionally run multithreaded. It was built in mind to process efficently big amount of data in a batch, generally data from endurance evaluation.
 
-The structure of the mdf dictionary, for each channel: mdf[channelName] below keys exist
-===================================================================
+The structure of the mdf object inheriting from python dict
+===========================================================
+for each channel: mdf[channelName] below keys exist
 * data: numpy array
 * unit: unitName
 * master : vector name corresponding to master channel
@@ -21,7 +22,7 @@ Mdfreader module methods:
 =========================
 * resample channels to one sampling frequency
 * merge files
-* plot a one or a list of channels
+* plot one or a list of channels
 
 It is also possible to export mdf data into:
 * CSV file (excel dialect by default)
@@ -61,7 +62,7 @@ or with only source from github from instance
 python setup.py develop
 ```
 
-User interface: mdfconverter (PyQt4&PyQt5)
+Graphical interface: mdfconverter (PyQt4&PyQt5)
 ==================================
 User interface in PyQt4 or PyQt5 to convert batch of files is part of package. You can launch it with command 'mdfconverter'. By right clicking a channel in the interface list, you can plot it. You can also drag-drop channels between columns to tune import list. Channel list from a .lab text file can be imported. You can optionally merge several files into one and even resample all of them.
 
@@ -71,11 +72,11 @@ In the case of big files and lack of memory, you can optionally:
 * Read only a channel list (slightly slower, argument channelList = ['channel', 'list'])
 * Keep raw data as stored in mdf without data type conversion (mdfreader argument convertAfterRead=False). Data will then be converted on the fly by the other functions (plot, exportTo..., getChannelData, etc.) but raw data type will remain as in mdf file along with conversion information.
 
+For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
+
 Warning:
 ========
 MDF 4.x specification is much complex compared to 3.x and its implementation is young and not 100% complete. Chances of bug are higher with version 4.x compared to 3.x
-
-For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
 
 Command example in ipython:
 ===========================
@@ -83,15 +84,17 @@ Command example in ipython:
     import mdfreader
     # loads whole mdf file content in yop mdf object
     yop=mdfreader.mdf('NameOfFile')
-    # For max speed and smallest memory footprint
+    # alternatively, for max speed and smallest memory footprint
     yop=mdfreader.mdf('NameOfFile',channelList=['channel', 'list'],convertAfterRead=False)
-    # to only understand file content, you can create a mdfinfo instance
+    # to get file mdf versoin
+    yop.MDFVersionNumber
+    # to only get file struture, you can instead create a mdfinfo instance
     info=mdfreader.mdfinfo()
     info.listChannels('NameOfFile') # returns the list of channels
-    info.readinfo('NameOfFile') # more complete file structure
-    # list channels names after reading
+    info.readinfo('NameOfFile') # more complete file structure object
+    # to list channels names after reading
     yop.keys()
-    # dict containing pairs (key=masterChannelName : value=listOfChannelNamesForThisMaster)
+    # to list channels names grouped by raster, below dict mdf attirbute contains pairs (key=masterChannelName : value=listOfChannelNamesForThisMaster)
     yop.masterChannelList
     # quick plot of channel(s)
     yop.plot('channelName') or yop.plot({'channel1','channel2'})
@@ -105,7 +108,7 @@ Command example in ipython:
     yop.convertToPandas()
     # drops all the channels except the one in argument
     yop.keepChannels({'channel1','channel2','channel3'})
-    # can write mdf file after modifications
+    # can write mdf file after modifications (by default, same version of orignal file)
     yop.write()
     # to get/show raw data from channel after read
     yop.getChannelData('channelName') # returns channel numpy array
