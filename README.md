@@ -7,20 +7,22 @@ This Module imports MDF files (Measured Data Format V3.x and V4.x), typically fr
 
 The structure of the mdf dictionary, for each channel: mdf[channelName] below keys exist
 ===================================================================
-* data: numpy vector
+* data: numpy array
 * unit: unitName
 * master : vector name corresponding to master channel
 * masterType : type of master channel (time, angle, distance, etc.)
 * description : physical meaning of channel
 * conversion: (exist when reading with convertAfterRead=False) dictionary describing how to convert raw data into meaningful/physical data
+
 mdf object main attribute: masterChannelList, a dict containing one list of channel names per datagroup
 
 
 Mdfreader module methods:
 =========================
-* re-sample channels to one sampling frequency
+* resample channels to one sampling frequency
 * merge files
-* plot a simple or a list of channels
+* plot a one or a list of channels
+
 It is also possible to export mdf data into:
 * CSV file (excel dialect by default)
 * NetCDF file for a compatibility with Uniplot for instance (needs netcdf4, Scientific.IO)
@@ -29,7 +31,7 @@ It is also possible to export mdf data into:
 * Excel 2007/2010 (needs openpyxl, slow if not resampled data)
 * Matlab .mat (needs scipy.io)
 * MDF simplified file. It allows you to modify data, units, description and save it again in the same major mdf version (3.x->3.3, 4.x-> 4.1)
-* Pandas dataframe(s) (only in command line). One dataframe per raster.
+* Pandas dataframe(s) (only in command line, not in mdfconverter). One dataframe per raster.
 
 Compatibility:
 ==============
@@ -39,24 +41,39 @@ Evaluated for Windows and Linux platforms (x86 and AMD64)
 Requirements:
 =============
 Mdfreader is mostly relying on numpy/scipy/matplotlib.
+
 Reading channels defined by a formula will require sympy.
-Cython is required to compile dataRead module for reading mdf4 not byte aligned data. However, if cython compilation fails, bitarray becomes required
+
+Cython is required to compile dataRead module for reading quickly exotic data (not byte aligned or containing hidden bytes). However, if cython compilation fails, bitarray becomes required (slower, pure python).
+
 Export requirements (optional): scipy, csv, h5py, xlwt(3), openpyxl, pandas
+
 Mdfconverter user interface requires PyQt
+
+Installation:
+=============
+pip package existing:
+```shell
+pip install mdfreader
+```
+or with only source from github from instance
+```python
+python setup.py develop
+```
 
 User interface: mdfconverter (PyQt4&PyQt5)
 ==================================
-User interface in PyQt4 or PyQt5 to convert batch of files is also written. You can launch it with command mdfconverter. By right clicking a channel in the interface list, you can plot it. You can also drag-drop channels between columns to tune import list. Channel list from a .lab text file can be imported. You can optionally merge several files into one and even resample all of them.
+User interface in PyQt4 or PyQt5 to convert batch of files is part of package. You can launch it with command 'mdfconverter'. By right clicking a channel in the interface list, you can plot it. You can also drag-drop channels between columns to tune import list. Channel list from a .lab text file can be imported. You can optionally merge several files into one and even resample all of them.
 
 Others:
 =======
 In the case of big files and lack of memory, you can optionally:
 * Read only a channel list (slightly slower, argument channelList = ['channel', 'list'])
-* Keep raw data as stored in mdf without data type conversion (mdfreader argument convertAfterRead=False). Data will then be converted on the fly by the other functions (plot, exportTo..., getChannelData, etc.) but raw data will remain as in mdf file along with conversion information.
+* Keep raw data as stored in mdf without data type conversion (mdfreader argument convertAfterRead=False). Data will then be converted on the fly by the other functions (plot, exportTo..., getChannelData, etc.) but raw data type will remain as in mdf file along with conversion information.
 
 Warning:
 ========
-MDF 4.x specification is much complex compared to 3.x and its implementation is young. Chances of bug are higher with version 4.x compared to 3.x
+MDF 4.x specification is much complex compared to 3.x and its implementation is young and not 100% complete. Chances of bug are higher with version 4.x compared to 3.x
 
 For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
 
@@ -64,24 +81,32 @@ Command example in ipython:
 ===========================
 ```python
     import mdfreader
-    yop=mdfreader.mdf('NameOfFile') # loads whole mdf file content in yop mdf object
-    yop=mdfreader.mdf('NameOfFile',channelList=listOfChannels,convertAfterRead=False) # For max speed and smallest memory footprint
-    yop.keys() # list channels names
-    yop.masterChannelList # dict containing pairs (key=masterChannelName : value=listOfChannelNamesForThisMaster)
+    # loads whole mdf file content in yop mdf object
+    yop=mdfreader.mdf('NameOfFile')
+    # For max speed and smallest memory footprint
+    yop=mdfreader.mdf('NameOfFile',channelList=['channel', 'list'],convertAfterRead=False)
+    # to only understand file content, you can create a mdfinfo instance
+    info=mdfreader.mdfinfo()
+    info.listChannels('NameOfFile') # returns the list of channels
+    info.readinfo('NameOfFile') # more complete file structure
+    # list channels names after reading
+    yop.keys()
+    # dict containing pairs (key=masterChannelName : value=listOfChannelNamesForThisMaster)
+    yop.masterChannelList
+    # quick plot of channel(s)
     yop.plot('channelName') or yop.plot({'channel1','channel2'})
+    # file manipulations
     yop.resample(0.1) or yop.resample(channelName='master3')
     yop.exportoCSV(sampling=0.01)
     yop.exportNetCDF()
     yop.exporttoHDF5()
     yop.exporttoMatlab()
-    yop.convertToPandas() # converts data groups into pandas dataframes
-    yop.write() # writes mdf file
-    yop.keepChannels({'channel1','channel2','channel3'}) # drops all the channels except the one in argument
+    # converts data groups into pandas dataframes
+    yop.convertToPandas()
+    # drops all the channels except the one in argument
+    yop.keepChannels({'channel1','channel2','channel3'})
+    # can write mdf file after modifications
+    yop.write()
+    # to get/show raw data from channel after read
     yop.getChannelData('channelName') # returns channel numpy array
-    info=mdfreader.mdfinfo() # create a mdfinfo instance
-    info.listChannels('NameOfFile') # returns the list of channels
-```
-
-```
-pip package existing: pip install mdfreader
 ```
