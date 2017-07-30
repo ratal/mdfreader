@@ -29,7 +29,7 @@ from os.path import dirname, abspath
 from sys import version_info, stderr, path
 root = dirname(abspath(__file__))
 path.append(root)
-from mdf import _open_MDF
+from mdf import _open_MDF, dataField, descriptionField, unitField, masterField, masterTypeField
 
 from numpy import sort, zeros
 import time
@@ -1546,3 +1546,50 @@ class info4(dict):
         # CLose the file
         fid.close()
         return channelNameList
+
+def _generateDummyMDF4(info, channelList):
+    """ computes MasterChannelList from an info object
+
+    Parameters
+    ----------------
+    info : info object
+        information structure of file
+
+    Returns
+    -----------
+    a dict which keys are master channels in files with values a list of related channels of the raster
+    """
+    MasterChannelList = {}
+    allChannelList = set()
+    mdfdict = {}
+    for dg in list(info['DGBlock'].keys()):
+            for cg in list(info['CGBlock'][dg].keys()):
+                channelNameList = []
+                for cn in list(info['CNBlock'][dg][cg].keys()):
+                    name = info['CNBlock'][dg][cg][cn]['name']
+                    if name in allChannelList:
+                        name += '_' + str(dg)
+                    if channelList is None or name in channelList:
+                        channelNameList.append(name)
+                        allChannelList.add(name)
+                        # create mdf channel
+                        mdfdict[name] = {}
+                        mdfdict[name][dataField] = None
+                        if 'Comment' in info['CNBlock'][dg][cg][cn]:
+                            mdfdict[name][descriptionField] = info['CNBlock'][dg][cg][cn]['Comment']
+                        else:
+                            mdfdict[name][descriptionField] = ''
+                        if 'unit' in info['CNBlock'][dg][cg][cn]:
+                            mdfdict[name][unitField] = info['CNBlock'][dg][cg][cn]['unit']
+                        else:
+                            mdfdict[name][unitField] = ''
+                        mdfdict[name][masterField] = 0 # default is time
+                        mdfdict[name][masterTypeField] = None
+                    if info['CNBlock'][dg][cg][cn]['cn_sync_type']: # master channel of cg
+                        master = name
+                        mastertype = info['CNBlock'][dg][cg][cn]['cn_sync_type']
+                for chan in channelNameList:
+                    mdfdict[chan][masterField] = master
+                    mdfdict[chan][masterTypeField] = mastertype
+            MasterChannelList[master] = channelNameList
+    return (MasterChannelList, mdfdict)

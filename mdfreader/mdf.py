@@ -73,7 +73,7 @@ class mdf_skeleton(dict):
         adds basic metadata from file
     """
 
-    def __init__(self, fileName=None, channelList=None, convertAfterRead=True, filterChannelNames=False):
+    def __init__(self, fileName=None, channelList=None, convertAfterRead=True, filterChannelNames=False, noDataLoading=False):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -108,11 +108,12 @@ class mdf_skeleton(dict):
         self.filterChannelNames = filterChannelNames
         self.convert_tables = False
         self._pandasframe = False
+        self._info = None
         # clears class from previous reading and avoid to mess up
         self.clear()
         self.fileName = fileName
         if fileName is not None:
-            self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames)
+            self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames, noDataLoading=noDataLoading)
 
 
     def add_channel(self, dataGroup, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None, info=None):

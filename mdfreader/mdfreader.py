@@ -43,7 +43,7 @@ root = dirname(abspath(__file__))
 path.append(root)
 from mdf3reader import mdf3
 from mdf4reader import mdf4
-from mdf import _open_MDF, descriptionField, unitField, masterField, masterTypeField
+from mdf import _open_MDF, dataField, descriptionField, unitField, masterField, masterTypeField
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
 from numpy import nan, datetime64, array
 from datetime import datetime
@@ -190,7 +190,6 @@ class mdfinfo(dict):
             if self.zipfile and fid is None: # not from mdfreader.read()
                 remove(self.fileName)
 
-
     def listChannels(self, fileName=None):
 
         """ Read MDF file blocks and returns a list of contained channels
@@ -225,6 +224,21 @@ class mdfinfo(dict):
             if zipfile: # not from mdfreader.read()
                 remove(self.fileName)
         return nameList
+
+    def _generateDummyMDF(self, channelList=None):
+        """ Parse MDF file structure and create a dummy mdf object structure
+
+        Parameters
+        ----------------
+        channelList : str, optional
+            list of channels
+        """
+        if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
+            from mdfinfo3 import _generateDummyMDF3
+            return _generateDummyMDF3(self, channelList)
+        else:  # MDF version 4.x
+            from mdfinfo4 import _generateDummyMDF4
+            return _generateDummyMDF4(self, channelList)
 
 
 class mdf(mdf3, mdf4):
@@ -313,7 +327,7 @@ class mdf(mdf3, mdf4):
     >>> yop.getChannelData('channelName') # returns channel numpy array
     """
 
-    def read(self, fileName=None, multiProc=False, channelList=None, convertAfterRead=True, filterChannelNames=False):
+    def read(self, fileName=None, multiProc=False, channelList=None, convertAfterRead=True, filterChannelNames=False, noDataLoading=False):
         """ reads mdf file version 3.x and 4.x
 
         Parameters
@@ -337,6 +351,12 @@ class mdf(mdf3, mdf4):
         filterChannelNames : bool, optional
             flag to filter long channel names from its module names separated by '.'
 
+        noDataLoading : bool, optional
+            Flag to read only file info but no data to have minimum memory use
+
+        compressData : bool, optional
+            flag to compress data in memory using blosc, takes cpu time
+
         Notes
         --------
         If you keep convertAfterRead to true, you can set attribute mdf.multiProc to activate channel conversion in multiprocessing.
@@ -354,12 +374,17 @@ class mdf(mdf3, mdf4):
 
         # read file blocks
         info = mdfinfo(self.fileName, filterChannelNames)
-
         self.MDFVersionNumber = info.mdfversion
-        if self.MDFVersionNumber < 400:  # up to version 3.x not compatible with version 4.x
-            self.read3(self.fileName, info, multiProc, channelList, convertAfterRead, filterChannelNames=False)
-        else:  # MDF version 4.x. Channel by channel reading implemented
-            self.read4(self.fileName, info, multiProc, channelList, convertAfterRead, filterChannelNames=False)
+
+        if not noDataLoading:
+            if self.MDFVersionNumber < 400:  # up to version 3.x not compatible with version 4.x
+                self.read3(self.fileName, info, multiProc, channelList, convertAfterRead, filterChannelNames=False)
+            else:  # MDF version 4.x
+                self.read4(self.fileName, info, multiProc, channelList, convertAfterRead, filterChannelNames=False)
+        else: # populate minimum mdf structure
+            self._info = info
+            (self.MasterChannelList, mdfdict) = self._info._generateDummyMDF(channelList)
+            self.update(mdfdict)
 
     def write(self, fileName=None):
         """Writes simple mdf file, same format as originally read, default is 4.x
@@ -1071,7 +1096,7 @@ class mdf(mdf3, mdf4):
         removeChannels = []
         channelSet = set(channelList)
         for channel in list(self.keys()):
-            if channel not in channelSet and 'master' not in channel and channel not in set(self.masterChannelList.keys()):
+            if channel not in channelSet and masterField not in channel and channel not in set(self.masterChannelList.keys()):
                 # avoid to remove master channels otherwise problems with resample
                 removeChannels.append(channel)
         if not len(removeChannels) == 0:
@@ -1187,8 +1212,8 @@ class mdf(mdf3, mdf4):
                         temp[channel] = pd.Series(data)
                 self[group + '_group'] = pd.DataFrame(temp)
         # clean rest of self from data and time channel information
-        [self[channel].pop('data') for channel in originalKeys]
-        [self[channel].pop('master') for channel in originalKeys if 'master' in self[channel]]
+        [self[channel].pop(dataField) for channel in originalKeys]
+        [self[channel].pop(masterField) for channel in originalKeys if masterField in self[channel]]
         self.masterGroups = []  # save time groups name in list
         [self.masterGroups.append(group + '_group') for group in list(self.masterChannelList.keys())]
         self.masterChannelList = {}
