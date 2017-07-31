@@ -88,10 +88,10 @@ Command example in ipython:
     yop=mdfreader.mdf('NameOfFile',channelList=['channel', 'list'],convertAfterRead=False)
     # to get file mdf versoin
     yop.MDFVersionNumber
-    # to only get file struture, you can instead create a mdfinfo instance
+    # to get file struture, you can create a mdfinfo instance
     info=mdfreader.mdfinfo()
-    info.listChannels('NameOfFile') # returns the list of channels
-    info.readinfo('NameOfFile') # more complete file structure object
+    info.listChannels('NameOfFile') # returns only the list of channels
+    info.readinfo('NameOfFile') # complete file structure object
     # to list channels names after reading
     yop.keys()
     # to list channels names grouped by raster, below dict mdf attirbute contains pairs (key=masterChannelName : value=listOfChannelNamesForThisMaster)
@@ -108,6 +108,9 @@ Command example in ipython:
     yop.convertToPandas()
     # drops all the channels except the one in argument
     yop.keepChannels({'channel1','channel2','channel3'})
+    # merge 2 files
+    yop2=mdfreader.mdf('NameOfFile_2')
+    yop=mergeMDF(yop2)
     # can write mdf file after modifications (by default, same version of orignal file)
     yop.write()
     # to get/show raw data from channel after read

@@ -37,7 +37,7 @@ from sys import platform, exc_info, byteorder, version_info, stderr, path
 from os.path import dirname, abspath
 root = dirname(abspath(__file__))
 path.append(root)
-from mdf import mdf_skeleton, _bits_to_bytes, _convertName
+from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName, dataField, conversionField
 from mdfinfo3 import info3
 
 PythonVersion = version_info
@@ -987,6 +987,11 @@ class mdf3(mdf_skeleton):
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if channelName in self:
+            vect = self.getChannel(channelName)[dataField]
+            if vect is None: # noDataLoading reading argument flag activated
+                if self._info.fid is None or (self._info.fid is not None and self._info.fid.closed):
+                    (self._info.fid, self._info.fileName, self._info.zipfile) = _open_MDF(self.fileName)
+                self.read3(fileName=None, info=self._info, channelList=[channelName], convertAfterRead=False)
             return self._convert3(channelName)
         else:
             raise KeyError('Channel ' + channelName + ' not in mdf dictionary')
@@ -1005,30 +1010,31 @@ class mdf3(mdf_skeleton):
         numpy array
             returns numpy array converted to physical values according to conversion type
         """
-        if 'conversion' in self[channelName]:  # there is conversion property
-            conversion = self[channelName]['conversion']
+        vect = self[channelName][dataField]
+        if conversionField in self[channelName]:  # there is conversion property
+            conversion = self[channelName][conversionField]
             if conversion['type'] == 0:
-                return linearConv(self[channelName]['data'], conversion['parameters'])
+                return linearConv(vect, conversion['parameters'])
             elif conversion['type'] == 1:
-                return tabInterpConv(self[channelName]['data'], conversion['parameters'])
+                return tabInterpConv(vect, conversion['parameters'])
             elif conversion['type'] == 2:
-                return tabConv(self[channelName]['data'], conversion['parameters'])
+                return tabConv(vect, conversion['parameters'])
             elif conversion['type'] == 6:
-                return polyConv(self[channelName]['data'], conversion['parameters'])
+                return polyConv(vect, conversion['parameters'])
             elif conversion['type'] == 7:
-                return expConv(self[channelName]['data'], conversion['parameters'])
+                return expConv(vect, conversion['parameters'])
             elif conversion['type'] == 8:
-                return logConv(self[channelName]['data'], conversion['parameters'])
+                return logConv(vect, conversion['parameters'])
             elif conversion['type'] == 9:
-                return rationalConv(self[channelName]['data'], conversion['parameters'])
+                return rationalConv(vect, conversion['parameters'])
             elif conversion['type'] == 10:
-                return formulaConv(self[channelName]['data'], conversion['parameters'])
+                return formulaConv(vect, conversion['parameters'])
             elif conversion['type'] == 12:
-                return textRangeTableConv(self[channelName]['data'], conversion['parameters'])
+                return textRangeTableConv(vect, conversion['parameters'])
             else:
-                return self[channelName]['data']
+                return vect
         else:
-            return self[channelName]['data']
+            return vect
 
     def _convertChannel3(self, channelName):
         """converts specific channel from raw to physical data according to CCBlock information

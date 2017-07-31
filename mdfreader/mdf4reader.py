@@ -40,7 +40,7 @@ from os.path import dirname, abspath
 root = dirname(abspath(__file__))
 path.append(root)
 from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
-from mdf import mdf_skeleton, _bits_to_bytes, _convertName
+from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName, dataField, conversionField
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
 PythonVersion = version_info
@@ -1488,11 +1488,68 @@ class mdf4(mdf_skeleton):
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if channelName in self:
-            return convertChannelData4(self.getChannel(channelName), \
-                    channelName, self.convert_tables)[channelName]
+            vect = self.getChannel(channelName)[dataField]
+            if vect is None: # noDataLoading reading argument flag activated
+                if self._info.fid is None or (self._info.fid is not None and self._info.fid.closed):
+                    (self._info.fid, self._info.fileName, self._info.zipfile) = _open_MDF(self.fileName)
+                self.read4(fileName=None, info=self._info, channelList=[channelName], convertAfterRead=False)
+            return self._convertChannelData4(self.getChannel(channelName), \
+                        channelName, self.convert_tables)[channelName]
         else:
             raise KeyError(channelName + ' channel not in dictionary')
-            
+
+    def _convertChannelData4(self, channel, channelName, convert_tables, multiProc=False, Q=None):
+        """converts specific channel from raw to physical data according to CCBlock information
+
+        Parameters
+        ----------------
+        channelName : dict
+            channel dict containing keys like 'data', 'unit', 'comment' and potentially 'conversion' dict
+        channelName : str
+            name of channel
+        convert_tables : bool
+            activates computation intensive loops for conversion with tables. Default is False
+        multiProc : bool, default False
+            flag to put data in multiprocess queue
+        Q : Queue class, default None
+            Queue used for multiprocessing
+
+        Returns
+        -----------
+        dict
+            returns dict with channelName key containing numpy array converted to physical values according to conversion type
+        """
+        vect = channel[dataField]
+        if conversionField in channel:  # there is conversion property
+            text_type = vect.dtype.kind in ['S', 'U', 'V']  # channel of string or not ?
+            conversion_type = channel[conversionField]['type']
+            conversion_parameter = channel[conversionField]['parameters']
+            if conversion_type == 1 and not text_type:
+                vect = linearConv(vect, conversion_parameter['cc_val'])
+            elif conversion_type == 2 and not text_type:
+                vect = rationalConv(vect, conversion_parameter['cc_val'])
+            elif conversion_type == 3 and not text_type:
+                vect = formulaConv(vect, conversion_parameter['cc_ref']['Comment'])
+            elif conversion_type == 4 and not text_type:
+                vect = valueToValueTableWInterpConv(vect, conversion_parameter['cc_val'])
+            elif conversion_type == 5 and not text_type:
+                vect = valueToValueTableWOInterpConv(vect, conversion_parameter['cc_val'])
+            elif conversion_type == 6 and not text_type and convert_tables:
+                vect = valueRangeToValueTableConv(vect, conversion_parameter['cc_val'])
+            elif conversion_type == 7 and not text_type and convert_tables:
+                vect = valueToTextConv(vect, conversion_parameter['cc_val'], conversion_parameter['cc_ref'])
+            elif conversion_type == 8 and not text_type and convert_tables:
+                vect = valueRangeToTextConv(vect, conversion_parameter['cc_val'], conversion_parameter['cc_ref'])
+            elif conversion_type == 9 and text_type and convert_tables:
+                vect = textToValueConv(vect, conversion_parameter['cc_val'], conversion_parameter['cc_ref'])
+            elif conversion_type == 10 and text_type and convert_tables:
+                vect = textToTextConv(vect, conversion_parameter['cc_ref'])
+        L = {}
+        L[channelName] = vect
+        if multiProc:
+            Q.put(L)
+        else:
+            return L
 
     def _convertChannel4(self, channelName):
         """converts specific channel from raw to physical data according to CCBlock information
@@ -1833,60 +1890,6 @@ def datatypeformat4(signalDataType, numberOfBits):
         dataType = '>' + dataType
 
     return dataType
-
-
-def convertChannelData4(channel, channelName, convert_tables, multiProc=False, Q=None):
-    """converts specific channel from raw to physical data according to CCBlock information
-
-    Parameters
-    ----------------
-    channelName : dict
-        channel dict containing keys like 'data', 'unit', 'comment' and potentially 'conversion' dict
-    channelName : str
-        name of channel
-    convert_tables : bool
-        activates computation intensive loops for conversion with tables. Default is False
-    multiProc : bool, default False
-        flag to put data in multiprocess queue
-    Q : Queue class, default None
-        Queue used for multiprocessing
-
-    Returns
-    -----------
-    dict
-        returns dict with channelName key containing numpy array converted to physical values according to conversion type
-    """
-    vect = channel['data']
-    if 'conversion' in channel:  # there is conversion property
-        text_type = channel['data'].dtype.kind in ['S', 'U', 'V']  # channel of string or not ?
-        conversion_type = channel['conversion']['type']
-        conversion_parameter = channel['conversion']['parameters']
-        if conversion_type == 1 and not text_type:
-            vect = linearConv(vect, conversion_parameter['cc_val'])
-        elif conversion_type == 2 and not text_type:
-            vect = rationalConv(vect, conversion_parameter['cc_val'])
-        elif conversion_type == 3 and not text_type:
-            vect = formulaConv(vect, conversion_parameter['cc_ref']['Comment'])
-        elif conversion_type == 4 and not text_type:
-            vect = valueToValueTableWInterpConv(vect, conversion_parameter['cc_val'])
-        elif conversion_type == 5 and not text_type:
-            vect = valueToValueTableWOInterpConv(vect, conversion_parameter['cc_val'])
-        elif conversion_type == 6 and not text_type and convert_tables:
-            vect = valueRangeToValueTableConv(vect, conversion_parameter['cc_val'])
-        elif conversion_type == 7 and not text_type and convert_tables:
-            vect = valueToTextConv(vect, conversion_parameter['cc_val'], conversion_parameter['cc_ref'])
-        elif conversion_type == 8 and not text_type and convert_tables:
-            vect = valueRangeToTextConv(vect, conversion_parameter['cc_val'], conversion_parameter['cc_ref'])
-        elif conversion_type == 9 and text_type and convert_tables:
-            vect = textToValueConv(vect, conversion_parameter['cc_val'], conversion_parameter['cc_ref'])
-        elif conversion_type == 10 and text_type and convert_tables:
-            vect = textToTextConv(vect, conversion_parameter['cc_ref'])
-    L = {}
-    L[channelName] = vect
-    if multiProc:
-        Q.put(L)
-    else:
-        return L
 
 
 def linearConv(vect, cc_val):
