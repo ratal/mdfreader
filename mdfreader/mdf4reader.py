@@ -659,7 +659,7 @@ class channel():
                 self.dataFormat = arrayformat4(0, self.bitCount)
                 self.maxLengthVLSDRecord = 0  # initialises max length of SDBlock elements to 0 for later calculation
         if self.channelType in (2, 3):  # master channel, add datagroup number to avoid overwriting same sames like time
-            self.name += str(dataGroup)
+            self.name += '_' + str(dataGroup)
         self.recAttributeName = _convertName(self.name)
         self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
         if self.signalDataType not in (13, 14):  # processed by several channels
@@ -1327,6 +1327,7 @@ class mdf4(mdf_skeleton):
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
         """
+
         self.multiProc = multiProc
 
         if self.fileName is None and info is not None:
@@ -1367,28 +1368,29 @@ class mdf4(mdf_skeleton):
         else:
             self.add_metadata(date=ddate, time=ttime)
 
-        for dataGroup in info['DGBlock'].keys():
+        for dataGroup in info['DGBlock']:
             if not info['DGBlock'][dataGroup]['dg_data'] == 0 and \
                     info['CGBlock'][dataGroup][0]['cg_cycle_count']:  # data exists
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['dg_data']
                 buf = DATA(info.fid, pointerToData)
 
-                for channelGroup in info['CGBlock'][dataGroup].keys():
+                for channelGroup in info['CGBlock'][dataGroup]:
                     temp = record(dataGroup, channelGroup)  # create record class
                     temp.loadInfo(info)  # load all info related to record
                     buf.addRecord(temp)  # adds record to DATA
                     recordID = info['CGBlock'][dataGroup][channelGroup]['cg_record_id']
                     if temp.master['name'] is not None \
                             and buf[recordID]['record'].channelNames:
-                        self.masterChannelList[temp.master['name']] = []
+                            #and temp.master['name'] not in self.masterChannelList:
+                        #self.masterChannelList[temp.master['name']] = []
                         if channelSet is not None and temp.master['name'] not in channelSet:
                             channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
                     if channelSet is not None and buf[recordID]['record'].CANOpen: # adds CANOpen channels if existing in not empty channelSet
                         if buf[recordID]['record'].CANOpen == 'time':
-                            channelSet.update(['ms', 'days'])
+                            channelSet.add(['ms', 'days'])
                         elif buf[recordID]['record'].CANOpen == 'date':
-                            channelSet.update(['ms', 'minute', 'hour', 'day', 'month', 'year'])
+                            channelSet.add(['ms', 'minute', 'hour', 'day', 'month', 'year'])
 
                 buf.read(channelSet)  # reads raw data from data block with DATA and DATABlock classes
 
@@ -1396,7 +1398,7 @@ class mdf4(mdf_skeleton):
                 for recordID in list(buf.keys()): # for each record in data block
                     if 'record' in buf[recordID]:
                         master_channel = buf[recordID]['record'].master['name']
-                        if master_channel in self.keys():
+                        if master_channel in self and self[master_channel][dataField] is not None:
                             master_channel += '_' + str(dataGroup)
                         for chan in buf[recordID]['record']: # for each channel class
                             if (channelSet is None or chan.name in channelSet) \

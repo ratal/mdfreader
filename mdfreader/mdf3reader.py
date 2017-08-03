@@ -919,7 +919,7 @@ class mdf3(mdf_skeleton):
 
 
         # Read data from file
-        for dataGroup in info['DGBlock'].keys():
+        for dataGroup in info['DGBlock']:
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
@@ -934,10 +934,10 @@ class mdf3(mdf_skeleton):
 
                 buf.read(channelSet) # reads datablock potentially containing several channel groups
 
-                for recordID in buf.keys():
+                for recordID in buf:
                     if 'record' in buf[recordID]:
                         master_channel = buf[recordID]['record'].master['name']
-                        if master_channel in set(self.keys()):
+                        if master_channel in self and self[master_channel][dataField] is not None:
                             master_channel += '_' + str(dataGroup)
 
                         channels = (c for c in buf[recordID]['record']

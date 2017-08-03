@@ -141,13 +141,18 @@ class mdf_skeleton(dict):
             used for CABlock axis creation and channel conversion
         """
         if channel_name in self:
-            channel_name += '_' + str(dataGroup)
-        self[channel_name] = {}
+            if self[channel_name][dataField] is not None:
+                channel_name += '_' + str(dataGroup)
+                self[channel_name] = {}
+            else:
+                pass # using noDataLoading
+        else:
+            self[channel_name] = {}
         self.setChannelData(channel_name, data)
         self.setChannelUnit(channel_name, unit)
         self.setChannelDesc(channel_name, description)
         self.setChannelMaster(channel_name, master_channel)
-        if master_channel not in self.masterChannelList.keys():
+        if master_channel not in self.masterChannelList:
             self.masterChannelList[master_channel] = []
         self.masterChannelList[master_channel].append(channel_name)
         if self.MDFVersionNumber < 400: #  mdf3
@@ -184,7 +189,6 @@ class mdf_skeleton(dict):
                     else:
                         axis = CABlock['ca_axis_value']
             self[channel_name]['axis'] = axis
-
 
 
     def remove_channel(self, channel_name):
@@ -461,6 +465,20 @@ class mdf_skeleton(dict):
         else:
             raise KeyError('Channel not in dictionary')
 
+    def _channelInMDF(channelName):
+        """Efficiently assess if channel is already in mdf
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        
+        Return
+        -------
+        bool
+        """
+        return channelName in self.masterChannelList[masterField] \
+                or channelName in self.masterChannelList
 
     def add_metadata(self, author='', organisation='', project='', \
             subject='', comment='', date='', time=''):

@@ -1548,12 +1548,15 @@ class info4(dict):
         return channelNameList
 
 def _generateDummyMDF4(info, channelList):
-    """ computes MasterChannelList from an info object
+    """ computes MasterChannelList and dummy mdf dict from an info object
 
     Parameters
     ----------------
     info : info object
         information structure of file
+
+    channelList : list of str
+        channel list
 
     Returns
     -----------
@@ -1562,12 +1565,15 @@ def _generateDummyMDF4(info, channelList):
     MasterChannelList = {}
     allChannelList = set()
     mdfdict = {}
-    for dg in list(info['DGBlock'].keys()):
-            for cg in list(info['CGBlock'][dg].keys()):
+    for dg in info['DGBlock']:
+            master = ''
+            mastertype = 0
+            for cg in info['CGBlock'][dg]:
                 channelNameList = []
-                for cn in list(info['CNBlock'][dg][cg].keys()):
+                for cn in info['CNBlock'][dg][cg]:
                     name = info['CNBlock'][dg][cg][cn]['name']
-                    if name in allChannelList:
+                    if name in allChannelList or \
+                            info['CNBlock'][dg][cg][cn]['cn_type'] in (2, 3):
                         name += '_' + str(dg)
                     if channelList is None or name in channelList:
                         channelNameList.append(name)
@@ -1575,8 +1581,8 @@ def _generateDummyMDF4(info, channelList):
                         # create mdf channel
                         mdfdict[name] = {}
                         mdfdict[name][dataField] = None
-                        if 'Comment' in info['CNBlock'][dg][cg][cn]:
-                            mdfdict[name][descriptionField] = info['CNBlock'][dg][cg][cn]['Comment']
+                        if 'description' in info['CNBlock'][dg][cg][cn]:
+                            mdfdict[name][descriptionField] = info['CNBlock'][dg][cg][cn]['description']
                         else:
                             mdfdict[name][descriptionField] = ''
                         if 'unit' in info['CNBlock'][dg][cg][cn]:
