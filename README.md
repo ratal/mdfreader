@@ -84,9 +84,11 @@ Command example in ipython:
     import mdfreader
     # loads whole mdf file content in yop mdf object
     yop=mdfreader.mdf('NameOfFile')
-    # alternatively, for max speed and smallest memory footprint
+    # alternatively, for max speed and smaller memory footprint, read only few channels
     yop=mdfreader.mdf('NameOfFile',channelList=['channel', 'list'],convertAfterRead=False)
-    # to get file mdf versoin
+    # for interactive file exploration, possible to read the file but not its data to save memory
+    yop=mdfreader.mdf('NameOfFile',noDataLoading=True) # channel data will be loaded from file if needed
+    # to get file mdf version
     yop.MDFVersionNumber
     # to get file struture, you can create a mdfinfo instance
     info=mdfreader.mdfinfo()
@@ -94,7 +96,8 @@ Command example in ipython:
     info.readinfo('NameOfFile') # complete file structure object
     # to list channels names after reading
     yop.keys()
-    # to list channels names grouped by raster, below dict mdf attirbute contains pairs (key=masterChannelName : value=listOfChannelNamesForThisMaster)
+    # to list channels names grouped by raster, below dict mdf attirbute contains
+    # pairs (key=masterChannelName : value=listOfChannelNamesForThisMaster)
     yop.masterChannelList
     # quick plot of channel(s)
     yop.plot('channelName') or yop.plot({'channel1','channel2'})
