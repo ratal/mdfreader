@@ -33,7 +33,7 @@ from mdf import _open_MDF, dataField, descriptionField, unitField, masterField, 
 
 from numpy import sort, zeros
 import time
-from xml.etree.cElementTree import Element, SubElement, Comment, tostring, XMLParser, XML, register_namespace
+from xml.etree.ElementTree import Element, SubElement, Comment, tostring, XMLParser, XML, register_namespace
 from lxml import etree
 namespace = '{http://www.asam.net/mdf/v4}'
 _parsernsclean = etree.XMLParser(ns_clean=True)
