@@ -361,7 +361,7 @@ class DATA(dict):
         else:  # unsorted DataGroup
             self.type = 'unsorted'
             data = self.load(self, zip=None, nameList=channelSet, sortedFlag=False)
-            for recordID in list(self.keys()):
+            for recordID in self:
                 self[recordID]['data'] = {}
                 for channel in self[recordID]['record']:
                     self[recordID]['data'][channel.recAttributeName] = data[channel.recAttributeName]
@@ -675,15 +675,15 @@ class channel():
         self.posBitBeg = self.posByteBeg * 8 + self.bitOffset
         self.posBitEnd = self.posBitBeg + self.bitCount
         self.VLSD_CG_Flag = False
-        if 'unit' in list(info['CCBlock'][dataGroup][channelGroup][channelNumber].keys()):
+        if 'unit' in info['CCBlock'][dataGroup][channelGroup][channelNumber]:
             self.unit = info['CCBlock'][dataGroup][channelGroup][channelNumber]['unit']
-        elif 'unit' in list(info['CNBlock'][dataGroup][channelGroup][channelNumber].keys()):
+        elif 'unit' in info['CNBlock'][dataGroup][channelGroup][channelNumber]:
             self.unit = info['CNBlock'][dataGroup][channelGroup][channelNumber]['unit']
         else:
             self.unit = ''
         if 'Comment' in self.unit:
             self.unit = self.unit['Comment']
-        if 'Comment' in list(info['CNBlock'][dataGroup][channelGroup][channelNumber].keys()):
+        if 'Comment' in info['CNBlock'][dataGroup][channelGroup][channelNumber]:
             self.desc = info['CNBlock'][dataGroup][channelGroup][channelNumber]['Comment']
             if (self.desc is not None) and isinstance(self.desc, dict):
                 if 'description' in self.desc:
@@ -1001,7 +1001,7 @@ class record(list):
         self.Flags = info['CGBlock'][self.dataGroup][self.channelGroup]['cg_flags']
         if 'MLSD' in info:
             self.MLSD = info['MLSD']
-        for channelNumber in list(info['CNBlock'][self.dataGroup][self.channelGroup].keys()):
+        for channelNumber in info['CNBlock'][self.dataGroup][self.channelGroup]:
             Channel = channel()
             Channel.set(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize)
             if Channel.channelType in (2, 3):  # master channel found
@@ -1302,7 +1302,7 @@ class mdf4(mdf_skeleton):
     _convertAllChannel4()
         Converts all channels from raw data to converted data according to CCBlock information
     """
-
+    
     def read4(self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True, filterChannelNames=False):
         """ Reads mdf 4.x file data and stores it in dict
 
