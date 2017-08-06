@@ -17,13 +17,14 @@ Dependencies
 mdf module
 --------------------------
 """
-from numpy import array_repr, set_printoptions, recarray
+from numpy import array_repr, set_printoptions, recarray, empty
 import pandas as pd
 from io import open
 from zipfile import is_zipfile, ZipFile
 from itertools import chain
 from random import choice
 from string import ascii_letters
+import blosc
 set_printoptions(threshold=100, edgeitems=1)
 from sys import version_info
 PythonVersion = version_info
@@ -675,3 +676,32 @@ def _gen_valid_identifier(seq):
 
 def _sanitize_identifier(name):
     return ''.join(_gen_valid_identifier(name))
+
+class compressed_data():
+    """ class to represent compressed data by blosc
+    """
+    def __init__(self):
+        self.data
+        self.size
+        self.dtype
+    def compression(self, a):
+    """ data compression method
+
+    Parameters
+    -------------
+    a : numpy array
+        data to be compresses
+    """
+    self.data = blosc.compress_ptr(a.__array_interface__['data'][0], a.size, a.dtype.itemsize, 9, True)
+    self.size = a.size
+    self.dtype = a.dtype
+    def decompression(self):
+    """ data decompression
+
+    Return
+    -------------
+    uncompressed numpy array
+
+    """
+    c = empty(self.size, dtype=self.dtype)
+    return blosc.decompress_ptr(self.data, c.__array_interface__['data'][0])
