@@ -28,21 +28,22 @@ mdf4reader module
 """
 from __future__ import print_function
 
-from numpy.core.records import fromstring, fromfile
-from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
-from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
 from struct import Struct, pack
 from struct import unpack as structunpack
 from math import pow
 from io import open  # for python 3 and 2 consistency
+from time import gmtime, strftime
+from multiprocessing import Queue, Process
 from sys import version_info, exc_info, byteorder, stderr, path
 from os.path import dirname, abspath
 root = dirname(abspath(__file__))
 path.append(root)
+from numpy.core.records import fromstring, fromfile
+from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
+from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
 from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
-from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName, dataField, conversionField
-from time import gmtime, strftime
-from multiprocessing import Queue, Process
+from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName, dataField, conversionField, compressed_data
+
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -177,7 +178,6 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
             return readUnsorted(record, parent_block, channelSet, sortedFlag)
 
         
-
 def decompress_datablock(block, zip_type, zip_parameter, org_data_length):
     """ decompress datablock.
 
@@ -1303,7 +1303,8 @@ class mdf4(mdf_skeleton):
         Converts all channels from raw data to converted data according to CCBlock information
     """
     
-    def read4(self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True, filterChannelNames=False):
+    def read4(self, fileName=None, info=None, multiProc=False, channelList=None, \
+            convertAfterRead=True, filterChannelNames=False, compression=False):
         """ Reads mdf 4.x file data and stores it in dict
 
         Parameters
@@ -1326,6 +1327,9 @@ class mdf4(mdf_skeleton):
             If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
+            
+        compression : bool, optional
+            falg to activate data compression with blosc
         """
 
         self.multiProc = multiProc
@@ -1451,7 +1455,8 @@ class mdf4(mdf_skeleton):
                                         unit=chan.unit, \
                                         description=chan.desc, \
                                         conversion=chan.conversion, \
-                                        info=chan.CNBlock)
+                                        info=chan.CNBlock, \
+                                        compression=compression)
                                     if chan.channelType == 4:  # sync channel
                                         # attach stream to be synchronised
                                         self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
@@ -1464,11 +1469,12 @@ class mdf4(mdf_skeleton):
                                         master_type=0, \
                                         unit='', \
                                         description='', \
-                                        info=None)
+                                        info=None, \
+                                        compression=compression)
                     del buf[recordID]
         info.fid.close()  # close file
 
-        if convertAfterRead:
+        if convertAfterRead and not compression:
             self._convertAllChannel4()
         # print( 'Finished in ' + str( time.clock() - inttime ) , file=stderr)
 
@@ -1522,6 +1528,8 @@ class mdf4(mdf_skeleton):
             returns dict with channelName key containing numpy array converted to physical values according to conversion type
         """
         vect = channel[dataField]
+        if isinstance(vect, compressed_data):
+            vect = vect.decompression()
         if conversionField in channel:  # there is conversion property
             text_type = vect.dtype.kind in ['S', 'U', 'V']  # channel of string or not ?
             conversion_type = channel[conversionField]['type']

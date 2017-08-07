@@ -17,19 +17,19 @@ Dependencies
 mdf module
 --------------------------
 """
-from numpy import array_repr, set_printoptions, recarray, empty
-import pandas as pd
 from io import open
 from zipfile import is_zipfile, ZipFile
 from itertools import chain
 from random import choice
 from string import ascii_letters
-import blosc
-set_printoptions(threshold=100, edgeitems=1)
 from sys import version_info
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
+from numpy import array_repr, set_printoptions, recarray, empty
+set_printoptions(threshold=100, edgeitems=1)
 _notAllowedChannelNames = set(dir(recarray))
+import blosc
+import pandas as pd
 
 descriptionField = 'description'
 unitField = 'unit'
@@ -117,7 +117,9 @@ class mdf_skeleton(dict):
             self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames, noDataLoading=noDataLoading)
 
 
-    def add_channel(self, dataGroup, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None, info=None):
+    def add_channel(self, dataGroup, channel_name, data, master_channel, \
+                master_type=1, unit='', description='', conversion=None, \
+                info=None, compression=False):
         """ adds channel to mdf dict.
 
         Parameters
@@ -140,6 +142,8 @@ class mdf_skeleton(dict):
             conversion description from info class
         info : info class for CNBlock, optional
             used for CABlock axis creation and channel conversion
+        compression : bool
+            flag to ask for channel data compression
         """
         if channel_name in self:
             if self[channel_name][dataField] is not None:
@@ -149,7 +153,7 @@ class mdf_skeleton(dict):
                 pass # using noDataLoading
         else:
             self[channel_name] = {}
-        self.setChannelData(channel_name, data)
+        self.setChannelData(channel_name, data, compression)
         self.setChannelUnit(channel_name, unit)
         self.setChannelDesc(channel_name, description)
         self.setChannelMaster(channel_name, master_channel)
@@ -371,7 +375,7 @@ class mdf_skeleton(dict):
         self._setChannel(channelName, unit, field = unitField)
 
 
-    def setChannelData(self, channelName, data):
+    def setChannelData(self, channelName, data, compression=False):
         """Modifies data of channel
 
         Parameters
@@ -380,8 +384,15 @@ class mdf_skeleton(dict):
             channel name
         data : numpy array
             channel data
+        compression : bool
+            trigger for data compression
         """
-        self._setChannel(channelName, data, field = dataField)
+        if compression:
+            temp = compressed_data()
+            temp.compression(data)
+            self._setChannel(channelName, temp, field = dataField)
+        else:
+            self._setChannel(channelName, data, field = dataField)
 
 
     def setChannelDesc(self, channelName, desc):
@@ -482,7 +493,7 @@ class mdf_skeleton(dict):
                 or channelName in self.masterChannelList
 
     def add_metadata(self, author='', organisation='', project='', \
-            subject='', comment='', date='', time=''):
+                subject='', comment='', date='', time=''):
         """adds basic metadata to mdf class
 
         Parameters
@@ -681,27 +692,38 @@ class compressed_data():
     """ class to represent compressed data by blosc
     """
     def __init__(self):
+        """ data compression method
+
+        Attributes
+        -------------
+        data : numpy array compressed
+            compressed data
+        size : tuple
+            numpy array size
+        dtype : numpy dtype object
+            numpy array dtype
+        """
         self.data
         self.size
         self.dtype
     def compression(self, a):
-    """ data compression method
+        """ data compression method
 
-    Parameters
-    -------------
-    a : numpy array
-        data to be compresses
-    """
-    self.data = blosc.compress_ptr(a.__array_interface__['data'][0], a.size, a.dtype.itemsize, 9, True)
-    self.size = a.size
-    self.dtype = a.dtype
+        Parameters
+        -------------
+        a : numpy array
+            data to be compresses
+        """
+        self.data = blosc.compress_ptr(a.__array_interface__['data'][0], a.size, a.dtype.itemsize, 9, True)
+        self.size = a.size
+        self.dtype = a.dtype
     def decompression(self):
-    """ data decompression
+        """ data decompression
 
-    Return
-    -------------
-    uncompressed numpy array
+        Return
+        -------------
+        uncompressed numpy array
 
-    """
-    c = empty(self.size, dtype=self.dtype)
-    return blosc.decompress_ptr(self.data, c.__array_interface__['data'][0])
+        """
+        c = empty(self.size, dtype=self.dtype)
+        return blosc.decompress_ptr(self.data, c.__array_interface__['data'][0])
