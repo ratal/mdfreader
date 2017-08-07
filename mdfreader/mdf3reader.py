@@ -945,7 +945,12 @@ class mdf3(mdf_skeleton):
 
                         for chan in channels: # for each recordchannel
                             recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName]  # in case record is used for several channels
-                            temp = buf[recordID]['data'][recordName]
+                            try:
+                                temp = buf[recordID]['data'][recordName]
+                            except ValueError:
+                                temp = []
+                                print ("Warning: can't find record: {}".format(recordName))
+                                
 
                             if len(temp) != 0:
                                 # Process concatenated bits inside uint8
