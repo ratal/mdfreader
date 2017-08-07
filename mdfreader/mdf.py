@@ -74,7 +74,8 @@ class mdf_skeleton(dict):
         adds basic metadata from file
     """
 
-    def __init__(self, fileName=None, channelList=None, convertAfterRead=True, filterChannelNames=False, noDataLoading=False):
+    def __init__(self, fileName=None, channelList=None, convertAfterRead=True, \
+        filterChannelNames=False, noDataLoading=False, compression=False):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -94,6 +95,8 @@ class mdf_skeleton(dict):
 
         filterChannelNames : bool, optional
             flag to filter long channel names from its module names separated by '.'
+        compression : bool optional
+            flag to compress data in memory
         """
         self.masterChannelList = {}
         self.multiProc = False  # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
@@ -114,7 +117,9 @@ class mdf_skeleton(dict):
         self.clear()
         self.fileName = fileName
         if fileName is not None:
-            self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames, noDataLoading=noDataLoading)
+            self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, \
+                filterChannelNames=filterChannelNames, noDataLoading=noDataLoading, \
+                compression=compression)
 
 
     def add_channel(self, dataGroup, channel_name, data, master_channel, \
@@ -703,9 +708,9 @@ class compressed_data():
         dtype : numpy dtype object
             numpy array dtype
         """
-        self.data
-        self.size
-        self.dtype
+        self.data=None
+        self.size=0
+        self.dtype=None
     def compression(self, a):
         """ data compression method
 
@@ -726,4 +731,5 @@ class compressed_data():
 
         """
         c = empty(self.size, dtype=self.dtype)
-        return blosc.decompress_ptr(self.data, c.__array_interface__['data'][0])
+        blosc.decompress_ptr(self.data, c.__array_interface__['data'][0])
+        return c
