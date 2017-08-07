@@ -86,6 +86,8 @@ Command example in ipython:
     yop=mdfreader.mdf('NameOfFile')
     # alternatively, for max speed and smaller memory footprint, read only few channels
     yop=mdfreader.mdf('NameOfFile',channelList=['channel', 'list'],convertAfterRead=False)
+    # also possible to keep data compressed for small memory footprint
+    yop=mdfreader.mdf('NameOfFile',compression=True)
     # for interactive file exploration, possible to read the file but not its data to save memory
     yop=mdfreader.mdf('NameOfFile',noDataLoading=True) # channel data will be loaded from file if needed
     # to get file mdf version
