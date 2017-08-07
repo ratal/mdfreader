@@ -96,7 +96,7 @@ Command example in ipython:
     info.readinfo('NameOfFile') # complete file structure object
     # to list channels names after reading
     yop.keys()
-    # to list channels names grouped by raster, below dict mdf attirbute contains
+    # to list channels names grouped by raster, below dict mdf attribute contains
     # pairs (key=masterChannelName : value=listOfChannelNamesForThisMaster)
     yop.masterChannelList
     # quick plot of channel(s)
