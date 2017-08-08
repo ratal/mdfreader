@@ -1254,7 +1254,12 @@ class mdf3(mdf_skeleton):
                 # channel description
                 desc = self.getChannelDesc(channel)
                 writeChar(fid, desc, size=127)  # channel description
-                fid.write(pack(UINT16, bitOffset))  # bit position
+                
+                try:
+                    fid.write(pack(UINT16, bitOffset))  # bit position
+                except:
+                    print("Could not pack data for channel {} as UINT16 with bitOffset={}".format(channel, bitOffset))
+                
                 data = self.getChannelData(channel)  # channel data
                 temp = data
                 if PythonVersion >= 3 and data.dtype.kind in ['S', 'U']:
