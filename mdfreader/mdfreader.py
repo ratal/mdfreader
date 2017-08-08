@@ -41,13 +41,13 @@ from os import remove
 from sys import version_info, stderr, path
 root = dirname(abspath(__file__))
 path.append(root)
+from datetime import datetime
+from argparse import ArgumentParser
 from mdf3reader import mdf3
 from mdf4reader import mdf4
 from mdf import _open_MDF, dataField, descriptionField, unitField, masterField, masterTypeField
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
 from numpy import nan, datetime64, array
-from datetime import datetime
-from argparse import ArgumentParser
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -262,7 +262,7 @@ class mdf(mdf3, mdf4):
 
     Methods
     ------------
-    read( fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False )
+    read( fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False, noDataLoading=False, compression=False)
         reads mdf file version 3.x and 4.x
     write( fileName=None )
         writes simple mdf file
@@ -327,7 +327,9 @@ class mdf(mdf3, mdf4):
     >>> yop.getChannelData('channelName') # returns channel numpy array
     """
 
-    def read(self, fileName=None, multiProc=False, channelList=None, convertAfterRead=True, filterChannelNames=False, noDataLoading=False):
+    def read(self, fileName=None, multiProc=False, channelList=None, \
+            convertAfterRead=True, filterChannelNames=False, noDataLoading=False,\
+            compression=False):
         """ reads mdf file version 3.x and 4.x
 
         Parameters
@@ -354,7 +356,7 @@ class mdf(mdf3, mdf4):
         noDataLoading : bool, optional
             Flag to read only file info but no data to have minimum memory use
 
-        compressData : bool, optional
+        compression : bool, optional
             flag to compress data in memory using blosc, takes cpu time
 
         Notes
@@ -378,12 +380,14 @@ class mdf(mdf3, mdf4):
 
         if not noDataLoading:
             if self.MDFVersionNumber < 400:  # up to version 3.x not compatible with version 4.x
-                self.read3(self.fileName, info, multiProc, channelList, convertAfterRead, filterChannelNames=False)
+                self.read3(self.fileName, info, multiProc, channelList, \
+                    convertAfterRead, filterChannelNames, compression)
             else:  # MDF version 4.x
-                self.read4(self.fileName, info, multiProc, channelList, convertAfterRead, filterChannelNames=False)
+                self.read4(self.fileName, info, multiProc, channelList, \
+                    convertAfterRead, filterChannelNames, compression)
         else: # populate minimum mdf structure
             self._info = info
-            (self.MasterChannelList, mdfdict) = self._info._generateDummyMDF(channelList)
+            (self.masterChannelList, mdfdict) = self._info._generateDummyMDF(channelList)
             self.update(mdfdict)
 
     def write(self, fileName=None):
@@ -1242,11 +1246,19 @@ if __name__ == "__main__":
     parser.add_argument('--filterChannelNames', action='store_true', \
             help='activates channel name filtering; \
             removes modules names separated by a point character')
+    parser.add_argument('--noDataLoading', action='store_true', \
+            help='Do not load data in memory, creates dummy \
+            mdf structure and load data from file when needed')
+    parser.add_argument('--compression', action='store_true', \
+            help='compress data in memory')
 
     args = parser.parse_args()
 
-    temp = mdf(fileName=args.fileName, channelList=args.channelList)
-    #, converAfterRead=args.convertAfterRead, filterChannelNames=args.filterChannelNames)
+    temp = mdf(fileName=args.fileName, channelList=args.channelList \
+        , converAfterRead=args.convertAfterRead, \
+        filterChannelNames=args.filterChannelNames, \
+        noDataLoading=args.noDataLoading, \
+        compression=args.compression)
     if args.export is not None:
         if args.export == 'CSV':
             temp.exportToCSV()

@@ -673,12 +673,15 @@ class info3(dict):
             return Block
 
 def _generateDummyMDF3(info, channelList):
-    """ computes MasterChannelList from an info object
+    """ computes MasterChannelList and mdf dummy dict from an info object
 
     Parameters
     ----------------
     info : info object
         information structure of file
+
+    channelList : list of str
+        list of channel names
 
     Returns
     -----------
@@ -687,12 +690,15 @@ def _generateDummyMDF3(info, channelList):
     MasterChannelList = {}
     allChannelList = set()
     mdfdict = {}
-    for dg in list(info['DGBlock'].keys()):
-            for cg in list(info['CGBlock'][dg].keys()):
+    for dg in info['DGBlock']:
+            master = ''
+            mastertype = 0
+            for cg in info['CGBlock'][dg]:
                 channelNameList = []
-                for cn in list(info['CNBlock'][dg][cg].keys()):
+                for cn in info['CNBlock'][dg][cg]:
                     name = info['CNBlock'][dg][cg][cn]['signalName']
-                    if name in allChannelList:
+                    if name in allChannelList or \
+                            info['CNBlock'][dg][cg][cn]['channelType']:
                         name += '_' + str(dg)
                     if channelList is None or name in channelList:
                         channelNameList.append(name)

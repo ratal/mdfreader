@@ -17,18 +17,19 @@ Dependencies
 mdf module
 --------------------------
 """
-from numpy import array_repr, set_printoptions, recarray
-import pandas as pd
 from io import open
 from zipfile import is_zipfile, ZipFile
 from itertools import chain
 from random import choice
 from string import ascii_letters
-set_printoptions(threshold=100, edgeitems=1)
 from sys import version_info
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
+from numpy import array_repr, set_printoptions, recarray, empty
+set_printoptions(threshold=100, edgeitems=1)
 _notAllowedChannelNames = set(dir(recarray))
+import blosc
+import pandas as pd
 
 descriptionField = 'description'
 unitField = 'unit'
@@ -75,7 +76,8 @@ class mdf_skeleton(dict):
         adds basic metadata from file
     """
 
-    def __init__(self, fileName=None, channelList=None, convertAfterRead=True, filterChannelNames=False, noDataLoading=False):
+    def __init__(self, fileName=None, channelList=None, convertAfterRead=True, \
+        filterChannelNames=False, noDataLoading=False, compression=False):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -95,6 +97,8 @@ class mdf_skeleton(dict):
 
         filterChannelNames : bool, optional
             flag to filter long channel names from its module names separated by '.'
+        compression : bool optional
+            flag to compress data in memory
         """
         self.masterChannelList = {}
         self.multiProc = False  # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
@@ -115,10 +119,14 @@ class mdf_skeleton(dict):
         self.clear()
         self.fileName = fileName
         if fileName is not None:
-            self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, filterChannelNames=filterChannelNames, noDataLoading=noDataLoading)
+            self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, \
+                filterChannelNames=filterChannelNames, noDataLoading=noDataLoading, \
+                compression=compression)
 
 
-    def add_channel(self, dataGroup, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None, info=None):
+    def add_channel(self, dataGroup, channel_name, data, master_channel, \
+                master_type=1, unit='', description='', conversion=None, \
+                info=None, compression=False):
         """ adds channel to mdf dict.
 
         Parameters
@@ -141,15 +149,22 @@ class mdf_skeleton(dict):
             conversion description from info class
         info : info class for CNBlock, optional
             used for CABlock axis creation and channel conversion
+        compression : bool
+            flag to ask for channel data compression
         """
         if channel_name in self:
+            if self[channel_name][dataField] is not None:
             channel_name += '_' + str(dataGroup)
         self[channel_name] = {}
-        self.setChannelData(channel_name, data)
+            else:
+                pass # using noDataLoading
+        else:
+            self[channel_name] = {}
+        self.setChannelData(channel_name, data, compression)
         self.setChannelUnit(channel_name, unit)
         self.setChannelDesc(channel_name, description)
         self.setChannelMaster(channel_name, master_channel)
-        if master_channel not in self.masterChannelList.keys():
+        if master_channel not in self.masterChannelList:
             self.masterChannelList[master_channel] = []
         self.masterChannelList[master_channel].append(channel_name)
         if self.MDFVersionNumber < 400: #  mdf3
@@ -186,7 +201,6 @@ class mdf_skeleton(dict):
                     else:
                         axis = CABlock['ca_axis_value']
             self[channel_name]['axis'] = axis
-
 
 
     def remove_channel(self, channel_name):
@@ -386,7 +400,7 @@ class mdf_skeleton(dict):
         self._setChannel(channelName, unit, field = unitField)
 
 
-    def setChannelData(self, channelName, data):
+    def setChannelData(self, channelName, data, compression=False):
         """Modifies data of channel
 
         Parameters
@@ -395,7 +409,14 @@ class mdf_skeleton(dict):
             channel name
         data : numpy array
             channel data
+        compression : bool
+            trigger for data compression
         """
+        if compression:
+            temp = compressed_data()
+            temp.compression(data)
+            self._setChannel(channelName, temp, field = dataField)
+        else:
         self._setChannel(channelName, data, field = dataField)
 
 
@@ -481,6 +502,20 @@ class mdf_skeleton(dict):
         else:
             raise KeyError('Channel not in dictionary')
 
+    def _channelInMDF(channelName):
+        """Efficiently assess if channel is already in mdf
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        
+        Return
+        -------
+        bool
+        """
+        return channelName in self.masterChannelList[masterField] \
+                or channelName in self.masterChannelList
 
     def add_metadata(self, author='', organisation='', project='', \
             subject='', comment='', date='', time=''):
@@ -677,3 +712,44 @@ def _gen_valid_identifier(seq):
 
 def _sanitize_identifier(name):
     return ''.join(_gen_valid_identifier(name))
+
+class compressed_data():
+    """ class to represent compressed data by blosc
+    """
+    def __init__(self):
+        """ data compression method
+
+        Attributes
+        -------------
+        data : numpy array compressed
+            compressed data
+        size : tuple
+            numpy array size
+        dtype : numpy dtype object
+            numpy array dtype
+        """
+        self.data=None
+        self.size=0
+        self.dtype=None
+    def compression(self, a):
+        """ data compression method
+
+        Parameters
+        -------------
+        a : numpy array
+            data to be compresses
+        """
+        self.data = blosc.compress_ptr(a.__array_interface__['data'][0], a.size, a.dtype.itemsize, 9, True)
+        self.size = a.size
+        self.dtype = a.dtype
+    def decompression(self):
+        """ data decompression
+
+        Return
+        -------------
+        uncompressed numpy array
+
+        """
+        c = empty(self.size, dtype=self.dtype)
+        blosc.decompress_ptr(self.data, c.__array_interface__['data'][0])
+        return c

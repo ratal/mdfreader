@@ -25,10 +25,6 @@ mdf3reader module
 """
 from __future__ import print_function
 
-from numpy import average, right_shift, bitwise_and, diff, max, min, interp
-from numpy import asarray, zeros, recarray, array, reshape, searchsorted
-from numpy.core.records import fromfile
-from numpy.core.defchararray import encode as ncode
 from math import log, exp
 from time import strftime, time
 from struct import pack, Struct
@@ -37,7 +33,11 @@ from sys import platform, exc_info, byteorder, version_info, stderr, path
 from os.path import dirname, abspath
 root = dirname(abspath(__file__))
 path.append(root)
-from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName, dataField, conversionField
+from numpy import average, right_shift, bitwise_and, diff, max, min, interp
+from numpy import asarray, zeros, recarray, array, reshape, searchsorted
+from numpy.core.records import fromfile
+from numpy.core.defchararray import encode as ncode
+from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName, dataField, conversionField, compressed_data
 from mdfinfo3 import info3
 
 PythonVersion = version_info
@@ -856,7 +856,8 @@ class mdf3(mdf_skeleton):
         Writes simple mdf 3.3 file
     """
 
-    def read3(self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True, filterChannelNames=False):
+    def read3(self, fileName=None, info=None, multiProc=False, channelList=None, \
+        convertAfterRead=True, filterChannelNames=False, compression=False):
         """ Reads mdf 3.x file data and stores it in dict
 
         Parameters
@@ -879,6 +880,9 @@ class mdf3(mdf_skeleton):
             If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
+
+        compression : bool, optional
+            falg to activate data compression with blosc
         """
         self.multiProc = multiProc
         if platform == 'win32':
@@ -919,7 +923,7 @@ class mdf3(mdf_skeleton):
 
 
         # Read data from file
-        for dataGroup in info['DGBlock'].keys():
+        for dataGroup in info['DGBlock']:
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
@@ -934,10 +938,10 @@ class mdf3(mdf_skeleton):
 
                 buf.read(channelSet) # reads datablock potentially containing several channel groups
 
-                for recordID in buf.keys():
+                for recordID in buf:
                     if 'record' in buf[recordID]:
                         master_channel = buf[recordID]['record'].master['name']
-                        if master_channel in set(self.keys()):
+                        if master_channel in self and self[master_channel][dataField] is not None:
                             master_channel += '_' + str(dataGroup)
 
                         channels = (c for c in buf[recordID]['record']
@@ -968,10 +972,11 @@ class mdf3(mdf_skeleton):
                                         unit=chan.unit, \
                                         description=chan.desc, \
                                         conversion=chan.conversion, \
-                                        info=None)
+                                        info=None, \
+                                        compression=compression)
                 del buf
         fid.close()  # close file
-        if convertAfterRead:
+        if convertAfterRead and not compression:
             self._convertAllChannel3()
 
     def _getChannelData3(self, channelName):
@@ -1016,6 +1021,8 @@ class mdf3(mdf_skeleton):
             returns numpy array converted to physical values according to conversion type
         """
         vect = self[channelName][dataField]
+        if isinstance(vect, compressed_data):
+            vect = vect.decompression()
         if conversionField in self[channelName]:  # there is conversion property
             conversion = self[channelName][conversionField]
             if conversion['type'] == 0:

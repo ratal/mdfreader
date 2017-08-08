@@ -28,21 +28,22 @@ mdf4reader module
 """
 from __future__ import print_function
 
-from numpy.core.records import fromstring, fromfile
-from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
-from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
 from struct import Struct, pack
 from struct import unpack as structunpack
 from math import pow
 from io import open  # for python 3 and 2 consistency
+from time import gmtime, strftime
+from multiprocessing import Queue, Process
 from sys import version_info, exc_info, byteorder, stderr, path
 from os.path import dirname, abspath
 root = dirname(abspath(__file__))
 path.append(root)
+from numpy.core.records import fromstring, fromfile
+from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
+from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
 from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
-from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName, dataField, conversionField
-from time import gmtime, strftime
-from multiprocessing import Queue, Process
+from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName, dataField, conversionField, compressed_data
+
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -177,7 +178,6 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
             return readUnsorted(record, parent_block, channelSet, sortedFlag)
 
         
-
 def decompress_datablock(block, zip_type, zip_parameter, org_data_length):
     """ decompress datablock.
 
@@ -361,7 +361,7 @@ class DATA(dict):
         else:  # unsorted DataGroup
             self.type = 'unsorted'
             data = self.load(self, zip=None, nameList=channelSet, sortedFlag=False)
-            for recordID in list(self.keys()):
+            for recordID in self:
                 self[recordID]['data'] = {}
                 for channel in self[recordID]['record']:
                     self[recordID]['data'][channel.recAttributeName] = data[channel.recAttributeName]
@@ -659,7 +659,7 @@ class channel():
                 self.dataFormat = arrayformat4(0, self.bitCount)
                 self.maxLengthVLSDRecord = 0  # initialises max length of SDBlock elements to 0 for later calculation
         if self.channelType in (2, 3):  # master channel, add datagroup number to avoid overwriting same sames like time
-            self.name += str(dataGroup)
+            self.name += '_' + str(dataGroup)
         self.recAttributeName = _convertName(self.name)
         self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
         if self.signalDataType not in (13, 14):  # processed by several channels
@@ -675,15 +675,15 @@ class channel():
         self.posBitBeg = self.posByteBeg * 8 + self.bitOffset
         self.posBitEnd = self.posBitBeg + self.bitCount
         self.VLSD_CG_Flag = False
-        if 'unit' in list(info['CCBlock'][dataGroup][channelGroup][channelNumber].keys()):
+        if 'unit' in info['CCBlock'][dataGroup][channelGroup][channelNumber]:
             self.unit = info['CCBlock'][dataGroup][channelGroup][channelNumber]['unit']
-        elif 'unit' in list(info['CNBlock'][dataGroup][channelGroup][channelNumber].keys()):
+        elif 'unit' in info['CNBlock'][dataGroup][channelGroup][channelNumber]:
             self.unit = info['CNBlock'][dataGroup][channelGroup][channelNumber]['unit']
         else:
             self.unit = ''
         if 'Comment' in self.unit:
             self.unit = self.unit['Comment']
-        if 'Comment' in list(info['CNBlock'][dataGroup][channelGroup][channelNumber].keys()):
+        if 'Comment' in info['CNBlock'][dataGroup][channelGroup][channelNumber]:
             self.desc = info['CNBlock'][dataGroup][channelGroup][channelNumber]['Comment']
             if (self.desc is not None) and isinstance(self.desc, dict):
                 if 'description' in self.desc:
@@ -1001,7 +1001,7 @@ class record(list):
         self.Flags = info['CGBlock'][self.dataGroup][self.channelGroup]['cg_flags']
         if 'MLSD' in info:
             self.MLSD = info['MLSD']
-        for channelNumber in list(info['CNBlock'][self.dataGroup][self.channelGroup].keys()):
+        for channelNumber in info['CNBlock'][self.dataGroup][self.channelGroup]:
             Channel = channel()
             Channel.set(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize)
             if Channel.channelType in (2, 3):  # master channel found
@@ -1302,8 +1302,9 @@ class mdf4(mdf_skeleton):
     _convertAllChannel4()
         Converts all channels from raw data to converted data according to CCBlock information
     """
-
-    def read4(self, fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True, filterChannelNames=False):
+    
+    def read4(self, fileName=None, info=None, multiProc=False, channelList=None, \
+            convertAfterRead=True, filterChannelNames=False, compression=False):
         """ Reads mdf 4.x file data and stores it in dict
 
         Parameters
@@ -1326,7 +1327,11 @@ class mdf4(mdf_skeleton):
             If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
+            
+        compression : bool, optional
+            falg to activate data compression with blosc
         """
+
         self.multiProc = multiProc
 
         if self.fileName is None and info is not None:
@@ -1367,28 +1372,29 @@ class mdf4(mdf_skeleton):
         else:
             self.add_metadata(date=ddate, time=ttime)
 
-        for dataGroup in info['DGBlock'].keys():
+        for dataGroup in info['DGBlock']:
             if not info['DGBlock'][dataGroup]['dg_data'] == 0 and \
                     info['CGBlock'][dataGroup][0]['cg_cycle_count']:  # data exists
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['dg_data']
                 buf = DATA(info.fid, pointerToData)
 
-                for channelGroup in info['CGBlock'][dataGroup].keys():
+                for channelGroup in info['CGBlock'][dataGroup]:
                     temp = record(dataGroup, channelGroup)  # create record class
                     temp.loadInfo(info)  # load all info related to record
                     buf.addRecord(temp)  # adds record to DATA
                     recordID = info['CGBlock'][dataGroup][channelGroup]['cg_record_id']
                     if temp.master['name'] is not None \
                             and buf[recordID]['record'].channelNames:
-                        self.masterChannelList[temp.master['name']] = []
+                            #and temp.master['name'] not in self.masterChannelList:
+                        #self.masterChannelList[temp.master['name']] = []
                         if channelSet is not None and temp.master['name'] not in channelSet:
                             channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
                     if channelSet is not None and buf[recordID]['record'].CANOpen: # adds CANOpen channels if existing in not empty channelSet
                         if buf[recordID]['record'].CANOpen == 'time':
-                            channelSet.update(['ms', 'days'])
+                            channelSet.add(['ms', 'days'])
                         elif buf[recordID]['record'].CANOpen == 'date':
-                            channelSet.update(['ms', 'minute', 'hour', 'day', 'month', 'year'])
+                            channelSet.add(['ms', 'minute', 'hour', 'day', 'month', 'year'])
 
                 buf.read(channelSet)  # reads raw data from data block with DATA and DATABlock classes
 
@@ -1396,7 +1402,7 @@ class mdf4(mdf_skeleton):
                 for recordID in list(buf.keys()): # for each record in data block
                     if 'record' in buf[recordID]:
                         master_channel = buf[recordID]['record'].master['name']
-                        if master_channel in self.keys():
+                        if master_channel in self and self[master_channel][dataField] is not None:
                             master_channel += '_' + str(dataGroup)
                         for chan in buf[recordID]['record']: # for each channel class
                             if (channelSet is None or chan.name in channelSet) \
@@ -1449,7 +1455,8 @@ class mdf4(mdf_skeleton):
                                         unit=chan.unit, \
                                         description=chan.desc, \
                                         conversion=chan.conversion, \
-                                        info=chan.CNBlock)
+                                        info=chan.CNBlock, \
+                                        compression=compression)
                                     if chan.channelType == 4:  # sync channel
                                         # attach stream to be synchronised
                                         self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
@@ -1462,11 +1469,12 @@ class mdf4(mdf_skeleton):
                                         master_type=0, \
                                         unit='', \
                                         description='', \
-                                        info=None)
+                                        info=None, \
+                                        compression=compression)
                     del buf[recordID]
         info.fid.close()  # close file
 
-        if convertAfterRead:
+        if convertAfterRead and not compression:
             self._convertAllChannel4()
         # print( 'Finished in ' + str( time.clock() - inttime ) , file=stderr)
 
@@ -1520,6 +1528,8 @@ class mdf4(mdf_skeleton):
             returns dict with channelName key containing numpy array converted to physical values according to conversion type
         """
         vect = channel[dataField]
+        if isinstance(vect, compressed_data):
+            vect = vect.decompression()
         if conversionField in channel:  # there is conversion property
             text_type = vect.dtype.kind in ['S', 'U', 'V']  # channel of string or not ?
             conversion_type = channel[conversionField]['type']
