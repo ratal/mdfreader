@@ -105,10 +105,10 @@ Command example in ipython:
     yop.plot('channelName') or yop.plot({'channel1','channel2'})
     # file manipulations
     yop.resample(0.1) or yop.resample(channelName='master3')
-    yop.exportoCSV(sampling=0.01)
+    yop.exportToCSV(sampling=0.01)
     yop.exportNetCDF()
-    yop.exporttoHDF5()
-    yop.exporttoMatlab()
+    yop.exportToHDF5()
+    yop.exportToMatlab()
     # converts data groups into pandas dataframes
     yop.convertToPandas()
     # drops all the channels except the one in argument

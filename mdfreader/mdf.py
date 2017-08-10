@@ -70,6 +70,8 @@ class mdf_skeleton(dict):
         adds channel to mdf dict
     remove_channel(channel_name)
         removes channel from mdf dict and returns its content
+    rename_channel(channel_name, new_channel_name)
+        renames a channel and returns its content
     copy()
         copy a mdf class
     add_metadata(author, organisation, project, subject, comment, date, time)
@@ -159,8 +161,8 @@ class mdf_skeleton(dict):
         """
         if channel_name in self:
             if self[channel_name][dataField] is not None:
-                channel_name += '_' + str(dataGroup)
-                self[channel_name] = {}
+            channel_name += '_' + str(dataGroup)
+        self[channel_name] = {}
             else:
                 pass  # using noDataLoading
         else:
@@ -376,6 +378,24 @@ class mdf_skeleton(dict):
         else:
             return None
 
+    def rename_channel(self, channelName, newname):
+        """Modifies name of channel
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        newname : str
+            new channel name
+        """
+        if channelName in self:
+            self.masterChannelList[self.getChannelMaster(channelName)].append(newname)      #add the new name to the same master
+            self.masterChannelList[self.getChannelMaster(channelName)].remove(channelName)  #remove the old name
+            self[newname] = self.pop(channelName)  #copy the data
+            return self[newname]
+        else:
+            return None
+        
 
     def setChannelUnit(self, channelName, unit):
         """Modifies unit of channel
@@ -407,7 +427,7 @@ class mdf_skeleton(dict):
             temp.compression(data)
             self._setChannel(channelName, temp, field = dataField)
         else:
-            self._setChannel(channelName, data, field = dataField)
+        self._setChannel(channelName, data, field = dataField)
 
 
     def setChannelDesc(self, channelName, desc):
@@ -508,7 +528,7 @@ class mdf_skeleton(dict):
                 or channelName in self.masterChannelList
 
     def add_metadata(self, author='', organisation='', project='', \
-                subject='', comment='', date='', time=''):
+            subject='', comment='', date='', time=''):
         """adds basic metadata to mdf class
 
         Parameters

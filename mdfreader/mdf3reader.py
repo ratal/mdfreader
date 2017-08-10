@@ -973,7 +973,12 @@ class mdf3(mdf_skeleton):
 
                         for chan in channels: # for each recordchannel
                             recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName]  # in case record is used for several channels
-                            temp = buf[recordID]['data'][recordName]
+                            try:
+                                temp = buf[recordID]['data'][recordName]
+                            except ValueError:
+                                temp = []
+                                print ("Warning: can't find record: {}".format(recordName))
+                                
 
                             if len(temp) != 0:
                                 # Process concatenated bits inside uint8
@@ -1253,6 +1258,7 @@ class mdf3(mdf_skeleton):
             recordNumberOfBits = 0
             preceedingChannel = None
             bitOffset = 0
+            byteOffset = 0
             writePointer(fid, pointers['CG'][dataGroup]['firstCN'], fid.tell())  # first channel bock pointer from CG
             for channel in self.masterChannelList[masterChannel]:
                 pointers['CN'][dataGroup][channel] = {}
@@ -1280,7 +1286,19 @@ class mdf3(mdf_skeleton):
                 # channel description
                 desc = self.getChannelDesc(channel)
                 writeChar(fid, desc, size=127)  # channel description
-                fid.write(pack(UINT16, bitOffset))  # bit position
+
+                #if bitOffset exceeds two byte limit, we start using the byte offset field
+                if (bitOffset > 0xFFFF):
+                    bitOffset -= 0x10000
+                    byteOffset += 8192
+
+                #print("working on {} at {} byteoffset {}".format(channel, bitOffset, byteOffset))
+
+                try:
+                    fid.write(pack(UINT16, bitOffset))  # bit position
+                except:
+                    print("Error: Could not pack data for channel {}, {}:{}".format(channel, bitOffset, byteOffset))
+                
                 data = self.getChannelData(channel)  # channel data
                 temp = data
                 if PythonVersion >= 3 and data.dtype.kind in ['S', 'U']:
@@ -1336,7 +1354,7 @@ class mdf3(mdf_skeleton):
                 pointers['CN'][dataGroup][channel]['longChannelName'] = fid.tell()
                 fid.write(pack(LINK, 0))  # pointer to long channel name
                 fid.write(pack(LINK, 0))  # pointer to channel display name
-                fid.write(pack(UINT16, 0))  # No Byte offset
+                fid.write(pack(UINT16, byteOffset))  # No Byte offset
 
                 # TXblock for long channel name
                 writePointer(fid, pointers['CN'][dataGroup][channel]['longChannelName'], fid.tell())
