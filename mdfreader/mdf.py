@@ -17,7 +17,7 @@ Dependencies
 mdf module
 --------------------------
 """
-import blosc
+import bcolz
 import pandas as pd
 from collections import OrderedDict
 from numpy import array_repr, set_printoptions, recarray, empty
@@ -709,8 +709,7 @@ class compressed_data():
             numpy array dtype
         """
         self.data = None
-        self.size = 0
-        self.dtype = None
+        self.clevel = 9
 
     def compression(self, a):
         """ data compression method
@@ -720,10 +719,8 @@ class compressed_data():
         a : numpy array
             data to be compresses
         """
-        self.data = blosc.compress_ptr(a.__array_interface__['data'][0],
-                a.size, typesize=a.dtype.itemsize, clevel=9, shuffle=True)
-        self.size = a.size
-        self.dtype = a.dtype
+        self.data = bcolz.carray(a,
+                                 cparams=bcolz.cparams(clevel=self.clevel))
 
     def decompression(self):
         """ data decompression
@@ -732,16 +729,14 @@ class compressed_data():
         -------------
         uncompressed numpy array
         """
-        c = empty(self.size, dtype=self.dtype)
-        blosc.decompress_ptr(self.data, c.__array_interface__['data'][0])
-        return c
+        return self.data[:]
 
     def __str__(self):
         """ prints compressed_data object content
         """
         output = 'Data: \n'
         output += array_repr(self.data,
-                precision=3, suppress_small=True)
-        output += '\n Size ' + str(self.size) + '\n'
-        output += ' dtype ' + str(self.dtype)
+                             precision=3,
+                             suppress_small=True)
+        output += '\n Compression level ' + str(self.clevel) + '\n'
         return output

@@ -518,7 +518,7 @@ class record(list):
         if self.CGrecordLength > self.recordLength:
             self.hiddenBytes = True
         # check record length consitency
-        if self.CGrecordLength < self.recordLength:
+        if self.CGrecordLength < self.recordLength and self.byte_aligned:
             print('Warning : DataGroup ' + str(self.dataGroup) +
                     ' ChannelGroup ' + str(self.channelGroup) +
                     ' has inconsistent record length', file=stderr)
@@ -650,6 +650,7 @@ class record(list):
         from bitarray import bitarray
         B = bitarray(endian="little")  # little endian by default
         B.frombytes(bytes(bita))
+
         def signedInt(temp, extension):
             """ extend bits of signed data managing two's complement
             """
@@ -670,7 +671,7 @@ class record(list):
             channelSet = self.channelNames
         for Channel in self:  # list of channel classes from channelSet
             if Channel.name in channelSet:
-                temp[Channel.recAttributeName] = B[Channel.posBitBeg : Channel.posBitEnd]
+                temp[Channel.recAttributeName] = B[Channel.posBitBeg: Channel.posBitEnd]
                 nbytes = len(temp[Channel.recAttributeName].tobytes())
                 if not nbytes == Channel.nBytes:
                     byte = bitarray(8 * (Channel.nBytes - nbytes), endian='little')
@@ -698,7 +699,8 @@ class record(list):
         Parameters
         ------------
         channelName : str
-            channelName to be modified to avoid duplicates in unsorted channel groups
+            channelName to be modified to avoid duplicates in unsorted
+            channel groups
         """
         ind = self.dataRecordName.index(channelName) - 1
         OldrecAttributeName = self[ind].recAttributeName
