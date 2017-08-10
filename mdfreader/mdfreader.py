@@ -39,8 +39,8 @@ from math import ceil
 from os.path import dirname, abspath, splitext
 from os import remove
 from sys import version_info, stderr, path
-root = dirname(abspath(__file__))
-path.append(root)
+_root = dirname(abspath(__file__))
+path.append(_root)
 from datetime import datetime
 from argparse import ArgumentParser
 from mdf3reader import mdf3

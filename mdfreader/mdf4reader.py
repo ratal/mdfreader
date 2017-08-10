@@ -20,7 +20,8 @@ Dependencies
 Attributes
 --------------
 PythonVersion : float
-    Python version currently running, needed for compatibility of both python 2.6+ and 3.2+
+    Python version currently running, needed for compatibility of both
+    python 2.6+ and 3.2+
 
 mdf4reader module
 --------------------------
@@ -41,8 +42,10 @@ path.append(_root)
 from numpy.core.records import fromstring, fromfile
 from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
-from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock, CGBlock, CNBlock, MDFBlock, FHBlock, CommentBlock
-from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName, dataField, conversionField, compressed_data
+from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock,\
+    CGBlock, CNBlock, FHBlock, CommentBlock
+from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
+    dataField, conversionField, compressed_data
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -71,12 +74,13 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
     parent_block : class
         MDFBlock class containing at least parent block header
     channelSet : set of str, optional
-        defines set of channels to only read, can be slow but saves memory, for big files
+        defines set of channels to only read, can be slow but saves memory,
+        for big files
     sortedFlag : bool, optional
         flag to know if data block is sorted (only one Channel Group in block)
-        or unsorted (several Channel Groups identified by a recordID). As unsorted block can
-        contain CG records in random order, block is processed iteratively,
-        not in raw like sorted -> much slower reading
+        or unsorted (several Channel Groups identified by a recordID).
+        As unsorted block can contain CG records in random order, block
+        is processed iteratively, not in raw like sorted -> much slower reading
 
     Returns
     ---------
@@ -84,7 +88,8 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
 
     Notes
     --------
-    This function will read DTBlock, RDBlock, DZBlock (compressed), RDBlock (VLSD), sorted or unsorted
+    This function will read DTBlock, RDBlock, DZBlock (compressed),
+    RDBlock (VLSD), sorted or unsorted
     """
 
     def readUnsorted(record, parent_block, channelSet=None, sortedFlag=True):
@@ -130,17 +135,18 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
     if parent_block['id'] in ('##DT', '##RD', b'##DT', b'##RD'):  # normal data block
         if sortedFlag:
             if channelSet is None and not record.hiddenBytes and\
-                    record.byte_aligned: # No channel list and length of records corresponds to C datatypes
-                #print(record) # for debugging purpose
+                    record.byte_aligned:  # No channel list and length of records corresponds to C datatypes
+                # print(record) # for debugging purpose
                 return fromstring(parent_block['data'], dtype=record.numpyDataRecordFormat, shape=record.numberOfRecords, names=record.dataRecordName)
-            else: # record is not byte aligned or channelSet not None
+            else:  # record is not byte aligned or channelSet not None
                 return record.readBitarray(parent_block['data'], channelSet)
         else:  # unsorted reading
-            return readUnsorted(record, parent_block, channelSet, sortedFlag)  # never tested, missing example file
+            # not so much tested, missing example file
+            return readUnsorted(record, parent_block, channelSet, sortedFlag)
 
     elif parent_block['id'] in ('##SD', b'##SD'):
         for chan in record:
-            if chan.channelType==1: # channel should be a VLSD type
+            if chan.channelType == 1:  # channel should be a VLSD type
                 break 
         if chan.signalDataType == 6:
             format = 'ISO8859'
@@ -486,7 +492,8 @@ class channel():
     desc : str
         channel description
     type : str
-        channel type. Can be 'standard', 'NestedCA', 'CANOpen' or 'InvalidBytes'
+        channel type. Can be 'standard', 'NestedCA',
+        'CANOpen' or 'InvalidBytes'
     conversion : info class
         conversion dictionnary
     CNBlock : info class
@@ -512,14 +519,17 @@ class channel():
     byteOffset : int
         position of channel record in complete record in bytes
     bitOffset : int
-        bit position of channel value inside byte in case of channel having bit count below 8
+        bit position of channel value inside byte in case of channel
+        having bit count below 8
     RecordFormat : list of str
-        dtype format used for numpy.core.records functions ((name_title,name),str_stype)
+        dtype format used for numpy.core.records functions
+        ((name_title,name),str_stype)
     channelType : int
         channel type ; 0 fixed length data, 1 VLSD, 2 master, 3 virtual master,
         4 sync, 5 MLSD, 6 virtual data
     channelSyncType : int
-        channel synchronisation type ; 0 None, 1 Time, 2 Angle, 3 Distance, 4 Index
+        channel synchronisation type ; 0 None, 1 Time, 2 Angle,
+        3 Distance, 4 Index
     posByteBeg : int
         start position in number of byte of channel record in complete record
     posByteEnd : int
@@ -543,7 +553,8 @@ class channel():
         in case of sync channel attached
     set(info, dataGroup, channelGroup, channelNumber, recordIDsize)
         standard channel initialisation
-    setCANOpen(info, dataGroup, channelGroup, channelNumber, recordIDsize, name)
+    setCANOpen(info, dataGroup, channelGroup, channelNumber,
+                recordIDsize, name)
         CANOpen channel initialisation
     setInvalidBytes(info, dataGroup, channelGroup, recordIDsize, byte_aligned)
         Invalid Bytes channel initialisation
@@ -597,7 +608,8 @@ class channel():
         output += 'description ' + self.desc
         return output
     
-    def attachment(self, fid, info): # in case of sync channel attached to channel
+    def attachment(self, fid, info):
+        # in case of sync channel attached to channel
         return ATBlock(fid, info['CNBlock'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data'])
 
     def set(self, info, dataGroup, channelGroup, channelNumber, recordIDsize):
@@ -689,13 +701,13 @@ class channel():
                 if 'description' in self.desc:
                     self.desc = self.desc['description']
                 elif 'name' in self.desc:
-                    print(self.desc,type(self.desc),type(self.desc) is not str)
                     self.desc = self.desc['name']
         else:
             self.desc = ''
         self.conversion = info['CCBlock'][dataGroup][channelGroup][channelNumber]
 
-    def setCANOpen(self, info, dataGroup, channelGroup, channelNumber, recordIDsize, name):
+    def setCANOpen(self, info, dataGroup, channelGroup, channelNumber,
+                   recordIDsize, name):
         """ CANOpen channel intialisation
 
         Parameters
@@ -710,7 +722,8 @@ class channel():
         recordIDsize : int
             size of record ID in Bytes
         name : str
-            name of channel. Should be in ('ms', 'day', 'days', 'hour', 'month', 'minute', 'year')
+            name of channel. Should be in ('ms', 'day', 'days', 'hour',
+            'month', 'minute', 'year')
         """
         self.type = 'CANOpen'
         self.name = name
@@ -762,7 +775,8 @@ class channel():
         self.nBytes = _bits_to_bytes(self.bitCount)
         self.little_endian = True
         self.channelType = 0
-        self.maxLengthVLSDRecord = 0  # initialises max length of SDBlock elements to 0 for later calculation
+        # initialises max length of SDBlock elements to 0 for later calculation
+        self.maxLengthVLSDRecord = 0
         self.recAttributeName = self.name
         self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
         self.CFormat = Struct(self.Format)
