@@ -17,6 +17,12 @@ Dependencies
 mdf module
 --------------------------
 """
+import blosc
+import pandas as pd
+from collections import OrderedDict
+from numpy import array_repr, set_printoptions, recarray, empty
+set_printoptions(threshold=100, edgeitems=1)
+_notAllowedChannelNames = set(dir(recarray))
 from io import open
 from zipfile import is_zipfile, ZipFile
 from itertools import chain
@@ -25,12 +31,6 @@ from string import ascii_letters
 from sys import version_info
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
-from collections import OrderedDict
-from numpy import array_repr, set_printoptions, recarray, empty
-set_printoptions(threshold=100, edgeitems=1)
-_notAllowedChannelNames = set(dir(recarray))
-import blosc
-import pandas as pd
 
 descriptionField = 'description'
 unitField = 'unit'
@@ -77,7 +77,8 @@ class mdf_skeleton(dict):
     """
 
     def __init__(self, fileName=None, channelList=None, convertAfterRead=True,
-            filterChannelNames=False, noDataLoading=False, compression=False):
+                 filterChannelNames=False, noDataLoading=False,
+                 compression=False):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -100,12 +101,15 @@ class mdf_skeleton(dict):
             method .getChannelData()
 
         filterChannelNames : bool, optional
-            flag to filter long channel names from its module names separated by '.'
+            flag to filter long channel names from its module names
+            separated by '.'
         compression : bool optional
             flag to compress data in memory
         """
         self.masterChannelList = OrderedDict()
-        self.multiProc = False  # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
+        # flag to control multiprocessing, default deactivate,
+        # giving priority to mdfconverter
+        self.multiProc = False
         self.file_metadata = {}
         self.file_metadata['author'] = ''
         self.file_metadata['organisation'] = ''
@@ -123,14 +127,15 @@ class mdf_skeleton(dict):
         self.clear()
         self.fileName = fileName
         if fileName is not None:
-            self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead,
-                filterChannelNames=filterChannelNames, noDataLoading=noDataLoading,
-                compression=compression)
-
+            self.read(fileName, channelList=channelList,
+                      convertAfterRead=convertAfterRead,
+                      filterChannelNames=filterChannelNames,
+                      noDataLoading=noDataLoading,
+                      compression=compression)
 
     def add_channel(self, dataGroup, channel_name, data, master_channel,
-                master_type=1, unit='', description='', conversion=None,
-                info=None, compression=False):
+                    master_type=1, unit='', description='', conversion=None,
+                    info=None, compression=False):
         """ adds channel to mdf dict.
 
         Parameters
@@ -185,7 +190,7 @@ class mdf_skeleton(dict):
                     self[channel_name]['conversion']['parameters'] = \
                         conversion['conversion']
                 if conversion['cc_type'] == 0 and \
-                        (self[channel_name]['conversion']['parameters']['P2'] == 1.0 and \
+                        (self[channel_name]['conversion']['parameters']['P2'] == 1.0 and
                         self[channel_name]['conversion']['parameters']['P1'] in (0.0, -0.0)):
                     self[channel_name].pop('conversion')
             else:  # mdf4
@@ -210,7 +215,6 @@ class mdf_skeleton(dict):
                         axis = CABlock['ca_axis_value']
             self[channel_name]['axis'] = axis
 
-
     def remove_channel(self, channel_name):
         """ removes channel from mdf dict.
 
@@ -218,14 +222,13 @@ class mdf_skeleton(dict):
         ----------------
         channel_name : str
             channel name
-        
+
         Returns
         -------
         value of mdf dict key=channel_name
         """
         self.masterChannelList[self.getChannelMaster(channel_name)].remove(channel_name)
         return self.pop(channel_name)
-
 
     def remove_channel_conversion(self, channelName):
         """ removes conversion key from mdf channel dict.
@@ -234,13 +237,12 @@ class mdf_skeleton(dict):
         ----------------
         channelName : str
             channel name
-        
+
         Returns
         -------
         removed value from dict
         """
         return self._remove_channel_field(channelName, conversionField)
-
 
     def _remove_channel_field(self, channelName, field):
         """general purpose function to remove key from channel dict in mdf
@@ -258,7 +260,6 @@ class mdf_skeleton(dict):
         if field in self.getChannel(channelName):
             return self[channelName].pop(field)
 
-
     def getChannelUnit(self, channelName):
         """Returns channel unit string
         Implemented for a future integration of pint
@@ -273,8 +274,7 @@ class mdf_skeleton(dict):
         str
             unit string description
         """
-        return self._getChannelField(channelName, field = unitField)
-
+        return self._getChannelField(channelName, field=unitField)
 
     def getChannelDesc(self, channelName):
         """Extract channel description information from mdf structure
@@ -283,13 +283,12 @@ class mdf_skeleton(dict):
         ----------------
         channelName : str
             channel name
-        
+
         Returns
         -------
         channel description string
         """
-        return self._getChannelField(channelName, field = descriptionField)
-
+        return self._getChannelField(channelName, field=descriptionField)
 
     def getChannelMaster(self, channelName):
         """Extract channel master name from mdf structure
@@ -298,13 +297,12 @@ class mdf_skeleton(dict):
         ----------------
         channelName : str
             channel name
-        
+
         Returns
         -------
         channel master name string
         """
-        return self._getChannelField(channelName, field = masterField)
-
+        return self._getChannelField(channelName, field=masterField)
 
     def getChannelMasterType(self, channelName):
         """Extract channel master type information from mdf structure
@@ -313,13 +311,12 @@ class mdf_skeleton(dict):
         ----------------
         channelName : str
             channel name
-        
+
         Returns
         -------
         channel mater type integer
         """
-        return self._getChannelField(channelName, field = masterTypeField)
-
+        return self._getChannelField(channelName, field=masterTypeField)
 
     def getChannelConversion(self, channelName):
         """Extract channel conversion dict from mdf structure
@@ -328,13 +325,12 @@ class mdf_skeleton(dict):
         ----------------
         channelName : str
             channel name
-        
+
         Returns
         -------
         channel conversion dict
         """
-        return self._getChannelField(channelName, field = conversionField)
-
+        return self._getChannelField(channelName, field=conversionField)
 
     def getChannel(self, channelName):
         """Extract channel dict from mdf structure
@@ -343,7 +339,7 @@ class mdf_skeleton(dict):
         ----------------
         channelName : str
             channel name
-        
+
         Returns
         -------
         channel dictionnary containing data, description, unit, etc.
@@ -352,7 +348,6 @@ class mdf_skeleton(dict):
             return self[channelName]
         else:
             return None
-
 
     def _getChannelField(self, channelName, field=None):
         """General purpose function to extract channel dict key value from mdf class
@@ -376,7 +371,6 @@ class mdf_skeleton(dict):
         else:
             return None
 
-
     def setChannelUnit(self, channelName, unit):
         """Modifies unit of channel
 
@@ -387,8 +381,7 @@ class mdf_skeleton(dict):
         unit : str
             channel unit
         """
-        self._setChannel(channelName, unit, field = unitField)
-
+        self._setChannel(channelName, unit, field=unitField)
 
     def setChannelData(self, channelName, data, compression=False):
         """Modifies data of channel
@@ -405,10 +398,9 @@ class mdf_skeleton(dict):
         if compression:
             temp = compressed_data()
             temp.compression(data)
-            self._setChannel(channelName, temp, field = dataField)
+            self._setChannel(channelName, temp, field=dataField)
         else:
-            self._setChannel(channelName, data, field = dataField)
-
+            self._setChannel(channelName, data, field=dataField)
 
     def setChannelDesc(self, channelName, desc):
         """Modifies description of channel
@@ -420,8 +412,7 @@ class mdf_skeleton(dict):
         desc : str
             channel description
         """
-        self._setChannel(channelName, desc, field = descriptionField)
-
+        self._setChannel(channelName, desc, field=descriptionField)
 
     def setChannelMaster(self, channelName, master):
         """Modifies channel master name
@@ -433,8 +424,7 @@ class mdf_skeleton(dict):
         master : str
             master channel name
         """
-        self._setChannel(channelName, master, field = masterField)
-
+        self._setChannel(channelName, master, field=masterField)
 
     def setChannelMasterType(self, channelName, masterType):
         """Modifies master channel type
@@ -446,8 +436,7 @@ class mdf_skeleton(dict):
         masterType : int
             master channel type
         """
-        self._setChannel(channelName, masterType, field = masterTypeField)
-
+        self._setChannel(channelName, masterType, field=masterTypeField)
 
     def setChannelConversion(self, channelName, conversion):
         """Modifies conversion dict of channel
@@ -459,8 +448,7 @@ class mdf_skeleton(dict):
         conversion : dict
             conversion dictionnary
         """
-        self._setChannel(channelName, conversion, field = conversionField)
-
+        self._setChannel(channelName, conversion, field=conversionField)
 
     def setChannelAttachment(self, channelName, attachment):
         """Modifies channel attachment
@@ -472,8 +460,7 @@ class mdf_skeleton(dict):
         attachment
             channel attachment
         """
-        self._setChannel(channelName, attachment, field = attachmentField)
-
+        self._setChannel(channelName, attachment, field=attachmentField)
 
     def _setChannel(self, channelName, item, field=None):
         """General purpose method to modify channel values
@@ -492,23 +479,23 @@ class mdf_skeleton(dict):
         else:
             raise KeyError('Channel not in dictionary')
 
-    def _channelInMDF(channelName):
+    def _channelInMDF(self, channelName):
         """Efficiently assess if channel is already in mdf
 
         Parameters
         ----------------
         channelName : str
             channel name
-        
+
         Return
         -------
         bool
         """
         return channelName in self.masterChannelList[masterField] \
-                or channelName in self.masterChannelList
+            or channelName in self.masterChannelList
 
-    def add_metadata(self, author='', organisation='', project='', \
-                subject='', comment='', date='', time=''):
+    def add_metadata(self, author='', organisation='', project='',
+                     subject='', comment='', date='', time=''):
         """adds basic metadata to mdf class
 
         Parameters
@@ -534,7 +521,6 @@ class mdf_skeleton(dict):
         self.file_metadata['comment'] = comment
         self.file_metadata['date'] = date
         self.file_metadata['time'] = time
-
 
     def __str__(self):
         """representation a mdf_skeleton class data strucutre
@@ -568,9 +554,10 @@ class mdf_skeleton(dict):
                             pass
                     output += '\n    '
                     data = self.getChannelData(c)
-                    if data.dtype.kind != 'V': # not byte, impossible to represent
-                        output += array_repr(data, \
-                            precision=3, suppress_small=True)
+                    # not byte, impossible to represent
+                    if data.dtype.kind != 'V':
+                        output += array_repr(data,
+                                             precision=3, suppress_small=True)
                     unit = self.getChannelUnit(c)
                     if unit is not None:
                         output += ' ' + unit + '\n'
@@ -583,7 +570,6 @@ class mdf_skeleton(dict):
                 output += master
                 output += str(self[master])
             return output
-
 
     def copy(self):
         """copy a mdf class
@@ -605,6 +591,7 @@ class mdf_skeleton(dict):
             yop[channel] = self[channel]
         return yop
 
+
 def _open_MDF(fileName):
     """ Opens mdf, make a few checks and returns fid
 
@@ -624,7 +611,8 @@ def _open_MDF(fileName):
     except IOError:
         raise Exception('Can not find file ' + fileName)
     zipfile = False
-    # Check whether file is MDF file -- assumes that every MDF file starts with the letters MDF
+    # Check whether file is MDF file -- assumes that every MDF file starts
+    # with the letters MDF
     if fid.read(3) not in ('MDF', b'MDF'):
         if is_zipfile(fileName):
             # this is .mfxz file, compressed zip file
@@ -639,14 +627,15 @@ def _open_MDF(fileName):
             raise Exception('file ' + fileName + ' is not an MDF file!')
     return (fid, fileName, zipfile)
 
+
 def _bits_to_bytes(nBits):
     """ Converts number of bits into number of aligned bytes
-    
+
     Parameters
     -------------
     nBits : int
         number of bits
-        
+
     Returns
     ----------
     number of equivalent bytes
@@ -661,28 +650,27 @@ def _bits_to_bytes(nBits):
         nBytes = 8
     else:
         nBytes = nBits // 8
-        if not nBits %8  == 0:
+        if not nBits % 8 == 0:
             nBytes += 1
     return nBytes
 
+
 def _convertName(channelName):
-    """ Check if channelName is valid python identifier"""
+    """ Check if channelName is valid python identifier
+    """
 
-
-    if PythonVersion < 3: # python 2
-        #channelIdentifier = channelName.encode('utf-8')
+    if PythonVersion < 3:  # python 2
         channelIdentifier = _sanitize_identifier(channelName).encode('utf-8')
-        #channelIdentifier = channelName.encode('utf-8')
-
-    else: # python 3
-        #channelIdentifier = str(channelName)
+    else:  # python 3
         channelIdentifier = str(_sanitize_identifier(channelName))
-        #channelIdentifier = str(channelName)
-    if not channelIdentifier: # all characters of channel ar not compliant to python
-        channelIdentifier = ''.join([choice(ascii_letters) for n in range(32)])# generate random name for recarray
+    # all characters of channel are not compliant to python
+    if not channelIdentifier:
+        # generate random name for recarray
+        channelIdentifier = ''.join([choice(ascii_letters) for n in range(32)])
     if channelIdentifier in _notAllowedChannelNames:
-        channelIdentifier += '_' #  limitation from recarray object attribute
+        channelIdentifier += '_'  # limitation from recarray object attribute
     return channelIdentifier
+
 
 def _gen_valid_identifier(seq):
     # get an iterator
@@ -693,15 +681,17 @@ def _gen_valid_identifier(seq):
             yield ch
             break
         elif ch.isdigit():
-            itr = chain(itr,ch)
+            itr = chain(itr, ch)
 
     # pull remaining characters and yield legal ones for identifier
     for ch in itr:
         if ch == '_' or ch.isalpha() or ch.isdigit():
             yield ch
 
+
 def _sanitize_identifier(name):
     return ''.join(_gen_valid_identifier(name))
+
 
 class compressed_data():
     """ class to represent compressed data by blosc
@@ -718,9 +708,10 @@ class compressed_data():
         dtype : numpy dtype object
             numpy array dtype
         """
-        self.data=None
-        self.size=0
-        self.dtype=None
+        self.data = None
+        self.size = 0
+        self.dtype = None
+
     def compression(self, a):
         """ data compression method
 
@@ -729,10 +720,11 @@ class compressed_data():
         a : numpy array
             data to be compresses
         """
-        self.data = blosc.compress_ptr(a.__array_interface__['data'][0], \
+        self.data = blosc.compress_ptr(a.__array_interface__['data'][0],
                 a.size, typesize=a.dtype.itemsize, clevel=9, shuffle=True)
         self.size = a.size
         self.dtype = a.dtype
+
     def decompression(self):
         """ data decompression
 
@@ -743,3 +735,13 @@ class compressed_data():
         c = empty(self.size, dtype=self.dtype)
         blosc.decompress_ptr(self.data, c.__array_interface__['data'][0])
         return c
+
+    def __str__(self):
+        """ prints compressed_data object content
+        """
+        output = 'Data: \n'
+        output += array_repr(self.data,
+                precision=3, suppress_small=True)
+        output += '\n Size ' + str(self.size) + '\n'
+        output += ' dtype ' + str(self.dtype)
+        return output
