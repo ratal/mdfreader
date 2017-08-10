@@ -36,8 +36,8 @@ from time import gmtime, strftime
 from multiprocessing import Queue, Process
 from sys import version_info, exc_info, byteorder, stderr, path
 from os.path import dirname, abspath
-root = dirname(abspath(__file__))
-path.append(root)
+_root = dirname(abspath(__file__))
+path.append(_root)
 from numpy.core.records import fromstring, fromfile
 from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
@@ -1001,7 +1001,8 @@ class record(list):
         self.Flags = info['CGBlock'][self.dataGroup][self.channelGroup]['cg_flags']
         if 'MLSD' in info:
             self.MLSD = info['MLSD']
-        for channelNumber in info['CNBlock'][self.dataGroup][self.channelGroup]:
+        embedding_channel = None
+        for channelNumber in range(len(info['CNBlock'][self.dataGroup][self.channelGroup])):
             Channel = channel()
             Channel.set(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize)
             if Channel.channelType in (2, 3):  # master channel found
@@ -1021,6 +1022,7 @@ class record(list):
                         self.numpyDataRecordFormat.append(Channel.RecordFormat)
                     self.recordLength += 7
                     self.CANOpen = 'date'
+                    embedding_channel = None
                 elif Channel.signalDataType == 14:
                     for name in ('ms', 'days'):
                         Channel = channel()
@@ -1032,21 +1034,32 @@ class record(list):
                         self.numpyDataRecordFormat.append(Channel.RecordFormat)
                     self.recordLength += 6
                     self.CANOpen = 'time'
+                    embedding_channel = None
                 else:
                     self.append(Channel)
                     self.channelNames.add(Channel.name)
                     # Checking if several channels are embedded in bytes
-                    embedded_bytes = False
                     if len(self) > 1:
                         # all channels are already ordered in record based on byte_offset and bit_offset
                         # so just comparing with previous channel
-                        if Channel.byteOffset >= self[-2].byteOffset and \
-                                Channel.posBitBeg < 8 * (self[-2].byteOffset + self[-2].nBytes) and \
-                                Channel.posBitEnd > 8 * (self[-2].byteOffset + self[-2].nBytes):  # not byte aligned
+                        prev_chan = self[-2]
+                        prev_chan_includes_curr_chan = Channel.posBitBeg >= 8 * prev_chan.byteOffset \
+                                and Channel.posBitEnd <= 8 * (prev_chan.byteOffset + prev_chan.nBytes)
+                        if embedding_channel is not None:
+                            embedding_channel_includes_curr_chan = Channel.posBitEnd <= embedding_channel.posBitEnd
+                        else:
+                            embedding_channel_includes_curr_chan = False
+                        if Channel.byteOffset >= prev_chan.byteOffset and \
+                                Channel.posBitBeg < 8 * (prev_chan.byteOffset + prev_chan.nBytes) and \
+                                Channel.posBitEnd > 8 * (prev_chan.byteOffset + prev_chan.nBytes):  # not byte aligned
                             self.byte_aligned = False
-                        if Channel.posBitBeg >= 8 * self[-2].byteOffset \
-                                and Channel.posBitEnd <= 8 * (self[-2].byteOffset + self[-2].nBytes):  # bit(s) in byte(s)
-                            embedded_bytes = True
+                        if embedding_channel is not None and \
+                                Channel.posBitEnd > embedding_channel.posBitEnd:
+                            embedding_channel = None
+                        if prev_chan_includes_curr_chan or \
+                                embedding_channel_includes_curr_chan:  # bit(s) in byte(s)
+                            if embedding_channel is None and prev_chan_includes_curr_chan:
+                                embedding_channel = prev_chan  # new embedding channel detected
                             if self.recordToChannelMatching: # not first channel
                                 self.recordToChannelMatching[Channel.recAttributeName] = self.recordToChannelMatching[self[-2].recAttributeName]
                             else: # first channels
@@ -1056,7 +1069,7 @@ class record(list):
                                 self.recordLength += Channel.nBytes
                     elif len(self) == 1 and Channel.posBitBeg >= 8: 
                         self.hiddenBytes = True
-                    if not embedded_bytes:  # adding bytes
+                    if embedding_channel is None:  # adding bytes
                         self.recordToChannelMatching[Channel.recAttributeName] = Channel.recAttributeName
                         self.numpyDataRecordFormat.append(Channel.RecordFormat)
                         self.dataRecordName.append(Channel.recAttributeName)
@@ -1327,7 +1340,7 @@ class mdf4(mdf_skeleton):
             If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
-            
+
         compression : bool, optional
             falg to activate data compression with blosc
         """
