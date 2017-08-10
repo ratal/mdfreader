@@ -25,6 +25,7 @@ from string import ascii_letters
 from sys import version_info
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
+from collections import OrderedDict
 from numpy import array_repr, set_printoptions, recarray, empty
 set_printoptions(threshold=100, edgeitems=1)
 _notAllowedChannelNames = set(dir(recarray))
@@ -38,6 +39,7 @@ masterField = 'master'
 masterTypeField = 'masterType'
 conversionField = 'conversion'
 attachmentField = 'attachment'
+
 
 class mdf_skeleton(dict):
 
@@ -74,8 +76,8 @@ class mdf_skeleton(dict):
         adds basic metadata from file
     """
 
-    def __init__(self, fileName=None, channelList=None, convertAfterRead=True, \
-        filterChannelNames=False, noDataLoading=False, compression=False):
+    def __init__(self, fileName=None, channelList=None, convertAfterRead=True,
+            filterChannelNames=False, noDataLoading=False, compression=False):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -85,20 +87,24 @@ class mdf_skeleton(dict):
 
         channelList : list of str, optional
             list of channel names to be read
-            If you use channelList, reading might be much slower but it will save you memory. Can be used to read big files
+            If you use channelList, reading might be much slower but it will
+            save you memory. Can be used to read big files.
 
         convertAfterRead : bool, optional
             flag to convert channel after read, True by default
-            If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
-            If many float are stored in file, you can gain from 3 to 4 times memory footprint
-            To calculate value from channel, you can then use method .getChannelData()
+            If you use convertAfterRead by setting it to false, all data from
+            channels will be kept raw, no conversion applied.
+            If many float are stored in file, you can gain from 3 to 4 times
+            memory footprint
+            To calculate value from channel, you can then use
+            method .getChannelData()
 
         filterChannelNames : bool, optional
             flag to filter long channel names from its module names separated by '.'
         compression : bool optional
             flag to compress data in memory
         """
-        self.masterChannelList = {}
+        self.masterChannelList = OrderedDict()
         self.multiProc = False  # flag to control multiprocessing, default deactivate, giving priority to mdfconverter
         self.file_metadata = {}
         self.file_metadata['author'] = ''
@@ -117,20 +123,21 @@ class mdf_skeleton(dict):
         self.clear()
         self.fileName = fileName
         if fileName is not None:
-            self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead, \
-                filterChannelNames=filterChannelNames, noDataLoading=noDataLoading, \
+            self.read(fileName, channelList=channelList, convertAfterRead=convertAfterRead,
+                filterChannelNames=filterChannelNames, noDataLoading=noDataLoading,
                 compression=compression)
 
 
-    def add_channel(self, dataGroup, channel_name, data, master_channel, \
-                master_type=1, unit='', description='', conversion=None, \
+    def add_channel(self, dataGroup, channel_name, data, master_channel,
+                master_type=1, unit='', description='', conversion=None,
                 info=None, compression=False):
         """ adds channel to mdf dict.
 
         Parameters
         ----------------
         dataGroup : int
-            dataGroup number. Is appended to master name for non unique channel names
+            dataGroup number. Is appended to master name for non unique
+            channel names
         channel_name : str
             channel name
         data : numpy array
@@ -155,7 +162,7 @@ class mdf_skeleton(dict):
                 channel_name += '_' + str(dataGroup)
                 self[channel_name] = {}
             else:
-                pass # using noDataLoading
+                pass  # using noDataLoading
         else:
             self[channel_name] = {}
         self.setChannelData(channel_name, data, compression)
@@ -165,29 +172,32 @@ class mdf_skeleton(dict):
         if master_channel not in self.masterChannelList:
             self.masterChannelList[master_channel] = []
         self.masterChannelList[master_channel].append(channel_name)
-        if self.MDFVersionNumber < 400: #  mdf3
+        if self.MDFVersionNumber < 400:  # mdf3
             self.setChannelMasterType(channel_name, 1)
-        else: #  mdf4
+        else:  # mdf4
             self.setChannelMasterType(channel_name, master_type)
-        if conversion is not None: # 
+        if conversion is not None:
             self[channel_name]['conversion'] = {}
             self[channel_name]['conversion']['type'] = conversion['cc_type']
             self[channel_name]['conversion']['parameters'] = {}
-            if self.MDFVersionNumber < 400: #  mdf3
+            if self.MDFVersionNumber < 400:  # mdf3
                 if 'conversion' in conversion:
-                    self[channel_name]['conversion']['parameters'] = conversion['conversion']
+                    self[channel_name]['conversion']['parameters'] = \
+                        conversion['conversion']
                 if conversion['cc_type'] == 0 and \
                         (self[channel_name]['conversion']['parameters']['P2'] == 1.0 and \
                         self[channel_name]['conversion']['parameters']['P1'] in (0.0, -0.0)):
                     self[channel_name].pop('conversion')
-            else: #  mdf4
+            else:  # mdf4
                 if 'cc_val' in conversion:
-                    self[channel_name]['conversion']['parameters']['cc_val'] = conversion['cc_val']
+                    self[channel_name]['conversion']['parameters']['cc_val'] = \
+                        conversion['cc_val']
                 if 'cc_ref' in conversion:
-                    self[channel_name]['conversion']['parameters']['cc_ref'] = conversion['cc_ref']
-        if info is not None: # axis from CABlock
+                    self[channel_name]['conversion']['parameters']['cc_ref'] = \
+                        conversion['cc_ref']
+        if info is not None:  # axis from CABlock
             CABlock = info
-            axis=[]
+            axis = []
             while 'CABlock' in CABlock:
                 CABlock = CABlock['CABlock']
                 if 'ca_axis_value' in CABlock:
@@ -719,7 +729,8 @@ class compressed_data():
         a : numpy array
             data to be compresses
         """
-        self.data = blosc.compress_ptr(a.__array_interface__['data'][0], a.size, a.dtype.itemsize, 9, True)
+        self.data = blosc.compress_ptr(a.__array_interface__['data'][0], \
+                a.size, typesize=a.dtype.itemsize, clevel=9, shuffle=True)
         self.size = a.size
         self.dtype = a.dtype
     def decompression(self):
@@ -728,7 +739,6 @@ class compressed_data():
         Return
         -------------
         uncompressed numpy array
-
         """
         c = empty(self.size, dtype=self.dtype)
         blosc.decompress_ptr(self.data, c.__array_interface__['data'][0])
