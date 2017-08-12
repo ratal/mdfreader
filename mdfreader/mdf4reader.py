@@ -1118,6 +1118,12 @@ class record(list):
         # check for hidden bytes
         if self.CGrecordLength > self.recordLength:
             self.hiddenBytes = True
+        # check record length consitency
+        if self.CGrecordLength < self.recordLength and self.byte_aligned\
+                and not self.hiddenBytes:
+            print('Warning : DataGroup ' + str(self.dataGroup) +
+                  ' ChannelGroup ' + str(self.channelGroup) +
+                  ' has inconsistent record length', file=stderr)
 
     def readSortedRecord(self, fid, pointer, channelSet=None):
         """ reads record, only one channel group per datagroup
@@ -1554,7 +1560,7 @@ class mdf4(mdf_skeleton):
         dict
             returns dict with channelName key containing numpy array converted to physical values according to conversion type
         """
-        vect = channel[dataField]
+        vect = channel[dataField][:]
         if isinstance(vect, compressed_data):
             vect = vect.decompression()
         if conversionField in channel:  # there is conversion property
