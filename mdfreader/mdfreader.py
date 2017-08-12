@@ -356,8 +356,11 @@ class mdf(mdf3, mdf4):
         noDataLoading : bool, optional
             Flag to read only file info but no data to have minimum memory use
 
-        compression : bool, optional
-            flag to compress data in memory using blosc, takes cpu time
+        compression : bool or str, optional
+            To compress data in memory using blosc or bcolz, takes cpu time
+            if compression = int(1 to 9), uses bcolz for compression
+            if compression = 'blosc', uses blosc for compression
+            Choice given, efficiency depends of data
 
         Notes
         --------
@@ -380,12 +383,12 @@ class mdf(mdf3, mdf4):
 
         if not noDataLoading:
             if self.MDFVersionNumber < 400:  # up to version 3.x not compatible with version 4.x
-                self.read3(self.fileName, info, multiProc, channelList, \
+                self.read3(self.fileName, info, multiProc, channelList,
                     convertAfterRead, filterChannelNames, compression)
             else:  # MDF version 4.x
-                self.read4(self.fileName, info, multiProc, channelList, \
+                self.read4(self.fileName, info, multiProc, channelList,
                     convertAfterRead, filterChannelNames, compression)
-        else: # populate minimum mdf structure
+        else:  # populate minimum mdf structure
             self._info = info
             (self.masterChannelList, mdfdict) = self._info._generateDummyMDF(channelList)
             self.update(mdfdict)
