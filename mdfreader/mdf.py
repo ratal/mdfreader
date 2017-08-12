@@ -17,8 +17,9 @@ Dependencies
 mdf module
 --------------------------
 """
-import bcolz
-import pandas as pd
+from bcolz import cparams, carray, detect_number_of_cores, set_nthreads
+from blosc import decompress_ptr, compress_ptr
+from pandas import set_option
 from collections import OrderedDict
 from numpy import array_repr, set_printoptions, recarray, empty
 set_printoptions(threshold=100, edgeitems=1)
@@ -28,9 +29,11 @@ from zipfile import is_zipfile, ZipFile
 from itertools import chain
 from random import choice
 from string import ascii_letters
-from sys import version_info
+from sys import version_info, getsizeof
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
+_ncores = detect_number_of_cores()
+set_nthreads(_ncores)
 
 descriptionField = 'description'
 unitField = 'unit'
@@ -123,6 +126,7 @@ class mdf_skeleton(dict):
         self.convert_tables = False
         self._pandasframe = False
         self._info = None
+        self._compression_level = 9  # default compression level
         # clears class from previous reading and avoid to mess up
         self.clear()
         self.fileName = fileName
@@ -392,12 +396,21 @@ class mdf_skeleton(dict):
             channel name
         data : numpy array
             channel data
-        compression : bool
+        compression : bool or str
             trigger for data compression
         """
         if compression:
-            temp = compressed_data()
-            temp.compression(data)
+            if not isinstance(compression, str):
+                if isinstance(compression, int):
+                    comp = compression
+                else:
+                    comp = self._compression_level
+                temp = carray(data,
+                              cparams=cparams(clevel=comp),
+                              expectedlen=int(getsizeof(data) / 10))
+            else:
+                temp = compressed_data()
+                temp.compression(data)
             self._setChannel(channelName, temp, field=dataField)
         else:
             self._setChannel(channelName, data, field=dataField)
@@ -556,16 +569,16 @@ class mdf_skeleton(dict):
                     data = self.getChannelData(c)
                     # not byte, impossible to represent
                     if data.dtype.kind != 'V':
-                        output += array_repr(data,
+                        output += array_repr(data[:],
                                              precision=3, suppress_small=True)
                     unit = self.getChannelUnit(c)
                     if unit is not None:
                         output += ' ' + unit + '\n'
             return output
         else:
-            pd.set_option('max_rows', 3)
-            pd.set_option('expand_frame_repr', True)
-            pd.set_option('max_colwidth', 6)
+            set_option('max_rows', 3)
+            set_option('expand_frame_repr', True)
+            set_option('max_colwidth', 6)
             for master in self.masterGroups:
                 output += master
                 output += str(self[master])
@@ -709,7 +722,9 @@ class compressed_data():
             numpy array dtype
         """
         self.data = None
-        self.clevel = 9
+        self.size = 0
+        self.dtype = None
+        self._compression_level = 9
 
     def compression(self, a):
         """ data compression method
@@ -719,8 +734,12 @@ class compressed_data():
         a : numpy array
             data to be compresses
         """
-        self.data = bcolz.carray(a,
-                                 cparams=bcolz.cparams(clevel=self.clevel))
+        self.data = compress_ptr(a.__array_interface__['data'][0],
+                                 a.size, typesize=a.dtype.itemsize,
+                                 clevel=self._compression_level,
+                                 shuffle=True)
+        self.size = a.size
+        self.dtype = a.dtype
 
     def decompression(self):
         """ data decompression
@@ -729,14 +748,16 @@ class compressed_data():
         -------------
         uncompressed numpy array
         """
-        return self.data[:]
+        c = empty(self.size, dtype=self.dtype)
+        decompress_ptr(self.data, c.__array_interface__['data'][0])
+        return c
 
     def __str__(self):
         """ prints compressed_data object content
         """
         output = 'Data: \n'
-        output += array_repr(self.data,
+        output += array_repr(self.data[:],
                              precision=3,
                              suppress_small=True)
-        output += '\n Compression level ' + str(self.clevel) + '\n'
+        output += '\n Compression level ' + str(self._compression_level) + '\n'
         return output
