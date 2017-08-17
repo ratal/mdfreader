@@ -17,8 +17,14 @@ Dependencies
 mdf module
 --------------------------
 """
-from bcolz import cparams, carray, detect_number_of_cores, set_nthreads
-from blosc import decompress_ptr, compress_ptr
+try:
+    from bcolz import cparams, carray, detect_number_of_cores, set_nthreads
+    _ncores = detect_number_of_cores()
+    set_nthreads(_ncores)
+    from blosc import decompress_ptr, compress_ptr
+except ImportError:
+    noCompressionPossible = True
+    
 from pandas import set_option
 from collections import OrderedDict
 from numpy import array_repr, set_printoptions, recarray, empty
@@ -32,8 +38,6 @@ from string import ascii_letters
 from sys import version_info, getsizeof
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
-_ncores = detect_number_of_cores()
-set_nthreads(_ncores)
 
 descriptionField = 'description'
 unitField = 'unit'
