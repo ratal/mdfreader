@@ -498,14 +498,15 @@ class record(list):
                             self.recordToChannelMatching[prev_chan.recAttributeName]
                     else:  # first channels
                         self.recordToChannelMatching[channel.recAttributeName] = \
-                                channel.recAttributeName
+                            channel.recAttributeName
                         self.numpyDataRecordFormat.append(channel.RecordFormat)
                         self.dataRecordName.append(channel.recAttributeName)
                         self.recordLength += channel.nBytes
             elif len(self) == 1 and channel.posBitBeg >= 8:
                 self.hiddenBytes = True
             if embedding_channel is None:  # adding bytes
-                self.recordToChannelMatching[channel.recAttributeName] = channel.recAttributeName
+                self.recordToChannelMatching[channel.recAttributeName] = \
+                    channel.recAttributeName
                 self.numpyDataRecordFormat.append(channel.RecordFormat)
                 self.dataRecordName.append(channel.recAttributeName)
                 self.recordLength += channel.nBytes
@@ -518,11 +519,8 @@ class record(list):
         if self.CGrecordLength > self.recordLength:
             self.hiddenBytes = True
         # check record length consitency
-        if self.CGrecordLength < self.recordLength and self.byte_aligned\
-                and not self.hiddenBytes:
-            print('Warning : DataGroup ' + str(self.dataGroup) +
-                  ' ChannelGroup ' + str(self.channelGroup) +
-                  ' has inconsistent record length', file=stderr)
+        elif self.CGrecordLength < self.recordLength:
+            self.byte_aligned = False  # forces to use dataRead instead of numpy records.
 
     def readSortedRecord(self, fid, pointer, channelSet=None):
         """ reads record, only one channel group per datagroup
