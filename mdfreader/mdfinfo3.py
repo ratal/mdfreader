@@ -29,10 +29,11 @@ PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 from numpy import sort, zeros
 from struct import calcsize, unpack
+from collections import defaultdict
 from mdf import dataField, descriptionField, unitField, masterField, masterTypeField
 
 
-class info3(dict):
+class info3(defaultdict):
 
     """ mdf file info class version 3.x
     MDFINFO is a class information about an MDF (Measure Data Format) file
@@ -75,12 +76,12 @@ class info3(dict):
         --------
         If fileName is given it will read file blocks directly by calling method readinfo3
         """
-        self['IDBlock'] = {}  # Identifier Block
-        self['HDBlock'] = {}  # Header Block
-        self['DGBlock'] = {}  # Data Group Block
-        self['CGBlock'] = {}  # Channel Group Block
-        self['CNBlock'] = {}  # Channel Block
-        self['CCBlock'] = {}  # Conversion block
+        self['IDBlock'] = defaultdict()  # Identifier Block
+        self['HDBlock'] = defaultdict()  # Header Block
+        self['DGBlock'] = defaultdict()  # Data Group Block
+        self['CGBlock'] = defaultdict()  # Channel Group Block
+        self['CNBlock'] = defaultdict()  # Channel Block
+        self['CCBlock'] = defaultdict()  # Conversion block
         self.filterChannelNames = filterChannelNames
         self.fileName = fileName
         if fileName is not None and fid is None:
@@ -104,10 +105,8 @@ class info3(dict):
         fid.seek(24)
         self['IDBlock']['ByteOrder'] = unpack('<H', fid.read(2))
         self['IDBlock']['FloatingPointFormat'] = unpack('<H', fid.read(2))
-        self['IDBlock']['id_ver'] = unpack('<H', fid.read(2))
-        self['IDBlock']['id_ver'] = self['IDBlock']['id_ver'][0]
-        self['IDBlock']['CodePageNumber'] = unpack('<H', fid.read(2))
-        self['IDBlock']['CodePageNumber'] = self['IDBlock']['CodePageNumber'][0]
+        self['IDBlock']['id_ver'] = unpack('<H', fid.read(2))[0]
+        self['IDBlock']['CodePageNumber'] = unpack('<H', fid.read(2))[0]
 
         # Read header block (HDBlock) information
         # Read Header block info into structure, HD pointer at 64 as mentioned in specification
@@ -133,12 +132,12 @@ class info3(dict):
 
             # Read data Channel Group block info into structure
             CGpointer = self['DGBlock'][dataGroup]['pointerToNextCGBlock']
-            self['CGBlock'][dataGroup] = {}
-            self['CNBlock'][dataGroup] = {}
-            self['CCBlock'][dataGroup] = {}
+            self['CGBlock'][dataGroup] = defaultdict()
+            self['CNBlock'][dataGroup] = defaultdict()
+            self['CCBlock'][dataGroup] = defaultdict()
             for channelGroup in range(self['DGBlock'][dataGroup]['numberOfChannelGroups']):
-                self['CNBlock'][dataGroup][channelGroup] = {}
-                self['CCBlock'][dataGroup][channelGroup] = {}
+                self['CNBlock'][dataGroup][channelGroup] = defaultdict()
+                self['CCBlock'][dataGroup][channelGroup] = defaultdict()
                 self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread3(self.blockformats3('CGFormat'), fid, CGpointer)
                 CGpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToNextCGBlock']
 
@@ -188,8 +187,7 @@ class info3(dict):
                         print('WARNING added number to duplicate channel name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName'], file=stderr)
                     else:
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
-                        snames.add(signalname)
-                        #self.channelNameList.append( signalname )
+                    snames.add(self['CNBlock'][dataGroup][channelGroup][channel]['signalName'])
 
                     # Read channel description
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToChannelCommentBlock']
