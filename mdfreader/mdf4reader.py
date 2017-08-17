@@ -39,11 +39,13 @@ from sys import version_info, exc_info, byteorder, stderr, path
 from os.path import dirname, abspath
 _root = dirname(abspath(__file__))
 path.append(_root)
+from collections import defaultdict
 from numpy.core.records import fromstring, fromfile
 from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
-from mdfinfo4 import info4, MDFBlock, ATBlock, IDBlock, HDBlock, DGBlock,\
-    CGBlock, CNBlock, FHBlock, CommentBlock
+from mdfinfo4 import info4, ATBlock, IDBlock, HDBlock, DGBlock,\
+    CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
+    DZBlock, HLBlock
 from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
     dataField, conversionField, compressed_data
 
@@ -183,7 +185,7 @@ def DATABlock(record, parent_block, channelSet=None, sortedFlag=True):
         else:  # unsorted reading
             return readUnsorted(record, parent_block, channelSet, sortedFlag)
 
-        
+
 def decompress_datablock(block, zip_type, zip_parameter, org_data_length):
     """ decompress datablock.
 
@@ -197,7 +199,7 @@ def decompress_datablock(block, zip_type, zip_parameter, org_data_length):
         first dimension of matrix to be transposed
     org_data_length : int
         uncompressed data length
-        
+
     Returns
     ---------
     uncompressed raw data
@@ -217,6 +219,7 @@ def decompress_datablock(block, zip_type, zip_parameter, org_data_length):
         block = temp.tostring()
     return block
 
+
 def equalizeStringLength(buf):
     """ Makes all strings in a list having same length by appending spaces strings.
 
@@ -232,6 +235,7 @@ def equalizeStringLength(buf):
     for i in range(len(buf)):  # resize string to same length, numpy constrain
         buf[i] += ' ' * (maxlen - len(buf[i]))
     return buf
+
 
 def append_field(rec, name, arr, numpy_dtype=None):
     """ append new field in a recarray
@@ -258,6 +262,7 @@ def append_field(rec, name, arr, numpy_dtype=None):
         newrec[field] = rec[field]
     newrec[name] = arr
     return newrec
+
 
 def change_field_name(arr, old_name, new_name):
     """ modifies name of field in a recarray
@@ -372,7 +377,7 @@ class DATA(dict):
                 for channel in self[recordID]['record']:
                     self[recordID]['data'][channel.recAttributeName] = data[channel.recAttributeName]
 
-    def load(self, record, zip=None, nameList=None, sortedFlag=True):  # reads sorted data
+    def load(self, record, zip=None, nameList=None, sortedFlag=True):
         """Reads data block from record definition
 
         Parameters
@@ -388,29 +393,21 @@ class DATA(dict):
         -----------
         numpy recarray of data
         """
-        temps = MDFBlock()
+        temps = defaultdict()
         # block header
-        temps.loadHeader(self.fid, self.pointerTodata)
+        temps.update(_loadHeader(self.fid, self.pointerTodata))
         if temps['id'] in ('##DL', b'##DL'):  # data list block
-            # link section
-            temps['dl_dl_next'] = temps.mdfblockread(self.fid, LINK, 1)
-            temps['dl_data'] = {}
-            temps['dl_data'][0] = [temps.mdfblockread(self.fid, LINK, 1) for Link in range(temps['link_count'] - 1)]
-            # data section
-            temps['dl_flags'] = temps.mdfblockread(self.fid, UINT8, 1)
-            temps['dl_reserved'] = temps.mdfblockreadBYTE(self.fid, 3)
-            temps['dl_count'] = temps.mdfblockread(self.fid, UINT32, 1)
-            if temps['dl_flags']:  # equal length datalist
-                temps['dl_equal_length'] = temps.mdfblockread(self.fid, UINT64, 1)
-            else:  # datalist defined by byte offset
-                temps['dl_offset'] = temps.mdfblockread(self.fid, UINT64, temps['dl_count'])
+            temps.update(DLBlock(self.fid, temps['link_count']))
             if temps['dl_dl_next']:
                 index = 1
             while temps['dl_dl_next']:  # reads pointers to all data blocks (DT, RD, SD, DZ)
-                temp = MDFBlock()
-                temp.loadHeader(self.fid, temps['dl_dl_next'])
-                temps['dl_dl_next'] = temp.mdfblockread(self.fid, LINK, 1)
-                temps['dl_data'][index] = [temp.mdfblockread(self.fid, LINK, 1) for Link in range(temp['link_count'] - 1)]
+                temp = defaultdict()
+                temp.update(_loadHeader(self.fid, temps['dl_dl_next']))
+                temps['dl_dl_next'] = structunpack('<Q', self.fid.read(8))[0]
+                temps['dl_data'][index] = \
+                    structunpack('<{}Q'.
+                                 format(temp['link_count'] - 1),
+                                 self.fid.read(8 * (temp['link_count'] - 1)))
                 index += 1
             if temps['dl_count']:
                 # read and concatenate raw blocks
@@ -418,33 +415,29 @@ class DATA(dict):
                 for DL in temps['dl_data']:
                     for pointer in temps['dl_data'][DL]:
                         # read fist data blocks linked by DLBlock to identify data block type
-                        data_block = MDFBlock()
-                        data_block.loadHeader(self.fid, pointer)
-                        if data_block['id'] in ('##DT', '##RD', b'##DT', b'##RD', '##SD', b'##SD'):
-                            buf.extend(self.fid.read(data_block['length'] - 24))
+                        data_block = defaultdict()
+                        data_block.update(_loadHeader(self.fid, pointer))
+                        if data_block['id'] in ('##DT', '##RD', b'##DT',
+                                                b'##RD', '##SD', b'##SD'):
+                            buf.extend(self.fid.read(
+                                       data_block['length'] - 24))
                         elif data_block['id'] in ('##DZ', b'##DZ'):
-                            data_block['dz_org_block_type'] = data_block.mdfblockreadCHAR(self.fid, 2)
-                            data_block['dz_zip_type'] = data_block.mdfblockread(self.fid, UINT8, 1)
-                            data_block['dz_reserved'] = data_block.mdfblockreadBYTE(self.fid, 1)
-                            data_block['dz_zip_parameter'] = data_block.mdfblockread(self.fid, UINT32, 1)
-                            data_block['dz_org_data_length'] = data_block.mdfblockread(self.fid, UINT64, 1)
-                            data_block['dz_data_length'] = data_block.mdfblockread(self.fid, UINT64, 1)
-                            data_block['data'] = decompress_datablock(self.fid.read(data_block['dz_data_length']),
+                            data_block.update(DZBlock(self.fid))
+                            data_block['data'] = \
+                                decompress_datablock(
+                                    self.fid.read(data_block['dz_data_length']),
                                     data_block['dz_zip_type'],
-                                    data_block['dz_zip_parameter'], data_block['dz_org_data_length'])
+                                    data_block['dz_zip_parameter'],
+                                    data_block['dz_org_data_length'])
                             buf.extend(data_block['data'])
-                            data_block['id'] = '##DT' # do not uncompress in DATABlock function
+                            data_block['id'] = '##DT'  # do not uncompress in DATABlock function
                 data_block['data'] = buf
                 temps['data'] = DATABlock(record, parent_block=data_block, channelSet=nameList, sortedFlag=sortedFlag)
             else:  # empty datalist
                 temps['data'] = None
         elif temps['id'] in ('##HL', b'##HL'):  # header list block for DZBlock
             # link section
-            temps['hl_dl_first'] = temps.mdfblockread(self.fid, LINK, 1)
-            # data section
-            temps['hl_flags'] = temps.mdfblockread(self.fid, UINT16, 1)
-            temps['hl_zip_type'] = temps.mdfblockread(self.fid, UINT8, 1)
-            temps['hl_reserved'] = temps.mdfblockreadBYTE(self.fid, 5)
+            temps.update(HLBlock(self.fid))
             self.pointerTodata = temps['hl_dl_first']
             temps['data'] = self.load(record, zip=temps['hl_zip_type'], nameList=nameList, sortedFlag=sortedFlag)
         elif temps['id'] in ('##DT', '##RD', b'##DT', b'##RD'):  # normal sorted data block, direct read
@@ -453,12 +446,7 @@ class DATA(dict):
             temps['data'] = self.fid.read(temps['length'] - 24)
             temps['data'] = DATABlock(record, parent_block=temps, channelSet=nameList, sortedFlag=sortedFlag)
         elif temps['id'] in ('##DZ', b'##DZ'):  # zipped data block
-            temps['dz_org_block_type'] = temps.mdfblockreadCHAR(self.fid, 2)
-            temps['dz_zip_type'] = temps.mdfblockread(self.fid, UINT8, 1)
-            temps['dz_reserved'] = temps.mdfblockreadBYTE(self.fid, 1)
-            temps['dz_zip_parameter'] = temps.mdfblockread(self.fid, UINT32, 1)
-            temps['dz_org_data_length'] = temps.mdfblockread(self.fid, UINT64, 1)
-            temps['dz_data_length'] = temps.mdfblockread(self.fid, UINT64, 1)
+            temps.update(DZBlock(self.fid))
             temps['data'] = self.fid.read(temps['dz_data_length'])
             temps['data'] = DATABlock(record, parent_block=temps, channelSet=nameList, sortedFlag=sortedFlag)
         else:
@@ -478,6 +466,7 @@ class DATA(dict):
             setof channel names to be read
         """
         return self[recordID]['record'].readRecordBuf(buf, channelSet)
+
 
 class channel():
 
@@ -607,7 +596,7 @@ class channel():
         output += 'unit ' + self.unit + ' '
         output += 'description ' + self.desc
         return output
-    
+
     def attachment(self, fid, info):
         # in case of sync channel attached to channel
         return ATBlock(fid, info['CNBlock'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data'])
@@ -854,6 +843,7 @@ class channel():
         else:
             raise('asking for invalid byte array but channel is not invalid byte type')
 
+
 class record(list):
 
     """ record class listing channel classes. It is representing a channel group
@@ -938,8 +928,8 @@ class record(list):
         self.CANOpen = None
 
     def __str__(self):
-        totalbits = 0 # counting number of bits
-        totalbytes = 0 # total number of bytes
+        totalbits = 0  # counting number of bits
+        totalbytes = 0  # total number of bytes
         output = 'Record class content print\n'
         output += 'Total number of channels : ' + str(len(self)) + '\n'
         for chan in self:
@@ -1027,7 +1017,7 @@ class record(list):
             if Channel.channelType in (0, 1, 2, 4, 5):  # not virtual channel
                 if Channel.signalDataType == 13:
                     for name in ('ms', 'minute', 'hour', 'day', 'month', 'year'):
-                        Channel = channel() # new object otherwise only modified
+                        Channel = channel()  # new object otherwise only modified
                         Channel.setCANOpen(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDsize, name)
                         self.append(Channel)
                         self.channelNames.add(name)
@@ -1119,11 +1109,8 @@ class record(list):
         if self.CGrecordLength > self.recordLength:
             self.hiddenBytes = True
         # check record length consitency
-        if self.CGrecordLength < self.recordLength and self.byte_aligned\
-                and not self.hiddenBytes:
-            print('Warning : DataGroup ' + str(self.dataGroup) +
-                  ' ChannelGroup ' + str(self.channelGroup) +
-                  ' has inconsistent record length', file=stderr)
+        elif self.CGrecordLength < self.recordLength:
+            self.byte_aligned = False  # forces to use dataRead instead of numpy records.
 
     def readSortedRecord(self, fid, pointer, channelSet=None):
         """ reads record, only one channel group per datagroup
