@@ -18,7 +18,8 @@ Dependencies
 Attributes
 --------------
 PythonVersion : float
-    Python version currently running, needed for compatibility of both python 2.6+ and 3.2+
+    Python version currently running, needed for compatibility of both
+    python 2.6+ and 3.2+
 
 mdf3reader module
 --------------------------
@@ -29,7 +30,8 @@ from numpy import average, right_shift, bitwise_and, diff, max, min, interp
 from numpy import asarray, zeros, recarray, array, reshape, searchsorted
 from numpy.core.records import fromfile
 from numpy.core.defchararray import encode as ncode
-from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName, dataField, conversionField, compressed_data
+from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
+    dataField, conversionField, compressed_data
 from mdfinfo3 import info3
 from math import log, exp
 from time import strftime, time
@@ -42,6 +44,7 @@ path.append(_root)
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
+
 
 def linearConv(data, conv):  # 0 Parametric, Linear: Physical =Integer*P2 + P1
     """ apply linear conversion to data
@@ -75,7 +78,8 @@ def tabInterpConv(data, conv):  # 1 Tabular with interpolation
     -----------
     converted data to physical value
     """
-    tmp = array([(key, val['int'], val['phys']) for (key, val) in conv.items()])
+    tmp = array([(key, val['int'], val['phys'])
+                for (key, val) in conv.items()])
     return interp(data, tmp[:, 1], tmp[:, 2])
 
 
@@ -92,7 +96,8 @@ def tabConv(data, conv):  # 2 Tabular
     -----------
     converted data to physical value
     """
-    tmp = array([(key, val['int'], val['phys']) for (key, val) in conv.items()])
+    tmp = array([(key, val['int'], val['phys'])
+                for (key, val) in conv.items()])
     indexes = searchsorted(tmp[:, 1], data)
     return tmp[indexes, 2]
 
@@ -110,7 +115,8 @@ def polyConv(data, conv):  # 6 Polynomial
     -----------
     converted data to physical value
     """
-    return (conv['P2'] - conv['P4'] * (data - conv['P5'] - conv['P6'])) / (conv['P3'] * (data - conv['P5'] - conv['P6']) - conv['P1'])
+    return (conv['P2'] - conv['P4'] * (data - conv['P5'] - conv['P6'])) \
+        / (conv['P3'] * (data - conv['P5'] - conv['P6']) - conv['P1'])
 
 
 def expConv(data, conv):  # 7 Exponential
@@ -127,9 +133,11 @@ def expConv(data, conv):  # 7 Exponential
     converted data to physical value
     """
     if conv['P4'] == 0 and conv['P1'] != 0 and conv['P2'] != 0:
-        return exp(((data - conv['P7']) * conv['P6'] - conv['P3']) / conv['P1']) / conv['P2']
+        return exp(((data - conv['P7']) * conv['P6'] - conv['P3'])
+                   / conv['P1']) / conv['P2']
     elif conv['P1'] == 0 and conv['P4'] != 0 and conv['P5'] != 0:
-        return exp((conv['P3'] / (data - conv['P7']) - conv['P6']) / conv['P4']) / conv['P5']
+        return exp((conv['P3'] / (data - conv['P7']) - conv['P6'])
+                   / conv['P4']) / conv['P5']
     else:
         print('Non possible conversion parameters for channel ', file=stderr)
 
@@ -148,9 +156,11 @@ def logConv(data, conv):  # 8 Logarithmic
     converted data to physical value
     """
     if conv['P4'] == 0 and conv['P1'] != 0 and conv['P2'] != 0:
-        return log(((data - conv['P7']) * conv['P6'] - conv['P3']) / conv['P1']) / conv['P2']
+        return log(((data - conv['P7']) * conv['P6'] - conv['P3'])
+                   / conv['P1']) / conv['P2']
     elif conv['P1'] == 0 and conv['P4'] != 0 and conv['P5'] != 0:
-        return log((conv['P3'] / (data - conv['P7']) - conv['P6']) / conv['P4']) / conv['P5']
+        return log((conv['P3'] / (data - conv['P7']) - conv['P6'])
+                   / conv['P4']) / conv['P5']
     else:
         print('Non possible conversion parameters for channel ', file=stderr)
 
@@ -168,7 +178,8 @@ def rationalConv(data, conv):  # 9 rational
     -----------
     converted data to physical value
     """
-    return(conv['P1'] * data * data + conv['P2'] * data + conv['P3']) / (conv['P4'] * data * data + conv['P5'] * data + conv['P6'])
+    return (conv['P1'] * data * data + conv['P2'] * data + conv['P3'])\
+        / (conv['P4'] * data * data + conv['P5'] * data + conv['P6'])
 
 
 def formulaConv(data, conv):  # 10 Text Formula
@@ -192,9 +203,12 @@ def formulaConv(data, conv):  # 10 Text Formula
         from sympy import lambdify, symbols
         X = symbols('X')  # variable is X
         formula = conv['textFormula']
-        formula = formula[:formula.find('\x00')]  # remove trailing text after 0
-        formula = formula.replace('pow(', 'power(')  # adapt ASAM-MCD2 syntax to sympy
-        expr = lambdify(X, formula, modules='numpy', dummify=False)  # formula to function for evaluation
+        # remove trailing text after 0
+        formula = formula[:formula.find('\x00')]
+        # adapt ASAM-MCD2 syntax to sympy
+        formula = formula.replace('pow(', 'power(')
+        # formula to function for evaluation
+        expr = lambdify(X, formula, modules='numpy', dummify=False)
         return expr(data)
     except:
         print('Please install sympy to convert channel ', file=stderr)
@@ -265,11 +279,14 @@ class Channel():
     byteOffset : int
         position of channel record in complete record in bytes
     bitOffset : int
-        bit position of channel value inside byte in case of channel having bit count below 8
+        bit position of channel value inside byte in case of channel
+        having bit count below 8
     recAttributeName : str
-        channel name compliant to a valid python identifier (recarray attribute)
+        channel name compliant to a valid python identifier
+        (recarray attribute)
     RecordFormat : list of str
-        dtype format used for numpy.core.records functions ((name_title,name),str_stype)
+        dtype format used for numpy.core.records functions
+        ((name_title,name),str_stype)
     channelType : int
         channel type
     posByteBeg : int
@@ -285,7 +302,8 @@ class Channel():
         to print class attributes
     """
 
-    def __init__(self, info, dataGroup, channelGroup, channelNumber, recordIDnumber):
+    def __init__(self, info, dataGroup, channelGroup,
+                 channelNumber, recordIDnumber):
         """ Channel class constructor
 
         Parameters
@@ -832,9 +850,10 @@ class DATA(dict):
             recordID = recordIdCFormat.unpack(stream[position:position + 1])[0]
             if not self[recordID]['record'].hiddenBytes and self[recordID]['record'].byte_aligned:
                 temp = self[recordID]['record'].readRecordBuf(stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
-            else: # do read bytes but bits in record
+            else:  # do read bytes but bits in record
                 temp = self[recordID]['record'].readRecordBits(stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
-            position += self[recordID]['record'].CGrecordLength + 1 # recordId is only unit8
+            # recordId is only unit8
+            position += self[recordID]['record'].CGrecordLength + 1
             for channelName in temp:
                 buf[channelName].append(temp[channelName])  # to remove append
         # convert list to array
