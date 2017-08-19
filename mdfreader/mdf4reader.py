@@ -45,7 +45,7 @@ from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
 from mdfinfo4 import info4, ATBlock, IDBlock, HDBlock, DGBlock,\
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
-    DZBlock, HLBlock
+    DZBlock, HLBlock, _writePointer, _writeHeader
 from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
     dataField, conversionField, compressed_data
 
@@ -1653,21 +1653,21 @@ class mdf4(mdf_skeleton):
         pointers.update(temp.write(fid))
 
         # Header Block comments
-        MDFBlock.writePointer(fid, pointers['HD']['MD'], fid.tell())
+        _writePointer(fid, pointers['HD']['MD'], fid.tell())
         temp = CommentBlock()
         temp.write(fid, self.file_metadata, 'HD')
 
         # file history block
         temp = FHBlock()
-        MDFBlock.writePointer(fid, pointers['HD']['FH'], fid.tell()) 
+        _writePointer(fid, pointers['HD']['FH'], fid.tell()) 
         pointers.update(temp.write(fid))
         # File History comment
-        MDFBlock.writePointer(fid, pointers['FH']['MD'], fid.tell())
+        _writePointer(fid, pointers['FH']['MD'], fid.tell())
         temp = CommentBlock()
         temp.write(fid, self.file_metadata, 'FH')
 
         # write DG block
-        MDFBlock.writePointer(fid, pointers['HD']['DG'], fid.tell()) # first DG
+        _writePointer(fid, pointers['HD']['DG'], fid.tell()) # first DG
 
         pointers['DG'] = {}
         pointers['CG'] = {}
@@ -1681,16 +1681,16 @@ class mdf4(mdf_skeleton):
             DG_pointer = fid.tell()
             pointers['DG'][dataGroup] = temp.write(fid)
             if DG_flag:
-                MDFBlock.writePointer(fid, pointers['DG'][dataGroup-1]['DG'], pointers['DG'][dataGroup]['block_start'])  # Next DG
+                _writePointer(fid, pointers['DG'][dataGroup-1]['DG'], pointers['DG'][dataGroup]['block_start'])  # Next DG
             DG_flag = pointers['DG'][dataGroup]['block_start']
-            MDFBlock.writePointer(fid, pointers['DG'][dataGroup]['CG'], fid.tell())  # First CG
+            _writePointer(fid, pointers['DG'][dataGroup]['CG'], fid.tell())  # First CG
 
             # write CGBlock
             temp = CGBlock()
             cg_cycle_count = len(self.getChannelData(masterChannel))
             cg_data_bytes = 0
             pointers['CG'][dataGroup] = temp.write(fid, cg_cycle_count, cg_data_bytes)
-            MDFBlock.writePointer(fid, pointers['CG'][dataGroup]['CN'], fid.tell())  # first channel block pointer
+            _writePointer(fid, pointers['CG'][dataGroup]['CN'], fid.tell())  # first channel block pointer
 
             # write channels
             record_byte_offset = 0
@@ -1703,7 +1703,8 @@ class mdf4(mdf_skeleton):
             for nchannel in range(nChannel):
                 channel = self.masterChannelList[masterChannel][nchannel]
                 data = self.getChannelData(channel)
-                if channel.find('invalid_bytes') == -1 and len(data) > 0:  # no interest to write invalid bytes as channel
+                # no interest to write invalid bytes as channel
+                if channel.find('invalid_bytes') == -1 and len(data) > 0:
                     dataList = dataList + (data, )
                     number_of_channel +=1
                     temp = CNBlock()
@@ -1761,10 +1762,10 @@ class mdf4(mdf_skeleton):
                         dataTypeList += str(data.dtype.itemsize) + 's'
                     pointers['CN'][nchannel] = temp.write(fid)
                     if CN_flag:
-                        MDFBlock.writePointer(fid, pointers['CN'][nchannel-1]['CN'], pointers['CN'][nchannel]['block_start'])  # Next DG
+                        _writePointer(fid, pointers['CN'][nchannel-1]['CN'], pointers['CN'][nchannel]['block_start'])  # Next DG
                     CN_flag = pointers['CN'][nchannel]['block_start']
                     # write channel name
-                    MDFBlock.writePointer(fid, pointers['CN'][nchannel]['TX'], fid.tell())
+                    _writePointer(fid, pointers['CN'][nchannel]['TX'], fid.tell())
                     temp = CommentBlock()
                     temp.write(fid, channel, 'TX')
 
@@ -1773,17 +1774,16 @@ class mdf4(mdf_skeleton):
                     if unit is not None and not len(unit) == 0:
                         temp = CommentBlock()
                         block_start = temp.write(fid, unit, 'TX')
-                        MDFBlock.writePointer(fid, pointers['CN'][nchannel]['Unit'], block_start)
+                        _writePointer(fid, pointers['CN'][nchannel]['Unit'], block_start)
 
                     # Conversion blocks writing
 
-            MDFBlock.writePointer(fid, pointers['CG'][dataGroup]['cg_data_bytes'], record_byte_offset)  # writes size of record in CG
+            _writePointer(fid, pointers['CG'][dataGroup]['cg_data_bytes'], record_byte_offset)  # writes size of record in CG
 
             # data writing
             # write data pointer in datagroup
-            temp = MDFBlock()
-            DTposition = temp.writeHeader(fid, '##DT', 24 + record_byte_offset * nRecords, 0)
-            MDFBlock.writePointer(fid, pointers['DG'][dataGroup]['data'], DTposition)
+            DTposition = _writeHeader(fid, '##DT', 24 + record_byte_offset * nRecords, 0)
+            _writePointer(fid, pointers['DG'][dataGroup]['data'], DTposition)
             records = array(dataList, object).T
             records = reshape(records, (1, number_of_channel * nRecords), order='C')[0]  # flatten the matrix
             fid.write(pack('<' + dataTypeList * nRecords, *records))  # dumps data vector from numpy

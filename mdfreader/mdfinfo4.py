@@ -235,7 +235,7 @@ def _writeChar(fid, value, size=None):
 
 
 def _writePointer(fid, pointer, value):
-    """ Writes a value at pointer position and comes back to orgianl position
+    """ Writes a value at pointer position and comes back to original position
 
     Parameters
     ----------------
@@ -249,7 +249,7 @@ def _writePointer(fid, pointer, value):
     currentPosition = fid.tell()
     fid.seek(pointer)
     fid.write(pack(LINK, value))
-    fid.seek(currentPosition)
+    return fid.seek(currentPosition)
 
 
 class IDBlock(defaultdict):
@@ -302,8 +302,8 @@ class IDBlock(defaultdict):
         """ Writes IDBlock
         """
         # MDF versionTxt tool reserved version_int
-        head = ('MDF     ', '4.11    ', 'MDFreadr', '\0' * 4, 411,
-                '\0' * 30, 0, 0)
+        head = (b'MDF     ', b'4.11    ', b'MDFreadr', b'\0' * 4, 411,
+                b'\0' * 30, 0, 0)
         fid.write(pack('<8s8s8s4sH30s2H', *head))
 
 
@@ -336,41 +336,35 @@ class HDBlock(defaultdict):
          self['hd_flags'],
          self['hd_reserved'],
          self['hd_start_angle_rad'],
-         self['hd_start_distance']) = unpack('<4sI9Q2H4B2Q', fid.read(104))
+         self['hd_start_distance']) = unpack('<4sI9Q2h4B2Q', fid.read(104))
         if self['hd_md_comment']:  # if comments exist
             self['Comment'] = CommentBlock(fid, self['hd_md_comment'], 'HD')
 
     def write(self, fid):
         # write block header
-        _writeHeader(fid, '##HD', 104, 6)
+        currentPosition = _writeHeader(fid, '##HD', 104, 6)
         # link section
-        pointers = {}
-        pointers['HD'] = {}
-        pointers['HD']['DG'] = fid.tell()
-        fid.write(pack(LINK, 0))  # first Data group pointer
-        pointers['HD']['FH'] = fid.tell()
-        fid.write(pack(LINK, 0))  # first file history block pointer
-        pointers['HD']['CH'] = fid.tell()
-        fid.write(pack(LINK, 0))  # pointer to hierarchy Block file
-        pointers['HD']['AT'] = fid.tell()
-        fid.write(pack(LINK, 0))  # pointer to attachment Block
-        pointers['HD']['EV'] = fid.tell()
-        fid.write(pack(LINK, 0))  # pointer to event Block
-        pointers['HD']['MD'] = fid.tell()
-        fid.write(pack(LINK, 0))  # pointer to comment Block
-        # data section
-        fid.write(pack(UINT64, int(time.time()*1E9)))  # time in ns
-        fid.write(pack(INT16, int(time.timezone/60)))  # timezone offset in min
-        fid.write(pack(INT16, int(time.daylight*60)))  # time daylight offest in min
-        fid.write(pack(UINT8, 2))  # time flags
-        fid.write(pack(UINT8, 0))  # time class
-        fid.write(pack(UINT8, 0))  # hd flags
-        self.writeChar(fid, '\0')  # reserved
-        fid.write(pack(REAL, 0))  # start angle in radians
-        fid.write(pack(REAL, 0))  # start distance in meters
-        # writes Header comments
-        # temp = CommentBlock()
-        # pointers.update(temp.write(fid))
+        currentPosition += 24
+        pointers = defaultdict()
+        pointers['HD'] = defaultdict()
+        pointers['HD']['DG'] = currentPosition
+        pointers['HD']['FH'] = currentPosition + 8 * 1
+        pointers['HD']['CH'] = currentPosition + 8 * 2
+        pointers['HD']['AT'] = currentPosition + 8 * 3
+        pointers['HD']['EV'] = currentPosition + 8 * 4
+        pointers['HD']['MD'] = currentPosition + 8 * 5
+        # (first Data group pointer, first file history block pointer,
+        # pointer to hierarchy Block file, pointer to attachment Block,
+        # pointer to event Block, pointer to comment Block,
+        # time in ns, timezone offset in min, time daylight offest in min,
+        # time flags, time class, hd flags, reserved, start angle in radians
+        # start distance in meters)
+        dataBytes = (0, 0, 0, 0, 0, 0,
+                     int(time.time()*1E9),
+                     int(time.timezone/60),
+                     int(time.daylight*60),
+                     2, 0, 0, b'\0', 0, 0)
+        fid.write(pack('<7Q2h3Bs2d', *dataBytes))
         return pointers
 
 
@@ -395,26 +389,28 @@ class FHBlock(defaultdict):
          self['fh_tz_offset_min'],
          self['fh_dst_offset_min'],
          self['fh_time_flags'],
-         self['fh_reserved']) = unpack('<4sI5Q2HB3s', fid.read(56))
+         self['fh_reserved']) = unpack('<4sI5Q2hB3s', fid.read(56))
         if self['fh_md_comment']:  # comments exist
             self['Comment'] = CommentBlock(fid, self['fh_md_comment'], 'FH')
 
     def write(self, fid):
         # write block header
-        _writeHeader(fid, '##FH', 56, 2)
+        currentPosition = _writeHeader(fid, '##FH', 56, 2)
         # link section
+        currentPosition += 24
         pointers = {}
-        pointers['FH'] = {}
-        pointers['FH']['FH'] = fid.tell()
-        fid.write(pack(LINK, 0))  # No next FH
-        pointers['FH']['MD'] = fid.tell()
-        fid.write(pack(LINK, 0))  # comment block
-        # data section
-        fid.write(pack(UINT64, int(time.time()*1E9)))  # time in ns
-        fid.write(pack(INT16, int(time.timezone/60)))  # timezone offset in min
-        fid.write(pack(INT16, int(time.daylight*60)))  # time daylight offest in min
-        fid.write(pack(UINT8, 2))  # time flags
-        self.writeChar(fid, '\0' * 3)  # reserved
+        pointers['FH'] = defaultdict()
+        pointers['FH']['FH'] = currentPosition
+        pointers['FH']['MD'] = currentPosition + 8
+        # (No next FH, comment block pointer
+        # time in ns, timezone offset in min, time daylight offest in min,
+        # time flags, reserved)
+        dataBytes = (0, 0,
+                     int(time.time()*1E9),
+                     int(time.timezone/60),
+                     int(time.daylight*60),
+                     2, b'\0' * 3)
+        fid.write(pack('<3Q2hB3s', *dataBytes))
         return pointers
 
 
@@ -427,15 +423,16 @@ class CHBlock(defaultdict):
         # block header
         self.update(_loadHeader(fid, pointer))
         # Channel hierarchy block
-        self['ch_ch_next'] = _mdfblockread(fid, LINK, 1)
-        self['ch_ch_first'] = _mdfblockread(fid, LINK, 1)
-        self['ch_tx_name'] = _mdfblockread(fid, LINK, 1)
-        self['ch_md_comment'] = _mdfblockread(fid, LINK, 1)
-        self['ch_element'] = _mdfblockread(fid, LINK, (self['link_count'] - 4) / 3)
-        # data section
-        self['ch_element_count'] = _mdfblockread(fid, LINK, 1)
-        self['ch_type'] = _mdfblockread(fid, UINT8, 1)
-        self['ch_reserved'] = _mdfblockreadBYTE(fid, 3)
+        (self['ch_ch_next'],
+         self['ch_ch_first'],
+         self['ch_tx_name'],
+         self['ch_md_comment']) = unpack('<4Q', fid.read(32))
+        nLinks = self['link_count'] - 4
+        self['ch_element'] = unpack('<{}Q'.format(nLinks),
+                                    fid.read(nLinks * 8))
+        (self['ch_element_count'],
+         self['ch_type'],
+         self['ch_reserved']) = unpack('<IB3s', fid.read(8))
         if self['ch_md_comment']:  # comments exist
             self['Comment'] = CommentBlock(fid, self['ch_md_comment'])
         if self['ch_tx_name']:  # text block containing name of hierarchy level
@@ -684,19 +681,19 @@ class DGBlock(defaultdict):
     def write(self, fid):
         pointers = {}
         # write block header
-        pointers['block_start'] = _writeHeader(fid, '##DG', 64, 4)
+        currentPosition = _writeHeader(fid, '##DG', 64, 4)
+        pointers['block_start'] = currentPosition
         # link section
-        pointers['DG'] = fid.tell()
-        fid.write(pack(LINK, 0))  # Next Data group pointer
-        pointers['CG'] = fid.tell()
-        fid.write(pack(LINK, 0))  # first channel group block pointer
-        pointers['data'] = fid.tell()
-        fid.write(pack(LINK, 0))  # data block pointer
-        pointers['TX'] = fid.tell()
-        fid.write(pack(LINK, 0))  # comment block pointer
-        # data section
-        fid.write(pack(UINT8, 0))  # no recordID
-        self.writeChar(fid, '\0' * 7)  # reserved
+        currentPosition += 24
+        pointers['DG'] = currentPosition
+        pointers['CG'] = currentPosition + 8
+        pointers['data'] = currentPosition + 8 * 2
+        pointers['TX'] = currentPosition + 8 * 3
+        # (Next Data group pointer, first channel group block pointer,
+        # data block pointer, comment block pointer,
+        # no recordID, reserved)
+        dataBytes = (0, 0, 0, 0, 0, b'\0' * 7)
+        fid.write(pack('<4QB7s', *dataBytes))
         return pointers
 
 
@@ -737,29 +734,29 @@ class CGBlock(defaultdict):
     def write(self, fid, cg_cycle_count, cg_data_bytes):
         pointers = {}
         # write block header
-        pointers['block_start'] = _writeHeader(fid, '##CG', 104, 6)
+        currentPosition = _writeHeader(fid, '##CG', 104, 6)
         # link section
-        pointers['CG'] = fid.tell()
-        fid.write(pack(LINK, 0))  # Next channel group pointer
-        pointers['CN'] = fid.tell()
-        fid.write(pack(LINK, 0))  # first channel block pointer
-        pointers['ACN'] = fid.tell()
-        fid.write(pack(LINK, 0))  # acquisition name pointer
-        pointers['ACS'] = fid.tell()
-        fid.write(pack(LINK, 0))  # acquisition source pointer
-        pointers['SR'] = fid.tell()
-        fid.write(pack(LINK, 0))  # sample reduction pointer
-        pointers['TX'] = fid.tell()
-        fid.write(pack(LINK, 0))  # comment pointer
-        # data section
-        fid.write(pack(UINT64, 0))  # no recordID
-        fid.write(pack(UINT64, cg_cycle_count))  # cycle count
-        fid.write(pack(UINT16, 0))  # no flags
-        fid.write(pack(UINT16, 0))  # no character specified for path separator
-        self.writeChar(fid, '\0' * 4)  # reserved
-        pointers['cg_data_bytes'] = fid.tell()
-        fid.write(pack(UINT32, cg_data_bytes))  # number of bytes taken by data in record
-        fid.write(pack(UINT32, 0))  # no invalid bytes
+        pointers['block_start'] = currentPosition
+        currentPosition += 24
+        pointers['CG'] = currentPosition
+        pointers['CN'] = currentPosition + 8
+        pointers['ACN'] = currentPosition + 8 * 2
+        pointers['ACS'] = currentPosition + 8 * 3
+        pointers['SR'] = currentPosition + 8 * 4
+        pointers['TX'] = currentPosition + 8 * 5
+        pointers['cg_data_bytes'] = currentPosition + 92
+        # (Next channel group pointer, first channel block pointer,
+        # acquisition name pointer, acquisition source pointer,
+        # sample reduction pointer, comment pointer,
+        # no recordID, cycle count, no flags,
+        # no character specified for path separator,
+        # reserved, number of bytes taken by data in record,
+        # no invalid bytes)
+        dataBytes = (0, 0, 0, 0, 0, 0, 0,
+                     cg_cycle_count, 0, 0,
+                     b'\0' * 4,
+                     cg_data_bytes, 0)
+        fid.write(pack('<8Q2Hs2I', *dataBytes))
         return pointers
 
 
@@ -834,45 +831,35 @@ class CNBlock(defaultdict):
         pointers = {}
         # write block header
         # no attachement and default X
-        pointers['block_start'] = _writeHeader(fid, '##CN', 160, 8)
+        currentPosition = _writeHeader(fid, '##CN', 160, 8)
         # link section
-        pointers['CN'] = fid.tell()
-        fid.write(pack(LINK, 0))  # Next channel block pointer
-        pointers['CN_Comp'] = fid.tell()
-        fid.write(pack(LINK, 0))  # composition of channel pointer
-        pointers['TX'] = fid.tell()
-        fid.write(pack(LINK, 0))  # TXBlock pointer for channel name
-        pointers['SI'] = fid.tell()
-        fid.write(pack(LINK, 0))  # source SIBlock pointer
-        pointers['CC'] = fid.tell()
-        fid.write(pack(LINK, 0))  # Conversion Channel CCBlock pointer
-        pointers['data'] = fid.tell()
-        fid.write(pack(LINK, 0))  # channel data pointer
-        pointers['Unit'] = fid.tell()
-        fid.write(pack(LINK, 0))  # channel unit comment block pointer
-        pointers['Comment'] = fid.tell()
-        fid.write(pack(LINK, 0))  # channel comment block pointer
-        # no attachment and default X pointers
-        # data section
+        pointers['block_start'] = currentPosition
+        currentPosition += 24
+        pointers['CN'] = currentPosition
+        pointers['CN_Comp'] = currentPosition + 8
+        pointers['TX'] = currentPosition + 8 * 2
+        pointers['SI'] = currentPosition + 8 * 3
+        pointers['CC'] = currentPosition + 8 * 4
+        pointers['data'] = currentPosition + 8 * 5
+        pointers['Unit'] = currentPosition + 8 * 6
+        pointers['Comment'] = currentPosition + 8 * 7
+        # (Next channel block pointer, composition of channel pointer,
+        # TXBlock pointer for channel name, source SIBlock pointer,
+        # Conversion Channel CCBlock pointer, channel data pointer,
+        # channel unit comment block pointer, channel comment block pointer,
+        # no attachments and default_x
         # channel type, 0 normal, 2 master
-        fid.write(pack(UINT8, self['cn_type']))
         # sync type, 0 None, 1 time, 2 angle, 3 distance, 4 index
-        fid.write(pack(UINT8, self['cn_sync_type']))
-        fid.write(pack(UINT8, self['cn_data_type']))  # data type
-        fid.write(pack(UINT8, self['cn_bit_offset']))  # bit offset
-        fid.write(pack(UINT32, self['cn_byte_offset']))  # byte offset
-        fid.write(pack(UINT32, self['cn_bit_count']))  # bit count
-        fid.write(pack(UINT32, 0))  # no flags
-        fid.write(pack(UINT32, 0))  # no flags
-        fid.write(pack(UINT8, 0))  # precision
-        self.writeChar(fid, '\0')  # reserved
-        fid.write(pack(UINT16, 0))  # attachments count
-        fid.write(pack(REAL, 0))  # val range min
-        fid.write(pack(REAL, 0))  # val range max
-        fid.write(pack(REAL, 0))  # val limit min
-        fid.write(pack(REAL, 0))  # val limit max
-        fid.write(pack(REAL, 0))  # val limit ext min
-        fid.write(pack(REAL, 0))  # val limit ext max
+        # data type, bit offset, byte offset, bit count, no flags,
+        # precision, reserved, attachments count,
+        # val range min, val range max, val limit min, val limit max,
+        # val limit ext min, val limit ext max)
+        dataBytes = (0, 0, 0, 0, 0, 0, 0, 0,
+                     self['cn_type'], self['cn_sync_type'],
+                     self['cn_data_type'], self['cn_bit_offset'],
+                     self['cn_byte_offset'], self['cn_bit_count'],
+                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+        fid.write(pack('<8Q4B4I2BH6d', *dataBytes))
         return pointers
 
 
@@ -1235,8 +1222,10 @@ class info4(defaultdict):
     - mdfinfo['HDBlock'] header block
     - mdfinfo['DGBlock'][dataGroup] Data Group block
     - mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
-    - mdfinfo['CNBlock'][dataGroup][channelGroup][channel] Channel block including text blocks for comment and identifier
-    - mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information
+    Channel block including text blocks for comment and identifier
+    - mdfinfo['CNBlock'][dataGroup][channelGroup][channel]
+    Channel conversion information
+    - mdfinfo['CCBlock'][dataGroup][channelGroup][channel]
     """
 
     def __init__(self, fileName=None, fid=None):
