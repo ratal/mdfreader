@@ -312,7 +312,8 @@ class mdf(mdf3, mdf4):
     >>> import mdfreader
     >>> yop=mdfreader.mdf('NameOfFile')
     >>> yop.keys() # list channels names
-    >>> yop.masterChannelList() # list channels grouped by raster or master channel
+    # list channels grouped by raster or master channel
+    >>> yop.masterChannelList()
     >>> yop.plot('channelName') or yop.plot({'channel1','channel2'})
     >>> yop.resample(0.1) or yop.resample(channelName='master3')
     >>> yop.exportoCSV(sampling=0.01)
@@ -323,13 +324,14 @@ class mdf(mdf3, mdf4):
     >>> yop.exporttoXlsx()
     >>> yop.convertToPandas() # converts data groups into pandas dataframes
     >>> yop.write() # writes mdf file
-    >>> yop.keepChannels({'channel1','channel2','channel3'}) # drops all the channels except the one in argument
+    # drops all the channels except the one in argument
+    >>> yop.keepChannels({'channel1','channel2','channel3'})
     >>> yop.getChannelData('channelName') # returns channel numpy array
     """
 
-    def read(self, fileName=None, multiProc=False, channelList=None, \
-            convertAfterRead=True, filterChannelNames=False, noDataLoading=False,\
-            compression=False):
+    def read(self, fileName=None, multiProc=False, channelList=None,
+             convertAfterRead=True, filterChannelNames=False,
+             noDataLoading=False, compression=False):
         """ reads mdf file version 3.x and 4.x
 
         Parameters
