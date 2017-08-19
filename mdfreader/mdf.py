@@ -23,8 +23,9 @@ try:
     set_nthreads(_ncores)
     from blosc import decompress_ptr, compress_ptr
 except ImportError:
+    print('Cannot compress data, please install bcols and blosc')
     noCompressionPossible = True
-    
+
 from pandas import set_option
 from collections import OrderedDict
 from numpy import array_repr, set_printoptions, recarray, empty
@@ -198,8 +199,9 @@ class mdf_skeleton(dict):
                     self[channel_name]['conversion']['parameters'] = \
                         conversion['conversion']
                 if conversion['cc_type'] == 0 and \
+                        'P2' in self[channel_name]['conversion']['parameters'] and \
                         (self[channel_name]['conversion']['parameters']['P2'] == 1.0 and
-                        self[channel_name]['conversion']['parameters']['P1'] in (0.0, -0.0)):
+                         self[channel_name]['conversion']['parameters']['P1'] in (0.0, -0.0)):
                     self[channel_name].pop('conversion')
             else:  # mdf4
                 if 'cc_val' in conversion:

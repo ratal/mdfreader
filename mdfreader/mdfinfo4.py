@@ -17,7 +17,8 @@ Dependencies
 Attributes
 --------------
 PythonVersion : float
-    Python version currently running, needed for compatibility of both python 2.6+ and 3.2+
+    Python version currently running, needed for compatibility of both
+    python 2.6+ and 3.2+
 
 mdfinfo4 module
 --------------------------
@@ -203,12 +204,8 @@ def _writeHeader(fid, Id, block_length, link_count):
     if not remain == 0:
         current_position = current_position - remain + 8
         fid.seek(current_position)
-    _writeChar(fid, Id)
-    _writeChar(fid, '\0' * 4)  # reserved
-    # block_length_pointer = fid.tell()
-    fid.write(pack(UINT64, block_length))  # block size
-    # link_count_pointer = fid.tell()
-    fid.write(pack(UINT64, link_count))  # number of links
+    head = (Id, 0, block_length, link_count)
+    fid.write(HeaderStruct.pack(*head))
     return current_position
 
 
@@ -278,7 +275,7 @@ class IDBlock(defaultdict):
                                                 fid.read(64))
         # treatment of unfinalised file
         if self['id_ver'] > 410 and 'UnFin' in self['id_file']:
-            print('  /!\ unfinalised file', file=stderr)
+            print('  ! unfinalised file', file=stderr)
             if self['id_unfi_flags'] & 1:
                 print('Update of cycle counters for CG/CA blocks required',
                       file=stderr)
@@ -304,14 +301,10 @@ class IDBlock(defaultdict):
     def write(self, fid):
         """ Writes IDBlock
         """
-        self.writeChar(fid, 'MDF     ')
-        self.writeChar(fid, '4.11    ')
-        self.writeChar(fid, 'MDFreadr')
-        fid.write(pack(UINT32, 0))  # reserved
-        fid.write(pack(UINT16, 411))  # version 4.11
-        self.writeChar(fid, '\0' * 30)  # reserved
-        fid.write(pack(UINT16, 0))  # finalisation flag
-        fid.write(pack(UINT16, 0))  # custom finalisation flag
+        # MDF versionTxt tool reserved version_int
+        head = ('MDF     ', '4.11    ', 'MDFreadr', '\0' * 4, 411,
+                '\0' * 30, 0, 0)
+        fid.write(pack('<8s8s8s4sH30s2H', *head))
 
 
 class HDBlock(defaultdict):
@@ -463,7 +456,8 @@ class CommentBlock(defaultdict):
 
         Notes
         --------
-        Can read xml (MD metadata) or text (TX) comments from several kind of blocks
+        Can read xml (MD metadata) or text (TX) comments from several
+        kind of blocks
         """
 
         if pointer > 0:
@@ -475,51 +469,87 @@ class CommentBlock(defaultdict):
              self['link_count']) = HeaderStruct.unpack(fid.read(24))
             if self['id'] in ('##MD', b'##MD'):
                 # Metadata block
-                self['Comment'] = _mdfblockreadBYTE(fid, self['length'] - 24)  # removes normal 0 at end
+                # removes normal 0 at end
+                self['Comment'] = _mdfblockreadBYTE(fid, self['length'] - 24)
                 try:
-                    self['xml_tree'] = etree.fromstring(self['Comment'].encode('utf-8'), _parsernsclean)
+                    self['xml_tree'] = \
+                        etree.fromstring(self['Comment'].encode('utf-8'),
+                                         _parsernsclean)
                 except:
                     print('xml metadata malformed', file=stderr)
                     self['xml_tree'] = None
-                # self['xml'] = elementTreeToDict(self['xml_tree'])
-                # specific action per comment block type, extracts specific tags from xml
+                # specific action per comment block type,
+                # #extracts specific tags from xml
                 if MDType == 'CN':  # channel comment
-                    self['description'] = self.extractXmlField(self['xml_tree'], _find_TX)
-                    self['names'] = self.extractXmlField(self['xml_tree'], _find_names)
-                    self['linker_name'] = self.extractXmlField(self['xml_tree'], _find_linker_name)
-                    self['linker_address'] = self.extractXmlField(self['xml_tree'], _find_linker_address)
-                    self['address'] = self.extractXmlField(self['xml_tree'], _find_address)
-                    self['axis_monotony'] = self.extractXmlField(self['xml_tree'], _find_axis_monotony)
-                    self['raster'] = self.extractXmlField(self['xml_tree'], _find_raster)
-                    self['formula'] = self.extractXmlField(self['xml_tree'], _find_formula)
+                    self['description'] = \
+                        self.extractXmlField(self['xml_tree'], _find_TX)
+                    self['names'] = \
+                        self.extractXmlField(self['xml_tree'], _find_names)
+                    self['linker_name'] = \
+                        self.extractXmlField(self['xml_tree'],
+                                             _find_linker_name)
+                    self['linker_address'] = \
+                        self.extractXmlField(self['xml_tree'],
+                                             _find_linker_address)
+                    self['address'] = \
+                        self.extractXmlField(self['xml_tree'], _find_address)
+                    self['axis_monotony'] = \
+                        self.extractXmlField(self['xml_tree'],
+                                             _find_axis_monotony)
+                    self['raster'] = \
+                        self.extractXmlField(self['xml_tree'], _find_raster)
+                    self['formula'] = \
+                        self.extractXmlField(self['xml_tree'], _find_formula)
                 elif MDType == 'unit':  # channel comment
-                    self['unit'] = self.extractXmlField(self['xml_tree'], _find_TX)
+                    self['unit'] = self.extractXmlField(self['xml_tree'],
+                                                        _find_TX)
                 elif MDType == 'HD':  # header comment
-                    self['TX'] = self.extractXmlField(self['xml_tree'], _find_TX)
-                    tmp = self.extractXmlField(self['xml_tree'], _find_common_properties)
-                    tmp = self['xml_tree'].find(namespace + 'common_properties')
+                    self['TX'] = self.extractXmlField(self['xml_tree'],
+                                                      _find_TX)
+                    tmp = self.extractXmlField(self['xml_tree'],
+                                               _find_common_properties)
+                    tmp = self['xml_tree'].find(namespace +
+                                                'common_properties')
                     if tmp is None:
                         tmp = self['xml_tree'].find('common_properties')
                     if tmp is not None:
                         for t in tmp:
                             self[t.attrib['name']] = t.text
                 elif MDType == 'FH':  # File History comment
-                    self['TX'] = self.extractXmlField(self['xml_tree'], _find_TX)
-                    self['tool_id'] = self.extractXmlField(self['xml_tree'], _find_tool_id)
-                    self['tool_vendor'] = self.extractXmlField(self['xml_tree'], _find_tool_vendor)
-                    self['tool_version'] = self.extractXmlField(self['xml_tree'], _find_tool_version)
-                    self['user_name'] = self.extractXmlField(self['xml_tree'], _find_user_name)
+                    self['TX'] = self.extractXmlField(self['xml_tree'],
+                                                      _find_TX)
+                    self['tool_id'] = self.extractXmlField(self['xml_tree'],
+                                                           _find_tool_id)
+                    self['tool_vendor'] = \
+                        self.extractXmlField(self['xml_tree'],
+                                             _find_tool_vendor)
+                    self['tool_version'] = \
+                        self.extractXmlField(self['xml_tree'],
+                                             _find_tool_version)
+                    self['user_name'] = \
+                        self.extractXmlField(self['xml_tree'],
+                                             _find_user_name)
                 elif MDType == 'SI':
-                    self['TX'] = self.extractXmlField(self['xml_tree'], _find_TX)
-                    self['names'] = self.extractXmlField(self['xml_tree'], _find_names)
-                    self['path'] = self.extractXmlField(self['xml_tree'], _find_path)
-                    self['bus'] = self.extractXmlField(self['xml_tree'], _find_bus)
-                    self['protocol'] = self.extractXmlField(self['xml_tree'], _find_protocol)
+                    self['TX'] = self.extractXmlField(self['xml_tree'],
+                                                      _find_TX)
+                    self['names'] = self.extractXmlField(self['xml_tree'],
+                                                         _find_names)
+                    self['path'] = self.extractXmlField(self['xml_tree'],
+                                                        _find_path)
+                    self['bus'] = self.extractXmlField(self['xml_tree'],
+                                                       _find_bus)
+                    self['protocol'] = self.extractXmlField(self['xml_tree'],
+                                                            _find_protocol)
                 elif MDType == 'CC':
-                    self['TX'] = self.extractXmlField(self['xml_tree'], _find_TX)
-                    self['names'] = self.extractXmlField(self['xml_tree'], _find_names)
-                    self['COMPU_METHOD'] = self.extractXmlField(self['xml_tree'], _find_COMPU_METHOD)
-                    self['formula'] = self.extractXmlField(self['xml_tree'], _find_formula)
+                    self['TX'] = self.extractXmlField(self['xml_tree'],
+                                                      _find_TX)
+                    self['names'] = self.extractXmlField(self['xml_tree'],
+                                                         _find_names)
+                    self['COMPU_METHOD'] = \
+                        self.extractXmlField(self['xml_tree'],
+                                             _find_COMPU_METHOD)
+                    self['formula'] = self.extractXmlField(self['xml_tree'],
+                                                           _find_formula)
                 else:
                     if MDType is not None:
                         print('No recognized MDType', file=stderr)
@@ -528,7 +558,8 @@ class CommentBlock(defaultdict):
                 if MDType == 'CN':  # channel comment
                     self['name'] = _mdfblockreadBYTE(fid, self['length'] - 24)
                 else:
-                    self['Comment'] = _mdfblockreadBYTE(fid, self['length'] - 24)
+                    self['Comment'] = _mdfblockreadBYTE(fid,
+                                                        self['length'] - 24)
 
     def extractXmlField(self, xml_tree, find):
         """ Extract Xml field from a xml tree
@@ -622,7 +653,7 @@ def elementTreeToDict(element):
     dict of xml tree flattened
     """
     return element.tag, \
-           dict(map(elementTreeToDict, element)) or element.text
+        dict(map(elementTreeToDict, element)) or element.text
 
 
 class DGBlock(defaultdict):
@@ -636,6 +667,7 @@ class DGBlock(defaultdict):
 
     def read(self, fid, pointer):
         fid.seek(pointer)
+        self['pointer'] = pointer
         (self['id'],
          self['reserved'],
          self['length'],
@@ -679,6 +711,7 @@ class CGBlock(defaultdict):
 
     def read(self, fid, pointer):
         fid.seek(pointer)
+        self['pointer'] = pointer
         (self['id'],
          self['reserved'],
          self['length'],
@@ -742,6 +775,7 @@ class CNBlock(defaultdict):
              self['reserved'],
              self['length'],
              self['link_count']) = HeaderStruct.unpack(fid.read(24))
+            self['pointer'] = pointer
             # data section
             fid.seek(pointer + self['length'] - 72)
             (self['cn_type'],
@@ -772,23 +806,28 @@ class CNBlock(defaultdict):
              self['cn_md_unit'],
              self['cn_md_comment']) = unpack('<8Q', fid.read(64))
             if self['cn_attachment_count'] > 0:
-                self['cn_at_reference'] = _mdfblockread(fid, LINK, self['cn_attachment_count'])
+                self['cn_at_reference'] = \
+                    _mdfblockread(fid, LINK, self['cn_attachment_count'])
                 self['attachment'] = {}
                 if self['cn_attachment_count'] > 1:
                     for at in range(self['cn_attachment_count']):
-                        self['attachment'][at] = ATBlock(fid, self['cn_at_reference'][at])
+                        self['attachment'][at] = \
+                            ATBlock(fid, self['cn_at_reference'][at])
                 else:
-                    self['attachment'][0] = ATBlock(fid, self['cn_at_reference'])
+                    self['attachment'][0] = \
+                        ATBlock(fid, self['cn_at_reference'])
             if self['link_count'] > (8 + self['cn_attachment_count']):
                 self['cn_default_x'] = _mdfblockread(fid, LINK, 3)
             else:
                 self['cn_default_x'] = None
             if self['cn_md_comment']:  # comments exist
-                self['Comment'] = CommentBlock(fid, self['cn_md_comment'], MDType='CN')
+                self['Comment'] = \
+                    CommentBlock(fid, self['cn_md_comment'], MDType='CN')
             if self['cn_md_unit']:  # comments exist
                 self['unit'] = CommentBlock(fid, self['cn_md_unit'], 'unit')
             if self['cn_tx_name']:  # comments exist
-                self['name'] = CommentBlock(fid, self['cn_tx_name'], MDType='CN')['name']
+                self['name'] = \
+                    CommentBlock(fid, self['cn_tx_name'], MDType='CN')['name']
             self['name'] = self['name'].replace(':', '')
 
     def write(self, fid):
@@ -815,8 +854,10 @@ class CNBlock(defaultdict):
         fid.write(pack(LINK, 0))  # channel comment block pointer
         # no attachment and default X pointers
         # data section
-        fid.write(pack(UINT8, self['cn_type']))  # channel type, 0 normal, 2 master
-        fid.write(pack(UINT8, self['cn_sync_type']))  # sync type, 0 None, 1 time, 2 angle, 3 distance, 4 index
+        # channel type, 0 normal, 2 master
+        fid.write(pack(UINT8, self['cn_type']))
+        # sync type, 0 None, 1 time, 2 angle, 3 distance, 4 index
+        fid.write(pack(UINT8, self['cn_sync_type']))
         fid.write(pack(UINT8, self['cn_data_type']))  # data type
         fid.write(pack(UINT8, self['cn_bit_offset']))  # bit offset
         fid.write(pack(UINT32, self['cn_byte_offset']))  # byte offset
@@ -876,7 +917,7 @@ class CCBlock(defaultdict):
                 for i in range(self['cc_ref_count']):
                     fid.seek(self['cc_ref'][i])
                     # find if TX/MD or another CCBlock
-                    ID = _mdfblockreadCHAR(fid, 4)
+                    ID = unpack('4s', fid.read(4))
                     # for algebraic formulae
                     if ID in ('##TX', '##MD', b'##TX', b'##MD'):
                         temp = CommentBlock(fid, self['cc_ref'][i])
@@ -904,18 +945,19 @@ class CABlock(defaultdict):
         # block header
         if pointer != 0 and pointer is not None:
             fid.seek(pointer)
-            self['id'] = _mdfblockreadCHAR(fid, 4)
-            self['reserved'] = _mdfblockreadBYTE(fid, 4)
-            self['length'] = _mdfblockread(fid, UINT64, 1)
-            self['link_count'] = _mdfblockread(fid, UINT64, 1)
+            (self['id'],
+             self['reserved'],
+             self['length'],
+             self['link_count']) = HeaderStruct.unpack(fid.read(24))
+            self['pointer'] = pointer
             # reads data section
             fid.seek(pointer + 24 + self['link_count'] * 8)
-            self['ca_type'] = _mdfblockread(fid, UINT8, 1)
-            self['ca_storage'] = _mdfblockread(fid, UINT8, 1)
-            self['ca_ndim'] = _mdfblockread(fid, UINT16, 1)
-            self['ca_flags'] = int(_mdfblockread(fid, UINT32, 1))
-            self['ca_byte_offset_base'] = _mdfblockread(fid, INT32, 1)
-            self['ca_invalid_bit_pos_base'] = _mdfblockread(fid, UINT32, 1)
+            (self['ca_type'],
+             self['ca_storage'],
+             self['ca_ndim'],
+             self['ca_flags'],
+             self['ca_byte_offset_base'],
+             self['ca_invalid_bit_pos_base']) = unpack('2BHIiI', fid.read(16))
             self['ca_dim_size'] = _mdfblockread(fid, UINT64, self['ca_ndim'])
             try:  # more than one dimension, processing dict
                 self['SNd'] = 0
@@ -927,25 +969,33 @@ class CABlock(defaultdict):
                 self['SNd'] = self['ca_dim_size']
                 self['PNd'] = self['SNd']
             if 1 << 5 & self['ca_flags']:  # bit5
-                self['ca_axis_value'] = _mdfblockread(fid, REAL, self['SNd'])
+                self['ca_axis_value'] = \
+                    _mdfblockread(fid, REAL, self['SNd'])
             if self['ca_storage'] >= 1:
-                self['ca_cycle_count'] = _mdfblockread(fid, UINT64, self['PNd'])
+                self['ca_cycle_count'] = \
+                    _mdfblockread(fid, UINT64, self['PNd'])
             # Channel Conversion block : Links
             fid.seek(pointer + 24)
-            self['ca_composition'] = _mdfblockread(fid, LINK, 1)  # point to CN for array of structures or CA for array of array
+            # point to CN for array of structures or CA for array of array
+            self['ca_composition'] = _mdfblockread(fid, LINK, 1)
             if self['ca_storage'] == 2:
                 self['ca_data'] = _mdfblockread(fid, LINK, self['PNd'])
             if 1 << 0 & self['ca_flags']:  # bit 0
-                self['ca_dynamic_size'] = _mdfblockread(fid, LINK, self['ca_ndim'] * 3)
+                self['ca_dynamic_size'] = \
+                    _mdfblockread(fid, LINK, self['ca_ndim'] * 3)
             if 1 << 1 & self['ca_flags']:  # bit 1
-                self['ca_input_quantity'] = _mdfblockread(fid, LINK, self['ca_ndim'] * 3)
+                self['ca_input_quantity'] = \
+                    _mdfblockread(fid, LINK, self['ca_ndim'] * 3)
             if 1 << 2 & self['ca_flags']:  # bit 2
-                self['ca_output_quantity'] = _mdfblockread(fid, LINK, 3)
+                self['ca_output_quantity'] = \
+                    _mdfblockread(fid, LINK, 3)
             if 1 << 3 & self['ca_flags']:  # bit 3
                 self['ca_comparison_quantity'] = _mdfblockread(fid, LINK, 3)
             if 1 << 4 & self['ca_flags']:  # bit 4
-                self['ca_cc_axis_conversion'] = _mdfblockread(fid, LINK, self['ca_ndim'])
-            if 1 << 4 & self['ca_flags'] and not 1 << 5 & self['ca_flags']:  # bit 4 and 5
+                self['ca_cc_axis_conversion'] = \
+                    _mdfblockread(fid, LINK, self['ca_ndim'])
+            if 1 << 4 & self['ca_flags'] and not 1 << 5 & self['ca_flags']:
+                # bit 4 and 5
                 self['ca_axis'] = _mdfblockread(fid, LINK, self['ca_ndim'] * 3)
             # nested arrays
             if self['ca_composition']:
@@ -990,30 +1040,30 @@ class EVBlock(defaultdict):
         # block header
         if pointer != 0 and pointer is not None:
             fid.seek(pointer)
-            self['id'] = _mdfblockreadCHAR(fid, 4)
-            self['reserved'] = _mdfblockreadBYTE(fid, 4)
-            self['length'] = _mdfblockread(fid, UINT64, 1)
-            self['link_count'] = _mdfblockread(fid, UINT64, 1)
+            (self['id'],
+             self['reserved'],
+             self['length'],
+             self['link_count']) = HeaderStruct.unpack(fid.read(24))
             # data section
             fid.seek(pointer + self['length'] - 32)
-            self['ev_type'] = _mdfblockread(fid, UINT8, 1)
-            self['ev_sync_type'] = _mdfblockread(fid, UINT8, 1)
-            self['ev_range_type'] = _mdfblockread(fid, UINT8, 1)
-            self['ev_cause'] = _mdfblockread(fid, UINT8, 1)
-            self['ev_flags'] = _mdfblockread(fid, UINT8, 1)
-            self['at_reserved'] = _mdfblockreadBYTE(fid, 3)
-            self['ev_scope_count'] = _mdfblockread(fid, UINT32, 1)
-            self['ev_attachment_count'] = _mdfblockread(fid, UINT16, 1)
-            self['ev_creator_index'] = _mdfblockread(fid, UINT16, 1)
-            self['ev_sync_base_value'] = _mdfblockread(fid, UINT64, 1)
-            self['ev_sync_factor'] = _mdfblockread(fid, REAL, 1)
+            (self['ev_type'],
+             self['ev_sync_type'],
+             self['ev_range_type'],
+             self['ev_cause'],
+             self['ev_flags'],
+             self['at_reserved'],
+             self['ev_scope_count'],
+             self['ev_attachment_count'],
+             self['ev_creator_index'],
+             self['ev_sync_base_value'],
+             self['ev_sync_factor']) = unpack('<5B3sI2HQd', fid.read(32))
             # link section
             fid.seek(pointer + 24)
-            self['ev_ev_next'] = _mdfblockread(fid, LINK, 1)
-            self['ev_ev_parent'] = _mdfblockread(fid, LINK, 1)
-            self['ev_ev_range'] = _mdfblockread(fid, LINK, 1)
-            self['ev_tx_name'] = _mdfblockread(fid, LINK, 1)
-            self['ev_md_comment'] = _mdfblockread(fid, LINK, 1)
+            (self['ev_ev_next'],
+             self['ev_ev_parent'],
+             self['ev_ev_range'],
+             self['ev_tx_name'],
+             self['ev_md_comment']) = unpack('<5Q', fid.read(40))
             self['ev_scope'] = _mdfblockread(fid, LINK, self['ev_scope_count'])
             # post treatment
             if self['ev_cause'] == 0:
@@ -1027,9 +1077,11 @@ class EVBlock(defaultdict):
             elif self['ev_cause'] == 4:
                 self['ev_cause'] == 'USER'
             if self['ev_attachment_count'] > 0:
-                self['ev_at_reference'] = _mdfblockread(fid, LINK, self['ev_attachment_count'])
+                self['ev_at_reference'] = \
+                    _mdfblockread(fid, LINK, self['ev_attachment_count'])
                 for at in range(self['ev_attachment_count']):
-                    self['attachment'][at] = ATBlock(fid, self['ev_at_reference'][at])
+                    self['attachment'][at] = \
+                        ATBlock(fid, self['ev_at_reference'][at])
             if self['ev_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock(fid, self['ev_md_comment'])
             if self['ev_tx_name']:  # comments exist
@@ -1464,13 +1516,16 @@ class info4(defaultdict):
                     self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][cn]['name'])
 
                     # reads Channel Array Block
-                    if self['CNBlock'][dg][cg][cn]['cn_composition']:  # composition but can be either structure of channels or array
+                    if self['CNBlock'][dg][cg][cn]['cn_composition']:
+                        # composition but can be either structure of channels or array
                         fid.seek(self['CNBlock'][dg][cg][cn]['cn_composition'])
                         id = fid.read(4)
                         if id in ('##CA', b'##CA'):
-                            self['CNBlock'][dg][cg][cn]['CABlock'] = CABlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                            self['CNBlock'][dg][cg][cn]['CABlock'] = \
+                                CABlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
                         elif id in ('##CN', b'##CN'):
-                            self['CNBlock'][dg][cg][cn]['CNBlock'] = CNBlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                            self['CNBlock'][dg][cg][cn]['CNBlock'] = \
+                                CNBlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
                         else:
                             raise('unknown channel composition')
 
@@ -1494,7 +1549,8 @@ class info4(defaultdict):
                     self['MLSD'][dg][cg][MLSDcn] = cn
                     break
 
-    def readComposition(self, fid, dg, cg, MLSDChannels, channelNameList=False):
+    def readComposition(self, fid, dg, cg, MLSDChannels,
+                        channelNameList=False):
         """check for composition of channels, arrays or structures
 
         Parameters
@@ -1520,17 +1576,26 @@ class info4(defaultdict):
                 fid.seek(self['CNBlock'][dg][cg][cn]['cn_composition'])
                 ID = unpack('4s', fid)
                 if ID in ('##CN', b'##CN'):  # Structures
-                    self['CNBlock'][dg][cg][chan] = CNBlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
-                    self['CCBlock'][dg][cg][chan] = CCBlock(fid, self['CNBlock'][dg][cg][chan]['cn_cc_conversion'])
+                    self['CNBlock'][dg][cg][chan] = \
+                        CNBlock(fid, self['CNBlock']
+                                [dg][cg][cn]['cn_composition'])
+                    self['CCBlock'][dg][cg][chan] = \
+                        CCBlock(fid, self['CNBlock']
+                                [dg][cg][chan]['cn_cc_conversion'])
                     if self['CNBlock'][dg][cg][chan]['cn_type'] == 5:
                         MLSDChannels.append(chan)
                     while self['CNBlock'][dg][cg][chan]['cn_cn_next']:
                         chan += 1
-                        self['CNBlock'][dg][cg][chan] = CNBlock(fid, self['CNBlock'][dg][cg][chan - 1]['cn_cn_next'])
-                        self['CCBlock'][dg][cg][chan] = CCBlock(fid, self['CNBlock'][dg][cg][chan]['cn_cc_conversion'])
+                        self['CNBlock'][dg][cg][chan] = \
+                            CNBlock(fid, self['CNBlock']
+                                    [dg][cg][chan - 1]['cn_cn_next'])
+                        self['CCBlock'][dg][cg][chan] = \
+                            CCBlock(fid, self['CNBlock']
+                                    [dg][cg][chan]['cn_cc_conversion'])
                         if self['CNBlock'][dg][cg][chan]['cn_type'] == 5:
                             MLSDChannels.append(chan)
-                    self['CNBlock'][dg][cg][cn]['cn_type'] = 6  # makes the channel virtual
+                    # makes the channel virtual
+                    self['CNBlock'][dg][cg][cn]['cn_type'] = 6
                 elif ID in ('##CA', b'##CA'):  # arrays
                     pass
                 else:
@@ -1607,7 +1672,8 @@ class info4(defaultdict):
         # reads Header HDBlock
         self['HDBlock'].update(HDBlock(fid))
 
-        # reads Data Group, channel groups and channel Blocks  recursively but not the other metadata block
+        # reads Data Group, channel groups and channel Blocks
+        # recursively but not the other metadata block
         self.readDGBlock(fid, True)
 
         for dg in self['DGBlock']:
@@ -1618,6 +1684,7 @@ class info4(defaultdict):
         # CLose the file
         fid.close()
         return channelNameList
+
 
 def _generateDummyMDF4(info, channelList):
     """ computes MasterChannelList and dummy mdf dict from an info object
@@ -1638,36 +1705,37 @@ def _generateDummyMDF4(info, channelList):
     allChannelList = set()
     mdfdict = {}
     for dg in info['DGBlock']:
-            master = ''
-            mastertype = 0
-            for cg in info['CGBlock'][dg]:
-                channelNameList = []
-                for cn in info['CNBlock'][dg][cg]:
-                    name = info['CNBlock'][dg][cg][cn]['name']
-                    if name in allChannelList or \
-                            info['CNBlock'][dg][cg][cn]['cn_type'] in (2, 3):
-                        name += '_' + str(dg)
-                    if channelList is None or name in channelList:
-                        channelNameList.append(name)
-                        allChannelList.add(name)
-                        # create mdf channel
-                        mdfdict[name] = {}
-                        mdfdict[name][dataField] = None
-                        if 'description' in info['CNBlock'][dg][cg][cn]:
-                            mdfdict[name][descriptionField] = info['CNBlock'][dg][cg][cn]['description']
-                        else:
-                            mdfdict[name][descriptionField] = ''
-                        if 'unit' in info['CNBlock'][dg][cg][cn]:
-                            mdfdict[name][unitField] = info['CNBlock'][dg][cg][cn]['unit']
-                        else:
-                            mdfdict[name][unitField] = ''
-                        mdfdict[name][masterField] = 0 # default is time
-                        mdfdict[name][masterTypeField] = None
-                    if info['CNBlock'][dg][cg][cn]['cn_sync_type']: # master channel of cg
-                        master = name
-                        mastertype = info['CNBlock'][dg][cg][cn]['cn_sync_type']
-                for chan in channelNameList:
-                    mdfdict[chan][masterField] = master
-                    mdfdict[chan][masterTypeField] = mastertype
-            MasterChannelList[master] = channelNameList
+        master = ''
+        mastertype = 0
+        for cg in info['CGBlock'][dg]:
+            channelNameList = []
+            for cn in info['CNBlock'][dg][cg]:
+                name = info['CNBlock'][dg][cg][cn]['name']
+                if name in allChannelList or \
+                        info['CNBlock'][dg][cg][cn]['cn_type'] in (2, 3):
+                    name += '_' + str(dg)
+                if channelList is None or name in channelList:
+                    channelNameList.append(name)
+                    allChannelList.add(name)
+                    # create mdf channel
+                    mdfdict[name] = {}
+                    mdfdict[name][dataField] = None
+                    if 'description' in info['CNBlock'][dg][cg][cn]:
+                        mdfdict[name][descriptionField] = info['CNBlock'][dg][cg][cn]['description']
+                    else:
+                        mdfdict[name][descriptionField] = ''
+                    if 'unit' in info['CNBlock'][dg][cg][cn]:
+                        mdfdict[name][unitField] = info['CNBlock'][dg][cg][cn]['unit']
+                    else:
+                        mdfdict[name][unitField] = ''
+                    mdfdict[name][masterField] = 0  # default is time
+                    mdfdict[name][masterTypeField] = None
+                if info['CNBlock'][dg][cg][cn]['cn_sync_type']:
+                    # master channel of cg
+                    master = name
+                    mastertype = info['CNBlock'][dg][cg][cn]['cn_sync_type']
+            for chan in channelNameList:
+                mdfdict[chan][masterField] = master
+                mdfdict[chan][masterTypeField] = mastertype
+        MasterChannelList[master] = channelNameList
     return (MasterChannelList, mdfdict)

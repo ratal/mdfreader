@@ -634,10 +634,11 @@ class channel():
                 'CABlock' in info['CNBlock'][dataGroup][channelGroup][channelNumber]:  # channel array
             self.CABlock = info['CNBlock'][dataGroup][channelGroup][channelNumber]['CABlock']
             self.dataFormat = arrayformat4(self.signalDataType, self.bitCount)
-            self.nBytes *= self.CABlock['PNd']  # calculates total array size in bytes
+            # calculates total array size in bytes
+            self.nBytes *= self.CABlock['PNd']
             array_desc = self.CABlock['ca_dim_size']
             Block = self.CABlock
-            while 'CABlock' in Block: # nested array
+            while 'CABlock' in Block:  # nested array
                 Block = Block['CABlock']
                 self.type = 'NestedCA'
                 self.nBytes *= Block['PNd']
@@ -1363,6 +1364,9 @@ class mdf4(mdf_skeleton):
         # Read information block from file
         if info is None:
             info = info4(self.fileName, None)
+
+        if info.fid.closed:
+            info.fid = open(self.fileName, 'rb')
 
         # set is more efficient for large number of channels (n^2 vs n*log(n)):
         if channelList is not None:
