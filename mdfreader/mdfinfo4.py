@@ -1524,8 +1524,8 @@ class info4(defaultdict):
                             self['CNBlock'][dg][cg][cn]['CABlock'] = \
                                 CABlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
                         elif id in ('##CN', b'##CN'):
-                            self['CNBlock'][dg][cg][cn]['CNBlock'] = \
-                                CNBlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                            self['CNBlock'][dg][cg][cn]['CNBlock'] = CNBlock()
+                            self['CNBlock'][dg][cg][cn]['CNBlock'].read(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
                         else:
                             raise('unknown channel composition')
 
@@ -1570,15 +1570,15 @@ class info4(defaultdict):
         -----------
         MLSDChannels list of appended Maximum Length Sampling Data channels
         """
-        chan = list(self['CNBlock'][dg][cg].keys())[-1] + 1
+        chan = max(self['CNBlock'][dg][cg].keys()) + 1
         for cn in list(self['CNBlock'][dg][cg].keys()):
             if self['CNBlock'][dg][cg][cn]['cn_composition']:
                 fid.seek(self['CNBlock'][dg][cg][cn]['cn_composition'])
-                ID = unpack('4s', fid)
+                ID = unpack('4s', fid.read(4))[0]
                 if ID in ('##CN', b'##CN'):  # Structures
-                    self['CNBlock'][dg][cg][chan] = \
-                        CNBlock(fid, self['CNBlock']
-                                [dg][cg][cn]['cn_composition'])
+                    self['CNBlock'][dg][cg][chan] = CNBlock()
+                    self['CNBlock'][dg][cg][chan].read(fid,
+                        self['CNBlock'][dg][cg][cn]['cn_composition'])
                     self['CCBlock'][dg][cg][chan] = \
                         CCBlock(fid, self['CNBlock']
                                 [dg][cg][chan]['cn_cc_conversion'])
@@ -1586,9 +1586,10 @@ class info4(defaultdict):
                         MLSDChannels.append(chan)
                     while self['CNBlock'][dg][cg][chan]['cn_cn_next']:
                         chan += 1
-                        self['CNBlock'][dg][cg][chan] = \
-                            CNBlock(fid, self['CNBlock']
-                                    [dg][cg][chan - 1]['cn_cn_next'])
+                        self['CNBlock'][dg][cg][chan] = CNBlock()
+                        self['CNBlock'][dg][cg][chan]\
+                            .read(fid, self['CNBlock']
+                                  [dg][cg][chan - 1]['cn_cn_next'])
                         self['CCBlock'][dg][cg][chan] = \
                             CCBlock(fid, self['CNBlock']
                                     [dg][cg][chan]['cn_cc_conversion'])
