@@ -744,7 +744,7 @@ class CGBlock(defaultdict):
         pointers['ACS'] = currentPosition + 8 * 3
         pointers['SR'] = currentPosition + 8 * 4
         pointers['TX'] = currentPosition + 8 * 5
-        pointers['cg_data_bytes'] = currentPosition + 92
+        pointers['cg_data_bytes'] = currentPosition + 48
         # (Next channel group pointer, first channel block pointer,
         # acquisition name pointer, acquisition source pointer,
         # sample reduction pointer, comment pointer,
