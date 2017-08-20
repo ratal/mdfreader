@@ -1690,7 +1690,7 @@ class mdf4(mdf_skeleton):
             cg_cycle_count = len(self.getChannelData(masterChannel))
             cg_data_bytes = 0
             pointers['CG'][dataGroup] = temp.write(fid, cg_cycle_count, cg_data_bytes)
-            _writePointer(fid, pointers['CG'][dataGroup]['CN'], fid.tell())  # first channel block pointer
+            #_writePointer(fid, pointers['CG'][dataGroup]['CN'], fid.tell())  # first channel block pointer
 
             # write channels
             record_byte_offset = 0
@@ -1749,7 +1749,8 @@ class mdf4(mdf_skeleton):
                         byte_count = 1
                     elif cn_numpy_kind in ('S', 'U', 'V'):
                         byte_count = len(data[0])
-                        bit_count = 8 * byte_count  # if string, not considered
+                        # if string, not considered
+                        bit_count = 8 * byte_count
                     else:
                         bit_count = 8
                         byte_count = 1
@@ -1760,10 +1761,13 @@ class mdf4(mdf_skeleton):
                         dataTypeList += data.dtype.char
                     else:
                         dataTypeList += str(data.dtype.itemsize) + 's'
+                    # write channel block
                     pointers['CN'][nchannel] = temp.write(fid)
                     if CN_flag:
                         _writePointer(fid, pointers['CN'][nchannel-1]['CN'], pointers['CN'][nchannel]['block_start'])  # Next DG
-                    CN_flag = pointers['CN'][nchannel]['block_start']
+                    else:
+                        CN_flag = pointers['CN'][nchannel]['block_start']
+                        _writePointer(fid, pointers['CG'][dataGroup]['CN'], CN_flag)  # first CN block pointer in CG
                     # write channel name
                     _writePointer(fid, pointers['CN'][nchannel]['TX'], fid.tell())
                     temp = CommentBlock()
@@ -1778,15 +1782,18 @@ class mdf4(mdf_skeleton):
 
                     # Conversion blocks writing
 
-            _writePointer(fid, pointers['CG'][dataGroup]['cg_data_bytes'], record_byte_offset)  # writes size of record in CG
+            # writes size of record in CG
+            _writePointer(fid, pointers['CG'][dataGroup]['cg_data_bytes'], record_byte_offset)
 
             # data writing
             # write data pointer in datagroup
             DTposition = _writeHeader(fid, '##DT', 24 + record_byte_offset * nRecords, 0)
             _writePointer(fid, pointers['DG'][dataGroup]['data'], DTposition)
-            records = array(dataList, object).T
-            records = reshape(records, (1, number_of_channel * nRecords), order='C')[0]  # flatten the matrix
-            fid.write(pack('<' + dataTypeList * nRecords, *records))  # dumps data vector from numpy
+            # dumps data vector from numpy
+            fid.write(pack('<' + dataTypeList * nRecords,
+                           *reshape(array(dataList, object).T,
+                                    (1, number_of_channel * nRecords),
+                                    order='C')[0]))
 
         # print(pointers, file=stderr)
         fid.close()
