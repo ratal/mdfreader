@@ -29,7 +29,7 @@ mdf4reader module
 """
 from __future__ import print_function
 
-from struct import Struct, pack
+from struct import Struct
 from struct import unpack as structunpack
 from math import pow
 from io import open  # for python 3 and 2 consistency
@@ -40,14 +40,15 @@ from os.path import dirname, abspath
 _root = dirname(abspath(__file__))
 path.append(_root)
 from collections import defaultdict
-from numpy.core.records import fromstring, fromfile
+from numpy.core.records import fromstring, fromfile, fromarrays
 from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
-from numpy import arange, right_shift, bitwise_and, all, diff, interp, reshape
+from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from mdfinfo4 import info4, ATBlock, IDBlock, HDBlock, DGBlock,\
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
     DZBlock, HLBlock, _writePointer, _writeHeader
 from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
     dataField, conversionField, compressed_data
+
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -1323,7 +1324,7 @@ class mdf4(mdf_skeleton):
     _convertAllChannel4()
         Converts all channels from raw data to converted data according to CCBlock information
     """
-    
+
     def read4(self, fileName=None, info=None, multiProc=False, channelList=None, \
             convertAfterRead=True, filterChannelNames=False, compression=False):
         """ Reads mdf 4.x file data and stores it in dict
@@ -1626,6 +1627,7 @@ class mdf4(mdf_skeleton):
                     self.setChannelData(channelName, L[channelName])
                     self.remove_channel_conversion(channelName)
 
+
     def write4(self, fileName=None):
         """Writes simple mdf 4.1 file
 
@@ -1687,10 +1689,9 @@ class mdf4(mdf_skeleton):
 
             # write CGBlock
             temp = CGBlock()
-            cg_cycle_count = len(self.getChannelData(masterChannel))
+            cg_cycle_count = len(self._getChannelData4(masterChannel))
             cg_data_bytes = 0
             pointers['CG'][dataGroup] = temp.write(fid, cg_cycle_count, cg_data_bytes)
-            #_writePointer(fid, pointers['CG'][dataGroup]['CN'], fid.tell())  # first channel block pointer
 
             # write channels
             record_byte_offset = 0
@@ -1790,10 +1791,7 @@ class mdf4(mdf_skeleton):
             DTposition = _writeHeader(fid, '##DT', 24 + record_byte_offset * nRecords, 0)
             _writePointer(fid, pointers['DG'][dataGroup]['data'], DTposition)
             # dumps data vector from numpy
-            fid.write(pack('<' + dataTypeList * nRecords,
-                           *reshape(array(dataList, object).T,
-                                    (1, number_of_channel * nRecords),
-                                    order='C')[0]))
+            fid.write(fromarrays(dataList).tobytes(order='F'))
 
         # print(pointers, file=stderr)
         fid.close()
