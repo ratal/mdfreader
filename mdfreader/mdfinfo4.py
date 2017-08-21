@@ -740,11 +740,11 @@ class CGBlock(defaultdict):
         currentPosition += 24
         pointers['CG'] = currentPosition
         pointers['CN'] = currentPosition + 8
-        pointers['ACN'] = currentPosition + 8 * 2
-        pointers['ACS'] = currentPosition + 8 * 3
-        pointers['SR'] = currentPosition + 8 * 4
-        pointers['TX'] = currentPosition + 8 * 5
-        pointers['cg_data_bytes'] = currentPosition + 48
+        # pointers['ACN'] = currentPosition + 16
+        # pointers['ACS'] = currentPosition + 24
+        # pointers['SR'] = currentPosition + 32
+        pointers['TX'] = currentPosition + 40
+        pointers['cg_data_bytes'] = currentPosition + 72
         # (Next channel group pointer, first channel block pointer,
         # acquisition name pointer, acquisition source pointer,
         # sample reduction pointer, comment pointer,
@@ -756,7 +756,7 @@ class CGBlock(defaultdict):
                      cg_cycle_count, 0, 0,
                      b'\0' * 4,
                      cg_data_bytes, 0)
-        fid.write(pack('<8Q2Hs2I', *dataBytes))
+        fid.write(pack('<8Q2H4s2I', *dataBytes))
         return pointers
 
 
@@ -837,12 +837,12 @@ class CNBlock(defaultdict):
         currentPosition += 24
         pointers['CN'] = currentPosition
         pointers['CN_Comp'] = currentPosition + 8
-        pointers['TX'] = currentPosition + 8 * 2
-        pointers['SI'] = currentPosition + 8 * 3
-        pointers['CC'] = currentPosition + 8 * 4
-        pointers['data'] = currentPosition + 8 * 5
-        pointers['Unit'] = currentPosition + 8 * 6
-        pointers['Comment'] = currentPosition + 8 * 7
+        pointers['TX'] = currentPosition + 16
+        pointers['SI'] = currentPosition + 24
+        pointers['CC'] = currentPosition + 32
+        pointers['data'] = currentPosition + 40
+        pointers['Unit'] = currentPosition + 46
+        pointers['Comment'] = currentPosition + 56
         # (Next channel block pointer, composition of channel pointer,
         # TXBlock pointer for channel name, source SIBlock pointer,
         # Conversion Channel CCBlock pointer, channel data pointer,
