@@ -50,6 +50,7 @@ from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
     dataField, conversionField, compressed_data
 
 
+
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -1552,7 +1553,10 @@ class mdf4(mdf_skeleton):
         dict
             returns dict with channelName key containing numpy array converted to physical values according to conversion type
         """
-        vect = channel[dataField][:]
+        if channel[dataField] is not None:
+            vect = channel[dataField][:]  # to have bcolz uncompressed data
+        else:
+            vect = channel[dataField]
         if isinstance(vect, compressed_data):
             vect = vect.decompression()
         if conversionField in channel:  # there is conversion property
@@ -1788,7 +1792,7 @@ class mdf4(mdf_skeleton):
 
             # data writing
             # write data pointer in datagroup
-            DTposition = _writeHeader(fid, '##DT', 24 + record_byte_offset * nRecords, 0)
+            DTposition = _writeHeader(fid, b'##DT', 24 + record_byte_offset * nRecords, 0)
             _writePointer(fid, pointers['DG'][dataGroup]['data'], DTposition)
             # dumps data vector from numpy
             fid.write(fromarrays(dataList).tobytes(order='F'))

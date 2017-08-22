@@ -1058,7 +1058,10 @@ class mdf3(mdf_skeleton):
         numpy array
             returns numpy array converted to physical values according to conversion type
         """
-        vect = self[channelName][dataField][:]
+        if self[channelName][dataField] is not None:
+            vect = self[channelName][dataField][:]  # to have bcolz uncompressed data
+        else:
+            vect = self[channelName][dataField]
         if isinstance(vect, compressed_data):
             vect = vect.decompression()
         if conversionField in self[channelName]:  # there is conversion property
