@@ -27,8 +27,8 @@ mdf3reader module
 from __future__ import print_function
 
 from numpy import average, right_shift, bitwise_and, diff, max, min, interp
-from numpy import asarray, zeros, recarray, array, reshape, searchsorted
-from numpy.core.records import fromfile
+from numpy import asarray, zeros, recarray, array, searchsorted
+from numpy.core.records import fromfile, fromarrays
 from numpy.core.defchararray import encode as ncode
 from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
     dataField, conversionField, compressed_data
@@ -1387,9 +1387,8 @@ class mdf3(mdf_skeleton):
             # data writing
             # write data pointer in datagroup
             writePointer(fid, pointers['DG'][dataGroup]['data'], fid.tell())
-            records = array(dataList, object).T
-            records = reshape(records, (1, len(self.masterChannelList[masterChannel]) * nRecords), order='C')[0]  # flatten the matrix
-            fid.write(pack('<' + dataTypeList * nRecords, *records))  # dumps data vector from numpy
+            # dumps data vector from numpy
+            fid.write(fromarrays(dataList).tobytes(order='F'))
 
         # print(pointers, file=stderr)
         fid.close()

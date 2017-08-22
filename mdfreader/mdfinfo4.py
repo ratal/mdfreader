@@ -342,7 +342,7 @@ class HDBlock(defaultdict):
 
     def write(self, fid):
         # write block header
-        currentPosition = _writeHeader(fid, '##HD', 104, 6)
+        currentPosition = _writeHeader(fid, b'##HD', 104, 6)
         # link section
         currentPosition += 24
         pointers = defaultdict()
@@ -395,7 +395,7 @@ class FHBlock(defaultdict):
 
     def write(self, fid):
         # write block header
-        currentPosition = _writeHeader(fid, '##FH', 56, 2)
+        currentPosition = _writeHeader(fid, b'##FH', 56, 2)
         # link section
         currentPosition += 24
         pointers = {}
@@ -591,7 +591,7 @@ class CommentBlock(defaultdict):
             remain = data_lentgth % 8
             if not remain == 0:
                 data += b'\0' * (8 - (remain % 8))
-            block_start = _writeHeader(fid, '##TX', 24 + len(data), 0)
+            block_start = _writeHeader(fid, b'##TX', 24 + len(data), 0)
             fid.write(data)
         else:
             register_namespace('', 'http://www.asam.net/mdf/v4')
@@ -633,7 +633,7 @@ class CommentBlock(defaultdict):
             remain = data_lentgth % 8
             if not remain == 0:
                 data += b'\0' * (8 - (remain % 8))
-            _writeHeader(fid, '##MD', 24 + len(data), 0)
+            _writeHeader(fid, b'##MD', 24 + len(data), 0)
             block_start = fid.write(data)
         return block_start
 
@@ -681,7 +681,7 @@ class DGBlock(defaultdict):
     def write(self, fid):
         pointers = {}
         # write block header
-        currentPosition = _writeHeader(fid, '##DG', 64, 4)
+        currentPosition = _writeHeader(fid, b'##DG', 64, 4)
         pointers['block_start'] = currentPosition
         # link section
         currentPosition += 24
@@ -734,7 +734,7 @@ class CGBlock(defaultdict):
     def write(self, fid, cg_cycle_count, cg_data_bytes):
         pointers = {}
         # write block header
-        currentPosition = _writeHeader(fid, '##CG', 104, 6)
+        currentPosition = _writeHeader(fid, b'##CG', 104, 6)
         # link section
         pointers['block_start'] = currentPosition
         currentPosition += 24
@@ -831,7 +831,7 @@ class CNBlock(defaultdict):
         pointers = {}
         # write block header
         # no attachement and default X
-        currentPosition = _writeHeader(fid, '##CN', 160, 8)
+        currentPosition = _writeHeader(fid, b'##CN', 160, 8)
         # link section
         pointers['block_start'] = currentPosition
         currentPosition += 24
