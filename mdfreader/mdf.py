@@ -18,13 +18,14 @@ mdf module
 --------------------------
 """
 try:
+    CompressionPossible = True
     from bcolz import cparams, carray, detect_number_of_cores, set_nthreads
     _ncores = detect_number_of_cores()
     set_nthreads(_ncores)
     from blosc import decompress_ptr, compress_ptr
 except ImportError:
     print('Cannot compress data, please install bcols and blosc')
-    noCompressionPossible = True
+    CompressionPossible = False
 
 from pandas import set_option
 from collections import OrderedDict
@@ -405,7 +406,7 @@ class mdf_skeleton(dict):
         compression : bool or str
             trigger for data compression
         """
-        if compression:
+        if compression and CompressionPossible:
             if not isinstance(compression, str):
                 if isinstance(compression, int):
                     comp = compression

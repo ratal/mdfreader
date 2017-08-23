@@ -63,7 +63,7 @@ packages = find_packages(exclude=['contrib', 'docs', 'tests*'])
 # project is installed. For an analysis of "install_requires" vs pip's
 # requirements files see:
 # https://packaging.python.org/en/latest/technical.html#install-requires-vs-requirements-files
-install_requires = ['numpy>=1.7', 'sympy', 'cython>=0.21', 'lxml', 'bcolz', 'blosc']
+install_requires = ['numpy>=1.7', 'sympy', 'cython>=0.21', 'lxml']
 
 # List additional groups of dependencies here (e.g. development dependencies).
 # You can install these using the following syntax, for example:
@@ -72,6 +72,7 @@ extras_require = {
     'export': ['scipy', 'h5py', 'xlwt', 'xlwt3', 'openpyxl', 'pandas'],
     'converter': ['PyQt4'],
     'experimental': ['bitarray'],
+    'compression': ['bcolz', 'blosc'],
 }
 
 # If there are data files included in your packages that need to be
