@@ -331,7 +331,7 @@ class Channel():
         self.bitOffset = recordbitOffset % 8
         self.recAttributeName = _convertName(self.name)
         self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
-        self.nativeRecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormatlstrip('<').lstrip('>'))
+        self.nativeRecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat.lstrip('<').lstrip('>'))
         self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['channelType']
         self.posByteBeg = recordIDnumber + self.byteOffset
         self.posByteEnd = recordIDnumber + self.byteOffset + self.nBytes
