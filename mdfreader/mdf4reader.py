@@ -668,9 +668,15 @@ class channel():
         self.RecordFormat = ((self.recAttributeName + '_title',
                               self.recAttributeName), self.dataFormat)
         # format in native byteorder, for dataRead
-        self.nativeRecordFormat = ((self.recAttributeName + '_title',
-                                    self.recAttributeName), self.dataFormat.lstrip('<').lstrip('>'))
-        if self.signalDataType not in (13, 14):  # processed by several channels
+        if self.dataFormat is not None:
+            self.nativeRecordFormat = \
+                ((self.recAttributeName + '_title',
+                  self.recAttributeName),
+                    self.dataFormat.lstrip('<').lstrip('>'))
+        else:
+            self.nativeRecordFormat = self.RecordFormat
+        # processed by several channels
+        if self.signalDataType not in (13, 14):
             if not self.channelType == 1:  # if not VSLD
                 self.Format = datatypeformat4(self.signalDataType, self.bitCount)
             else:  # VLSD
