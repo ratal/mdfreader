@@ -665,7 +665,11 @@ class channel():
         if self.channelType in (2, 3):  # master channel, add datagroup number to avoid overwriting same sames like time
             self.name += '_' + str(dataGroup)
         self.recAttributeName = _convertName(self.name)
-        self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
+        self.RecordFormat = ((self.recAttributeName + '_title',
+                              self.recAttributeName), self.dataFormat)
+        # format in native byteorder, for dataRead
+        self.nativeRecordFormat = ((self.recAttributeName + '_title',
+                                    self.recAttributeName), self.dataFormat.lstrip('<').lstrip('>'))
         if self.signalDataType not in (13, 14):  # processed by several channels
             if not self.channelType == 1:  # if not VSLD
                 self.Format = datatypeformat4(self.signalDataType, self.bitCount)
@@ -771,6 +775,7 @@ class channel():
         self.maxLengthVLSDRecord = 0
         self.recAttributeName = self.name
         self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
+        self.nativeRecordFormat = self.RecordFormat
         self.CFormat = Struct(self.Format)
         self.bitOffset = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_bit_offset'] + offset*8
         self.byteOffset = info['CNBlock'][dataGroup][channelGroup][channelNumber]['cn_byte_offset'] + offset
@@ -813,6 +818,7 @@ class channel():
         self.dataFormat = str(self.nBytes) + 'V'
         self.recAttributeName = self.name
         self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
+        self.nativeRecordFormat = self.RecordFormat
         self.Format = str(self.nBytes) + 's'
         self.CFormat = Struct(self.Format)
         self.bitOffset = 0
@@ -1213,82 +1219,86 @@ class record(list):
         # initialise data structure
         if channelSet is None:
             channelSet = self.channelNames
-        format = []
-        for channel in self:
-            if channel.name in channelSet:
-                format.append(channel.RecordFormat)
-        if format:  # at least some channels should be parsed
-            buf = recarray(self.numberOfRecords, format)
-            try: # use rather cython compiled code for performance
+        try: # use rather cython compiled code for performance
+            format = []
+            for chan in range(len(self)):
+                if self[chan].name in channelSet:
+                    # dataRead will take care of byte order, switch to native
+                    format.append(self[chan].nativeRecordFormat)
+            if format:  # at least some channels should be parsed
+                buf = recarray(self.numberOfRecords, format)
                 from dataRead import dataRead
+                bytesdata = bytes(bita)
                 for chan in range(len(self)):
                     if self[chan].name in channelSet:
-                        buf[self[chan].recAttributeName] = dataRead(bytes(bita), self[chan].bitCount, \
-                                self[chan].signalDataType, self[chan].RecordFormat[1], \
-                                self.numberOfRecords, self.CGrecordLength, \
-                                self[chan].bitOffset, self[chan].posByteBeg, \
-                                self[chan].posByteEnd)
-                        # dataRead already took care of byte order, switch to native
-                        if (buf[self[chan].recAttributeName].dtype.byteorder == '>' and byteorder == 'little') or \
-                                buf[self[chan].recAttributeName].dtype.byteorder == '<' and byteorder == 'big':
-                            buf[self[chan].recAttributeName] = buf[self[chan].recAttributeName].newbyteorder()
+                        buf[self[chan].recAttributeName] = \
+                            dataRead(bytesdata, self[chan].bitCount,
+                                     self[chan].signalDataType,
+                                     self[chan].nativeRecordFormat[1],
+                                     self.numberOfRecords, self.CGrecordLength,
+                                     self[chan].bitOffset, self[chan].posByteBeg,
+                                     self[chan].posByteEnd)
                 return buf
-            except:
-                print('Unexpected error:', exc_info(), file=stderr)
-                print('dataRead crashed, back to python data reading', file=stderr)
-                from bitarray import bitarray
-                B = bitarray(endian="little")  # little endian by default
-                B.frombytes(bytes(bita))
-                def signedInt(temp, extension):
-                    """ extend bits of signed data managing two's complement
-                    """
-                    extension.setall(False)
-                    extensionInv = bitarray(extension, endian='little')
-                    extensionInv.setall(True)
-                    for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
-                        signBit = temp[i][-1]
-                        if not signBit:  # positive value, extend with 0
-                            temp[i].extend(extension)
-                        else:  # negative value, extend with 1
-                            signBit = temp[i].pop(-1)
-                            temp[i].extend(extensionInv)
-                            temp[i].append(signBit)
-                    return temp
-                # read data
-                record_bit_size = self.CGrecordLength * 8
-                for chan in range(len(self)):
-                    if self[chan].name in channelSet:
-                        temp = [B[self[chan].posBitBeg + record_bit_size * i:\
-                                self[chan].posBitEnd + record_bit_size * i]\
-                                 for i in range(self.numberOfRecords)]
-                        nbytes = len(temp[0].tobytes())
-                        if not nbytes == self[chan].nBytes and \
-                                self[chan].signalDataType not in (6, 7, 8, 9, 10, 11, 12): # not Ctype byte length
-                            byte = bitarray(8 * (self[chan].nBytes - nbytes), endian='little')
-                            byte.setall(False)
-                            if self[chan].signalDataType not in (2, 3):  # not signed integer
-                                for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
-                                    temp[i].extend(byte)
-                            else:  # signed integer (two's complement), keep sign bit and extend with bytes
-                                temp = signedInt(temp, byte)
-                        nTrailBits = self[chan].nBytes*8 - self[chan].bitCount
-                        if self[chan].signalDataType in (2, 3) and \
-                                nbytes == self[chan].nBytes and \
-                                nTrailBits > 0:  # Ctype byte length but signed integer
-                            trailBits = bitarray(nTrailBits, endian='little')
-                            temp = signedInt(temp, trailBits)
-                        if 's' not in self[chan].Format:
+        except:
+            print('Unexpected error:', exc_info(), file=stderr)
+            print('dataRead crashed, back to python data reading', file=stderr)
+            from bitarray import bitarray
+            B = bitarray(endian="little")  # little endian by default
+            B.frombytes(bytes(bita))
+            def signedInt(temp, extension):
+                """ extend bits of signed data managing two's complement
+                """
+                extension.setall(False)
+                extensionInv = bitarray(extension, endian='little')
+                extensionInv.setall(True)
+                for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
+                    signBit = temp[i][-1]
+                    if not signBit:  # positive value, extend with 0
+                        temp[i].extend(extension)
+                    else:  # negative value, extend with 1
+                        signBit = temp[i].pop(-1)
+                        temp[i].extend(extensionInv)
+                        temp[i].append(signBit)
+                return temp
+            # read data
+            record_bit_size = self.CGrecordLength * 8
+            for chan in range(len(self)):
+                if self[chan].name in channelSet:
+                    temp = [B[self[chan].posBitBeg + record_bit_size * i:\
+                            self[chan].posBitEnd + record_bit_size * i]\
+                                for i in range(self.numberOfRecords)]
+                    nbytes = len(temp[0].tobytes())
+                    if not nbytes == self[chan].nBytes and \
+                            self[chan].signalDataType not in (6, 7, 8, 9, 10, 11, 12): # not Ctype byte length
+                        byte = bitarray(8 * (self[chan].nBytes - nbytes), endian='little')
+                        byte.setall(False)
+                        if self[chan].signalDataType not in (2, 3):  # not signed integer
+                            for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
+                                temp[i].extend(byte)
+                        else:  # signed integer (two's complement), keep sign bit and extend with bytes
+                            temp = signedInt(temp, byte)
+                    nTrailBits = self[chan].nBytes*8 - self[chan].bitCount
+                    if self[chan].signalDataType in (2, 3) and \
+                            nbytes == self[chan].nBytes and \
+                            nTrailBits > 0:  # Ctype byte length but signed integer
+                        trailBits = bitarray(nTrailBits, endian='little')
+                        temp = signedInt(temp, trailBits)
+                    if 's' not in self[chan].Format:
+                        if ('>' in self[chan].dataFormat and byteorder == 'little') or \
+                            (byteorder == 'big' and '<' in self[chan].dataFormat):
                             temp = [self[chan].CFormat.unpack(temp[i].tobytes())[0] \
                                     for i in range(self.numberOfRecords)]
-                        else:
-                            temp = [temp[i].tobytes() \
-                                    for i in range(self.numberOfRecords)]
-                        buf[self[chan].recAttributeName] = asarray(temp)
-                        # dataRead already took care of byte order, switch to native
-                        if (buf[self[chan].recAttributeName].dtype.byteorder == '>' and byteorder == 'little') or \
-                                buf[self[chan].recAttributeName].dtype.byteorder == '<' and byteorder == 'big':
-                            buf[self[chan].recAttributeName] = buf[self[chan].recAttributeName].newbyteorder()
-                return buf
+                            temp = asarray(temp).byteswap().newbyteorder()
+                        else: 
+                            temp = [self[chan].CFormat.unpack(temp[i].tobytes())[0] \
+                                        for i in range(self.numberOfRecords)]
+                            temp = asarray(temp)
+                    else:
+                        temp = [temp[i].tobytes() \
+                                for i in range(self.numberOfRecords)]
+                        temp = asarray(temp)
+                    buf[self[chan].recAttributeName] = temp
+            return buf
 
 
 class mdf4(mdf_skeleton):
