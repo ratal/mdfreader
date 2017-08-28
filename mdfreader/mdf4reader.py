@@ -2108,8 +2108,6 @@ def valueToTextConv(vect, cc_val, cc_ref):
     converted data to physical value
     """
     val_count = int(len(cc_val))
-    cc_val = list(cc_val.values())  # converts dict to lists
-    cc_ref = list(cc_ref.values())
     maxlen = len(max(cc_ref, key=len))
     temp = empty(len(vect), dtype='S' + str(maxlen))  # initialize empty array with max length
     key_index = where(vect[0] == cc_val)[0]  # look up for first value in vect
@@ -2117,7 +2115,7 @@ def valueToTextConv(vect, cc_val, cc_ref):
         temp[0] = cc_ref[key_index[0]]
     else:  # default value
         temp[0] = cc_ref[val_count]
-    for Lindex in set(range(1, len(vect))):
+    for Lindex in range(1, len(vect)):
         if vect[Lindex] == vect[Lindex - 1]:  # same value as before, no need to look further
             temp[Lindex] = temp[Lindex - 1]
         else:  # value changed from previous step
@@ -2126,7 +2124,7 @@ def valueToTextConv(vect, cc_val, cc_ref):
                 temp[Lindex] = cc_ref[key_index[0]]
             else:  # default
                 temp[Lindex] = cc_ref[val_count]
-    return temp
+    return asarray(temp)
 
 
 def valueRangeToTextConv(vect, cc_val, cc_ref):
@@ -2155,7 +2153,7 @@ def valueRangeToTextConv(vect, cc_val, cc_ref):
                 key_index = i
                 break
         temp.append(cc_ref[key_index])
-    return temp
+    return asarray(temp)
 
 
 def textToValueConv(vect, cc_val, cc_ref):
@@ -2181,7 +2179,7 @@ def textToValueConv(vect, cc_val, cc_ref):
                 key_index = i
                 break
         temp.append(cc_val[key_index])
-    return temp
+    return asarray(temp)
 
 
 def textToTextConv(vect, cc_ref):
