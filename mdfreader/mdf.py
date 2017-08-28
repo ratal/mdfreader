@@ -24,7 +24,7 @@ try:
     set_nthreads(_ncores)
     from blosc import decompress_ptr, compress_ptr
 except ImportError:
-    print('Cannot compress data, please install bcols and blosc')
+    # Cannot compress data, please install bcolz and blosc
     CompressionPossible = False
 
 from pandas import set_option
@@ -129,7 +129,7 @@ class mdf_skeleton(dict):
         self.file_metadata['date'] = ''
         self.MDFVersionNumber = 300
         self.filterChannelNames = filterChannelNames
-        self.convert_tables = False
+        self.convert_tables = True
         self._pandasframe = False
         self._info = None
         self._compression_level = 9  # default compression level

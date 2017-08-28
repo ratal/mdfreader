@@ -744,9 +744,10 @@ class record(list):
 class DATA(dict):
 
     """ DATA class is organizing record classes itself made of channel.
-    This class inherits from dict. Keys are corresponding to channel group recordID
-    A DATA class corresponds to a data block, a dict of record classes (one per channel group)
-    Each record class contains a list of channel class representing the structure of channel record.
+    This class inherits from dict. Keys are corresponding to channel
+    group recordID. A DATA class corresponds to a data block, a dict
+    of record classes (one per channel group). Each record class contains
+    a list of channel class representing the structure of channel record.
 
     Attributes
     --------------
@@ -796,13 +797,16 @@ class DATA(dict):
         """
         if len(self) == 1:  # sorted dataGroup
             recordID = list(self.keys())[0]
-            self[recordID]['data'] = self.loadSorted(self[recordID]['record'], nameList=channelSet)
+            self[recordID]['data'] = \
+                self.loadSorted(self[recordID]['record'],
+                                nameList=channelSet)
         elif len(self) >= 2:  # unsorted DataGroup
             data = self.loadUnSorted(nameList=channelSet)
             for recordID in list(self.keys()):
                 self[recordID]['data'] = {}
                 for channel in self[recordID]['record']:
-                    self[recordID]['data'][channel.recAttributeName] = data[channel.recAttributeName]
+                    self[recordID]['data'][channel.recAttributeName] = \
+                        data[channel.recAttributeName]
         else:  # empty data group
             pass
 
