@@ -901,10 +901,11 @@ class CCBlock(defaultdict):
             if self['cc_type'] == 3:  # reads Algebraic formula
                 self['cc_ref'] = CommentBlock(fid, self['cc_ref'])
             elif self['cc_type']in (7, 8, 9, 10):  # text list
+                self['cc_ref'] = list(self['cc_ref'])
                 for i in range(self['cc_ref_count']):
                     fid.seek(self['cc_ref'][i])
                     # find if TX/MD or another CCBlock
-                    ID = unpack('4s', fid.read(4))
+                    ID = unpack('4s', fid.read(4))[0]
                     # for algebraic formulae
                     if ID in ('##TX', '##MD', b'##TX', b'##MD'):
                         temp = CommentBlock(fid, self['cc_ref'][i])
