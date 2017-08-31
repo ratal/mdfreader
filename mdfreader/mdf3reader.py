@@ -1287,6 +1287,7 @@ class mdf3(mdf_skeleton):
             recordNumberOfBits = 0
             preceedingChannel = None
             bitOffset = 0
+            byteOffset = 0
             writePointer(fid, pointers['CG'][dataGroup]['firstCN'], fid.tell())  # first channel bock pointer from CG
             for channel in self.masterChannelList[masterChannel]:
                 pointers['CN'][dataGroup][channel] = {}
@@ -1314,6 +1315,10 @@ class mdf3(mdf_skeleton):
                 # channel description
                 desc = self.getChannelDesc(channel)
                 writeChar(fid, desc, size=127)  # channel description
+                #if bitOffset exceeds two byte limit, we start using the byte offset field
+                if bitOffset > 0xFFFF:
+                    bitOffset -= 0x10000
+                    byteOffset += 8192
                 fid.write(pack(UINT16, bitOffset))  # bit position
                 data = self.getChannelData(channel)  # channel data
                 temp = data
@@ -1370,7 +1375,8 @@ class mdf3(mdf_skeleton):
                 pointers['CN'][dataGroup][channel]['longChannelName'] = fid.tell()
                 fid.write(pack(LINK, 0))  # pointer to long channel name
                 fid.write(pack(LINK, 0))  # pointer to channel display name
-                fid.write(pack(UINT16, 0))  # No Byte offset
+                if byteOffset:
+                    fid.write(pack(UINT16, byteOffset))
 
                 # TXblock for long channel name
                 writePointer(fid, pointers['CN'][dataGroup][channel]['longChannelName'], fid.tell())
