@@ -45,7 +45,7 @@ from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from mdfinfo4 import info4, ATBlock, IDBlock, HDBlock, DGBlock,\
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
-    DZBlock, HLBlock, _writePointer, _writeHeader
+    DZBlock, HLBlock, CCBlock, _writePointer, _writeHeader
 from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
     dataField, conversionField, compressed_data
 
@@ -2108,7 +2108,7 @@ def valueToTextConv(vect, cc_val, cc_ref):
     converted data to physical value
     """
     val_count = int(len(cc_val))
-    maxlen = len(max(cc_ref, key=len))
+    maxlen = max([len(str(ref)) for ref in cc_ref])
     temp = empty(len(vect), dtype='S' + str(maxlen))  # initialize empty array with max length
     key_index = where(vect[0] == cc_val)[0]  # look up for first value in vect
     if not len(key_index) == 0:  # value corresponding in cc_val
@@ -2144,6 +2144,25 @@ def valueRangeToTextConv(vect, cc_val, cc_ref):
     val_count = int(len(cc_val) / 2)
     key_min = [cc_val[i] for i in range(0, 2 * val_count, 2)]
     key_max = [cc_val[i] for i in range(1, 2 * val_count, 2)]
+    # checks for scaling
+    try:
+        from sympy import lambdify, symbols
+    except:
+        print('Please install sympy to convert channel ', file=stderr)
+    X = symbols('X')
+    for ref in range(len(cc_ref)):
+        if isinstance(cc_ref[ref], CCBlock):
+            if cc_ref[ref]['cc_type'] == 3:
+                # formula to be applied
+                cc_ref[ref] = lambdify(X, cc_ref[ref]['cc_ref']['Comment']
+                                       , modules='numpy', dummify=False)
+            elif cc_ref[ref]['cc_type'] == 1: # linear conversion
+                cc_ref[ref] = lambdify(X, str(cc_val[1]) + '* X + ' + str(cc_val[0])
+                                       , modules='numpy', dummify=False)
+            else:  # identity, non conversion
+                cc_ref[ref] = lambdify(X, 'X'
+                                       , modules='numpy', dummify=False)
+            # Otherwise a string
     # look up in range keys
     temp = []
     for Lindex in range(len(vect)):
@@ -2152,7 +2171,11 @@ def valueRangeToTextConv(vect, cc_val, cc_ref):
             if key_min[i] < vect[Lindex] < key_max[i]:
                 key_index = i
                 break
-        temp.append(cc_ref[key_index])
+        if callable(cc_ref[key_index]):
+            # TXBlock string
+            temp.append(cc_ref[key_index](vect[i]))
+        else:  # scale to be applied
+            temp.append(cc_ref[key_index])
     return asarray(temp)
 
 
