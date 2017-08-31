@@ -386,10 +386,10 @@ class mdf(mdf3, mdf4):
         if not noDataLoading:
             if self.MDFVersionNumber < 400:  # up to version 3.x not compatible with version 4.x
                 self.read3(self.fileName, info, multiProc, channelList,
-                    convertAfterRead, filterChannelNames, compression)
+                           convertAfterRead, filterChannelNames, compression)
             else:  # MDF version 4.x
                 self.read4(self.fileName, info, multiProc, channelList,
-                    convertAfterRead, filterChannelNames, compression)
+                           convertAfterRead, filterChannelNames, compression)
         else:  # populate minimum mdf structure
             self._info = info
             (self.masterChannelList, mdfdict) = self._info._generateDummyMDF(channelList)
@@ -537,7 +537,7 @@ class mdf(mdf3, mdf4):
         2. resampling will convert all your channels so be careful for big files
         and memory consumption
         """
-        if self: # mdf contains data 
+        if self: # mdf contains data
             # must make sure all channels are converted
             self.convertAllChannel()
             masterData = None
@@ -550,7 +550,8 @@ class mdf(mdf3, mdf4):
                     if master is not None and master != '' and \
                             master in self and self.masterChannelList[master]:
                         masterData = self.getChannelData(master)
-                        if master in self and len(masterData) > 5:  # consider groups having minimum size
+                        # consider groups having minimum size
+                        if master in self and len(masterData) > 5:
                             minTime.append(masterData[0])
                             maxTime.append(masterData[-1])
                             length.append(len(masterData))
@@ -573,7 +574,8 @@ class mdf(mdf3, mdf4):
                     raise
             # resample all channels to one sampling time vector
             if len(list(self.masterChannelList.keys())) > 1:  # Not yet resampled or only 1 datagroup
-                if masterChannel is None and masterData is not None:  # create master channel if not proposed
+                # create master channel if not proposed
+                if masterChannel is None and masterData is not None:
                     self.add_channel(0, masterChannelName, \
                         masterData, \
                         masterChannelName, \
@@ -647,7 +649,7 @@ class mdf(mdf3, mdf4):
                 filename = filename + '.csv'
             if self.MDFVersionNumber >= 400:
                 encoding = 'utf8' # mdf4 encoding is unicode
-            else: 
+            else:
                 encoding = 'latin-1' # mdf3 encoding is latin-1
             # writes header
             if PythonVersion < 3:
@@ -664,14 +666,14 @@ class mdf(mdf3, mdf4):
                             names.append(name.encode(encoding, 'ignore'))
                         else:
                             try:
-                                names.append(name.encode(encoding,'replace'))
+                                names.append(name.encode(encoding, 'replace'))
                             except:
                                 names.append(name)
                         if self.getChannelUnit(name) is bytes:
                             units.append(unit.encode(encoding, 'ignore'))
                         else:
                             try:
-                                units.append(unit.encode(encoding,'replace'))
+                                units.append(unit.encode(encoding, 'replace'))
                             except:
                                 units.append(unit)
                 writer.writerow(names) # writes channel names
@@ -684,11 +686,11 @@ class mdf(mdf3, mdf4):
                         and self.getChannelData(name).ndim <= 1])  # writes channel names
                 # writes units
                 writer.writerow([self.getChannelUnit(name) \
-                        for name in list(self.keys()) 
+                        for name in list(self.keys())
                         if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V') \
                         and self.getChannelData(name).ndim <= 1])  # writes units
             # concatenate all channels
-            temp=[]
+            temp = []
             for name in list(self.keys()):
                 data = self.getChannelData(name)
                 if data.dtype.kind not in ('S', 'U', 'V') \
@@ -840,7 +842,8 @@ class mdf(mdf3, mdf4):
             filename = splitext(self.fileName)[0]
             filename = filename + '.hdf'
         f = h5py.File(filename, 'w')  # create hdf5 file
-        filegroup = f.create_group(os.path.basename(filename))  # create group in root associated to file
+        # create group in root associated to file
+        filegroup = f.create_group(os.path.basename(filename))
         setAttribute(filegroup, 'Author', self.file_metadata['author'])
         setAttribute(filegroup, 'Date', self.file_metadata['date'])
         setAttribute(filegroup, 'Time', self.file_metadata['time'])
@@ -849,7 +852,7 @@ class mdf(mdf3, mdf4):
         setAttribute(filegroup, 'ProjectName', self.file_metadata['project'])
         setAttribute(filegroup, 'Subject', self.file_metadata['subject'])
         setAttribute(filegroup, 'Comment', self.file_metadata['comment'])
-        masterTypeDict = {0:'None',1:'Time',2:'Angle',3:'Distance',4:'Index',None:'None'}
+        masterTypeDict = {0:'None', 1:'Time', 2:'Angle', 3:'Distance', 4:'Index', None:'None'}
         if len(list(self.masterChannelList.keys())) > 1:
             # if several time groups of channels, not resampled
             groups = {}
@@ -861,7 +864,7 @@ class mdf(mdf3, mdf4):
                 if masterField in self[channel] and masterName not in list(groups.keys()):
                     # create new data group
                     ngroups += 1
-                    if masterName!='' \
+                    if masterName != '' \
                             and masterName is not None:
                         group_name = masterName
                     else:
@@ -908,7 +911,8 @@ class mdf(mdf3, mdf4):
         --------
         This method will dump all data into Matlab file but you will loose below information:
         - unit and descriptions of channel
-        - data structure, what is corresponding master channel to a channel. Channels might have then different lengths
+        - data structure, what is corresponding master channel to a channel.
+            Channels might have then different lengths
         """
         # export class data struture into .mat file
         try:
@@ -924,7 +928,7 @@ class mdf(mdf3, mdf4):
             data = self.getChannelData(channel)
             if data.dtype.kind not in ('S', 'U', 'V'):  # does not like special characters chains, skip
                 channelName = _convertMatlabName(channel)
-                if len(channelName) >0  and channelName is not None:
+                if len(channelName) > 0  and channelName is not None:
                     temp[channelName] = data
                 elif channelName is not None:
                     print('Could not export ' + channel + ', name is not compatible with Matlab')
@@ -1035,10 +1039,12 @@ class mdf(mdf3, mdf4):
             filename = splitext(self.fileName)[0]
             filename = filename + '.xlsx'
         channels = list(self.keys())
-        maxRows = max([len(self.getChannelData(channel)) for channel in list(self.keys())])  # find max column length
-        maxCols = len(list(self.keys()))  # number of columns
+        # find max column length
+        maxRows = max([len(self.getChannelData(channel)) for channel in channels])
+        maxCols = len(channels)  # number of columns
         print('Creating Excel sheet', file=stderr)
-        if len(list(self.masterChannelList.keys())) > 1:  # not resampled data, can be long, writing cell by cell !
+        # not resampled data, can be long, writing cell by cell !
+        if len(list(self.masterChannelList.keys())) > 1:
             wb = openpyxl.workbook.Workbook()
             ws = wb.active #get_active_sheet()
             # write header
@@ -1068,10 +1074,8 @@ class mdf(mdf3, mdf4):
             ws = wb.create_sheet()
             # write header
             ws.append(channels)
-            ws.append([self.getChannelUnit(channel) for channel in list(self.keys())])
+            ws.append([self.getChannelUnit(channel) for channel in channels])
             # write data
-            maxRows = max([len(self.getChannelData(channel)) for channel in list(self.keys())])  # find max column length
-            maxCols = len(list(self.keys()))  # number of columns
             bigmat = zeros(maxRows)  # create empty column
             buf = bigmat
             for col in range(maxCols):
@@ -1192,7 +1196,7 @@ class mdf(mdf3, mdf4):
             raise ImportError('Module pandas missing')
         if sampling is not None:
             self.resample(sampling)
-        if self.file_metadata['date'] != '' and self.file_metadata['time']!='':
+        if self.file_metadata['date'] != '' and self.file_metadata['time'] != '':
             date = self.file_metadata['date'].replace(':', '-')
             time = self.file_metadata['time']
             datetimeInfo = datetime64(date + 'T' + time)
@@ -1202,12 +1206,14 @@ class mdf(mdf3, mdf4):
         for group in list(self.masterChannelList.keys()):
             if group not in self.masterChannelList[group]:
                 print('no master channel in group ' + group, file=stderr)
-            elif self.getChannelMasterType(group)!=1:
-                print('Warning: master channel is not time, not appropriate conversion for pandas', file=stderr)
+            elif self.getChannelMasterType(group) != 1:
+                print('Warning: master channel is not time, \
+                      not appropriate conversion for pandas', file=stderr)
             temp = {}
             # convert time channel into timedelta
             if group in self.masterChannelList[group]:
-                time = datetimeInfo + array(self.getChannelData(group) * 1E6, dtype='timedelta64[us]')
+                time = datetimeInfo + array(self.getChannelData(group) * 1E6,
+                                            dtype='timedelta64[us]')
                 for channel in self.masterChannelList[group]:
                     data = self.getChannelData(channel)
                     if data.ndim == 1 and data.shape == time.shape:
