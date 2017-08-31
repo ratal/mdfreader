@@ -79,6 +79,8 @@ class mdf_skeleton(dict):
         adds channel to mdf dict
     remove_channel(channel_name)
         removes channel from mdf dict and returns its content
+    rename_channel(channel_name, new_channel_name)
+         renames a channel and returns its content
     copy()
         copy a mdf class
     add_metadata(author, organisation, project, subject, comment, date, time)
@@ -240,6 +242,26 @@ class mdf_skeleton(dict):
         """
         self.masterChannelList[self.getChannelMaster(channel_name)].remove(channel_name)
         return self.pop(channel_name)
+
+    def rename_channel(self, channelName, newname):
+        """Modifies name of channel
+
+        Parameters
+        ----------------
+        channelName : str
+            channel name
+        newname : str
+            new channel name
+        """
+        if channelName in self:
+            #add the new name to the same master
+            self.masterChannelList[self.getChannelMaster(channelName)].append(newname)
+            #remove the old name
+            self.masterChannelList[self.getChannelMaster(channelName)].remove(channelName)
+            self[newname] = self.pop(channelName)  #copy the data
+            return self[newname]
+        else:
+            return None
 
     def remove_channel_conversion(self, channelName):
         """ removes conversion key from mdf channel dict.
