@@ -1080,16 +1080,17 @@ class record(list):
                             if embedding_channel is None and prev_chan_includes_curr_chan:
                                 embedding_channel = prev_chan  # new embedding channel detected
                             if self.recordToChannelMatching: # not first channel
-                                self.recordToChannelMatching[Channel.recAttributeName] = self.recordToChannelMatching[self[-2].recAttributeName]
+                                self.recordToChannelMatching[Channel.recAttributeName] = \
+                                    self.recordToChannelMatching[prev_chan.recAttributeName]
                             else: # first channels
-                                self.recordToChannelMatching[Channel.recAttributeName] = Channel.recAttributeName
+                                self.recordToChannelMatching[Channel.recAttributeName] = \
+                                    Channel.recAttributeName
                                 self.numpyDataRecordFormat.append(Channel.RecordFormat)
                                 self.dataRecordName.append(Channel.recAttributeName)
                                 self.recordLength += Channel.nBytes
-                    elif len(self) == 1 and Channel.posBitBeg >= 8: 
-                        self.hiddenBytes = True
                     if embedding_channel is None:  # adding bytes
-                        self.recordToChannelMatching[Channel.recAttributeName] = Channel.recAttributeName
+                        self.recordToChannelMatching[Channel.recAttributeName] = \
+                            Channel.recAttributeName
                         self.numpyDataRecordFormat.append(Channel.RecordFormat)
                         self.dataRecordName.append(Channel.recAttributeName)
                         self.recordLength += Channel.nBytes
@@ -1460,7 +1461,8 @@ class mdf4(mdf_skeleton):
                                     temp = arange(buf[recordID]['record'].numberOfRecords)
 
                                 # Process concatenated bits inside uint8
-                                if buf[recordID]['record'].byte_aligned and \
+                                if buf[recordID]['record'].byte_aligned \
+                                        and not buf[recordID]['record'].hiddenBytes and\
                                         0 < chan.bitCount < 64 and chan.bitCount not in (8, 16, 32) \
                                         and temp is not None\
                                         and temp.dtype.kind not in ('S', 'U'):  # if channel data do not use complete bytes and Ctypes
@@ -1569,12 +1571,13 @@ class mdf4(mdf_skeleton):
         dict
             returns dict with channelName key containing numpy array converted to physical values according to conversion type
         """
-        if channel[dataField] is not None:
-            vect = channel[dataField][:]  # to have bcolz uncompressed data
-        else:
+        if channel[dataField] is None:
             vect = channel[dataField]
-        if isinstance(vect, compressed_data):
-            vect = vect.decompression()
+        else:
+            if isinstance(channel[dataField], compressed_data):
+                vect = channel[dataField].decompression()  # uncompressed blosc data
+            else:
+                vect = channel[dataField][:]  # to have bcolz uncompressed data
         if conversionField in channel:  # there is conversion property
             text_type = vect.dtype.kind in ['S', 'U', 'V']  # channel of string or not ?
             conversion_type = channel[conversionField]['type']
