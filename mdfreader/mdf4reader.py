@@ -1479,19 +1479,24 @@ class mdf4(mdf_skeleton):
                                 if temp is not None: # channel contains data
                                     # string data decoding
                                     if temp.dtype.kind != 'U':
-                                        for t in range(temp.size):
-                                            try:
-                                                if chan.signalDataType == 6: # string ISO-8859-1 Latin
-                                                        temp[t] = temp[t].decode('latin-1', 'ignore')
-                                                elif chan.signalDataType == 7: # UTF-8
-                                                    temp[t] = temp[t].decode('UTF-8', 'ignore')
-                                                elif chan.signalDataType == 8: # UTF-16 low endian
-                                                    temp[t] = temp[t].decode('UTF-16LE', 'ignore')
-                                                elif chan.signalDataType == 9: # UTF-16 big endian
-                                                    temp[t] = temp[t].decode('UTF-16BE', 'ignore')
-                                            except:
+                                        if chan.signalDataType == 6: # string ISO-8859-1 Latin
+                                            encoding = 'latin-1'
+                                        elif chan.signalDataType == 7: # UTF-8
+                                            encoding = 'UTF-8'
+                                        elif chan.signalDataType == 8: # UTF-16 low endian
+                                            encoding = 'UTF-16LE'
+                                        elif chan.signalDataType == 9: # UTF-16 big endian
+                                            encoding = 'UTF-16BE'
+                                        else:
+                                            encoding = None
+                                        if encoding is not None:
+                                            for t in range(temp.size):
+                                                try:
+                                                    temp[t] = temp[t].decode(encoding, 'ignore')
+                                                except:
                                                     print('Cannot decode channel ' + chan.name, file=stderr)
                                                     temp[t] = ''
+
                                     # channel creation
                                     self.add_channel(dataGroup, chan.name, temp, \
                                         master_channel, \
