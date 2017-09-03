@@ -71,6 +71,8 @@ Others:
 In the case of big files and lack of memory, you can optionally:
 * Read only a channel list (slightly slower, argument channelList = ['channel', 'list'])
 * Keep raw data as stored in mdf without data type conversion (mdfreader argument convertAfterRead=False). Data will then be converted on the fly by the other functions (plot, exportTo..., getChannelData, etc.) but raw data type will remain as in mdf file along with conversion information.
+* Compress data in memory with blosc or bcolz with argument compression. If integer or boolean is given, it will use by default bcolz with integer compression level. If 'blosc' is given, default compression level is 9.
+* Create a usual mdf but without data using noDataLoading=True argument. Data will be loaded when needed by mdfreader methods (in general by getChannelData method)
 
 For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
 
@@ -92,10 +94,11 @@ Command example in ipython:
     yop=mdfreader.mdf('NameOfFile',noDataLoading=True) # channel data will be loaded from file if needed
     # to get file mdf version
     yop.MDFVersionNumber
-    # to get file struture, you can create a mdfinfo instance
+    # to get file structure or attachments, you can create a mdfinfo instance
     info=mdfreader.mdfinfo()
     info.listChannels('NameOfFile') # returns only the list of channels
     info.readinfo('NameOfFile') # complete file structure object
+    yop._info # same class is stored in mdfreader class
     # to list channels names after reading
     yop.keys()
     # to list channels names grouped by raster, below dict mdf attribute contains
@@ -105,10 +108,10 @@ Command example in ipython:
     yop.plot('channelName') or yop.plot({'channel1','channel2'})
     # file manipulations
     yop.resample(0.1) or yop.resample(channelName='master3')
-    yop.exportoCSV(sampling=0.01)
+    yop.exporToCSV(sampling=0.01)
     yop.exportNetCDF()
-    yop.exporttoHDF5()
-    yop.exporttoMatlab()
+    yop.exportToHDF5()
+    yop.exportToMatlab()
     # converts data groups into pandas dataframes
     yop.convertToPandas()
     # drops all the channels except the one in argument
