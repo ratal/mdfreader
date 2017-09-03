@@ -323,20 +323,21 @@ class Channel():
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['signalDataType']
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfBits']
         ByteOrder = info['IDBlock']['ByteOrder']
-        self.dataFormat = _arrayformat3(self.signalDataType, self.bitCount, ByteOrder[0])
+        (self.dataFormat, nativeDataType) = \
+            _arrayformat3(self.signalDataType, self.bitCount, ByteOrder[0])
         self.CFormat = Struct(_datatypeformat3(self.signalDataType, self.bitCount, ByteOrder[0]))
         self.nBytes = _bits_to_bytes(self.bitCount)
-        recordbitOffset = info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfTheFirstBits']
-        self.byteOffset = recordbitOffset // 8
-        self.bitOffset = recordbitOffset % 8
-        self.recAttributeName = _convertName(self.name)
-        self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
-        self.nativeRecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat.lstrip('<').lstrip('>'))
-        self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['channelType']
+        self.posBitBeg = info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfTheFirstBits']
+        self.posBitEnd = self.posBitBeg + self.bitCount
+        self.byteOffset = self.posBitBeg // 8  # + info['CNBlock'][dataGroup][channelGroup][channelNumber]['ByteOffset']
+        self.bitOffset = self.posBitBeg % 8
+        self.embedding_channel_bitOffset = self.bitOffset  # for channel containing other channels
         self.posByteBeg = recordIDnumber + self.byteOffset
         self.posByteEnd = recordIDnumber + self.byteOffset + self.nBytes
-        self.posBitBeg = self.posByteBeg * 8 + self.bitOffset
-        self.posBitEnd = self.posBitBeg + self.bitCount
+        self.recAttributeName = _convertName(self.name)
+        self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
+        self.nativeRecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), nativeDataType)
+        self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['channelType']
         if 'physicalUnit' in info['CCBlock'][dataGroup][channelGroup][channelNumber]:
             self.unit = info['CCBlock'][dataGroup][channelGroup][channelNumber]['physicalUnit']
         else:
@@ -375,7 +376,7 @@ class Channel():
 
 class record(list):
 
-    """ record class lists recordchannel classes,
+    """ record class lists Channel classes,
         it is representing a channel group
 
     Attributes
@@ -489,7 +490,7 @@ class record(list):
             if self.master['number'] is None or channel.channelType == 1:  # master channel found
                 self.master['name'] = channel.name
                 self.master['number'] = channelNumber
-            self.append(channel)
+            self.append(channel)  # adds channel in record list
             self.channelNames.add(channel.name)
             # Checking if several channels are embedded in bytes
             if len(self) > 1:
@@ -504,7 +505,8 @@ class record(list):
                     embedding_channel_includes_curr_chan = False
                 if channel.byteOffset >= prev_chan.byteOffset and \
                         channel.posBitBeg < 8 * (prev_chan.byteOffset + prev_chan.nBytes) and \
-                        channel.posBitEnd > 8 * (prev_chan.byteOffset + prev_chan.nBytes):  # not byte aligned
+                        channel.posBitEnd > 8 * (prev_chan.byteOffset + prev_chan.nBytes):
+                    # not byte aligned
                     self.byte_aligned = False
                 if embedding_channel is not None and \
                         channel.posBitEnd > embedding_channel.posBitEnd:
@@ -516,14 +518,13 @@ class record(list):
                     if self.recordToChannelMatching:  # not first channel
                         self.recordToChannelMatching[channel.recAttributeName] = \
                             self.recordToChannelMatching[prev_chan.recAttributeName]
+                        channel.embedding_channel_bitOffset = channel.posBitBeg - embedding_channel.posBitBeg
                     else:  # first channels
                         self.recordToChannelMatching[channel.recAttributeName] = \
                             channel.recAttributeName
                         self.numpyDataRecordFormat.append(channel.RecordFormat)
                         self.dataRecordName.append(channel.recAttributeName)
                         self.recordLength += channel.nBytes
-            elif len(self) == 1 and channel.posBitBeg >= 8:
-                self.hiddenBytes = True
             if embedding_channel is None:  # adding bytes
                 self.recordToChannelMatching[channel.recAttributeName] = \
                     channel.recAttributeName
@@ -628,7 +629,9 @@ class record(list):
                     for r in range(self.numberOfRecords):  # for each record,
                         buf = fid.read(recordLength)
                         for channel in recChan:
-                            rec[channel.recAttributeName][r] = channel.CFormat.unpack(buf[channel.posByteBeg:channel.posByteEnd])[0]
+                            rec[channel.recAttributeName][r] = \
+                                channel.CFormat.unpack(buf[channel.posByteBeg:
+                                                           channel.posByteEnd])[0]
                     return rec.view(recarray)
 
     def readRecordBuf(self, buf, channelSet=None):
@@ -652,7 +655,9 @@ class record(list):
             channelSet = self.channelNames
         for Channel in self:  # list of channel classes from channelSet
             if Channel.name in channelSet:
-                temp[Channel.recAttributeName] = Channel.CFormat.unpack(buf[Channel.posByteBeg:Channel.posByteEnd])[0]
+                temp[self.recordToChannelMatching[Channel.recAttributeName]] = \
+                    Channel.CFormat.unpack(buf[Channel.posByteBeg:
+                                               Channel.posByteEnd])[0]
         return temp  # returns dictionary of channel with its corresponding values
 
     def readRecordBits(self, bita, channelSet=None):
@@ -806,7 +811,8 @@ class DATA(dict):
                 self[recordID]['data'] = {}
                 for channel in self[recordID]['record']:
                     self[recordID]['data'][channel.recAttributeName] = \
-                        data[channel.recAttributeName]
+                        data[self[recordID]['record'].
+                             recordToChannelMatching[channel.recAttributeName]]
         else:  # empty data group
             pass
 
@@ -885,7 +891,8 @@ class mdf3(mdf_skeleton):
     MDFVersionNumber : int
         mdf file version number
     masterChannelList : dict
-        Represents data structure: a key per master channel with corresponding value containing a list of channels
+        Represents data structure: a key per master channel with corresponding value containing
+        a list of channels
         One key or master channel represents then a data group having same sampling interval.
     multiProc : bool
         Flag to request channel conversion multi processed for performance improvement.
@@ -895,7 +902,7 @@ class mdf3(mdf_skeleton):
     filterChannelNames : bool
         flag to filter long channel names from its module names separated by '.'
     file_metadata : dict
-        file metadata with minimum keys : author, organisation, project, subject, comment, time, date
+        file metadata with minimum keys: author, organisation, project, subject, comment, time, date
 
     Methods
     ------------
@@ -1008,10 +1015,12 @@ class mdf3(mdf_skeleton):
 
                             if len(temp) != 0:
                                 # Process concatenated bits inside uint8
-                                if not chan.bitCount // 8.0 == chan.bitCount / 8.0:  # if channel data do not use complete bytes
-                                    mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
+                                if not chan.bitCount // 8.0 == chan.bitCount / 8.0 \
+                                        and not buf[recordID]['record'].hiddenBytes \
+                                        and buf[recordID]['record'].byte_aligned:  # if channel data do not use complete bytes
                                     if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
-                                        temp = right_shift(temp, chan.bitOffset)
+                                        temp = right_shift(temp, chan.embedding_channel_bitOffset)
+                                        mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
                                         print('bit count and offset not applied to correct data type', file=stderr)
@@ -1070,12 +1079,14 @@ class mdf3(mdf_skeleton):
         numpy array
             returns numpy array converted to physical values according to conversion type
         """
-        if self[channelName][dataField] is not None:
-            vect = self[channelName][dataField][:]  # to have bcolz uncompressed data
-        else:
+        
+        if self[channelName][dataField] is None:
             vect = self[channelName][dataField]
-        if isinstance(vect, compressed_data):
-            vect = vect.decompression()
+        else:
+            if isinstance(self[channelName][dataField], compressed_data):
+                vect = self[channelName][dataField].decompression()  # uncompress blosc
+            else:
+                vect = self[channelName][dataField][:]  # to have bcolz uncompressed data
         if conversionField in self[channelName]:  # there is conversion property
             conversion = self[channelName][conversionField]
             if conversion['type'] == 0:
@@ -1126,7 +1137,8 @@ class mdf3(mdf_skeleton):
         ----------------
         fileName : str, optional
             Name of file
-            If file name is not input, written file name will be the one read with appended '_new' string before extension
+            If file name is not input, written file name will be the one read with 
+            appended '_new' string before extension
 
         Notes
         --------
@@ -1382,7 +1394,8 @@ class mdf3(mdf_skeleton):
                 writePointer(fid, pointers['CN'][dataGroup][channel]['longChannelName'], fid.tell())
                 writeChar(fid, 'TX')
                 fid.write(pack(UINT16, len(channel) + 4 + 1))  # TX block size
-                writeChar(fid, channel + '\0')  # channel name that can be long, should ends by 0 (NULL)
+                # channel name that can be long, should ends by 0 (NULL)
+                writeChar(fid, channel + '\0')
 
                 # Conversion blocks writing
                 writePointer(fid, pointers['CN'][dataGroup][channel]['CC'], fid.tell())
@@ -1398,7 +1411,8 @@ class mdf3(mdf_skeleton):
                     fid.write(pack(REAL, 0))  # Max value
                 writeChar(fid, self.getChannelUnit(channel), size=19)  # channel description
                 fid.write(pack(UINT16, 65535))  # conversion already done during reading
-                fid.write(pack(UINT16, 0))  # additional size information, not necessary for 65535 conversion type ?
+                # additional size information, not necessary for 65535 conversion type ?
+                fid.write(pack(UINT16, 0))
             # number of channels in CG
             currentPosition = fid.tell()
             fid.seek(pointers['CG'][dataGroup]['dataRecordSize'])
@@ -1538,6 +1552,7 @@ def _arrayformat3(signalDataType, numberOfBits, ByteOrder):
     else:
         print('Unsupported Signal Data Type ' + str(signalDataType) + ' nBits ', numberOfBits, file=stderr)
 
+    nativeDataType = dataType
     # deal with byte order
     if signalDataType in (0, 1, 2, 3):
         if ByteOrder:
@@ -1549,4 +1564,4 @@ def _arrayformat3(signalDataType, numberOfBits, ByteOrder):
     elif signalDataType in (9, 10, 11, 12):  # big endian
         dataType = '>' + dataType
 
-    return dataType
+    return (dataType, nativeDataType)
