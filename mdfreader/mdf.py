@@ -174,25 +174,29 @@ class mdf_skeleton(dict):
         compression : bool
             flag to ask for channel data compression
         """
-        if channel_name in self:
-            if self[channel_name][dataField] is not None:
-                channel_name += '_' + str(dataGroup)
-                self[channel_name] = {}
-            else:
-                pass  # using noDataLoading
+        if channel_name not in self:
+            # adding new channel in dict
+            new_channel = True
         else:
+            if self[channel_name][dataField] is not None:
+                # not noDataLoading, doublon existing
+                channel_name += '_' + str(dataGroup)
+                new_channel = True
+            else:
+                new_channel = False  # using noDataLoading
+        if new_channel:
             self[channel_name] = {}
+            if master_channel not in self.masterChannelList:
+                self.masterChannelList[master_channel] = []
+            self.masterChannelList[master_channel].append(channel_name)
+            self.setChannelUnit(channel_name, unit)
+            self.setChannelDesc(channel_name, description)
+            self.setChannelMaster(channel_name, master_channel)
+            if self.MDFVersionNumber < 400:  # mdf3
+                self.setChannelMasterType(channel_name, 1)
+            else:  # mdf4
+                self.setChannelMasterType(channel_name, master_type)
         self.setChannelData(channel_name, data, compression)
-        self.setChannelUnit(channel_name, unit)
-        self.setChannelDesc(channel_name, description)
-        self.setChannelMaster(channel_name, master_channel)
-        if master_channel not in self.masterChannelList:
-            self.masterChannelList[master_channel] = []
-        self.masterChannelList[master_channel].append(channel_name)
-        if self.MDFVersionNumber < 400:  # mdf3
-            self.setChannelMasterType(channel_name, 1)
-        else:  # mdf4
-            self.setChannelMasterType(channel_name, master_type)
         if conversion is not None:
             self[channel_name]['conversion'] = {}
             self[channel_name]['conversion']['type'] = conversion['cc_type']
