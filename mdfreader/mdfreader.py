@@ -391,6 +391,7 @@ class mdf(mdf3, mdf4):
                 self.read4(self.fileName, info, multiProc, channelList,
                            convertAfterRead, filterChannelNames, compression)
         else:  # populate minimum mdf structure
+            self._noDataLoading = True
             self._info = info
             (self.masterChannelList, mdfdict) = self._info._generateDummyMDF(channelList)
             self.update(mdfdict)

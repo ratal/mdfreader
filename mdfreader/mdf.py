@@ -135,6 +135,7 @@ class mdf_skeleton(dict):
         self._pandasframe = False
         self._info = None
         self._compression_level = 9  # default compression level
+        self._noDataLoading = False  # in case reading with this argument activated
         # clears class from previous reading and avoid to mess up
         self.clear()
         self.fileName = fileName
@@ -174,17 +175,11 @@ class mdf_skeleton(dict):
         compression : bool
             flag to ask for channel data compression
         """
-        if channel_name not in self:
-            # adding new channel in dict
-            new_channel = True
-        else:
-            if self[channel_name][dataField] is not None:
-                # not noDataLoading, doublon existing
+        if not self._noDataLoading:
+            if channel_name in self:
+                # name doublon existing
                 channel_name += '_' + str(dataGroup)
-                new_channel = True
-            else:
-                new_channel = False  # using noDataLoading
-        if new_channel:
+            # create new channel
             self[channel_name] = {}
             if master_channel not in self.masterChannelList:
                 self.masterChannelList[master_channel] = []
