@@ -37,7 +37,7 @@ from zipfile import is_zipfile, ZipFile
 from itertools import chain
 from random import choice
 from string import ascii_letters
-from sys import version_info, getsizeof
+from sys import version_info, getsizeof, stderr
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -376,9 +376,9 @@ class mdf_skeleton(dict):
         -------
         channel dictionnary containing data, description, unit, etc.
         """
-        if channelName in self:
+        try:
             return self[channelName]
-        else:
+        except KeyError:
             return None
 
     def _getChannelField(self, channelName, field=None):
@@ -395,10 +395,10 @@ class mdf_skeleton(dict):
         channel description string
         """
         channel = self.getChannel(channelName)
-        if channelName in self:
-            if field in channel:
+        if channel is not None:
+            try:
                 return channel[field]
-            else:
+            except KeyError:
                 return ''
         else:
             return None
@@ -515,10 +515,10 @@ class mdf_skeleton(dict):
         field : str
             channel dict key of item
         """
-        if channelName in self:
+        try:
             self[channelName][field] = item
-        else:
-            raise KeyError('Channel not in dictionary')
+        except KeyError:
+            raise KeyError('Channel {} not in dictionary'.format(channelName), file=stderr)
 
     def _channelInMDF(self, channelName):
         """Efficiently assess if channel is already in mdf
@@ -628,7 +628,7 @@ class mdf_skeleton(dict):
         yop.MDFVersionNumber = self.MDFVersionNumber
         yop.filterChannelNames = self.filterChannelNames
         yop.convert_tables = self.convert_tables
-        for channel in list(self.keys()):
+        for channel in self:
             yop[channel] = self[channel]
         return yop
 
