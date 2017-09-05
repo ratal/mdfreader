@@ -142,25 +142,6 @@ def _mdfblockread(fid, type, count):
         return None
 
 
-def _mdfblockreadCHAR(fid, count):
-    """ Reads a character chain of length count encoded in latin.
-        Removes trailing 0
-
-    Parameters
-    ----------------
-    count : int
-        number of characters to read
-
-    Returns
-    -----------
-    a string of length count
-    """
-    if PythonVersion < 3:
-        return fid.read(count).rstrip(b'\x00')
-    else:
-        return fid.read(count).decode('iso8859-1', 'replace').rstrip('\x00')
-
-
 def _mdfblockreadBYTE(fid, count):
     """ reads an array of UTF-8 encoded bytes. Removes trailing 0
 
@@ -207,31 +188,6 @@ def _writeHeader(fid, Id, block_length, link_count):
     head = (Id, 0, block_length, link_count)
     fid.write(HeaderStruct.pack(*head))
     return current_position
-
-
-def _writeChar(fid, value, size=None):
-    """ Writes a char in a block
-
-    Parameters
-    ----------------
-    fid : float
-        file identifier
-    value : str
-        char value to write
-    size : int
-        size that should take this char
-    """
-    if size is None:
-        temp = value
-    else:
-        if len(value) > size:
-            temp = value[:size]
-        else:
-            temp = value + '\0' * (size - len(value))
-        temp += '\0'
-    if PythonVersion >= 3:
-        temp = temp.encode('latin1', 'replace')
-    fid.write(pack('<' + str(len(temp)) + 's', temp))
 
 
 def _writePointer(fid, pointer, value):
