@@ -1389,9 +1389,9 @@ class mdf4(mdf_skeleton):
 
         # set is more efficient for large number of channels (n^2 vs n*log(n)):
         if channelList is not None:
-            channelSet = set(channelList) # make sure it is a set
+            channelSetFile = set(channelList) # make sure it is a set
         else:
-            channelSet = None
+            channelSetFile = None
 
         # reads metadata
         fileDateTime = gmtime(info['HDBlock']['hd_start_time_ns'] / 1000000000)
@@ -1416,6 +1416,7 @@ class mdf4(mdf_skeleton):
             self.add_metadata(date=ddate, time=ttime)
 
         for dataGroup in info['DGBlock']:
+            channelSet = channelSetFile
             if not info['DGBlock'][dataGroup]['dg_data'] == 0 and \
                     info['CGBlock'][dataGroup][0]['cg_cycle_count']:  # data exists
                 # Pointer to data block
@@ -1431,8 +1432,10 @@ class mdf4(mdf_skeleton):
                             and buf[recordID]['record'].channelNames:
                             #and temp.master['name'] not in self.masterChannelList:
                         #self.masterChannelList[temp.master['name']] = []
-                        if channelSet is not None and temp.master['name'] not in channelSet:
+                        if channelSet is not None and temp.master['name'] not in channelSet and not self._noDataLoading:
                             channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
+                    if self._noDataLoading and len(channelSet & buf[recordID]['record'].channelNames)>0:
+                            channelSet = None  # will load complete datagroup
                     if channelSet is not None and buf[recordID]['record'].CANOpen: # adds CANOpen channels if existing in not empty channelSet
                         if buf[recordID]['record'].CANOpen == 'time':
                             channelSet.add(['ms', 'days'])
