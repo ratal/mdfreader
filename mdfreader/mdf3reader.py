@@ -334,10 +334,12 @@ class Channel():
         self.embedding_channel_bitOffset = self.bitOffset  # for channel containing other channels
         self.posByteBeg = recordIDnumber + self.byteOffset
         self.posByteEnd = recordIDnumber + self.byteOffset + self.nBytes
+        self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['channelType']
+        if self.channelType:  # master time channel
+            self.name +=  '_' + str(dataGroup)
         self.recAttributeName = _convertName(self.name)
         self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
         self.nativeRecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), nativeDataType)
-        self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['channelType']
         if 'physicalUnit' in info['CCBlock'][dataGroup][channelGroup][channelNumber]:
             self.unit = info['CCBlock'][dataGroup][channelGroup][channelNumber]['physicalUnit']
         else:
@@ -935,11 +937,13 @@ class mdf3(mdf_skeleton):
 
         channelList : list of str, optional
             list of channel names to be read
-            If you use channelList, reading might be much slower but it will save you memory. Can be used to read big files
+            If you use channelList, reading might be much slower but it will save you memory.
+            Can be used to read big files
 
         convertAfterRead : bool, optional
             flag to convert channel after read, True by default
-            If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
+            If you use convertAfterRead by setting it to false, all data from channels
+            will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
 
@@ -956,9 +960,9 @@ class mdf3(mdf_skeleton):
             self.fileName = fileName
 
         if channelList is None:
-            channelSet = None
+            channelSetFile = None
         else:
-            channelSet = set(channelList)
+            channelSetFile = set(channelList)
 
         # Read information block from file
         if info is None:
@@ -986,6 +990,7 @@ class mdf3(mdf_skeleton):
 
         # Read data from file
         for dataGroup in info['DGBlock']:
+            channelSet = channelSetFile
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
@@ -997,6 +1002,9 @@ class mdf3(mdf_skeleton):
 
                     if temp.numberOfRecords != 0:  # continue if there are at least some records
                         buf.addRecord(temp)
+                        if self._noDataLoading and len(channelSet & \
+                                buf[temp.recordID]['record'].channelNames) > 0:
+                            channelSet = None  # will load complete datagroup
 
                 buf.read(channelSet) # reads datablock potentially containing several channel groups
 
@@ -1010,29 +1018,31 @@ class mdf3(mdf_skeleton):
                                     if channelSet is None or c.name in channelSet)
 
                         for chan in channels: # for each recordchannel
-                            recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName]  # in case record is used for several channels
+                            # in case record is used for several channels
+                            recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName]
                             temp = buf[recordID]['data'][recordName]
 
                             if len(temp) != 0:
                                 # Process concatenated bits inside uint8
                                 if not chan.bitCount // 8.0 == chan.bitCount / 8.0 \
                                         and not buf[recordID]['record'].hiddenBytes \
-                                        and buf[recordID]['record'].byte_aligned:  # if channel data do not use complete bytes
+                                        and buf[recordID]['record'].byte_aligned:
+                                    # if channel data do not use complete bytes
                                     if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
                                         temp = right_shift(temp, chan.embedding_channel_bitOffset)
                                         mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
-                                        print('bit count and offset not applied to correct data type', file=stderr)
-
-                                self.add_channel(dataGroup, chan.name, temp, \
-                                        master_channel, \
-                                        master_type=1, \
-                                        unit=chan.unit, \
-                                        description=chan.desc, \
-                                        conversion=chan.conversion, \
-                                        info=None, \
-                                        compression=compression)
+                                        print('bit count and offset not applied \
+                                              to correct data type', file=stderr)
+                                self.add_channel(dataGroup, chan.name, temp,
+                                                 master_channel,
+                                                 master_type=1,
+                                                 unit=chan.unit,
+                                                 description=chan.desc,
+                                                 conversion=chan.conversion,
+                                                 info=None,
+                                                 compression=compression)
                 del buf
         fid.close()  # close file
         if convertAfterRead and not compression:

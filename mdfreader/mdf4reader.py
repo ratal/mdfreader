@@ -662,7 +662,7 @@ class channel():
             if self.channelType == 1:  # if VSLD
                 self.dataFormat = arrayformat4(0, self.bitCount)
                 self.maxLengthVLSDRecord = 0  # initialises max length of SDBlock elements to 0 for later calculation
-        if self.channelType in (2, 3):  # master channel, add datagroup number to avoid overwriting same sames like time
+        if self.channelType in (2, 3):  # master channel, add datagroup number to avoid overwriting same names like time
             self.name += '_' + str(dataGroup)
         self.recAttributeName = _convertName(self.name)
         self.RecordFormat = ((self.recAttributeName + '_title',
@@ -1434,8 +1434,8 @@ class mdf4(mdf_skeleton):
                         #self.masterChannelList[temp.master['name']] = []
                         if channelSet is not None and temp.master['name'] not in channelSet and not self._noDataLoading:
                             channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
-                    if self._noDataLoading and len(channelSet & buf[recordID]['record'].channelNames)>0:
-                            channelSet = None  # will load complete datagroup
+                    if self._noDataLoading and len(channelSet & buf[recordID]['record'].channelNames) > 0:
+                        channelSet = None  # will load complete datagroup
                     if channelSet is not None and buf[recordID]['record'].CANOpen: # adds CANOpen channels if existing in not empty channelSet
                         if buf[recordID]['record'].CANOpen == 'time':
                             channelSet.add(['ms', 'days'])
