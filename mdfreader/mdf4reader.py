@@ -1376,16 +1376,19 @@ class mdf4(mdf_skeleton):
 
         if self.fileName is None and info is not None:
             self.fileName = info.fileName
+            self._info = info
         elif fileName is not None:
             self.fileName = fileName
 
-        # inttime = time.clock()
         # Read information block from file
-        if info is None:
-            info = info4(self.fileName, None)
+        if self._info is None:
+            if info is None:
+                self._info = info4(self.fileName, None)
+            else:
+                self._info = info
 
-        if info.fid.closed:
-            info.fid = open(self.fileName, 'rb')
+        if self._info.fid.closed:
+            self._info.fid = open(self.fileName, 'rb')
 
         # set is more efficient for large number of channels (n^2 vs n*log(n)):
         if channelList is not None:
@@ -1394,7 +1397,7 @@ class mdf4(mdf_skeleton):
             channelSetFile = None
 
         # reads metadata
-        fileDateTime = gmtime(info['HDBlock']['hd_start_time_ns'] / 1000000000)
+        fileDateTime = gmtime(self._info['HDBlock']['hd_start_time_ns'] / 1000000000)
         ddate = strftime('%Y-%m-%d', fileDateTime)
         ttime = strftime('%H:%M:%S', fileDateTime)
         def returnField(obj, field):
@@ -1402,8 +1405,8 @@ class mdf4(mdf_skeleton):
                 return obj[field]
             else:
                 return ''
-        if 'Comment' in info['HDBlock']:
-            Comment =  info['HDBlock']['Comment']
+        if 'Comment' in self._info['HDBlock']:
+            Comment =  self._info['HDBlock']['Comment']
             author = returnField(Comment, 'author')
             organisation = returnField(Comment, 'department')
             project = returnField(Comment,'project')
@@ -1415,26 +1418,26 @@ class mdf4(mdf_skeleton):
         else:
             self.add_metadata(date=ddate, time=ttime)
 
-        for dataGroup in info['DGBlock']:
+        for dataGroup in self._info['DGBlock']:
             channelSet = channelSetFile
-            if not info['DGBlock'][dataGroup]['dg_data'] == 0 and \
-                    info['CGBlock'][dataGroup][0]['cg_cycle_count']:  # data exists
+            if not self._info['DGBlock'][dataGroup]['dg_data'] == 0 and \
+                    self._info['CGBlock'][dataGroup][0]['cg_cycle_count']:  # data exists
                 # Pointer to data block
-                pointerToData = info['DGBlock'][dataGroup]['dg_data']
-                buf = DATA(info.fid, pointerToData)
+                pointerToData = self._info['DGBlock'][dataGroup]['dg_data']
+                buf = DATA(self._info.fid, pointerToData)
 
-                for channelGroup in info['CGBlock'][dataGroup]:
+                for channelGroup in self._info['CGBlock'][dataGroup]:
                     temp = record(dataGroup, channelGroup)  # create record class
-                    temp.loadInfo(info)  # load all info related to record
+                    temp.loadInfo(self._info)  # load all info related to record
                     buf.addRecord(temp)  # adds record to DATA
-                    recordID = info['CGBlock'][dataGroup][channelGroup]['cg_record_id']
+                    recordID = self._info['CGBlock'][dataGroup][channelGroup]['cg_record_id']
                     if temp.master['name'] is not None \
                             and buf[recordID]['record'].channelNames:
                             #and temp.master['name'] not in self.masterChannelList:
                         #self.masterChannelList[temp.master['name']] = []
                         if channelSet is not None and temp.master['name'] not in channelSet and not self._noDataLoading:
                             channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
-                    if self._noDataLoading and len(channelSet & buf[recordID]['record'].channelNames) > 0:
+                    if self._noDataLoading and channelSet is not None and len(channelSet & buf[recordID]['record'].channelNames) > 0:
                         channelSet = None  # will load complete datagroup
                     if channelSet is not None and buf[recordID]['record'].CANOpen: # adds CANOpen channels if existing in not empty channelSet
                         if buf[recordID]['record'].CANOpen == 'time':
@@ -1511,7 +1514,7 @@ class mdf4(mdf_skeleton):
                                         compression=compression)
                                     if chan.channelType == 4:  # sync channel
                                         # attach stream to be synchronised
-                                        self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
+                                        self.setChannelAttachment(chan.name, chan.attachment(self._info.fid, self._info))
 
                             elif chan.type == 'InvalidBytes' and \
                                     (channelSet is None or chan.name in channelSet):  # invalid bytes, no bits processing
@@ -1524,9 +1527,10 @@ class mdf4(mdf_skeleton):
                                         info=None, \
                                         compression=compression)
                     del buf[recordID]
-        info.fid.close()  # close file
+        self._info.fid.close()  # close file
 
         if convertAfterRead and not compression:
+            self._noDataLoading = False
             self._convertAllChannel4()
         # print( 'Finished in ' + str( time.clock() - inttime ) , file=stderr)
 
@@ -1632,31 +1636,35 @@ class mdf4(mdf_skeleton):
         """Converts all channels from raw data to converted data according to CCBlock information
         Converted data will take more memory.
         """
-        if self.multiProc is False:
-            [self._convertChannel4(channelName) for channelName in self]
-        else:  # multiprocessing
-            proc = []
-            Q = Queue()
-            L = {}
-            for channelName in self:
-                channel = self.getChannel(channelName)
-                if 'conversion' in channel:
-                    conversion = self.getChannelConversion(channelName)
-                    if conversion['type'] in (1, 2):  # more time in multi proc
-                        self._convertChannel4(channelName)
-                    else:
-                        proc.append(Process(target=convertChannelData4, \
-                                args=(channel, channelName, self.convert_tables, True, Q)))
-                        proc[-1].start()
-            for p in proc:
-                L.update(Q.get())  # concatenate results of processes in dict
-            for p in proc:
-                p.join()
-            del Q  # free memory
-            for channelName in self:
-                if channelName in L:
-                    self.setChannelData(channelName, L[channelName])
-                    self.remove_channel_conversion(channelName)
+
+        if self._noDataLoading:  # no data loaded, load everything
+            self.read4(self.fileName, convertAfterRead=True)
+        else:
+            if self.multiProc is False:
+                [self._convertChannel4(channelName) for channelName in self]
+            else:  # multiprocessing
+                proc = []
+                Q = Queue()
+                L = {}
+                for channelName in self:
+                    channel = self.getChannel(channelName)
+                    if 'conversion' in channel:
+                        conversion = self.getChannelConversion(channelName)
+                        if conversion['type'] in (1, 2):  # more time in multi proc
+                            self._convertChannel4(channelName)
+                        else:
+                            proc.append(Process(target=convertChannelData4, \
+                                    args=(channel, channelName, self.convert_tables, True, Q)))
+                            proc[-1].start()
+                for p in proc:
+                    L.update(Q.get())  # concatenate results of processes in dict
+                for p in proc:
+                    p.join()
+                del Q  # free memory
+                for channelName in self:
+                    if channelName in L:
+                        self.setChannelData(channelName, L[channelName])
+                        self.remove_channel_conversion(channelName)
 
 
     def write4(self, fileName=None):
