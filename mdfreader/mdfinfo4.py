@@ -797,7 +797,7 @@ class CNBlock(defaultdict):
         pointers['SI'] = currentPosition + 24
         pointers['CC'] = currentPosition + 32
         pointers['data'] = currentPosition + 40
-        pointers['Unit'] = currentPosition + 46
+        pointers['Unit'] = currentPosition + 48
         pointers['Comment'] = currentPosition + 56
         # (Next channel block pointer, composition of channel pointer,
         # TXBlock pointer for channel name, source SIBlock pointer,
