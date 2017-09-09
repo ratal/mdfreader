@@ -28,7 +28,7 @@ except ImportError:
     CompressionPossible = False
 
 from pandas import set_option
-from collections import OrderedDict
+from collections import OrderedDict,defaultdict
 from numpy import array_repr, set_printoptions, recarray, empty
 set_printoptions(threshold=100, edgeitems=1)
 _notAllowedChannelNames = set(dir(recarray))
@@ -306,7 +306,10 @@ class mdf_skeleton(dict):
         str
             unit string description
         """
-        return self._getChannelField(channelName, field=unitField)
+        temp = self._getChannelField(channelName, field=unitField)
+        if isinstance(temp, (dict, defaultdict)):
+            temp = temp['Comment']
+        return temp
 
     def getChannelDesc(self, channelName):
         """Extract channel description information from mdf structure
@@ -518,7 +521,7 @@ class mdf_skeleton(dict):
         try:
             self[channelName][field] = item
         except KeyError:
-            raise KeyError('Channel {} not in dictionary'.format(channelName), file=stderr)
+            print('Channel {} not in dictionary'.format(channelName))
 
     def _channelInMDF(self, channelName):
         """Efficiently assess if channel is already in mdf
