@@ -113,31 +113,31 @@ def _loadHeader(fid, pointer):
         return None
 
 
-def _mdfblockread(fid, type, count):
-    """ converts a byte array of length count to a given data type
+def _mdfblockread(fid, Type, count):
+    """ converts a byte array of length count to a given data Type
 
     Parameters
     ----------------
-    type : str
+    Type : str
         C format data type
     count : int
         number of elements to sequentially read
 
     Returns
     -----------
-    array of values of 'type' parameter
+    array of values of 'Type' parameter
     """
-    value = fid.read(calcsize(type) * count)
+    value = fid.read(calcsize(Type) * count)
     if value:
         if count == 1:
-            return unpack(type, value)[0]
+            return unpack(Type, value)[0]
         else:
-            if '<' in type or '>' in type:
-                endian = type[0]
-                type = type.strip('<>')
-                return unpack(endian+count*type, value)
+            if '<' in Type or '>' in Type:
+                endian = Type[0]
+                Type = Type.strip('<>')
+                return unpack(endian+count*Type, value)
             else:
-                return unpack(count*type, value)
+                return unpack(count*Type, value)
     else:
         return None
 
@@ -227,7 +227,7 @@ class IDBlock(defaultdict):
          self['id_ver'],
          self['id_reserved2'],
          self['id_unfi_flags'],
-         self['id_custom_unfi_flags']) = unpack('<8s8s8s4sH30s2H',
+         self['id_custom_unfi_flags']) = unpack('<8s8s8sIH30s2H',
                                                 fid.read(64))
         # treatment of unfinalised file
         if self['id_ver'] > 410 and 'UnFin' in self['id_file']:
