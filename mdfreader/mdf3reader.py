@@ -974,7 +974,10 @@ class mdf3(mdf_skeleton):
                 self._info = info
 
         if self._info.fid.closed:
-            self._info.fid = open(self.fileName, 'rb')
+            try:
+                self._info.fid = open(self.fileName, 'rb')
+            except IOError:
+                raise Exception('Can not find file ' + self.fileName)
 
         # reads metadata
         try:
@@ -990,19 +993,13 @@ class mdf3(mdf_skeleton):
                 subject=self._info['HDBlock']['Subject'], comment=comment, \
                     date=ddate, time=self._info['HDBlock']['Time'])
 
-        try:
-            fid = open(self.fileName, 'rb')
-        except IOError:
-            raise Exception('Can not find file ' + self.fileName)
-
-
         # Read data from file
         for dataGroup in self._info['DGBlock']:
             channelSet = channelSetFile
             if self._info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
                 # Pointer to data block
                 pointerToData = self._info['DGBlock'][dataGroup]['pointerToDataRecords']
-                buf = DATA(fid, pointerToData)
+                buf = DATA(self._info.fid, pointerToData)
 
                 for channelGroup in range(self._info['DGBlock'][dataGroup]['numberOfChannelGroups']):
                     temp = record(dataGroup, channelGroup)  # create record class
@@ -1010,7 +1007,7 @@ class mdf3(mdf_skeleton):
 
                     if temp.numberOfRecords != 0:  # continue if there are at least some records
                         buf.addRecord(temp)
-                        if self._noDataLoading and len(channelSet & \
+                        if self._noDataLoading and channelSet is not None and len(channelSet & \
                                 buf[temp.recordID]['record'].channelNames) > 0:
                             channelSet = None  # will load complete datagroup
 
@@ -1053,7 +1050,7 @@ class mdf3(mdf_skeleton):
                                                  info=None,
                                                  compression=compression)
                 del buf
-        fid.close()  # close file
+        self._info.fid.close()  # close file
         if convertAfterRead and not compression:
             self._noDataLoading = False
             self._convertAllChannel3()
