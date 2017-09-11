@@ -43,6 +43,7 @@ from collections import defaultdict
 from numpy.core.records import fromstring, fromfile, fromarrays
 from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
+from numpy import max as npmax, min as npmin
 from mdfinfo4 import info4, ATBlock, IDBlock, HDBlock, DGBlock,\
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
     DZBlock, HLBlock, CCBlock, _writePointer, _writeHeader
@@ -1680,7 +1681,7 @@ class mdf4(mdf_skeleton):
         --------
         All channels will be converted to physical data, so size might be bigger than original file
         """
-        from numpy import max, min
+
         pointers = {}  # records pointers of blocks when writing
 
         # Starts first to write ID and header
@@ -1748,8 +1749,8 @@ class mdf4(mdf_skeleton):
                     dataList = dataList + (data, )
                     number_of_channel +=1
                     temp = CNBlock()
-                    temp['cn_val_range_min'] = min(data)
-                    temp['cn_val_range_max'] = max(data)
+                    temp['cn_val_range_min'] = npmin(data)
+                    temp['cn_val_range_max'] = npmax(data)
                     temp['cn_flags'] = 16 # only Bit 4: Limit range valid flag
                     if masterChannel is not channel:
                         temp['cn_type'] = 0
