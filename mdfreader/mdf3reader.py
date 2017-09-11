@@ -1379,9 +1379,13 @@ class mdf3(mdf_skeleton):
                 # pointer to long channel name
                 # pointer to channel display name
                 # additional byte offset
+                try:
+                    description = '{:\x00<128}'.format(desc).encode('latin-1')
+                except:
+                    description = b'\x00' * 128
                 head = (b'CN', 228, 0, 0, 0, 0, 0, masterFlag,
                         '{:\x00<32}'.format(channel).encode('latin-1'),
-                        '{:\x00<128}'.format(desc).encode('latin-1'),
+                        description,
                         bitOffset, numberOfBits, dataType, valueRangeValid,
                         minimum, maximum, 0, 0, 0, byteOffset)
                 fid.write(pack('<2sH5IH32s128s4H3d2IH', *head))
