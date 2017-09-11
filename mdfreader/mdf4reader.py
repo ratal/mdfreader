@@ -1406,12 +1406,12 @@ class mdf4(mdf_skeleton):
             else:
                 return ''
         if 'Comment' in self._info['HDBlock']:
-            Comment =  self._info['HDBlock']['Comment']
+            Comment = self._info['HDBlock']['Comment']
             author = returnField(Comment, 'author')
             organisation = returnField(Comment, 'department')
-            project = returnField(Comment,'project')
-            subject = returnField(Comment,'subject')
-            comment = returnField(Comment,'TX')
+            project = returnField(Comment, 'project')
+            subject = returnField(Comment, 'subject')
+            comment = returnField(Comment, 'TX')
             self.add_metadata(author=author, organisation=organisation, \
                     project=project, subject=subject, comment=comment, \
                     date=ddate, time=ttime)

@@ -34,11 +34,12 @@ from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
     dataField, conversionField, compressed_data
 from mdfinfo3 import info3
 from math import log, exp
-from time import strftime, time
+from time import strftime, time, gmtime
 from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
 from sys import platform, exc_info, version_info, stderr, path
 from os.path import dirname, abspath
+import os
 _root = dirname(abspath(__file__))
 path.append(_root)
 
@@ -956,6 +957,7 @@ class mdf3(mdf_skeleton):
 
         if self.fileName is None and info is not None:
             self.fileName = info.fileName
+            self._info = info
         elif fileName is not None:
             self.fileName = fileName
 
@@ -965,22 +967,28 @@ class mdf3(mdf_skeleton):
             channelSetFile = set(channelList)
 
         # Read information block from file
-        if info is None:
-            info = info3(self.fileName, None, self.filterChannelNames)
+        if self._info is None:
+            if info is None:
+                self._info = info3(self.fileName, None)
+            else:
+                self._info = info
+
+        if self._info.fid.closed:
+            self._info.fid = open(self.fileName, 'rb')
 
         # reads metadata
         try:
-            comment = info['HDBlock']['TXBlock']['Text']
+            comment = self._info['HDBlock']['TXBlock']['Text']
         except:
             comment = ''
         # converts date to be compatible with ISO8601
-        day, month, year = info['HDBlock']['Date'].split(':')
+        day, month, year = self._info['HDBlock']['Date'].split(':')
         ddate = year + '-' + month + '-' + day
-        self.add_metadata(author=info['HDBlock']['Author'], \
-                organisation=info['HDBlock']['Organization'], \
-                project=info['HDBlock']['ProjectName'], \
-                subject=info['HDBlock']['Subject'], comment=comment, \
-                    date=ddate, time=info['HDBlock']['Time'])
+        self.add_metadata(author=self._info['HDBlock']['Author'], \
+                organisation=self._info['HDBlock']['Organization'], \
+                project=self._info['HDBlock']['ProjectName'], \
+                subject=self._info['HDBlock']['Subject'], comment=comment, \
+                    date=ddate, time=self._info['HDBlock']['Time'])
 
         try:
             fid = open(self.fileName, 'rb')
@@ -989,16 +997,16 @@ class mdf3(mdf_skeleton):
 
 
         # Read data from file
-        for dataGroup in info['DGBlock']:
+        for dataGroup in self._info['DGBlock']:
             channelSet = channelSetFile
-            if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
+            if self._info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
                 # Pointer to data block
-                pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
+                pointerToData = self._info['DGBlock'][dataGroup]['pointerToDataRecords']
                 buf = DATA(fid, pointerToData)
 
-                for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
+                for channelGroup in range(self._info['DGBlock'][dataGroup]['numberOfChannelGroups']):
                     temp = record(dataGroup, channelGroup)  # create record class
-                    temp.loadInfo(info)  # load all info related to record
+                    temp.loadInfo(self._info)  # load all info related to record
 
                     if temp.numberOfRecords != 0:  # continue if there are at least some records
                         buf.addRecord(temp)
@@ -1019,7 +1027,8 @@ class mdf3(mdf_skeleton):
 
                         for chan in channels: # for each recordchannel
                             # in case record is used for several channels
-                            recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName]
+                            recordName = buf[recordID]['record'].\
+                                    recordToChannelMatching[chan.recAttributeName]
                             temp = buf[recordID]['data'][recordName]
 
                             if len(temp) != 0:
@@ -1046,6 +1055,7 @@ class mdf3(mdf_skeleton):
                 del buf
         fid.close()  # close file
         if convertAfterRead and not compression:
+            self._noDataLoading = False
             self._convertAllChannel3()
 
     def _getChannelData3(self, channelName):
@@ -1137,8 +1147,11 @@ class mdf3(mdf_skeleton):
         """Converts all channels from raw data to converted data according to CCBlock information
         Converted data will take more memory.
         """
-        for channel in self:
-            self._convertChannel3(channel)
+        if self._noDataLoading:  # no data loaded, load everything
+            self.read3(self.fileName, convertAfterRead=True)
+        else:
+            for channel in self:
+                self._convertChannel3(channel)
 
     def write3(self, fileName=None):
         """Writes simple mdf 3.3 file
@@ -1154,19 +1167,6 @@ class mdf3(mdf_skeleton):
         --------
         All channels will be converted to physical data, so size might be bigger than original file
         """
-
-        LINK = 'I'
-        #CHAR = 'c'
-        REAL = 'd'
-        BOOL = 'h'
-        #UINT8 = 'B'
-        #BYTE =  'B'
-        INT16 = 'h'
-        UINT16 = 'H'
-        UINT32 = 'I'
-        #INT32 = 'i'
-        UINT64 = 'Q'
-        #INT64 = 'q'
 
         # put master channel in first position for each datagroup if not already the case
         for master in self.masterChannelList:
@@ -1200,107 +1200,95 @@ class mdf3(mdf_skeleton):
         def writePointer(f, pointer, value):
             currentPosition = f.tell()
             f.seek(pointer)
-            f.write(pack(LINK, value))
+            f.write(pack('I', value))
             f.seek(currentPosition)
 
-        # Starts first to write ID and header
         fid = open(fileName, 'wb')  # buffering should automatically be set
-        writeChar(fid, 'MDF     ')
-        writeChar(fid, '3.30    ')
-        writeChar(fid, 'MDFreadr')
-        fid.write(pack(UINT16, 0))  # little endian
-        fid.write(pack(UINT16, 0))  # floating format
-        fid.write(pack(UINT16, 330))  # version 3.0
-        fid.write(pack(UINT16, 28591))  # code page ISO2859-1 latin 1 western europe
-        writeChar(fid, '\0' * 32)  # reserved
+        # Starts first to write ID and header
+        head = (b'MDF     ', b'3.30    ', b'MDFreadr', 0, 0, 330,
+                28591, b'\0' * 32)
+        # code page ISO2859-1 latin 1 western europe
+        fid.write(pack('<8s8s8s4H32s', *head))
 
         # Header Block
-        writeChar(fid, 'HD')
-        fid.write(pack(UINT16, 208))  # block size
         pointers['HD'] = {}
-        pointers['HD']['DG'] = fid.tell()
-        fid.write(pack(LINK, 272))  # first Data block pointer
-        pointers['HD']['TX'] = fid.tell()
-        fid.write(pack(LINK, 0))  # pointer to TX Block file comment
-        pointers['HD']['PR'] = fid.tell()
-        fid.write(pack(LINK, 0))  # pointer to PR Block
+        pointers['HD']['DG'] = 68
+        pointers['HD']['TX'] = 72
+        pointers['HD']['PR'] = 76
         ndataGroup = len(self.masterChannelList)
-        fid.write(pack(UINT16, ndataGroup))  # number of data groups
-        writeChar(fid, strftime("%d:%m:%Y"))  # date
-        writeChar(fid, strftime("%H:%M:%S"))  # time
-        if self.file_metadata['author'] is not None:
-            writeChar(fid, self.file_metadata['author'], size=31)  # Author
+        if self.file_metadata['author'] is not None:  # Author
+            author = '{:\x00<32}'.format(self.file_metadata['author']).encode('latin-1')
+        elif PythonVersion >= 3:
+            author = '{:\x00<32}'.format(os.getlogin()).encode('latin-1')
         else:
-            writeChar(fid, ' ', size=31)  # Author
-        if self.file_metadata['organisation'] is not None:
-            writeChar(fid, self.file_metadata['organisation'], size=31)  # Organization
+            author = b'\x00' * 32
+        if self.file_metadata['organisation'] is not None:  # Organization
+            organization = '{:\x00<32}'.format(self.file_metadata['organisation']).encode('latin-1')
         else:
-            writeChar(fid, ' ', size=31)
-        if self.file_metadata['project'] is not None:
-            writeChar(fid, self.file_metadata['project'], size=31)  # Project
+            organization = b'\x00' * 32
+        if self.file_metadata['project'] is not None:  # Project
+            project = '{:\x00<32}'.format(self.file_metadata['project']).encode('latin-1')
         else:
-            writeChar(fid, ' ', size=31)
-        if self.file_metadata['subject'] is not None:
-            writeChar(fid, self.file_metadata['subject'], size=31)  # Subject
+            project = b'\x00' * 32
+        if self.file_metadata['subject'] is not None:  # Subject
+            subject = '{:\x00<32}'.format(self.file_metadata['subject']).encode('latin-1')
         else:
-            writeChar(fid, ' ', size=31)
-        fid.write(pack(UINT64, int(time() * 1000000000)))  # Time Stamp
-        fid.write(pack(INT16, 1))  # UTC time offset
-        fid.write(pack(UINT16, 0))  # Time quality
-        writeChar(fid, 'Local PC Reference Time         ')  # Timer identification
+            subject = b'\x00' * 32
+        # Header Block, block size
+        # first Data block pointer, pointer to TX Block file comment, pointer to PR Block
+        # number of data groups, date, time
+        # Time Stamp, UTC time offset, Time quality, Timer identification
+        timeOffset = gmtime()
+        head = (b'HD', 208, 272, 0, 0, ndataGroup,
+                '{:\x00<10}'.format(strftime("%d:%m:%Y", timeOffset)).encode('latin-1'),
+                '{:\x00<8}'.format(strftime("%H:%M:%S", timeOffset)).encode('latin-1'),
+                author, organization, project, subject,
+                int(time() * 1000000000), 1, 0,
+                b'Local PC Reference Time         ')
+        fid.write(pack('<2sH3IH10s8s32s32s32s32sQhH32s', *head))
 
         # write DG block
         pointers['DG'] = {}
         pointers['CG'] = {}
         pointers['CN'] = {}
+        dataGroup = 0
 
-        for dataGroup in range(ndataGroup):
+        for masterChannel in self.masterChannelList:
             # writes dataGroup Block
             pointers['DG'][dataGroup] = {}
+            position = fid.tell()
             if 0 < dataGroup:  # not possible for first DG
                 # previous datagroup pointer to this new datagroup
-                writePointer(fid, pointers['DG'][dataGroup - 1]['nextDG'], fid.tell())
+                writePointer(fid, pointers['DG'][dataGroup - 1]['nextDG'], position)
             else:
                 # first datagroup pointer in header block
-                writePointer(fid, pointers['HD']['DG'], fid.tell())
-            writeChar(fid, 'DG')
-            fid.write(pack(UINT16, 28))  # DG block size
-            pointers['DG'][dataGroup]['nextDG'] = fid.tell()
-            # pointer to next DataGroup, 0 by default until it is known when creating new datagroup
-            fid.write(pack(LINK, 0))
-            pointers['DG'][dataGroup]['CG'] = fid.tell()
-            fid.write(pack(LINK, 0))  # pointer to channel group, 0 until CG created
-            fid.write(pack(LINK, 0))  # pointer to trigger block, not used
-            pointers['DG'][dataGroup]['data'] = fid.tell()
-            fid.write(pack(LINK, 0))  # pointer to data block
-            fid.write(pack(UINT16, 1))  # number of channel group, 1 because sorted data
-            fid.write(pack(UINT16, 0))  # number of record IDs
-            writeChar(fid, '\0' * 32)  # reserved
+                writePointer(fid, pointers['HD']['DG'], position)
+            pointers['DG'][dataGroup]['nextDG'] = position + 4
+            pointers['DG'][dataGroup]['CG'] = position + 8
+            pointers['DG'][dataGroup]['data'] = position + 16
+            # DG block size, pointer to next DataGroup,
+            # pointer to channel group, pointer to trigger block, pointer to data block
+            # number of channel group, number of record IDs, reserved
+            head = (b'DG', 28, 0, 0, 0, 0, 1, 0, b'\x00' * 32)
+            fid.write(pack('<2sH4I2H4s', *head))
 
             # sorted data so only one channel group
             pointers['CG'][dataGroup] = {}
             # write first CG pointer in datagroup
-            writePointer(fid, pointers['DG'][dataGroup]['CG'], fid.tell())
-            writeChar(fid, 'CG')
-            fid.write(pack(UINT16, 30))  # CG block size
-            fid.write(pack(LINK, 0))  # pointer to next Channel Group but no other, one CG per DG
-            pointers['CG'][dataGroup]['firstCN'] = fid.tell()
-            fid.write(pack(LINK, 0))  # pointer to first channel block
-            pointers['CG'][dataGroup]['TX'] = fid.tell()
-            fid.write(pack(LINK, 0))  # pointer to TX block
-            fid.write(pack(UINT16, 0))  # No record ID no need for sorted data
-            masterChannel = list(self.masterChannelList.keys())[dataGroup]
+            position = fid.tell()
+            writePointer(fid, pointers['DG'][dataGroup]['CG'], position)
+            pointers['CG'][dataGroup]['firstCN'] = position + 8
+            pointers['CG'][dataGroup]['TX'] = position + 12
+            pointers['CG'][dataGroup]['dataRecordSize'] = position + 20
             numChannels = len(self.masterChannelList[masterChannel])
-            fid.write(pack(UINT16, numChannels))  # Number of channels
-            pointers['CG'][dataGroup]['dataRecordSize'] = fid.tell()
-            fid.write(pack(UINT16, 0))  # Size of data record
             masterData = self.getChannelData(masterChannel)
             nRecords = len(masterData)
-            fid.write(pack(UINT32, nRecords))  # Number of records
-            fid.write(pack(LINK, 0))  # pointer to sample reduction block, not used
-            sampling = 0
-            if masterData is not None and nRecords > 0 and masterData.dtype.kind not in ['S', 'U']:
-                sampling = average(diff(masterData))
+            # CG block size, pointer to next Channel Group
+            # pointer to first channel block, pointer to TX block
+            # No record ID no need for sorted data, Number of channels
+            # Size of data record, Number of records, pointer to sample reduction block
+            head = (b'CG', 30, 0, 0, 0, 0, numChannels, 0, nRecords, 0)
+            fid.write(pack('<2sH3I3H2I', *head))
 
             # Channel blocks writing
             pointers['CN'][dataGroup] = {}
@@ -1310,38 +1298,30 @@ class mdf3(mdf_skeleton):
             preceedingChannel = None
             bitOffset = 0
             byteOffset = 0
-            writePointer(fid, pointers['CG'][dataGroup]['firstCN'], fid.tell())  # first channel bock pointer from CG
+            # first channel bock pointer from CG
+            position = fid.tell()
+            writePointer(fid, pointers['CG'][dataGroup]['firstCN'], position)
             for channel in self.masterChannelList[masterChannel]:
+                position = fid.tell()
                 pointers['CN'][dataGroup][channel] = {}
-                pointers['CN'][dataGroup][channel]['beginCN'] = fid.tell()
-                writeChar(fid, 'CN')
-                fid.write(pack(UINT16, 228))  # CN block size
-                pointers['CN'][dataGroup][channel]['nextCN'] = fid.tell()
+                pointers['CN'][dataGroup][channel]['beginCN'] = position
+                pointers['CN'][dataGroup][channel]['nextCN'] = position + 4
+                pointers['CN'][dataGroup][channel]['CC'] = position + 8
+                pointers['CN'][dataGroup][channel]['TX'] = position + 16
                 if preceedingChannel is not None:  # not possible for first CN
-                    writePointer(fid, pointers['CN'][dataGroup][preceedingChannel]['nextCN'], pointers['CN'][dataGroup][channel]['beginCN'])  # pointer in previous cN
+                    # pointer in previous CN
+                    writePointer(fid, pointers['CN'][dataGroup][preceedingChannel]['nextCN'],
+                                 pointers['CN'][dataGroup][channel]['beginCN'])
                 preceedingChannel = channel
-                fid.write(pack(LINK, 0))  # pointer to next channel block, 0 as not yet known
-                pointers['CN'][dataGroup][channel]['CC'] = fid.tell()
-                fid.write(pack(LINK, 0))  # pointer to conversion block
-                fid.write(pack(LINK, 0))  # pointer to source depending block
-                fid.write(pack(LINK, 0))  # pointer to dependency block
-                pointers['CN'][dataGroup][channel]['TX'] = fid.tell()
-                fid.write(pack(LINK, 0))  # pointer to comment TX, no comment
-                # check if master channel
                 if channel not in set(self.masterChannelList):
-                    fid.write(pack(UINT16, 0))  # data channel
+                    masterFlag = 0  # data channel
                 else:
-                    fid.write(pack(UINT16, 1))  # master channel
-                # make channel name in 32 bytes
-                writeChar(fid, channel, size=31)  # channel name
-                # channel description
+                    masterFlag = 1  # master channel
                 desc = self.getChannelDesc(channel)
-                writeChar(fid, desc, size=127)  # channel description
                 #if bitOffset exceeds two byte limit, we start using the byte offset field
                 if bitOffset > 0xFFFF:
                     bitOffset -= 0x10000
                     byteOffset += 8192
-                fid.write(pack(UINT16, bitOffset))  # bit position
                 data = self.getChannelData(channel)  # channel data
                 temp = data
                 if PythonVersion >= 3 and data.dtype.kind in ['S', 'U']:
@@ -1375,58 +1355,60 @@ class mdf3(mdf_skeleton):
                 else:
                     dataTypeList += str(data.dtype.itemsize) + 's'
                     numberOfBits = 8 * data.dtype.itemsize
-                bitOffset += numberOfBits
                 recordNumberOfBits += numberOfBits
-                fid.write(pack(UINT16, numberOfBits))  # Number of bits
-                fid.write(pack(UINT16, dataType))  # Signal data type
                 if data.dtype.kind not in ['S', 'U']:
-                    fid.write(pack(BOOL, 1))  # Value range valid
+                    valueRangeValid = 1
                     if len(data) > 0:
                         maximum = max(data)
                         minimum = min(data)
                     else:
                         maximum = 0
                         minimum = 0
-                    fid.write(pack(REAL, minimum))  # Min value
-                    fid.write(pack(REAL, maximum))  # Max value
                 else:
-                    fid.write(pack(BOOL, 0))  # No value range valid
-                    fid.write(pack(REAL, 0))  # Min value
-                    fid.write(pack(REAL, 0))  # Max value
-                fid.write(pack(REAL, sampling))  # Sampling rate
-                pointers['CN'][dataGroup][channel]['longChannelName'] = fid.tell()
-                fid.write(pack(LINK, 0))  # pointer to long channel name
-                fid.write(pack(LINK, 0))  # pointer to channel display name
-                if byteOffset:
-                    fid.write(pack(UINT16, byteOffset))
+                    valueRangeValid = 0  # No value range valid
+                    minimum = 0  # Min value
+                    maximum = 0  # Max value
+                pointers['CN'][dataGroup][channel]['longChannelName'] = position + 218
+                # CN,  block size
+                # pointer to next channel block, pointer to conversion block
+                # pointer to source depending block, pointer to dependency block
+                # pointer to comment TX, check if master channel
+                # channel name, channel description,
+                # bit position, Number of bits, Signal data type
+                # value range valid, minimum, maximum, Sampling rate
+                # pointer to long channel name
+                # pointer to channel display name
+                # additional byte offset
+                head = (b'CN', 228, 0, 0, 0, 0, 0, masterFlag,
+                        '{:\x00<32}'.format(channel), '{:\x00<128}'.format(desc),
+                        bitOffset, numberOfBits, dataType, valueRangeValid,
+                        minimum, maximum, 0, 0, 0, byteOffset)
+                fid.write(pack('<2sH5IH32s128s4H3d2IH', *head))
+                bitOffset += numberOfBits
 
                 # TXblock for long channel name
                 writePointer(fid, pointers['CN'][dataGroup][channel]['longChannelName'], fid.tell())
-                writeChar(fid, 'TX')
-                fid.write(pack(UINT16, len(channel) + 4 + 1))  # TX block size
-                # channel name that can be long, should ends by 0 (NULL)
-                writeChar(fid, channel + '\0')
+                head = (b'TX', len(channel) + 4 + 1, channel + '\0')
+                fid.write(pack('<2sH{}s'.format(len(channel)+1), *head))
 
                 # Conversion blocks writing
                 writePointer(fid, pointers['CN'][dataGroup][channel]['CC'], fid.tell())
-                writeChar(fid, 'CC')
-                fid.write(pack(UINT16, 46))  # CC block size
-                if data.dtype.kind not in ['S', 'U']:
-                    fid.write(pack(BOOL, 1))  # Value range valid
-                    fid.write(pack(REAL, minimum))  # Min value
-                    fid.write(pack(REAL, maximum))  # Max value
-                else:
-                    fid.write(pack(BOOL, 0))  # No value range valid
-                    fid.write(pack(REAL, 0))  # Min value
-                    fid.write(pack(REAL, 0))  # Max value
-                writeChar(fid, self.getChannelUnit(channel), size=19)  # channel description
-                fid.write(pack(UINT16, 65535))  # conversion already done during reading
+                # channel description
+                # conversion already done during reading
                 # additional size information, not necessary for 65535 conversion type ?
-                fid.write(pack(UINT16, 0))
+                try:
+                    unit = self.getChannelUnit(channel).encode('latin-1', 'replace')
+                except:
+                    unit = ''
+                head = (b'CC', 46, valueRangeValid, minimum, maximum,
+                        '{:\x00<20}'.format(unit),
+                        65535, 0)
+                fid.write(pack('<2shH2d20s2H', *head))
+
             # number of channels in CG
             currentPosition = fid.tell()
             fid.seek(pointers['CG'][dataGroup]['dataRecordSize'])
-            fid.write(pack(UINT16, int(recordNumberOfBits / 8)))  # Size of data record
+            fid.write(pack('H', int(recordNumberOfBits / 8)))  # Size of data record
             fid.seek(currentPosition)
 
             # data writing
@@ -1434,6 +1416,8 @@ class mdf3(mdf_skeleton):
             writePointer(fid, pointers['DG'][dataGroup]['data'], fid.tell())
             # dumps data vector from numpy
             fid.write(fromarrays(dataList).tobytes(order='F'))
+
+            dataGroup += 1
 
         # print(pointers, file=stderr)
         fid.close()
