@@ -1175,24 +1175,6 @@ class mdf3(mdf_skeleton):
 
         pointers = {}  # records pointers of blocks when writing
 
-        # writes characters
-        def writeChar(f, value, size=None):
-            if size is None:
-                temp = value
-            else:
-                if len(value) > size:
-                    temp = value[:size]
-                else:
-                    temp = value + '\0' * (size - len(value))
-                temp += '\0'
-            if self.MDFVersionNumber < 400:
-                if PythonVersion >= 3:
-                    temp = temp.encode('latin1', 'replace')
-                f.write(pack('<' + str(len(temp)) + 's', temp))
-            else:
-                temp = temp.encode('latin1', 'replace')
-                f.write(pack('<' + str(len(temp)) + 's', temp))
-
         # write pointer of block and come back to current stream position
         def writePointer(f, pointer, value):
             currentPosition = f.tell()
@@ -1381,7 +1363,7 @@ class mdf3(mdf_skeleton):
                 except:
                     description = b'\x00' * 128
                 head = (b'CN', 228, 0, 0, 0, 0, 0, masterFlag,
-                        '{:\x00<32}'.format(channel).encode('latin-1'),
+                        ('{:\x00<32.31}'.format(channel) + '\x00').encode('latin-1'),
                         description,
                         bitOffset, numberOfBits, dataType, valueRangeValid,
                         minimum, maximum, 0, 0, 0, byteOffset)
