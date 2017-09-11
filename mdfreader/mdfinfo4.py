@@ -814,7 +814,9 @@ class CNBlock(defaultdict):
                      self['cn_type'], self['cn_sync_type'],
                      self['cn_data_type'], self['cn_bit_offset'],
                      self['cn_byte_offset'], self['cn_bit_count'],
-                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                     self['cn_flags'], 0, 0, 0, 0,
+                     self['cn_val_range_min'], self['cn_val_range_max'],
+                     0, 0, 0, 0)
         fid.write(pack('<8Q4B4I2BH6d', *dataBytes))
         return pointers
 

@@ -1680,7 +1680,7 @@ class mdf4(mdf_skeleton):
         --------
         All channels will be converted to physical data, so size might be bigger than original file
         """
-
+        from numpy import max, min
         pointers = {}  # records pointers of blocks when writing
 
         # Starts first to write ID and header
@@ -1748,6 +1748,9 @@ class mdf4(mdf_skeleton):
                     dataList = dataList + (data, )
                     number_of_channel +=1
                     temp = CNBlock()
+                    temp['cn_val_range_min'] = min(data)
+                    temp['cn_val_range_max'] = max(data)
+                    temp['cn_flags'] = 16 # only Bit 4: Limit range valid flag
                     if masterChannel is not channel:
                         temp['cn_type'] = 0
                         temp['cn_sync_type'] = 0
@@ -1815,12 +1818,17 @@ class mdf4(mdf_skeleton):
 
                     # write channel unit
                     unit = self.getChannelUnit(channel)
-                    if unit is not None and not len(unit) == 0:
+                    if unit is not None and len(unit) > 0:
                         temp = CommentBlock()
                         block_start = temp.write(fid, unit, 'TX')
                         _writePointer(fid, pointers['CN'][nchannel]['Unit'], block_start)
 
-                    # Conversion blocks writing
+                    # write channel description
+                    desc = self.getChannelDesc(channel)
+                    if desc is not None and len(desc) > 0:
+                        temp = CommentBlock()
+                        block_start = temp.write(fid, desc, 'TX')
+                        _writePointer(fid, pointers['CN'][nchannel]['Comment'], block_start)
 
             # writes size of record in CG
             _writePointer(fid, pointers['CG'][dataGroup]['cg_data_bytes'], record_byte_offset)
