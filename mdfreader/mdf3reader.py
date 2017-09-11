@@ -26,7 +26,8 @@ mdf3reader module
 """
 from __future__ import print_function
 
-from numpy import average, right_shift, bitwise_and, diff, max, min, interp
+from numpy import average, right_shift, bitwise_and, diff, interp
+from numpy import max as npmax, min as npmin
 from numpy import asarray, zeros, recarray, array, searchsorted
 from numpy.core.records import fromfile, fromarrays
 from numpy.core.defchararray import encode as ncode
@@ -1196,21 +1197,21 @@ class mdf3(mdf_skeleton):
         pointers['HD']['PR'] = 76
         ndataGroup = len(self.masterChannelList)
         if self.file_metadata['author'] is not None:  # Author
-            author = '{:\x00<32}'.format(self.file_metadata['author']).encode('latin-1')
+            author = '{:\x00<32.31}'.format(self.file_metadata['author']).encode('latin-1')
         elif PythonVersion >= 3:
-            author = '{:\x00<32}'.format(os.getlogin()).encode('latin-1')
+            author = '{:\x00<32.31}'.format(os.getlogin()).encode('latin-1')
         else:
             author = b'\x00' * 32
         if self.file_metadata['organisation'] is not None:  # Organization
-            organization = '{:\x00<32}'.format(self.file_metadata['organisation']).encode('latin-1')
+            organization = '{:\x00<32.31}'.format(self.file_metadata['organisation']).encode('latin-1')
         else:
             organization = b'\x00' * 32
         if self.file_metadata['project'] is not None:  # Project
-            project = '{:\x00<32}'.format(self.file_metadata['project']).encode('latin-1')
+            project = '{:\x00<32.31}'.format(self.file_metadata['project']).encode('latin-1')
         else:
             project = b'\x00' * 32
         if self.file_metadata['subject'] is not None:  # Subject
-            subject = '{:\x00<32}'.format(self.file_metadata['subject']).encode('latin-1')
+            subject = '{:\x00<32.31}'.format(self.file_metadata['subject']).encode('latin-1')
         else:
             subject = b'\x00' * 32
         # Header Block, block size
@@ -1338,8 +1339,8 @@ class mdf3(mdf_skeleton):
                 if data.dtype.kind not in ['S', 'U']:
                     valueRangeValid = 1
                     if len(data) > 0:
-                        maximum = max(data)
-                        minimum = min(data)
+                        maximum = npmax(data)
+                        minimum = npmin(data)
                     else:
                         maximum = 0
                         minimum = 0
@@ -1359,7 +1360,7 @@ class mdf3(mdf_skeleton):
                 # pointer to channel display name
                 # additional byte offset
                 try:
-                    description = '{:\x00<128}'.format(desc).encode('latin-1')
+                    description = '{:\x00<128.127}'.format(desc).encode('latin-1')
                 except:
                     description = b'\x00' * 128
                 head = (b'CN', 228, 0, 0, 0, 0, 0, masterFlag,
@@ -1381,7 +1382,7 @@ class mdf3(mdf_skeleton):
                 # conversion already done during reading
                 # additional size information, not necessary for 65535 conversion type ?
                 try:
-                    unit = '{:\x00<20}'.format(self.getChannelUnit(channel)\
+                    unit = '{:\x00<20.19}'.format(self.getChannelUnit(channel)\
                             .encode('latin-1', 'replace'))
                 except:
                     unit = b'\x00' * 20
