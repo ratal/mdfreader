@@ -1160,7 +1160,7 @@ class mdf3(mdf_skeleton):
         ----------------
         fileName : str, optional
             Name of file
-            If file name is not input, written file name will be the one read with 
+            If file name is not input, written file name will be the one read with
             appended '_new' string before extension
 
         Notes
@@ -1380,7 +1380,8 @@ class mdf3(mdf_skeleton):
                 # pointer to channel display name
                 # additional byte offset
                 head = (b'CN', 228, 0, 0, 0, 0, 0, masterFlag,
-                        '{:\x00<32}'.format(channel), '{:\x00<128}'.format(desc),
+                        '{:\x00<32}'.format(channel).encode('latin-1'),
+                        '{:\x00<128}'.format(desc).encode('latin-1'),
                         bitOffset, numberOfBits, dataType, valueRangeValid,
                         minimum, maximum, 0, 0, 0, byteOffset)
                 fid.write(pack('<2sH5IH32s128s4H3d2IH', *head))
@@ -1388,7 +1389,7 @@ class mdf3(mdf_skeleton):
 
                 # TXblock for long channel name
                 writePointer(fid, pointers['CN'][dataGroup][channel]['longChannelName'], fid.tell())
-                head = (b'TX', len(channel) + 4 + 1, channel + '\0')
+                head = (b'TX', len(channel) + 4 + 1, channel.encode('latin-1') + b'\x00')
                 fid.write(pack('<2sH{}s'.format(len(channel)+1), *head))
 
                 # Conversion blocks writing
@@ -1397,12 +1398,12 @@ class mdf3(mdf_skeleton):
                 # conversion already done during reading
                 # additional size information, not necessary for 65535 conversion type ?
                 try:
-                    unit = self.getChannelUnit(channel).encode('latin-1', 'replace')
+                    unit = '{:\x00<20}'.format(self.getChannelUnit(channel)\
+                            .encode('latin-1', 'replace'))
                 except:
-                    unit = ''
+                    unit = b'\x00' * 20
                 head = (b'CC', 46, valueRangeValid, minimum, maximum,
-                        '{:\x00<20}'.format(unit),
-                        65535, 0)
+                        unit, 65535, 0)
                 fid.write(pack('<2shH2d20s2H', *head))
 
             # number of channels in CG
