@@ -1528,6 +1528,7 @@ class mdf4(mdf_skeleton):
                                         info=None, \
                                         compression=compression)
                     del buf[recordID]
+                del buf
         self._info.fid.close()  # close file
 
         if convertAfterRead and not compression:
