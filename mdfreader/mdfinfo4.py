@@ -1002,7 +1002,7 @@ class EVBlock(defaultdict):
              self['ev_attachment_count'],
              self['ev_creator_index'],
              self['ev_sync_base_value'],
-             self['ev_sync_factor']) = unpack('<5B3sI2HQd', fid.read(32))
+             self['ev_sync_factor']) = unpack('<5B3sI2Hqd', fid.read(32))
             # link section
             fid.seek(pointer + 24)
             (self['ev_ev_next'],
