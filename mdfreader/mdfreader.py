@@ -643,7 +643,7 @@ class mdf(mdf3, mdf4):
 
         """
         if begin is None and end is None:
-            error('Please input at least one beginning or ending value to cut data')
+            raise Exception('Please input at least one beginning or ending value to cut data')
 
         for master in self.masterChannelList: # for each channel group
             # find corresponding indexes to cut
