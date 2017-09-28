@@ -47,7 +47,7 @@ from mdf3reader import mdf3
 from mdf4reader import mdf4
 from mdf import _open_MDF, dataField, descriptionField, unitField, masterField, masterTypeField
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
-from numpy import nan, datetime64, array
+from numpy import nan, datetime64, array, searchsorted
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -624,6 +624,47 @@ class mdf(mdf3, mdf4):
                 print('Already resampled', file=stderr)
         else:
             print('no data to be resampled', file=stderr)
+
+    def cut(self, begin=None, end=None):
+        """ Cut data
+
+        Parameters
+        ----------------
+        begin : float
+            beginning value in master channel from which to start cutting in all channels
+
+        end : float
+            ending value in master channel from which to start cutting in all channels
+
+        Notes
+        ------
+        Use this method if whole data in mdf are using same physical or type of
+        master channel (for instance time).
+
+        """
+        if begin is None and end is None:
+            error('Please input at least one beginning or ending value to cut data')
+
+        for master in self.masterChannelList: # for each channel group
+            # find corresponding indexes to cut
+            masterData = self.getChannelData(master)
+            if masterData is not None and len(masterData) > 0:  # not empty data
+                if begin is not None:
+                    startIndex = searchsorted(masterData, begin, side='left')
+                else:
+                    startIndex = 0
+                if end is not None:
+                    endIndex = searchsorted(masterData, end, side='right')
+                else:
+                    endIndex = len(masterData)
+                if startIndex == endIndex:
+                    # empty array
+                    for channel in self.masterChannelList[master]:
+                        self.setChannelData(channel, array([]))
+                else:
+                    for channel in self.masterChannelList[master]:
+                        data = self.getChannelData(channel)
+                        self.setChannelData(channel, data[startIndex: endIndex])
 
     def exportToCSV(self, filename=None, sampling=None):
         """Exports mdf data into CSV file
