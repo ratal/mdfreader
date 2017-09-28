@@ -6,7 +6,7 @@ from distutils.extension import Extension
 from Cython.Build import cythonize
 
 name = 'mdfreader'
-version = '0.2.6'
+version = '0.2.7'
 
 description = 'A Measured Data Format file parser'
 
@@ -44,11 +44,8 @@ classifiers = [
     # Specify the Python versions you support here. In particular, ensure
     # that you indicate whether you support Python 2, Python 3 or both.
     'Programming Language :: Python :: 2',
-    'Programming Language :: Python :: 2.6',
     'Programming Language :: Python :: 2.7',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.2',
-    'Programming Language :: Python :: 3.3',
     'Programming Language :: Python :: 3.4',
 ]
 

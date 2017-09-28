@@ -36,7 +36,7 @@ It is also possible to export mdf data into:
 
 Compatibility:
 ==============
-This code is compatible for both python 2.6-7 and python 3.2+
+This code is compatible for both python 2.7 and python 3.4+
 Evaluated for Windows and Linux platforms (x86 and AMD64)
 
 Requirements:
