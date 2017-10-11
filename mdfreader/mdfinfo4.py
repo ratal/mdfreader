@@ -102,7 +102,7 @@ def _loadHeader(fid, pointer):
     # All blocks have the same header
     if pointer != 0 and pointer is not None:
         fid.seek(pointer)
-        temp = defaultdict()
+        temp = dict()
         (temp['id'],
          temp['reserved'],
          temp['length'],
@@ -208,7 +208,7 @@ def _writePointer(fid, pointer, value):
     return fid.seek(currentPosition)
 
 
-class IDBlock(defaultdict):
+class IDBlock(dict):
 
     """ reads or writes ID Block
     """
@@ -263,7 +263,7 @@ class IDBlock(defaultdict):
         fid.write(pack('<8s8s8s4sH30s2H', *head))
 
 
-class HDBlock(defaultdict):
+class HDBlock(dict):
 
     """ reads Header block and save in class dict
     """
@@ -301,8 +301,8 @@ class HDBlock(defaultdict):
         currentPosition = _writeHeader(fid, b'##HD', 104, 6)
         # link section
         currentPosition += 24
-        pointers = defaultdict()
-        pointers['HD'] = defaultdict()
+        pointers = dict()
+        pointers['HD'] = dict()
         pointers['HD']['DG'] = currentPosition
         pointers['HD']['FH'] = currentPosition + 8 * 1
         pointers['HD']['CH'] = currentPosition + 8 * 2
@@ -324,7 +324,7 @@ class HDBlock(defaultdict):
         return pointers
 
 
-class FHBlock(defaultdict):
+class FHBlock(dict):
 
     """ reads File History block and save in class dict
     """
@@ -355,7 +355,7 @@ class FHBlock(defaultdict):
         # link section
         currentPosition += 24
         pointers = {}
-        pointers['FH'] = defaultdict()
+        pointers['FH'] = dict()
         pointers['FH']['FH'] = currentPosition
         pointers['FH']['MD'] = currentPosition + 8
         # (No next FH, comment block pointer
@@ -370,7 +370,7 @@ class FHBlock(defaultdict):
         return pointers
 
 
-class CHBlock(defaultdict):
+class CHBlock(dict):
 
     """ reads Channel Hierarchy block and saves in class dict
     """
@@ -395,8 +395,8 @@ class CHBlock(defaultdict):
             self['ch_name_level'] = CommentBlock(fid, self['ch_tx_name'])
 
 
-class CommentBlock(defaultdict):
-
+class CommentBlock(dict):
+    __slots__ = []
     """ reads or writes Comment block and saves in class dict
     """
 
@@ -423,85 +423,86 @@ class CommentBlock(defaultdict):
             if self['id'] in ('##MD', b'##MD'):
                 # Metadata block
                 # removes normal 0 at end
-                self['Comment'] = _mdfblockreadBYTE(fid, self['length'] - 24)
+                self['Comment'] = None
+                Comment = _mdfblockreadBYTE(fid, self['length'] - 24)
                 try:
-                    self['xml_tree'] = \
-                        etree.fromstring(self['Comment'].encode('utf-8'),
+                    xml_tree = \
+                        etree.fromstring(Comment.encode('utf-8'),
                                          _parsernsclean)
                 except:
                     print('xml metadata malformed', file=stderr)
-                    self['xml_tree'] = None
+                    xml_tree = None
                 # specific action per comment block type,
                 # #extracts specific tags from xml
                 if MDType == 'CN':  # channel comment
                     self['description'] = \
-                        self.extractXmlField(self['xml_tree'], _find_TX)
+                        self.extractXmlField(xml_tree, _find_TX)
                     self['names'] = \
-                        self.extractXmlField(self['xml_tree'], _find_names)
+                        self.extractXmlField(xml_tree, _find_names)
                     self['linker_name'] = \
-                        self.extractXmlField(self['xml_tree'],
+                        self.extractXmlField(xml_tree,
                                              _find_linker_name)
                     self['linker_address'] = \
-                        self.extractXmlField(self['xml_tree'],
+                        self.extractXmlField(xml_tree,
                                              _find_linker_address)
                     self['address'] = \
-                        self.extractXmlField(self['xml_tree'], _find_address)
+                        self.extractXmlField(xml_tree, _find_address)
                     self['axis_monotony'] = \
-                        self.extractXmlField(self['xml_tree'],
+                        self.extractXmlField(xml_tree,
                                              _find_axis_monotony)
                     self['raster'] = \
-                        self.extractXmlField(self['xml_tree'], _find_raster)
+                        self.extractXmlField(xml_tree, _find_raster)
                     self['formula'] = \
-                        self.extractXmlField(self['xml_tree'], _find_formula)
+                        self.extractXmlField(xml_tree, _find_formula)
                 elif MDType == 'unit':  # channel comment
-                    self['unit'] = self.extractXmlField(self['xml_tree'],
+                    self['unit'] = self.extractXmlField(xml_tree,
                                                         _find_TX)
                 elif MDType == 'HD':  # header comment
-                    self['TX'] = self.extractXmlField(self['xml_tree'],
+                    self['TX'] = self.extractXmlField(xml_tree,
                                                       _find_TX)
-                    tmp = self.extractXmlField(self['xml_tree'],
+                    tmp = self.extractXmlField(xml_tree,
                                                _find_common_properties)
-                    tmp = self['xml_tree'].find(namespace +
+                    tmp = xml_tree.find(namespace +
                                                 'common_properties')
                     if tmp is None:
-                        tmp = self['xml_tree'].find('common_properties')
+                        tmp = xml_tree.find('common_properties')
                     if tmp is not None:
                         for t in tmp:
                             self[t.attrib['name']] = t.text
                 elif MDType == 'FH':  # File History comment
-                    self['TX'] = self.extractXmlField(self['xml_tree'],
+                    self['TX'] = self.extractXmlField(xml_tree,
                                                       _find_TX)
-                    self['tool_id'] = self.extractXmlField(self['xml_tree'],
+                    self['tool_id'] = self.extractXmlField(xml_tree,
                                                            _find_tool_id)
                     self['tool_vendor'] = \
-                        self.extractXmlField(self['xml_tree'],
+                        self.extractXmlField(xml_tree,
                                              _find_tool_vendor)
                     self['tool_version'] = \
-                        self.extractXmlField(self['xml_tree'],
+                        self.extractXmlField(xml_tree,
                                              _find_tool_version)
                     self['user_name'] = \
-                        self.extractXmlField(self['xml_tree'],
+                        self.extractXmlField(xml_tree,
                                              _find_user_name)
                 elif MDType == 'SI':
-                    self['TX'] = self.extractXmlField(self['xml_tree'],
+                    self['TX'] = self.extractXmlField(xml_tree,
                                                       _find_TX)
-                    self['names'] = self.extractXmlField(self['xml_tree'],
+                    self['names'] = self.extractXmlField(xml_tree,
                                                          _find_names)
-                    self['path'] = self.extractXmlField(self['xml_tree'],
+                    self['path'] = self.extractXmlField(xml_tree,
                                                         _find_path)
-                    self['bus'] = self.extractXmlField(self['xml_tree'],
+                    self['bus'] = self.extractXmlField(xml_tree,
                                                        _find_bus)
-                    self['protocol'] = self.extractXmlField(self['xml_tree'],
+                    self['protocol'] = self.extractXmlField(xml_tree,
                                                             _find_protocol)
                 elif MDType == 'CC':
-                    self['TX'] = self.extractXmlField(self['xml_tree'],
+                    self['TX'] = self.extractXmlField(xml_tree,
                                                       _find_TX)
-                    self['names'] = self.extractXmlField(self['xml_tree'],
+                    self['names'] = self.extractXmlField(xml_tree,
                                                          _find_names)
                     self['COMPU_METHOD'] = \
-                        self.extractXmlField(self['xml_tree'],
+                        self.extractXmlField(xml_tree,
                                              _find_COMPU_METHOD)
-                    self['formula'] = self.extractXmlField(self['xml_tree'],
+                    self['formula'] = self.extractXmlField(xml_tree,
                                                            _find_formula)
                 else:
                     if MDType is not None:
@@ -540,13 +541,12 @@ class CommentBlock(defaultdict):
     def write(self, fid, data, MDType):
 
         if MDType == 'TX':
-            data = data.encode('utf-8', 'replace')
-            data += b'\0'
+            data = ''.join([data.encode('utf-8', 'replace'), b'\0'])
             # make sure block is multiple of 8
             data_lentgth = len(data)
             remain = data_lentgth % 8
             if not remain == 0:
-                data += b'\0' * (8 - (remain % 8))
+                data = ''.join([data, b'\0' * (8 - (remain % 8))])
             block_start = _writeHeader(fid, b'##TX', 24 + len(data), 0)
             fid.write(data)
         else:
@@ -582,13 +582,12 @@ class CommentBlock(defaultdict):
                 tool_vendor.text = 'mdfreader is under GPL V3'
                 tool_version = SubElement(root, 'tool_version')
                 tool_version.text = '2.6'
-            data = tostring(root)
-            data += b'\0'
+            data = ''.join([tostring(root), b'\0'])
             # make sure block is multiple of 8
             data_lentgth = len(data)
             remain = data_lentgth % 8
             if not remain == 0:
-                data += b'\0' * (8 - (remain % 8))
+                data = ''.join([data, b'\0' * (8 - (remain % 8))])
             _writeHeader(fid, b'##MD', 24 + len(data), 0)
             block_start = fid.write(data)
         return block_start
@@ -609,7 +608,7 @@ def elementTreeToDict(element):
         dict(map(elementTreeToDict, element)) or element.text
 
 
-class DGBlock(defaultdict):
+class DGBlock(dict):
 
     """ reads Data Group block and saves in class dict
     """
@@ -653,7 +652,7 @@ class DGBlock(defaultdict):
         return pointers
 
 
-class CGBlock(defaultdict):
+class CGBlock(dict):
 
     """ reads Channel Group block and saves in class dict
     """
@@ -716,7 +715,7 @@ class CGBlock(defaultdict):
         return pointers
 
 
-class CNBlock(defaultdict):
+class CNBlock(dict):
 
     """ reads Channel block and saves in class dict
     """
@@ -821,7 +820,7 @@ class CNBlock(defaultdict):
         return pointers
 
 
-class CCBlock(defaultdict):
+class CCBlock(dict):
 
     """ reads Channel Conversion block and saves in class dict
     """
@@ -870,7 +869,8 @@ class CCBlock(defaultdict):
                         self['cc_ref'][i] = temp['Comment']
                     elif ID in ('##CC', b'##CC'):  # for table conversion
                         # much more complicated nesting conversions !!!
-                        self['cc_ref'][i] = CCBlock(fid, self['cc_ref'][i])
+                        self['cc_ref'][i] = {}
+                        self['cc_ref'][i].update(CCBlock(fid, self['cc_ref'][i]))
             if self['cc_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock(fid, self['cc_md_comment'],
                                                MDType='CC')
@@ -882,7 +882,7 @@ class CCBlock(defaultdict):
             self['cc_type'] = 0
 
 
-class CABlock(defaultdict):
+class CABlock(dict):
 
     """ reads Channel Array block and saves in class dict
     """
@@ -948,7 +948,7 @@ class CABlock(defaultdict):
                 self['CABlock'] = CABlock(fid, self['ca_composition'])
 
 
-class ATBlock(defaultdict):
+class ATBlock(dict):
 
     """ reads Attachment block and saves in class dict
     """
@@ -977,7 +977,7 @@ class ATBlock(defaultdict):
                 self['Comment'] = CommentBlock(fid, self['at_md_comment'])
 
 
-class EVBlock(defaultdict):
+class EVBlock(dict):
 
     """ reads Event block and saves in class dict
     """
@@ -1034,7 +1034,7 @@ class EVBlock(defaultdict):
                 self['name'] = CommentBlock(fid, self['ev_tx_name'])
 
 
-class SRBlock(defaultdict):
+class SRBlock(dict):
 
     """ reads Sample Reduction block and saves in class dict
     """
@@ -1056,12 +1056,12 @@ class SRBlock(defaultdict):
              self['sr_reserved']) = SRStruct.unpack(fid.read(64))
 
 
-class SIBlock(defaultdict):
+class SIBlock(dict):
 
     """ reads Source Information block and saves in class dict
     """
 
-    def __init__(self, fid, pointer):
+    def read(self, fid, pointer):
         # block header
         if pointer != 0 and pointer is not None:
             fid.seek(pointer)
@@ -1113,7 +1113,7 @@ class SIBlock(defaultdict):
                                            MDType='SI')
 
 
-class DLBlock(defaultdict):
+class DLBlock(dict):
 
     """ reads Data List block
     """
@@ -1134,7 +1134,7 @@ class DLBlock(defaultdict):
                                        fid.read(8 * self['dl_count']))
 
 
-class DZBlock(defaultdict):
+class DZBlock(dict):
 
     """ reads Data List block
     """
@@ -1149,7 +1149,7 @@ class DZBlock(defaultdict):
          self['dz_data_length']) = DZStruct.unpack(fid.read(24))
 
 
-class HLBlock(defaultdict):
+class HLBlock(dict):
 
     """ reads Header List block
     """
@@ -1161,14 +1161,18 @@ class HLBlock(defaultdict):
          self['hl_reserved']) = HLStruct.unpack(fid.read(16))
 
 
-class info4(defaultdict):
-
+class info4(dict):
+    __slots__ = ['fileName', 'fid', 'zipfile']
     """ information block parser fo MDF file version 4.x
 
     Attributes
     --------------
     fileName : str
         name of file
+    fid
+        file identifier
+    zipfile
+        flag to indicate the mdf4 is packaged in a zip
 
     Notes
     --------
@@ -1244,16 +1248,16 @@ class info4(defaultdict):
         self['FHBlock'][fh] .update(FHBlock(fid, self['HDBlock']['hd_fh_first']))
         while self['FHBlock'][fh]['fh_fh_next']:
             self['FHBlock'][fh + 1] = {}
-            self['FHBlock'][fh + 1] .update(FHBlock(fid, self['FHBlock'][fh]['fh_fh_next']))
+            self['FHBlock'][fh + 1].update(FHBlock(fid, self['FHBlock'][fh]['fh_fh_next']))
             fh += 1
 
         # print('reads Channel Hierarchy blocks', file=stderr)
         if self['HDBlock']['hd_ch_first']:
             ch = 0
             self['CHBlock'][ch] = {}
-            self['CHBlock'][ch] .update(CHBlock(fid, self['HDBlock']['hd_ch_first']))
+            self['CHBlock'][ch].update(CHBlock(fid, self['HDBlock']['hd_ch_first']))
             while self['CHBlock'][ch]['ch_ch_next']:
-                self['CHBlock'][ch] .update(CHBlock(fid, self['CHBlock'][ch]['ch_ch_next']))
+                self['CHBlock'][ch].update(CHBlock(fid, self['CHBlock'][ch]['ch_ch_next']))
                 ch += 1
 
         # reads Attachment block
@@ -1322,7 +1326,11 @@ class info4(defaultdict):
 
             if not channelNameList:
                 # reads Source Information Block
-                self['CGBlock'][dg][cg]['SIBlock'] = SIBlock(fid, self['CGBlock'][dg][cg]['cg_si_acq_source'])
+                temp = SIBlock()
+                temp.read(fid, self['CGBlock'][dg][cg]['cg_si_acq_source'])
+                if temp is not None:
+                    self['CGBlock'][dg][cg]['SIBlock'] = dict()
+                    self['CGBlock'][dg][cg]['SIBlock'].update(temp)
 
                 # reads Sample Reduction Block
                 self['CGBlock'][dg][cg]['SRBlock'] = self.readSRBlock(fid, self['CGBlock'][dg][cg]['cg_sr_first'])
@@ -1341,7 +1349,11 @@ class info4(defaultdict):
                 self['CCBlock'][dg][cg] = {}
                 if not channelNameList:
                     # reads Source Information Block
-                    self['CGBlock'][dg][cg]['SIBlock'] = SIBlock(fid, self['CGBlock'][dg][cg]['cg_si_acq_source'])
+                    temp = SIBlock()
+                    temp.read(fid, self['CGBlock'][dg][cg]['cg_si_acq_source'])
+                    if temp is not None:
+                        self['CGBlock'][dg][cg]['SIBlock'] = dict()
+                        self['CGBlock'][dg][cg]['SIBlock'].update(temp)
 
                     # reads Sample Reduction Block
                     self['CGBlock'][dg][cg]['SRBlock'] = self.readSRBlock(fid, self['CGBlock'][dg][cg]['cg_sr_first'])
@@ -1406,24 +1418,33 @@ class info4(defaultdict):
         cn = 0
         self['CNBlock'][dg][cg][cn] = {}
         self['CCBlock'][dg][cg][cn] = {}
-        self['CNBlock'][dg][cg][cn] = CNBlock()
-        self['CNBlock'][dg][cg][cn].read(fid, self['CGBlock'][dg][cg]['cg_cn_first'])
+        self['CNBlock'][dg][cg][cn] = {}
+        temp = CNBlock()
+        temp.read(fid, self['CGBlock'][dg][cg]['cg_cn_first'])
+        if temp is not None:
+            self['CNBlock'][dg][cg][cn].update(temp)
         MLSDChannels = []
         # check for MLSD
         if self['CNBlock'][dg][cg][cn]['cn_type'] == 5:
             MLSDChannels.append(cn)
         # check if already existing channel name
         if self['CNBlock'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:
-            self['CNBlock'][dg][cg][cn]['name'] = self['CNBlock'][dg][cg][cn]['name'] + str(cg) + '_' + str(cn)
+            self['CNBlock'][dg][cg][cn]['name'] = '{0}{1}_{2}'.format(self['CNBlock'][dg][cg][cn]['name'], cg, cn)
         self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][cn]['name'])
 
         if self['CGBlock'][dg][cg]['cg_cn_first']:  # Can be NIL for VLSD
             # reads Channel Conversion Block
-            self['CCBlock'][dg][cg][cn] = CCBlock()
-            self['CCBlock'][dg][cg][cn].read(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
+            self['CCBlock'][dg][cg][cn] = {}
+            temp = CCBlock()
+            temp.read(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
+            self['CCBlock'][dg][cg][cn].update(temp)
             if not channelNameList:
                 # reads Channel Source Information
-                self['CNBlock'][dg][cg][cn]['SIBlock'] = SIBlock(fid, self['CNBlock'][dg][cg][cn]['cn_si_source'])
+                temp = SIBlock()
+                temp.read(fid, self['CNBlock'][dg][cg][cn]['cn_si_source'])
+                if temp is not None:
+                    self['CNBlock'][dg][cg][cn]['SIBlock'] = dict()
+                    self['CNBlock'][dg][cg][cn]['SIBlock'].update(temp)
 
                 # reads Channel Array Block
                 if self['CNBlock'][dg][cg][cn]['cn_composition']:  # composition but can be either structure of channels or array
@@ -1432,8 +1453,10 @@ class info4(defaultdict):
                     if id in ('##CA', b'##CA'):
                         self['CNBlock'][dg][cg][cn]['CABlock'] = CABlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
                     elif id in ('##CN', b'##CN'):
-                        self['CNBlock'][dg][cg][cn]['CNBlock'] = CNBlock()
-                        self['CNBlock'][dg][cg][cn]['CNBlock'].read(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                        self['CNBlock'][dg][cg][cn]['CNBlock'] = {}
+                        temp = CNBlock()
+                        temp.read(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                        self['CNBlock'][dg][cg][cn]['CNBlock'].update(temp)
                     else:
                         raise('unknown channel composition')
 
@@ -1446,21 +1469,28 @@ class info4(defaultdict):
 
             while self['CNBlock'][dg][cg][cn]['cn_cn_next']:
                 cn = cn + 1
-                self['CNBlock'][dg][cg][cn] = CNBlock()
-                self['CNBlock'][dg][cg][cn].read(fid, self['CNBlock'][dg][cg][cn - 1]['cn_cn_next'])
+                self['CNBlock'][dg][cg][cn] = {}
+                temp = CNBlock()
+                temp.read(fid, self['CNBlock'][dg][cg][cn - 1]['cn_cn_next'])
+                self['CNBlock'][dg][cg][cn].update(temp)
                 # check for MLSD
                 if self['CNBlock'][dg][cg][cn]['cn_type'] == 5:
                     MLSDChannels.append(cn)
                 # reads Channel Conversion Block
-                self['CCBlock'][dg][cg][cn] = CCBlock()
-                self['CCBlock'][dg][cg][cn].read(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
+                self['CCBlock'][dg][cg][cn] = {}
+                temp = CCBlock(fid, self['CNBlock'][dg][cg][cn]['cn_cc_conversion'])
+                self['CCBlock'][dg][cg][cn].update(temp)
                 if not channelNameList:
                     # reads Channel Source Information
-                    self['CNBlock'][dg][cg][cn]['SIBlock'] = SIBlock(fid, self['CNBlock'][dg][cg][cn]['cn_si_source'])
+                    temp = SIBlock()
+                    temp.read(fid, self['CNBlock'][dg][cg][cn]['cn_si_source'])
+                    if temp is not None:
+                        self['CNBlock'][dg][cg][cn]['SIBlock'] = dict()
+                        self['CNBlock'][dg][cg][cn]['SIBlock'].update(temp)
 
                     # check if already existing channel name
                     if self['CNBlock'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:
-                        self['CNBlock'][dg][cg][cn]['name'] = self['CNBlock'][dg][cg][cn]['name'] + str(cg) + '_'  + str(cn)
+                        self['CNBlock'][dg][cg][cn]['name'] = '{0}{1}_{2}'.format(self['CNBlock'][dg][cg][cn]['name'], cg, cn)
                     self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][cn]['name'])
 
                     # reads Channel Array Block
@@ -1472,8 +1502,10 @@ class info4(defaultdict):
                             self['CNBlock'][dg][cg][cn]['CABlock'] = \
                                 CABlock(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
                         elif id in ('##CN', b'##CN'):
-                            self['CNBlock'][dg][cg][cn]['CNBlock'] = CNBlock()
-                            self['CNBlock'][dg][cg][cn]['CNBlock'].read(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                            self['CNBlock'][dg][cg][cn]['CNBlock'] = {}
+                            temp = CNBlock()
+                            temp.read(fid, self['CNBlock'][dg][cg][cn]['cn_composition'])
+                            self['CNBlock'][dg][cg][cn]['CNBlock'].update(temp)
                         else:
                             raise('unknown channel composition')
 
@@ -1662,7 +1694,7 @@ def _generateDummyMDF4(info, channelList):
                 name = info['CNBlock'][dg][cg][cn]['name']
                 if name in allChannelList or \
                         info['CNBlock'][dg][cg][cn]['cn_type'] in (2, 3):
-                    name += '_' + str(dg)
+                    name = ''.join([name, '_{}'.format(dg)])
                 if channelList is None or name in channelList:
                     channelNameList.append(name)
                     allChannelList.add(name)
