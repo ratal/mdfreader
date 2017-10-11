@@ -33,8 +33,8 @@ from collections import defaultdict
 from mdf import dataField, descriptionField, unitField, masterField, masterTypeField
 
 
-class info3(defaultdict):
-
+class info3(dict):
+    __slots__ = ['fileName', 'fid', 'filterChannelNames']
     """ mdf file info class version 3.x
     MDFINFO is a class information about an MDF (Measure Data Format) file
     Based on following specification http://powertrainnvh.com/nvh/MDFspecificationv03.pdf
@@ -76,12 +76,12 @@ class info3(defaultdict):
         --------
         If fileName is given it will read file blocks directly by calling method readinfo3
         """
-        self['IDBlock'] = defaultdict()  # Identifier Block
-        self['HDBlock'] = defaultdict()  # Header Block
-        self['DGBlock'] = defaultdict()  # Data Group Block
-        self['CGBlock'] = defaultdict()  # Channel Group Block
-        self['CNBlock'] = defaultdict()  # Channel Block
-        self['CCBlock'] = defaultdict()  # Conversion block
+        self['IDBlock'] = dict()  # Identifier Block
+        self['HDBlock'] = dict()  # Header Block
+        self['DGBlock'] = dict()  # Data Group Block
+        self['CGBlock'] = dict()  # Channel Group Block
+        self['CNBlock'] = dict()  # Channel Block
+        self['CCBlock'] = dict()  # Conversion block
         self.filterChannelNames = filterChannelNames
         self.fileName = fileName
         if fileName is not None and fid is None:
@@ -132,12 +132,12 @@ class info3(defaultdict):
 
             # Read data Channel Group block info into structure
             CGpointer = self['DGBlock'][dataGroup]['pointerToNextCGBlock']
-            self['CGBlock'][dataGroup] = defaultdict()
-            self['CNBlock'][dataGroup] = defaultdict()
-            self['CCBlock'][dataGroup] = defaultdict()
+            self['CGBlock'][dataGroup] = dict()
+            self['CNBlock'][dataGroup] = dict()
+            self['CCBlock'][dataGroup] = dict()
             for channelGroup in range(self['DGBlock'][dataGroup]['numberOfChannelGroups']):
-                self['CNBlock'][dataGroup][channelGroup] = defaultdict()
-                self['CCBlock'][dataGroup][channelGroup] = defaultdict()
+                self['CNBlock'][dataGroup][channelGroup] = dict()
+                self['CCBlock'][dataGroup][channelGroup] = dict()
                 self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread3(self.blockformats3('CGFormat'), fid, CGpointer)
                 CGpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToNextCGBlock']
 
@@ -183,7 +183,7 @@ class info3(defaultdict):
                         signalname = signalname.split('.')[-1]  # filters channels modules
 
                     if signalname in snames:
-                        self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + '_' + str(channel)
+                        self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = '{0}_{1}'.format(signalname, channel)
                         print('WARNING added number to duplicate channel name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName'], file=stderr)
                     else:
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
@@ -422,7 +422,7 @@ class info3(defaultdict):
                         signalname = signalname.split('.')[-1]
 
                     if signalname in snames:
-                        self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname + '_' + str(channel)
+                        self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = '{0}_{1}'.format(signalname, channel)
                         print('WARNING added number to duplicate signal name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName'], file=stderr)
                     else:
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
