@@ -338,10 +338,10 @@ class Channel():
         self.posByteEnd = recordIDnumber + self.byteOffset + self.nBytes
         self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['channelType']
         if self.channelType:  # master time channel
-            self.name +=  '_' + str(dataGroup)
+            self.name =  '{0}_{1}'.format(self.name, dataGroup)
         self.recAttributeName = _convertName(self.name)
-        self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
-        self.nativeRecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), nativeDataType)
+        self.RecordFormat = (('{}_title'.format(self.recAttributeName), self.recAttributeName), self.dataFormat)
+        self.nativeRecordFormat = (('{}_title'.format(self.recAttributeName), self.recAttributeName), nativeDataType)
         if 'physicalUnit' in info['CCBlock'][dataGroup][channelGroup][channelNumber]:
             self.unit = info['CCBlock'][dataGroup][channelGroup][channelNumber]['physicalUnit']
         else:
@@ -353,16 +353,10 @@ class Channel():
         self.conversion = info['CCBlock'][dataGroup][channelGroup][channelNumber]
 
     def __str__(self):
-        output = str(self.channelNumber) + ' '
-        output += self.name + ' '
-        output += str(self.signalDataType) + ' '
-        output += str(self.channelType) + ' '
-        output += str(self.RecordFormat) + ' '
-        output += str(self.bitOffset) + ' '
-        output += str(self.byteOffset)
-        output += 'unit ' + self.unit
-        output += 'description ' + self.desc
-        return output
+        output = [self.channelNumber, ' ', self.name, ' ', self.signalDataType, ' ',
+                  self.channelType, ' ', self.RecordFormat, ' ', self.bitOffset, ' ',
+                  self.byteOffset, ' ', 'unit ', self.unit, 'description ', self.desc]
+        return ''.join(output)
 
     def changeChannelName(self, channelGroup):
         """ In case of duplicate channel names within several channel groups
@@ -373,9 +367,9 @@ class Channel():
         channelGroup : int
             channelGroup bumber
         """
-        self.name += '_' + str(channelGroup)
+        self.name = '{0}_{1}'.format(self.name, channelGroup)
         self.recAttributeName = _convertName(self.name)
-        self.RecordFormat = ((self.recAttributeName + '_title', self.recAttributeName), self.dataFormat)
+        self.RecordFormat = (('{}_title'.format(self.recAttributeName), self.recAttributeName), self.dataFormat)
 
 
 class record(list):
@@ -436,7 +430,7 @@ class record(list):
         self.numpyDataRecordFormat = []
         self.dataRecordName = []
         self.master = {}
-        self.master['name'] = 'master_' + str(dataGroup)
+        self.master['name'] = 'master_{}'.format(dataGroup)
         self.master['number'] = None
         self.recordToChannelMatching = {}
         self.channelNames = set()
@@ -444,16 +438,17 @@ class record(list):
         self.byte_aligned = True
 
     def __repr__(self):
-        output = 'Channels :\n'
+        output = list()
+        output.append('Channels :\n')
         for chan in self.channelNames:
-            output += chan + '\n'
-        output += 'Datagroup number : ' + str(self.dataGroup) + '\n'
+            output.append([chan, '\n'])
+        output.append('Datagroup number : {}\n'.format(self.dataGroup))
         if self.master['name'] is not None:
-            output += 'Master channel : ' + self.master['name'] + '\n'
-        output += 'Numpy records format : \n'
+            output.append(['Master channel : ', self.master['name'], '\n'])
+        output.append('Numpy records format : \n')
         for record in self.numpyDataRecordFormat:
-            output += str(record) + '\n'
-        return output
+            output.append('{}\n'.format(record))
+        return ''.join(output)
 
     def addChannel(self, info, channelNumber):
         """ add a channel in class
@@ -483,8 +478,8 @@ class record(list):
         self.numberOfRecords = info['CGBlock'][self.dataGroup][self.channelGroup]['numberOfRecords']
         self.dataBlockLength = self.CGrecordLength * self.numberOfRecords
         if self.recordIDnumber > 0:  # record ID existing at beginning of record
-            self.dataRecordName.append('RecordID' + str(self.channelGroup))
-            format = (self.dataRecordName[-1] + '_title', self.dataRecordName[-1])
+            self.dataRecordName.append('RecordID{}'.format(self.channelGroup))
+            format = ('{}_title'.format(self.dataRecordName[-1]), self.dataRecordName[-1])
             self.numpyDataRecordFormat.append((format, 'uint8'))
             self.dataBlockLength = (self.CGrecordLength + 1) * self.numberOfRecords
         embedding_channel = None
@@ -536,8 +531,8 @@ class record(list):
                 self.dataRecordName.append(channel.recAttributeName)
                 self.recordLength += channel.nBytes
         if self.recordIDnumber == 2:  # second record ID at end of record
-            self.dataRecordName.append('RecordID' + str(self.channelGroup) + '_2')
-            format = (self.dataRecordName[-1] + '_title', self.dataRecordName[-1])
+            self.dataRecordName.append('RecordID{}_2'.format(self.channelGroup))
+            format = ('{}_title'.format(self.dataRecordName[-1]), self.dataRecordName[-1])
             self.numpyDataRecordFormat.append((format, 'uint8'))
             self.dataBlockLength = (self.CGrecordLength + 2) * self.numberOfRecords
         # check for hidden bytes
@@ -958,7 +953,7 @@ class mdf3(mdf_skeleton):
 
         if self.fileName is None and info is not None:
             self.fileName = info.fileName
-            self._info = info
+            self.info = info
         elif fileName is not None:
             self.fileName = fileName
 
@@ -968,43 +963,43 @@ class mdf3(mdf_skeleton):
             channelSetFile = set(channelList)
 
         # Read information block from file
-        if self._info is None:
+        if self.info is None:
             if info is None:
-                self._info = info3(self.fileName, None)
+                self.info = info3(self.fileName, None)
             else:
-                self._info = info
+                self.info = info
 
-        if self._info.fid.closed:
+        if self.info.fid.closed:
             try:
-                self._info.fid = open(self.fileName, 'rb')
+                self.info.fid = open(self.fileName, 'rb')
             except IOError:
                 raise Exception('Can not find file ' + self.fileName)
 
         # reads metadata
         try:
-            comment = self._info['HDBlock']['TXBlock']['Text']
+            comment = self.info['HDBlock']['TXBlock']['Text']
         except:
             comment = ''
         # converts date to be compatible with ISO8601
-        day, month, year = self._info['HDBlock']['Date'].split(':')
-        ddate = year + '-' + month + '-' + day
-        self.add_metadata(author=self._info['HDBlock']['Author'], \
-                organisation=self._info['HDBlock']['Organization'], \
-                project=self._info['HDBlock']['ProjectName'], \
-                subject=self._info['HDBlock']['Subject'], comment=comment, \
-                    date=ddate, time=self._info['HDBlock']['Time'])
+        day, month, year = self.info['HDBlock']['Date'].split(':')
+        ddate = '-'.join([year, month, day])
+        self.add_metadata(author=self.info['HDBlock']['Author'], \
+                organisation=self.info['HDBlock']['Organization'], \
+                project=self.info['HDBlock']['ProjectName'], \
+                subject=self.info['HDBlock']['Subject'], comment=comment, \
+                    date=ddate, time=self.info['HDBlock']['Time'])
 
         # Read data from file
-        for dataGroup in self._info['DGBlock']:
+        for dataGroup in self.info['DGBlock']:
             channelSet = channelSetFile
-            if self._info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
+            if self.info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
                 # Pointer to data block
-                pointerToData = self._info['DGBlock'][dataGroup]['pointerToDataRecords']
-                buf = DATA(self._info.fid, pointerToData)
+                pointerToData = self.info['DGBlock'][dataGroup]['pointerToDataRecords']
+                buf = DATA(self.info.fid, pointerToData)
 
-                for channelGroup in range(self._info['DGBlock'][dataGroup]['numberOfChannelGroups']):
+                for channelGroup in range(self.info['DGBlock'][dataGroup]['numberOfChannelGroups']):
                     temp = record(dataGroup, channelGroup)  # create record class
-                    temp.loadInfo(self._info)  # load all info related to record
+                    temp.loadInfo(self.info)  # load all info related to record
 
                     if temp.numberOfRecords != 0:  # continue if there are at least some records
                         buf.addRecord(temp)
@@ -1018,7 +1013,7 @@ class mdf3(mdf_skeleton):
                     if 'record' in buf[recordID]:
                         master_channel = buf[recordID]['record'].master['name']
                         if master_channel in self and self[master_channel][dataField] is not None:
-                            master_channel += '_' + str(dataGroup)
+                            master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
 
                         channels = (c for c in buf[recordID]['record']
                                     if channelSet is None or c.name in channelSet)
@@ -1051,7 +1046,7 @@ class mdf3(mdf_skeleton):
                                                  info=None,
                                                  compression=compression)
                 del buf
-        self._info.fid.close()  # close file
+        self.info.fid.close()  # close file
         if convertAfterRead and not compression:
             self._noDataLoading = False
             self._convertAllChannel3()
@@ -1076,9 +1071,9 @@ class mdf3(mdf_skeleton):
         if channelName in self:
             vect = self.getChannel(channelName)[dataField]
             if vect is None: # noDataLoading reading argument flag activated
-                if self._info.fid is None or (self._info.fid is not None and self._info.fid.closed):
-                    (self._info.fid, self._info.fileName, self._info.zipfile) = _open_MDF(self.fileName)
-                self.read3(fileName=None, info=self._info, channelList=[channelName], convertAfterRead=False)
+                if self.info.fid is None or (self.info.fid is not None and self.info.fid.closed):
+                    (self.info.fid, self.info.fileName, self.info.zipfile) = _open_MDF(self.fileName)
+                self.read3(fileName=None, info=self.info, channelList=[channelName], convertAfterRead=False)
             return self._convert3(channelName)
         else:
             raise KeyError('Channel ' + channelName + ' not in mdf dictionary')
@@ -1331,9 +1326,9 @@ class mdf3(mdf_skeleton):
                     raise Exception('Not recognized dtype')
                     return data.dtype
                 if data.dtype.kind not in ['S', 'U']:
-                    dataTypeList += data.dtype.char
+                    dataTypeList = ''.join([dataTypeList, data.dtype.char])
                 else:
-                    dataTypeList += str(data.dtype.itemsize) + 's'
+                    dataTypeList = ''.join([dataTypeList, '{}s'.format(data.dtype.itemsize)])
                     numberOfBits = 8 * data.dtype.itemsize
                 recordNumberOfBits += numberOfBits
                 if data.dtype.kind not in ['S', 'U']:
@@ -1465,13 +1460,13 @@ def _datatypeformat3(signalDataType, numberOfBits, ByteOrder):
     # deal with byte order
     if signalDataType in (0, 1, 2, 3):
         if ByteOrder:
-            dataType = '>' + dataType
+            dataType = '>{}'.format(dataType)
         else:
-            dataType = '<' + dataType
+            dataType = '<{}'.format(dataType)
     elif signalDataType in (13, 14, 15, 16):  # low endian
-        dataType = '<' + dataType
+        dataType = '<{}'.format(dataType)
     elif signalDataType in (9, 10, 11, 12):  # big endian
-        dataType = '>' + dataType
+        dataType = '>{}'.format(dataType)
 
     return dataType
 
@@ -1525,9 +1520,9 @@ def _arrayformat3(signalDataType, numberOfBits, ByteOrder):
             print('Unsupported number of bit for floating point ' + str(signalDataType) + ' nBits ', numberOfBits, file=stderr)
 
     elif signalDataType == 7:  # string
-        dataType = 'S' + str(numberOfBits // 8)  # not directly processed
+        dataType = 'S{}'.format(numberOfBits // 8)  # not directly processed
     elif signalDataType == 8:  # array of bytes
-        dataType = 'V' + str(numberOfBits // 8)  # not directly processed
+        dataType = 'V{}'.format(numberOfBits // 8)  # not directly processed
     else:
         print('Unsupported Signal Data Type ' + str(signalDataType) + ' nBits ', numberOfBits, file=stderr)
 
@@ -1535,12 +1530,12 @@ def _arrayformat3(signalDataType, numberOfBits, ByteOrder):
     # deal with byte order
     if signalDataType in (0, 1, 2, 3):
         if ByteOrder:
-            dataType = '>' + dataType
+            dataType = '>{}'.format(dataType)
         else:
-            dataType = '<' + dataType
+            dataType = '<{}'.format(dataType)
     elif signalDataType in (13, 14, 15, 16):  # low endian
-        dataType = '<' + dataType
+        dataType = '<{}'.format(dataType)
     elif signalDataType in (9, 10, 11, 12):  # big endian
-        dataType = '>' + dataType
+        dataType = '>{}'.format(dataType)
 
     return (dataType, nativeDataType)
