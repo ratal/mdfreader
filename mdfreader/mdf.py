@@ -51,7 +51,9 @@ attachmentField = 'attachment'
 
 
 class mdf_skeleton(dict):
-
+    __slots__ = ['masterChannelList', 'fileName', 'MDFVersionNumber', 'multiProc',
+                 'convertAfterRead', 'filterChannelNames', 'file_metadata', 'convert_tables',
+                 '_pandasframe', 'info', '_compression_level', '_noDataLoading']
     """ mdf_skeleton class
 
     Attributes
@@ -133,7 +135,7 @@ class mdf_skeleton(dict):
         self.filterChannelNames = filterChannelNames
         self.convert_tables = True
         self._pandasframe = False
-        self._info = None
+        self.info = None
         self._compression_level = 9  # default compression level
         self._noDataLoading = False  # in case reading with this argument activated
         # clears class from previous reading and avoid to mess up
@@ -178,7 +180,7 @@ class mdf_skeleton(dict):
         if not self._noDataLoading:
             if channel_name in self:
                 # name doublon existing
-                channel_name += '_' + str(dataGroup)
+                channel_name = ''.join([channel_name, '_{}'.format(dataGroup)])
             # create new channel
             self[channel_name] = {}
             if master_channel not in self.masterChannelList:
@@ -576,43 +578,44 @@ class mdf_skeleton(dict):
             channel_name   description
             numpy_array    unit
         """
+        output = list()
         if self.fileName is not None:
-            output = 'file name : ' + self.fileName + '\n'
+            output.append('file name : {}\n'.format(self.fileName))
         else:
-            output = ''
+            output.append('')
         for m in self.file_metadata.keys():
             if self.file_metadata[m] is not None:
-                output += m + ' : ' + str(self.file_metadata[m]) + '\n'
+                output.append([m, ' : {}\n'.format(self.file_metadata[m])])
         if not self._pandasframe:
-            output += '\nchannels listed by data groups:\n'
+            output.append('\nchannels listed by data groups:\n')
             for d in self.masterChannelList.keys():
                 if d is not None:
-                    output += d + '\n'
+                    output.append([d, '\n'])
                 for c in self.masterChannelList[d]:
-                    output += '  ' + c + ' : '
+                    output.append(['  ', c, ' : '])
                     desc = self.getChannelDesc(c)
                     if desc is not None:
                         try:
-                            output += str(desc)
+                            output.append(str(desc))
                         except:
                             pass
-                    output += '\n    '
+                    output.append('\n    ')
                     data = self.getChannelData(c)
                     # not byte, impossible to represent
                     if data.dtype.kind != 'V':
-                        output += array_repr(data[:],
-                                             precision=3, suppress_small=True)
+                        output.append(array_repr(data[:],
+                                      precision=3, suppress_small=True))
                     unit = self.getChannelUnit(c)
                     if unit is not None:
-                        output += ' ' + unit + '\n'
+                        output.append([' ', unit, '\n'])
             return output
         else:
             set_option('max_rows', 3)
             set_option('expand_frame_repr', True)
             set_option('max_colwidth', 6)
             for master in self.masterGroups:
-                output += master
-                output += str(self[master])
+                output.append(master)
+                output.append(str(self[master]))
             return output
 
     def copy(self):
@@ -653,7 +656,7 @@ def _open_MDF(fileName):
     try:
         fid = open(fileName, 'rb')
     except IOError:
-        raise Exception('Can not find file ' + fileName)
+        raise Exception('Can not find file {}'.format(fileName))
     zipfile = False
     # Check whether file is MDF file -- assumes that every MDF file starts
     # with the letters MDF
@@ -668,7 +671,7 @@ def _open_MDF(fileName):
             fid = open(zip_name, 'rb')
             fileName = zip_name
         else:
-            raise Exception('file ' + fileName + ' is not an MDF file!')
+            raise Exception('file {} is not an MDF file!'.format(fileName))
     return (fid, fileName, zipfile)
 
 
@@ -712,7 +715,8 @@ def _convertName(channelName):
         # generate random name for recarray
         channelIdentifier = ''.join([choice(ascii_letters) for n in range(32)])
     if channelIdentifier in _notAllowedChannelNames:
-        channelIdentifier += '_'  # limitation from recarray object attribute
+        # limitation from recarray object attribute
+        channelIdentifier = ''.join([channelIdentifier, '_'])
     return channelIdentifier
 
 
@@ -786,9 +790,9 @@ class compressed_data():
     def __str__(self):
         """ prints compressed_data object content
         """
-        output = 'Data: \n'
-        output += array_repr(self.data[:],
+        output = ['Data: \n',
+                  array_repr(self.data[:],
                              precision=3,
-                             suppress_small=True)
-        output += '\n Compression level ' + str(self._compression_level) + '\n'
-        return output
+                             suppress_small=True),
+                  '\n Compression level {}\n'.format(self._compression_level)]
+        return ''.join(output)
