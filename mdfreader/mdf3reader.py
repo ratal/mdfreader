@@ -918,7 +918,7 @@ class mdf3(mdf_skeleton):
     """
 
     def read3(self, fileName=None, info=None, multiProc=False, channelList=None, \
-        convertAfterRead=True, filterChannelNames=False, compression=False):
+        convertAfterRead=True, filterChannelNames=False, compression=False, minimal=False):
         """ Reads mdf 3.x file data and stores it in dict
 
         Parameters
@@ -953,7 +953,6 @@ class mdf3(mdf_skeleton):
 
         if self.fileName is None and info is not None:
             self.fileName = info.fileName
-            self.info = info
         elif fileName is not None:
             self.fileName = fileName
 
@@ -963,43 +962,43 @@ class mdf3(mdf_skeleton):
             channelSetFile = set(channelList)
 
         # Read information block from file
-        if self.info is None:
-            if info is None:
-                self.info = info3(self.fileName, None)
+        if info is None:
+            if self.info is None:
+                info = info3(self.fileName, None)
             else:
-                self.info = info
+                info = self.info
 
-        if self.info.fid.closed:
+        if info.fid.closed:
             try:
-                self.info.fid = open(self.fileName, 'rb')
+                info.fid = open(self.fileName, 'rb')
             except IOError:
                 raise Exception('Can not find file ' + self.fileName)
 
         # reads metadata
         try:
-            comment = self.info['HDBlock']['TXBlock']['Text']
+            comment = info['HDBlock']['TXBlock']['Text']
         except:
             comment = ''
         # converts date to be compatible with ISO8601
-        day, month, year = self.info['HDBlock']['Date'].split(':')
+        day, month, year = info['HDBlock']['Date'].split(':')
         ddate = '-'.join([year, month, day])
-        self.add_metadata(author=self.info['HDBlock']['Author'], \
-                organisation=self.info['HDBlock']['Organization'], \
-                project=self.info['HDBlock']['ProjectName'], \
-                subject=self.info['HDBlock']['Subject'], comment=comment, \
-                    date=ddate, time=self.info['HDBlock']['Time'])
+        self.add_metadata(author=info['HDBlock']['Author'], \
+                organisation=info['HDBlock']['Organization'], \
+                project=info['HDBlock']['ProjectName'], \
+                subject=info['HDBlock']['Subject'], comment=comment, \
+                    date=ddate, time=info['HDBlock']['Time'])
 
         # Read data from file
-        for dataGroup in self.info['DGBlock']:
+        for dataGroup in info['DGBlock']:
             channelSet = channelSetFile
-            if self.info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
+            if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
                 # Pointer to data block
-                pointerToData = self.info['DGBlock'][dataGroup]['pointerToDataRecords']
-                buf = DATA(self.info.fid, pointerToData)
+                pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
+                buf = DATA(info.fid, pointerToData)
 
-                for channelGroup in range(self.info['DGBlock'][dataGroup]['numberOfChannelGroups']):
+                for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
                     temp = record(dataGroup, channelGroup)  # create record class
-                    temp.loadInfo(self.info)  # load all info related to record
+                    temp.loadInfo(info)  # load all info related to record
 
                     if temp.numberOfRecords != 0:  # continue if there are at least some records
                         buf.addRecord(temp)
@@ -1046,7 +1045,7 @@ class mdf3(mdf_skeleton):
                                                  info=None,
                                                  compression=compression)
                 del buf
-        self.info.fid.close()  # close file
+        info.fid.close()  # close file
         if convertAfterRead and not compression:
             self._noDataLoading = False
             self._convertAllChannel3()
