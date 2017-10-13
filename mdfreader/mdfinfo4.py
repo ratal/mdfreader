@@ -545,12 +545,12 @@ class CommentBlock(dict):
     def write(self, fid, data, MDType):
 
         if MDType == 'TX':
-            data = ''.join([data.encode('utf-8', 'replace'), b'\0'])
+            data = b''.join([data.encode('utf-8', 'replace'), b'\0'])
             # make sure block is multiple of 8
             data_lentgth = len(data)
             remain = data_lentgth % 8
             if not remain == 0:
-                data = ''.join([data, b'\0' * (8 - (remain % 8))])
+                data = b''.join([data, b'\0' * (8 - (remain % 8))])
             block_start = _writeHeader(fid, b'##TX', 24 + len(data), 0)
             fid.write(data)
         else:
@@ -586,12 +586,12 @@ class CommentBlock(dict):
                 tool_vendor.text = 'mdfreader is under GPL V3'
                 tool_version = SubElement(root, 'tool_version')
                 tool_version.text = '2.6'
-            data = ''.join([tostring(root), b'\0'])
+            data = b''.join([tostring(root), b'\0'])
             # make sure block is multiple of 8
             data_lentgth = len(data)
             remain = data_lentgth % 8
             if not remain == 0:
-                data = ''.join([data, b'\0' * (8 - (remain % 8))])
+                data = b''.join([data, b'\0' * (8 - (remain % 8))])
             _writeHeader(fid, b'##MD', 24 + len(data), 0)
             block_start = fid.write(data)
         return block_start
@@ -1208,7 +1208,7 @@ class info4(dict):
     - mdfinfo['CC'][dataGroup][channelGroup][channel]
     """
 
-    def __init__(self, fileName=None, fid=None):
+    def __init__(self, fileName=None, fid=None, minimal=False):
         """ info4 class constructor
 
         Parameters
@@ -1236,22 +1236,24 @@ class info4(dict):
             # Open file
             (self.fid, self.fileName, self.zipfile) = _open_MDF(self.fileName)
         if self.fileName is not None and fid is None:
-            self.readinfo(self.fid)
+            self.readinfo(self.fid, minimal)
             # Close the file
             self.fid.close()
             if self.zipfile:  # temporary uncompressed file, to be removed
                 remove(fileName)
         elif self.fileName is None and fid is not None:
             # called by mdfreader.mdfinfo
-            self.readinfo(fid)
+            self.readinfo(fid, minimal)
 
-    def readinfo(self, fid):
+    def readinfo(self, fid, minimal):
         """ read all file blocks except data
 
         Parameters
         ----------------
         fid : float
             file identifier
+        minimal: falg
+            to activate minimum content reading for data fetching
         """
         # reads IDBlock
         self['ID'].update(IDBlock(fid))
@@ -1259,14 +1261,15 @@ class info4(dict):
         # reads Header HDBlock
         self['HD'].update(HDBlock(fid))
 
-        # print('reads File History blocks, always exists', file=stderr)
-        fh = 0  # index of fh blocks
-        self['FH'][fh] = {}
-        self['FH'][fh] .update(FHBlock(fid, self['HD']['hd_fh_first']))
-        while self['FH'][fh]['fh_fh_next']:
-            self['FH'][fh + 1] = {}
-            self['FH'][fh + 1].update(FHBlock(fid, self['FH'][fh]['fh_fh_next']))
-            fh += 1
+        if not minimal:
+            # print('reads File History blocks, always exists', file=stderr)
+            fh = 0  # index of fh blocks
+            self['FH'][fh] = {}
+            self['FH'][fh] .update(FHBlock(fid, self['HD']['hd_fh_first']))
+            while self['FH'][fh]['fh_fh_next']:
+                self['FH'][fh + 1] = {}
+                self['FH'][fh + 1].update(FHBlock(fid, self['FH'][fh]['fh_fh_next']))
+                fh += 1
 
         # print('reads Channel Hierarchy blocks', file=stderr)
         if self['HD']['hd_ch_first']:
@@ -1278,10 +1281,11 @@ class info4(dict):
                 ch += 1
 
         # reads Attachment block
-        self['AT'] = self.readATBlock(fid, self['HD']['hd_at_first'])
+        if not minimal:
+            self['AT'] = self.readATBlock(fid, self['HD']['hd_at_first'])
 
         # reads Event Block
-        if self['HD']['hd_ev_first']:
+        if self['HD']['hd_ev_first'] and not minimal:
             ev = 0
             self['EVBlock'] = {}
             self['EVBlock'][ev] = EVBlock(fid, self['HD']['hd_ev_first'])
@@ -1290,9 +1294,9 @@ class info4(dict):
                 self['EVBlock'][ev] = EVBlock(fid, self['EVBlock'][ev - 1]['ev_ev_next'])
 
         # reads Data Group Blocks and recursively the other related blocks
-        self.readDGBlock(fid)
+        self.readDGBlock(fid, None, minimal)
 
-    def readDGBlock(self, fid, channelNameList=False):
+    def readDGBlock(self, fid, channelNameList=False, minimal=False):
         """reads Data Group Blocks
 
         Parameters
@@ -1309,16 +1313,16 @@ class info4(dict):
             self['DG'][dg] = {}
             self['DG'][dg].update(DGBlock(fid, self['HD']['hd_dg_first']))
             # reads Channel Group blocks
-            self.readCGBlock(fid, dg, channelNameList)
+            self.readCGBlock(fid, dg, channelNameList, minimal)
             while self['DG'][dg]['dg_dg_next']:
                 dg += 1
                 self['ChannelNamesByDG'][dg] = set()
                 self['DG'][dg] = {}
                 self['DG'][dg].update(DGBlock(fid, self['DG'][dg - 1]['dg_dg_next']))
                 # reads Channel Group blocks
-                self.readCGBlock(fid, dg, channelNameList)
+                self.readCGBlock(fid, dg, channelNameList, minimal)
 
-    def readCGBlock(self, fid, dg, channelNameList=False):
+    def readCGBlock(self, fid, dg, channelNameList=False, minimal=False):
         """reads Channel Group blocks
 
         Parameters
@@ -1341,7 +1345,7 @@ class info4(dict):
             self['CG'][dg][cg].update(CGBlock(fid, self['DG'][dg]['dg_cg_first']))
             VLSDCGBlock = []
 
-            if not channelNameList:
+            if not channelNameList and not minimal:
                 # reads Source Information Block
                 temp = SIBlock()
                 temp.read(fid, self['CG'][dg][cg]['cg_si_acq_source'])
@@ -1354,7 +1358,7 @@ class info4(dict):
 
             if not self['CG'][dg][cg]['cg_flags'] & 0b1:  # if not a VLSD channel group
                 # reads Channel Block
-                self.readCNBlock(fid, dg, cg, channelNameList)
+                self.readCNBlock(fid, dg, cg, channelNameList, minimal)
             else:
                 VLSDCGBlock.append(cg)
 
@@ -1364,7 +1368,7 @@ class info4(dict):
                 self['CG'][dg][cg].update(CGBlock(fid, self['CG'][dg][cg - 1]['cg_cg_next']))
                 self['CN'][dg][cg] = {}
                 self['CC'][dg][cg] = {}
-                if not channelNameList:
+                if not channelNameList and not minimal:
                     # reads Source Information Block
                     temp = SIBlock()
                     temp.read(fid, self['CG'][dg][cg]['cg_si_acq_source'])
@@ -1377,7 +1381,7 @@ class info4(dict):
 
                 if not self['CG'][dg][cg]['cg_flags'] & 0b1:  # if not a VLSD channel group
                     # reads Channel Block
-                    self.readCNBlock(fid, dg, cg, channelNameList)
+                    self.readCNBlock(fid, dg, cg, channelNameList, minimal)
                 else:
                     VLSDCGBlock.append(cg)
 
@@ -1418,7 +1422,7 @@ class info4(dict):
                     self['CN'][dg][cg][cn] = self['CN'][dg][cg].pop(orderedMap[cn][0] + nChannel)
                     self['CC'][dg][cg][cn] = self['CC'][dg][cg].pop(orderedMap[cn][0] + nChannel)
 
-    def readCNBlock(self, fid, dg, cg, channelNameList=False):
+    def readCNBlock(self, fid, dg, cg, channelNameList=False, minimal=False):
         """reads Channel blocks
 
         Parameters
@@ -1456,12 +1460,13 @@ class info4(dict):
             temp.read(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
             self['CC'][dg][cg][cn].update(temp)
             if not channelNameList:
-                # reads Channel Source Information
-                temp = SIBlock()
-                temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                if temp is not None:
-                    self['CN'][dg][cg][cn]['SI'] = dict()
-                    self['CN'][dg][cg][cn]['SI'].update(temp)
+                if not minimal:
+                    # reads Channel Source Information
+                    temp = SIBlock()
+                    temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+                    if temp is not None:
+                        self['CN'][dg][cg][cn]['SI'] = dict()
+                        self['CN'][dg][cg][cn]['SI'].update(temp)
 
                 # reads Channel Array Block
                 if self['CN'][dg][cg][cn]['cn_composition']:  # composition but can be either structure of channels or array
@@ -1477,12 +1482,13 @@ class info4(dict):
                     else:
                         raise('unknown channel composition')
 
-                # reads Attachment Block
-                if self['CN'][dg][cg][cn]['cn_attachment_count'] > 1:
-                    for at in range(self['CN'][dg][cg][cn]['cn_attachment_count']):
-                        self['CN'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
-                elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
-                    self['CN'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
+                if not minimal:
+                    # reads Attachment Block
+                    if self['CN'][dg][cg][cn]['cn_attachment_count'] > 1:
+                        for at in range(self['CN'][dg][cg][cn]['cn_attachment_count']):
+                            self['CN'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
+                    elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
+                        self['CN'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
 
             while self['CN'][dg][cg][cn]['cn_cn_next']:
                 cn = cn + 1
@@ -1498,12 +1504,13 @@ class info4(dict):
                 temp = CCBlock(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
                 self['CC'][dg][cg][cn].update(temp)
                 if not channelNameList:
-                    # reads Channel Source Information
-                    temp = SIBlock()
-                    temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                    if temp is not None:
-                        self['CN'][dg][cg][cn]['SI'] = dict()
-                        self['CN'][dg][cg][cn]['SI'].update(temp)
+                    if not minimal:
+                        # reads Channel Source Information
+                        temp = SIBlock()
+                        temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+                        if temp is not None:
+                            self['CN'][dg][cg][cn]['SI'] = dict()
+                            self['CN'][dg][cg][cn]['SI'].update(temp)
 
                     # check if already existing channel name
                     if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:
@@ -1526,13 +1533,14 @@ class info4(dict):
                         else:
                             raise('unknown channel composition')
 
-                    # reads Attachment Block
-                    if self['CN'][dg][cg][cn]['cn_attachment_count'] > 1:
-                        for at in range(self['CN'][dg][cg][cn]['cn_attachment_count']):
-                            print(self['CN'][dg][cg][cn]['cn_at_reference'][at], file=stderr)
-                            self['CN'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
-                    elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
-                        self['CN'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
+                    if not minimal:
+                        # reads Attachment Block
+                        if self['CN'][dg][cg][cn]['cn_attachment_count'] > 1:
+                            for at in range(self['CN'][dg][cg][cn]['cn_attachment_count']):
+                                print(self['CN'][dg][cg][cn]['cn_at_reference'][at], file=stderr)
+                                self['CN'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
+                        elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
+                            self['CN'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
 
         MLSDChannels = self.readComposition(fid, dg, cg, MLSDChannels, channelNameList=False)
 
