@@ -137,7 +137,7 @@ class mdfinfo(dict):
     >>> yop.listChannels(FILENAME) # returns a simple list of channel names
     """
 
-    def __init__(self, fileName=None, filterChannelNames=False, fid=None):
+    def __init__(self, fileName=None, filterChannelNames=False, fid=None, minimal=False):
 
         """ You can give optionally to constructor a file name that will be parsed
 
@@ -156,10 +156,10 @@ class mdfinfo(dict):
         self.fid = fid
         self.zipfile = False
         if fileName is not None:
-            self.readinfo(fileName, fid)
+            self.readinfo(fileName, fid, minimal)
 
 
-    def readinfo(self, fileName=None, fid=None):
+    def readinfo(self, fileName=None, fid=None, minimal=False):
 
         """ Reads MDF file and extracts its complete structure
 
@@ -186,7 +186,7 @@ class mdfinfo(dict):
             self.update(info3(None, self.fid, self.filterChannelNames))
         else:  # MDF version 4.x
             from mdfinfo4 import info4
-            self.update(info4(None, self.fid))
+            self.update(info4(None, self.fid, minimal))
             if self.zipfile and fid is None: # not from mdfreader.read()
                 remove(self.fileName)
 
@@ -380,7 +380,7 @@ class mdf(mdf3, mdf4):
         # print(self.fileName, file=stderr)  # you can uncomment to show the file process from a batch
 
         # read file blocks
-        info = mdfinfo(self.fileName, filterChannelNames)
+        info = mdfinfo(self.fileName, filterChannelNames, minimal=True)
         self.MDFVersionNumber = info.mdfversion
 
         if not noDataLoading:
@@ -392,8 +392,8 @@ class mdf(mdf3, mdf4):
                            convertAfterRead, filterChannelNames, compression)
         else:  # populate minimum mdf structure
             self._noDataLoading = True
-            self._info = info
-            (self.masterChannelList, mdfdict) = self._info._generateDummyMDF(channelList)
+            self.info = info
+            (self.masterChannelList, mdfdict) = self.info._generateDummyMDF(channelList)
             self.update(mdfdict)
 
     def write(self, fileName=None):
