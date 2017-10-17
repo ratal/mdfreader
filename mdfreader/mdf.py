@@ -736,6 +736,8 @@ def _gen_valid_identifier(seq):
     for ch in itr:
         if ch == '_' or ch.isalpha() or ch.isdigit():
             yield ch
+        else:
+            yield '_'
 
 
 def _sanitize_identifier(name):
