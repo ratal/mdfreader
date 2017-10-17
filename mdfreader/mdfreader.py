@@ -97,7 +97,7 @@ def _convertMatlabName(channel):
 
 
 class mdfinfo(dict):
-
+    __slots__ = ['fileName', 'fid', 'zipfile', 'mdfversion', 'filterChannelNames']
     """ MDFINFO is a class gathering information from block headers in a MDF (Measure Data Format) file
         Structure is nested dicts. Primary key is Block type, then data group, channel group and channel number.
         Examples of dicts
@@ -374,27 +374,38 @@ class mdf(mdf3, mdf4):
         MultiProc use should be avoided when reading several files in a batch, it is not thread safe.
         You should better multi process instances of mdf rather than using multiproc in mdf class (see implementation of mdfconverter)
         """
-        if self.fileName is None:
+        if self.fileName is None or fileName is not None:
             self.fileName = fileName
 
-        # print(self.fileName, file=stderr)  # you can uncomment to show the file process from a batch
+        # Open file
+        (self.fid, self.fileName, self.zipfile) = _open_MDF(self.fileName)
 
-        # read file blocks
-        info = mdfinfo(self.fileName, filterChannelNames, minimal=True)
-        self.MDFVersionNumber = info.mdfversion
+        # read Identifier block
+        self.fid.seek(28)
+        MDFVersionNumber = unpack('<H', self.fid.read(2))
+        self.MDFVersionNumber = MDFVersionNumber[0]
 
-        if not noDataLoading:
-            if self.MDFVersionNumber < 400:  # up to version 3.x not compatible with version 4.x
-                self.read3(self.fileName, info, multiProc, channelList,
+        
+        if self.MDFVersionNumber < 400:  # up to version 3.x not compatible with version 4.x
+            if not noDataLoading:
+                self.read3(self.fileName, None, multiProc, channelList,
                            convertAfterRead, filterChannelNames, compression)
-            else:  # MDF version 4.x
-                self.read4(self.fileName, info, multiProc, channelList,
+            else:  # populate minimum mdf structure
+                self._noDataLoading = True
+                from mdfinfo3 import info3, _generateDummyMDF3
+                self.info = info3(None, fid=self.fid, minimal=False)
+                (self.masterChannelList, mdfdict) = _generateDummyMDF3(self.info, channelList)
+                self.update(mdfdict)
+        else:  # MDF version 4.x
+            if not noDataLoading:
+                self.read4(self.fileName, None, multiProc, channelList,
                            convertAfterRead, filterChannelNames, compression)
-        else:  # populate minimum mdf structure
-            self._noDataLoading = True
-            self.info = info
-            (self.masterChannelList, mdfdict) = self.info._generateDummyMDF(channelList)
-            self.update(mdfdict)
+            else:  # populate minimum mdf structure
+                self._noDataLoading = True
+                from mdfinfo4 import info4, _generateDummyMDF4
+                self.info = info4(None, fid=self.fid, minimal=False)
+                (self.masterChannelList, mdfdict) = _generateDummyMDF4(self.info, channelList)
+                self.update(mdfdict)
 
     def write(self, fileName=None):
         """Writes simple mdf file, same format as originally read, default is 4.x
