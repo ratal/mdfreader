@@ -918,7 +918,7 @@ class mdf3(mdf_skeleton):
     """
 
     def read3(self, fileName=None, info=None, multiProc=False, channelList=None, \
-        convertAfterRead=True, filterChannelNames=False, compression=False, minimal=False):
+        convertAfterRead=True, filterChannelNames=False, compression=False):
         """ Reads mdf 3.x file data and stores it in dict
 
         Parameters
@@ -974,6 +974,11 @@ class mdf3(mdf_skeleton):
             except IOError:
                 raise Exception('Can not find file ' + self.fileName)
 
+        if self._noDataLoading:
+            minimal = False
+        else:
+            minimal = True
+
         # reads metadata
         try:
             comment = info['HDBlock']['TXBlock']['Text']
@@ -992,6 +997,7 @@ class mdf3(mdf_skeleton):
         for dataGroup in info['DGBlock']:
             channelSet = channelSetFile
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
+                info.readCGBlock(info.fid, dataGroup, minimal=minimal)
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
                 buf = DATA(info.fid, pointerToData)
@@ -1071,7 +1077,7 @@ class mdf3(mdf_skeleton):
             vect = self.getChannel(channelName)[dataField]
             if vect is None: # noDataLoading reading argument flag activated
                 if self.info.fid is None or (self.info.fid is not None and self.info.fid.closed):
-                    (self.info.fid, self.info.fileName, self.info.zipfile) = _open_MDF(self.fileName)
+                    (self.info.fid, self.info.fileName, zipfile) = _open_MDF(self.fileName)
                 self.read3(fileName=None, info=self.info, channelList=[channelName], convertAfterRead=False)
             return self._convert3(channelName)
         else:
