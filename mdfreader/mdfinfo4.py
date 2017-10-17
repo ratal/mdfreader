@@ -1217,6 +1217,8 @@ class info4(dict):
             file name
         fid : float
             file identifier
+        minimal: falg
+            to activate minimum content reading for raw data fetching
 
         Notes
         ---------
@@ -1232,6 +1234,7 @@ class info4(dict):
         self['CC'] = {}  # Conversion block
         self['AT'] = {}  # Attachment block
         self.fileName = fileName
+        self.fid = None
         if fid is None and fileName is not None:
             # Open file
             (self.fid, self.fileName, self.zipfile) = _open_MDF(self.fileName)
@@ -1253,7 +1256,7 @@ class info4(dict):
         fid : float
             file identifier
         minimal: falg
-            to activate minimum content reading for data fetching
+            to activate minimum content reading for raw data fetching
         """
         # reads IDBlock
         self['ID'].update(IDBlock(fid))
@@ -1305,22 +1308,24 @@ class info4(dict):
             file identifier
         channelNameList : bool
             Flag to reads only channel blocks for listChannels4 method
+        minimal: falg
+            to activate minimum content reading for raw data fetching
         """
         self['ChannelNamesByDG'] = {}
         if self['HD']['hd_dg_first']:
             dg = 0
-            self['ChannelNamesByDG'][dg] = set()
             self['DG'][dg] = {}
             self['DG'][dg].update(DGBlock(fid, self['HD']['hd_dg_first']))
-            # reads Channel Group blocks
-            self.readCGBlock(fid, dg, channelNameList, minimal)
-            while self['DG'][dg]['dg_dg_next']:
-                dg += 1
-                self['ChannelNamesByDG'][dg] = set()
-                self['DG'][dg] = {}
-                self['DG'][dg].update(DGBlock(fid, self['DG'][dg - 1]['dg_dg_next']))
+            if not minimal:
                 # reads Channel Group blocks
                 self.readCGBlock(fid, dg, channelNameList, minimal)
+            while self['DG'][dg]['dg_dg_next']:
+                dg += 1
+                self['DG'][dg] = {}
+                self['DG'][dg].update(DGBlock(fid, self['DG'][dg - 1]['dg_dg_next']))
+                if not minimal:
+                    # reads Channel Group blocks
+                    self.readCGBlock(fid, dg, channelNameList, minimal)
 
     def readCGBlock(self, fid, dg, channelNameList=False, minimal=False):
         """reads Channel Group blocks
@@ -1333,7 +1338,10 @@ class info4(dict):
             data group number
         channelNameList : bool
             Flag to reads only channel blocks for listChannels4 method
+        minimal: falg
+            to activate minimum content reading for raw data fetching
         """
+        self['ChannelNamesByDG'][dg] = set()
         if self['DG'][dg]['dg_cg_first']:
             cg = 0
             self['CN'][dg] = {}
@@ -1435,6 +1443,8 @@ class info4(dict):
             channel group number in data group
         channelNameList : bool
             Flag to reads only channel blocks for listChannels4 method
+        minimal: falg
+            to activate minimum content reading for raw data fetching
         """
         cn = 0
         self['CN'][dg][cg][cn] = {}
@@ -1553,6 +1563,31 @@ class info4(dict):
                 if self['CN'][dg][cg][cn]['pointer'] == self['CN'][dg][cg][MLSDcn]['cn_data']:
                     self['MLSD'][dg][cg][MLSDcn] = cn
                     break
+
+    def cleanDGinfo(self, dg):
+        """ delete CN,CC and CG blocks related to data group
+
+        Parameters
+        ----------------
+        dg : int
+            data group number
+        """
+        try:
+            self['CN'][dg] = {}
+        except KeyError:
+            pass
+        try:
+            self['CC'][dg] = {}
+        except KeyError:
+            pass
+        try:
+            self['CA'][dg] = {}
+        except KeyError:
+            pass
+        try:
+            self['CG'][dg] = {}
+        except KeyError:
+            pass
 
     def readComposition(self, fid, dg, cg, MLSDChannels,
                         channelNameList=False):
