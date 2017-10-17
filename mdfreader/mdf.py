@@ -53,7 +53,8 @@ attachmentField = 'attachment'
 class mdf_skeleton(dict):
     __slots__ = ['masterChannelList', 'fileName', 'MDFVersionNumber', 'multiProc',
                  'convertAfterRead', 'filterChannelNames', 'file_metadata', 'convert_tables',
-                 '_pandasframe', 'info', '_compression_level', '_noDataLoading']
+                 '_pandasframe', 'info', '_compression_level', '_noDataLoading',
+                 'fid', 'zipfile']
     """ mdf_skeleton class
 
     Attributes
