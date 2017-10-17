@@ -357,6 +357,26 @@ class info3(dict):
                     self['CNBlock'][dg][cg][cn] = self['CNBlock'][dg][cg].pop(orderedMap[cn][0] + nChannel)
                     self['CCBlock'][dg][cg][cn] = self['CCBlock'][dg][cg].pop(orderedMap[cn][0] + nChannel)
 
+    def cleanDGinfo(self, dg):
+        """ delete CN,CC and CG blocks related to data group
+
+        Parameters
+        ----------------
+        dg : int
+            data group number
+        """
+        try:
+            self['CNBlock'][dg] = {}
+        except KeyError:
+            pass
+        try:
+            self['CCBlock'][dg] = {}
+        except KeyError:
+            pass
+        try:
+            self['CGBlock'][dg] = {}
+        except KeyError:
+            pass
 
     def listChannels3(self, fileName=None, fid=None):
         """ reads data, channel group and channel blocks to list channel names

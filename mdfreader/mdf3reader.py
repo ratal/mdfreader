@@ -1051,6 +1051,9 @@ class mdf3(mdf_skeleton):
                                                  info=None,
                                                  compression=compression)
                 del buf
+                if not self._noDataLoading:
+                    # clean CN, CC and CG info to free memory
+                    info.cleanDGinfo(dataGroup)
         info.fid.close()  # close file
         if convertAfterRead and not compression:
             self._noDataLoading = False
