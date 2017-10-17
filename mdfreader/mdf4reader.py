@@ -1001,10 +1001,14 @@ class mdf4(mdf_skeleton):
         elif fileName is not None:
             self.fileName = fileName
 
+        if self._noDataLoading:
+            minimal = False
+        else:
+            minimal = True
         # Read information block from file
         if info is None:
             if self.info is None:
-                info = info4(self.fileName, None, minimal=True)
+                info = info4(self.fileName, None, minimal=minimal)
             else:
                 info = self.info
 
@@ -1041,118 +1045,123 @@ class mdf4(mdf_skeleton):
 
         for dataGroup in info['DG']:
             channelSet = channelSetFile
-            if not info['DG'][dataGroup]['dg_data'] == 0 and \
-                    info['CG'][dataGroup][0]['cg_cycle_count']:  # data exists
-                # Pointer to data block
-                pointerToData = info['DG'][dataGroup]['dg_data']
-                buf = DATA(info.fid, pointerToData)
+            if not info['DG'][dataGroup]['dg_data'] == 0:  # there is data block
+                # load CG, CN and CC block info
+                info.readCGBlock(info.fid, dataGroup, channelSet, minimal=minimal)
+                if info['CG'][dataGroup][0]['cg_cycle_count']:  # data exists
+                    # Pointer to data block
+                    pointerToData = info['DG'][dataGroup]['dg_data']
+                    buf = DATA(info.fid, pointerToData)
 
-                for channelGroup in info['CG'][dataGroup]:
-                    temp = record(dataGroup, channelGroup)  # create record class
-                    temp.loadInfo(info)  # load all info related to record
-                    buf.addRecord(temp)  # adds record to DATA
-                    recordID = info['CG'][dataGroup][channelGroup]['cg_record_id']
-                    if temp.master['name'] is not None \
-                            and buf[recordID]['record'].channelNames:
-                            #and temp.master['name'] not in self.masterChannelList:
-                        #self.masterChannelList[temp.master['name']] = []
-                        if channelSet is not None and temp.master['name'] not in channelSet and not self._noDataLoading:
-                            channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
-                    if self._noDataLoading and channelSet is not None and len(channelSet & buf[recordID]['record'].channelNames) > 0:
-                        channelSet = None  # will load complete datagroup
-                    if channelSet is not None and buf[recordID]['record'].CANOpen: # adds CANOpen channels if existing in not empty channelSet
-                        if buf[recordID]['record'].CANOpen == 'time':
-                            channelSet.add(['ms', 'days'])
-                        elif buf[recordID]['record'].CANOpen == 'date':
-                            channelSet.add(['ms', 'minute', 'hour', 'day', 'month', 'year'])
+                    for channelGroup in info['CG'][dataGroup]:
+                        temp = record(dataGroup, channelGroup)  # create record class
+                        temp.loadInfo(info)  # load all info related to record
+                        buf.addRecord(temp)  # adds record to DATA
+                        recordID = info['CG'][dataGroup][channelGroup]['cg_record_id']
+                        if temp.master['name'] is not None \
+                                and buf[recordID]['record'].channelNames:
+                                #and temp.master['name'] not in self.masterChannelList:
+                            #self.masterChannelList[temp.master['name']] = []
+                            if channelSet is not None and temp.master['name'] not in channelSet and not self._noDataLoading:
+                                channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
+                        if self._noDataLoading and channelSet is not None and len(channelSet & buf[recordID]['record'].channelNames) > 0:
+                            channelSet = None  # will load complete datagroup
+                        if channelSet is not None and buf[recordID]['record'].CANOpen: # adds CANOpen channels if existing in not empty channelSet
+                            if buf[recordID]['record'].CANOpen == 'time':
+                                channelSet.add(['ms', 'days'])
+                            elif buf[recordID]['record'].CANOpen == 'date':
+                                channelSet.add(['ms', 'minute', 'hour', 'day', 'month', 'year'])
 
-                buf.read(channelSet, info)  # reads raw data from data block with DATA and DATABlock classes
+                    buf.read(channelSet, info)  # reads raw data from data block with DATA and DATABlock classes
 
-                # processing data from buf then transfer to self
-                for recordID in list(buf.keys()): # for each record in data block
-                    if 'record' in buf[recordID]:
-                        master_channel = buf[recordID]['record'].master['name']
-                        if master_channel in self and self[master_channel][dataField] is not None:
-                            master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
-                        for chan in buf[recordID]['record']: # for each channel class
-                            if (channelSet is None or chan.name in channelSet) \
-                                    and not chan.type == 'InvalidBytes': # normal channel
-                                if chan.channelType(info) not in (3, 6):  # not virtual channel
-                                    recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName(info)]  # in case record is used for several channels
-                                    if 'data' in buf[recordID] and \
-                                            buf[recordID]['data'] is not None: # no data in channel group
-                                        temp = buf[recordID]['data'][recordName]  # extract channel vector
-                                    else:
-                                        temp = None
-                                else:  # virtual channel
-                                    temp = arange(buf[recordID]['record'].numberOfRecords)
-
-                                # Process concatenated bits inside uint8
-                                bitCount = chan.bitCount(info)
-                                if buf[recordID]['record'].byte_aligned \
-                                        and not buf[recordID]['record'].hiddenBytes and\
-                                        0 < bitCount < 64 and bitCount not in (8, 16, 32) \
-                                        and temp is not None\
-                                        and temp.dtype.kind not in ('S', 'U')\
-                                        and not chan.type == 'Inv':
-                                    # if channel data do not use complete bytes and Ctypes
-                                    if chan.signalDataType(info) in (0, 1, 2, 3):  # integers
-                                        if chan.bitOffset(info) > 0:
-                                            temp = right_shift(temp, chan.bitOffset(info))
-                                        mask = int(pow(2, bitCount) - 1)  # masks isBitUnit8
-                                        temp = bitwise_and(temp, mask)
-                                    else:  # should not happen
-                                        print('bit count and offset not applied to correct data type ',  chan.name, file=stderr)
-                                else:  # data using full bytes
-                                    pass
-
-                                if temp is not None: # channel contains data
-                                    # string data decoding
-                                    if temp.dtype.kind != 'U':
-                                        signalDataType = chan.signalDataType(info)
-                                        if signalDataType == 6: # string ISO-8859-1 Latin
-                                            encoding = 'latin-1'
-                                        elif signalDataType == 7: # UTF-8
-                                            encoding = 'UTF-8'
-                                        elif signalDataType == 8: # UTF-16 low endian
-                                            encoding = 'UTF-16LE'
-                                        elif signalDataType == 9: # UTF-16 big endian
-                                            encoding = 'UTF-16BE'
+                    # processing data from buf then transfer to self
+                    for recordID in list(buf.keys()): # for each record in data block
+                        if 'record' in buf[recordID]:
+                            master_channel = buf[recordID]['record'].master['name']
+                            if master_channel in self and self[master_channel][dataField] is not None:
+                                master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
+                            for chan in buf[recordID]['record']: # for each channel class
+                                if (channelSet is None or chan.name in channelSet) \
+                                        and not chan.type == 'InvalidBytes': # normal channel
+                                    if chan.channelType(info) not in (3, 6):  # not virtual channel
+                                        recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName(info)]  # in case record is used for several channels
+                                        if 'data' in buf[recordID] and \
+                                                buf[recordID]['data'] is not None: # no data in channel group
+                                            temp = buf[recordID]['data'][recordName]  # extract channel vector
                                         else:
-                                            encoding = None
-                                        if encoding is not None:
-                                            for t in range(temp.size):
-                                                try:
-                                                    temp[t] = temp[t].decode(encoding, 'ignore')
-                                                except:
-                                                    print('Cannot decode channel ' + chan.name, file=stderr)
-                                                    temp[t] = ''
+                                            temp = None
+                                    else:  # virtual channel
+                                        temp = arange(buf[recordID]['record'].numberOfRecords)
 
-                                    # channel creation
-                                    self.add_channel(dataGroup, chan.name, temp, \
-                                        master_channel, \
-                                        master_type=chan.channelSyncType(info), \
-                                        unit=chan.unit(info), \
-                                        description=chan.desc(info), \
-                                        conversion=chan.conversion(info), \
-                                        info=chan.CNBlock(info), \
-                                        compression=compression)
-                                    if chan.channelType(info) == 4:  # sync channel
-                                        # attach stream to be synchronised
-                                        self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
+                                    # Process concatenated bits inside uint8
+                                    bitCount = chan.bitCount(info)
+                                    if buf[recordID]['record'].byte_aligned \
+                                            and not buf[recordID]['record'].hiddenBytes and\
+                                            0 < bitCount < 64 and bitCount not in (8, 16, 32) \
+                                            and temp is not None\
+                                            and temp.dtype.kind not in ('S', 'U')\
+                                            and not chan.type == 'Inv':
+                                        # if channel data do not use complete bytes and Ctypes
+                                        if chan.signalDataType(info) in (0, 1, 2, 3):  # integers
+                                            if chan.bitOffset(info) > 0:
+                                                temp = right_shift(temp, chan.bitOffset(info))
+                                            mask = int(pow(2, bitCount) - 1)  # masks isBitUnit8
+                                            temp = bitwise_and(temp, mask)
+                                        else:  # should not happen
+                                            print('bit count and offset not applied to correct data type ',  chan.name, file=stderr)
+                                    else:  # data using full bytes
+                                        pass
 
-                            elif chan.type == 'InvalidBytes' and \
-                                    (channelSet is None or chan.name in channelSet):  # invalid bytes, no bits processing
-                                self.add_channel(dataGroup, chan.name, \
-                                        buf[recordID]['data'].__getattribute__(chan.recAttributeName(info)), \
-                                        master_channel, \
-                                        master_type=0, \
-                                        unit='', \
-                                        description='', \
-                                        info=None, \
-                                        compression=compression)
-                    del buf[recordID]
-                del buf
+                                    if temp is not None: # channel contains data
+                                        # string data decoding
+                                        if temp.dtype.kind != 'U':
+                                            signalDataType = chan.signalDataType(info)
+                                            if signalDataType == 6: # string ISO-8859-1 Latin
+                                                encoding = 'latin-1'
+                                            elif signalDataType == 7: # UTF-8
+                                                encoding = 'UTF-8'
+                                            elif signalDataType == 8: # UTF-16 low endian
+                                                encoding = 'UTF-16LE'
+                                            elif signalDataType == 9: # UTF-16 big endian
+                                                encoding = 'UTF-16BE'
+                                            else:
+                                                encoding = None
+                                            if encoding is not None:
+                                                for t in range(temp.size):
+                                                    try:
+                                                        temp[t] = temp[t].decode(encoding, 'ignore')
+                                                    except:
+                                                        print('Cannot decode channel ' + chan.name, file=stderr)
+                                                        temp[t] = ''
+
+                                        # channel creation
+                                        self.add_channel(dataGroup, chan.name, temp, \
+                                            master_channel, \
+                                            master_type=chan.channelSyncType(info), \
+                                            unit=chan.unit(info), \
+                                            description=chan.desc(info), \
+                                            conversion=chan.conversion(info), \
+                                            info=chan.CNBlock(info), \
+                                            compression=compression)
+                                        if chan.channelType(info) == 4:  # sync channel
+                                            # attach stream to be synchronised
+                                            self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
+
+                                elif chan.type == 'InvalidBytes' and \
+                                        (channelSet is None or chan.name in channelSet):  # invalid bytes, no bits processing
+                                    self.add_channel(dataGroup, chan.name, \
+                                            buf[recordID]['data'].__getattribute__(chan.recAttributeName(info)), \
+                                            master_channel, \
+                                            master_type=0, \
+                                            unit='', \
+                                            description='', \
+                                            info=None, \
+                                            compression=compression)
+                        del buf[recordID]
+                    del buf
+                if not self._noDataLoading:
+                    # clean CN, CC and CG info to free memory
+                    info.cleanDGinfo(dataGroup)
         info.fid.close()  # close file
 
         if convertAfterRead and not compression:
