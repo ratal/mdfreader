@@ -424,15 +424,13 @@ class mdf(mdf3, mdf4):
             splitName = splitext(self.fileName)
             if splitName[-1] in ('.mfxz', '.MFXZ'):
                 splitName[-1] = '.mfx'  # do not resave in compressed file
-            self.fileName = splitName[-2] + '_New' + splitName[-1]
-        else:
-            self.fileName = fileName
+            fileName = ''.join([splitName[-2], '_New', splitName[-1]])
         # makes sure all channels are converted
         self.convertAllChannel()
         if self.MDFVersionNumber < 400:
-            self.write3(fileName=self.fileName)
+            self.write3(fileName=fileName)
         else:
-            self.write4(fileName=self.fileName)
+            self.write4(fileName=fileName)
 
     def getChannelData(self, channelName):
         """Return channel numpy array
