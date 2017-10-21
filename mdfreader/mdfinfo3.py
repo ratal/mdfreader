@@ -727,36 +727,37 @@ def _generateDummyMDF3(info, channelList):
     allChannelList = set()
     mdfdict = {}
     for dg in info['DGBlock']:
-            master = ''
-            mastertype = 0
-            for cg in info['CGBlock'][dg]:
-                channelNameList = []
-                for cn in info['CNBlock'][dg][cg]:
-                    name = info['CNBlock'][dg][cg][cn]['signalName']
-                    if name in allChannelList or \
-                            info['CNBlock'][dg][cg][cn]['channelType']:
-                        name += '_' + str(dg)
-                    if channelList is None or name in channelList:
-                        channelNameList.append(name)
-                        allChannelList.add(name)
-                        # create mdf channel
-                        mdfdict[name] = {}
-                        mdfdict[name][dataField] = None
-                        if 'signalDescription' in info['CNBlock'][dg][cg][cn]:
-                            mdfdict[name][descriptionField] = info['CNBlock'][dg][cg][cn]['signalDescription']
-                        else:
-                            mdfdict[name][descriptionField] = ''
-                        if 'physicalUnit' in info['CCBlock'][dg][cg][cn]:
-                            mdfdict[name][unitField] = info['CCBlock'][dg][cg][cn]['physicalUnit']
-                        else:
-                            mdfdict[name][unitField] = ''
-                        mdfdict[name][masterField] = 0 # default is time
-                        mdfdict[name][masterTypeField] = None
-                    if info['CNBlock'][dg][cg][cn]['channelType']: # master channel of cg
-                        master = name
-                        mastertype = info['CNBlock'][dg][cg][cn]['channelType']
-                for chan in channelNameList:
-                    mdfdict[chan][masterField] = master
-                    mdfdict[chan][masterTypeField] = mastertype
-            MasterChannelList[master] = channelNameList
+        master = ''
+        mastertype = 0
+        for cg in info['CGBlock'][dg]:
+            channelNameList = []
+            for cn in info['CNBlock'][dg][cg]:
+                name = info['CNBlock'][dg][cg][cn]['signalName']
+                if name in allChannelList or \
+                        info['CNBlock'][dg][cg][cn]['channelType']:
+                    name = ''.join([name, '_{}'.format(dg)])
+                if channelList is None or name in channelList:
+                    channelNameList.append(name)
+                    allChannelList.add(name)
+                    # create mdf channel
+                    mdfdict[name] = {}
+                    mdfdict[name][dataField] = None
+                    if 'signalDescription' in info['CNBlock'][dg][cg][cn]:
+                        mdfdict[name][descriptionField] = \
+                                info['CNBlock'][dg][cg][cn]['signalDescription']
+                    else:
+                        mdfdict[name][descriptionField] = ''
+                    if 'physicalUnit' in info['CCBlock'][dg][cg][cn]:
+                        mdfdict[name][unitField] = info['CCBlock'][dg][cg][cn]['physicalUnit']
+                    else:
+                        mdfdict[name][unitField] = ''
+                    mdfdict[name][masterField] = 0 # default is time
+                    mdfdict[name][masterTypeField] = None
+                if info['CNBlock'][dg][cg][cn]['channelType']: # master channel of cg
+                    master = name
+                    mastertype = info['CNBlock'][dg][cg][cn]['channelType']
+            for chan in channelNameList:
+                mdfdict[chan][masterField] = master
+                mdfdict[chan][masterTypeField] = mastertype
+        MasterChannelList[master] = channelNameList
     return (MasterChannelList, mdfdict)
