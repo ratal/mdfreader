@@ -434,6 +434,9 @@ class channel4(object):
             Block = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
             if 'CABlock' in Block:  # nested array
                 self.type = 'NestCA'
+        if info['CN'][dataGroup][channelGroup][channelNumber]['cn_type'] in (2, 3):
+            # master channel
+            self.name = ''.join([self.name, '_{}'.format(self.dataGroup)])
 
     def setCANOpen(self, info, dataGroup, channelGroup, channelNumber, name):
         """ CANOpen channel intialisation
