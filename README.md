@@ -9,13 +9,13 @@ The structure of the mdf object inheriting from python dict
 ===========================================================
 for each channel: mdf[channelName] below keys exist
 * data: numpy array
-* unit: unitName
-* master : vector name corresponding to master channel
+* unit: unit name
+* master : master channel name of channelName
 * masterType : type of master channel (time, angle, distance, etc.)
-* description : physical meaning of channel
+* description : description of channel
 * conversion: (exist when reading with convertAfterRead=False) dictionary describing how to convert raw data into meaningful/physical data
 
-mdf object main attribute: masterChannelList, a dict containing one list of channel names per datagroup
+mdf object main attribute: masterChannelList, a dict containing a list of channel names per datagroup
 
 
 Mdfreader module methods:
@@ -31,7 +31,7 @@ It is also possible to export mdf data into:
 * Excel 95 to 2003 (needs xlwt, really slooow, be careful about data size)
 * Excel 2007/2010 (needs openpyxl, slow if not resampled data)
 * Matlab .mat (needs scipy.io)
-* MDF simplified file. It allows you to modify data, units, description and save it again in the same major mdf version (3.x->3.3, 4.x-> 4.1)
+* MDF simplified file. It allows you to modify data, units, description and save it again
 * Pandas dataframe(s) (only in command line, not in mdfconverter). One dataframe per raster.
 
 Compatibility:
@@ -45,11 +45,11 @@ Mdfreader is mostly relying on numpy/scipy/matplotlib.
 
 Reading channels defined by a formula will require sympy.
 
-Cython is required to compile dataRead module for reading quickly exotic data (not byte aligned or containing hidden bytes). However, if cython compilation fails, bitarray becomes required (slower, pure python).
+Cython is required to compile dataRead module for reading quickly exotic data (not byte aligned or containing hidden bytes) or only a list of channels. However, if cython compilation fails, bitarray becomes required (slower, pure python and maybe not so robust as not so much tested).
 
 Export requirements (optional): scipy, csv, h5py, xlwt(3), openpyxl, pandas
 
-Mdfconverter user interface requires PyQt
+Mdfconverter graphical user interface requires PyQt (versions 4 or 5)
 
 Installation:
 =============
@@ -64,7 +64,7 @@ python setup.py develop
 
 Graphical interface: mdfconverter (PyQt4&PyQt5)
 ==================================
-User interface in PyQt4 or PyQt5 to convert batch of files is part of package. You can launch it with command 'mdfconverter'. By right clicking a channel in the interface list, you can plot it. You can also drag-drop channels between columns to tune import list. Channel list from a .lab text file can be imported. You can optionally merge several files into one and even resample all of them.
+User interface in PyQt4 or PyQt5 to convert batch of files is part of package. You can launch it with command 'mdfconverter' from shell. By right clicking a channel in the interface list, you can plot it. You can also drag-drop channels between columns to tune import list. Channel list from a .lab text file can be imported. You can optionally merge several files into one and even resample all of them.
 
 Others:
 =======
