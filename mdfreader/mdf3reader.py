@@ -953,7 +953,7 @@ class mdf3(mdf_skeleton):
 
         if self.fileName is None and info is not None:
             self.fileName = info.fileName
-        elif fileName is not None:
+        elif fileName is not None and self.fileName is None:
             self.fileName = fileName
 
         if channelList is None:
@@ -968,7 +968,7 @@ class mdf3(mdf_skeleton):
             else:
                 info = self.info
 
-        if info.fid.closed:
+        if self.info.fid is None or info.fid.closed:
             try:
                 info.fid = open(self.fileName, 'rb')
             except IOError:

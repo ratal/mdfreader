@@ -998,7 +998,7 @@ class mdf4(mdf_skeleton):
 
         if self.fileName is None and info is not None:
             self.fileName = info.fileName
-        elif fileName is not None:
+        elif fileName is not None and self.fileName is None:
             self.fileName = fileName
 
         if self._noDataLoading:
@@ -1012,7 +1012,7 @@ class mdf4(mdf_skeleton):
             else:
                 info = self.info
 
-        if info.fid.closed:
+        if self.info.fid is None or info.fid.closed:
             info.fid = open(self.fileName, 'rb')
 
         # set is more efficient for large number of channels (n^2 vs n*log(n)):
@@ -1082,7 +1082,7 @@ class mdf4(mdf_skeleton):
                                 master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
                             for chan in buf[recordID]['record']: # for each channel class
                                 if (channelSet is None or chan.name in channelSet) \
-                                        and not chan.type == 'InvalidBytes': # normal channel
+                                        and not chan.type == 'Inv': # normal channel
                                     if chan.channelType(info) not in (3, 6):  # not virtual channel
                                         recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName(info)]  # in case record is used for several channels
                                         if 'data' in buf[recordID] and \
@@ -1099,8 +1099,7 @@ class mdf4(mdf_skeleton):
                                             and not buf[recordID]['record'].hiddenBytes and\
                                             0 < bitCount < 64 and bitCount not in (8, 16, 32) \
                                             and temp is not None\
-                                            and temp.dtype.kind not in ('S', 'U')\
-                                            and not chan.type == 'Inv':
+                                            and temp.dtype.kind not in ('S', 'U'):
                                         # if channel data do not use complete bytes and Ctypes
                                         if chan.signalDataType(info) in (0, 1, 2, 3):  # integers
                                             if chan.bitOffset(info) > 0:
@@ -1147,7 +1146,7 @@ class mdf4(mdf_skeleton):
                                             # attach stream to be synchronised
                                             self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
 
-                                elif chan.type == 'InvalidBytes' and \
+                                elif chan.type == 'Inv' and \
                                         (channelSet is None or chan.name in channelSet):  # invalid bytes, no bits processing
                                     self.add_channel(dataGroup, chan.name, \
                                             buf[recordID]['data'].__getattribute__(chan.recAttributeName(info)), \
