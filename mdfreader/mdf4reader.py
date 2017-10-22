@@ -562,25 +562,25 @@ class record(list):
     def __str__(self):
         totalbits = 0  # counting number of bits
         totalbytes = 0  # total number of bytes
-        output = ['Record class content print\n',
-                  'Total number of channels : {}\n'.format(len(self))]
+        output = ''.join(['Record class content print\n',
+                          'Total number of channels : {}\n'.format(len(self))])
         for chan in self:
-            output.append([chan.name, '   ', chan.recAttributeName, '\n',
-                           '{} '.format(chan.channelNumber),
-                           '{} '.format(chan.RecordFormat),
-                           '{} '.format(chan.Format),
-                           'ChannelType {} '.format(chan.channelType),
-                           'DataType {}\n'.format(chan.signalDataType)])
+            output.append(''.join([chan.name, '   ', chan.recAttributeName, '\n',
+                                   '{} '.format(chan.channelNumber),
+                                   '{} '.format(chan.RecordFormat),
+                                   '{} '.format(chan.Format),
+                                   'ChannelType {} '.format(chan.channelType),
+                                   'DataType {}\n'.format(chan.signalDataType)]))
             totalbits += chan.bitCount
             totalbytes += chan.nBytes
-        output.append(['Total bits : {}\n'.format(totalbits),
-                       'Calculated total bytes : {}\n'.format(totalbytes),
-                       'CG block record bytes length : {}\n'.format(self.CGrecordLength),
-                       'Datagroup number : {}\n'.format(self.dataGroup),
-                       'Byte aligned : {}\n'.format(self.byte_aligned),
-                       'Hidden bytes : {}\n'.format(self.hiddenBytes)])
+        output.append(''.join(['Total bits : {}\n'.format(totalbits),
+                               'Calculated total bytes : {}\n'.format(totalbytes),
+                               'CG block record bytes length : {}\n'.format(self.CGrecordLength),
+                               'Datagroup number : {}\n'.format(self.dataGroup),
+                               'Byte aligned : {}\n'.format(self.byte_aligned),
+                               'Hidden bytes : {}\n'.format(self.hiddenBytes)]))
         if self.master['name'] is not None:
-            output.append(['Master channel : ', self.master['name'], '\n'])
+            output.append(''.join(['Master channel : ', self.master['name'], '\n']))
         output.append('Numpy records format : \n')
         for record in self.numpyDataRecordFormat:
             output.append('{}\n'.format(record))
@@ -642,7 +642,8 @@ class record(list):
             Channel = channel4()
             Channel.set(info, self.dataGroup, self.channelGroup, channelNumber)
             if Channel.channelType(info) in (2, 3):  # master channel found
-                if self.master['number'] is None or Channel.channelSyncType(info)==1:  # new master channel found
+                if self.master['number'] is None or Channel.channelSyncType(info) == 1:
+                    # new master channel found
                     # or more than 1 master channel, priority to time channel
                     self.master['number'] = channelNumber
                     self.master['name'] = Channel.name
@@ -676,13 +677,14 @@ class record(list):
                     self.channelNames.add(Channel.name)
                     # Checking if several channels are embedded in bytes
                     if len(self) > 1:
-                        # all channels are already ordered in record based on byte_offset and bit_offset
-                        # so just comparing with previous channel
+                        # all channels are already ordered in record based on byte_offset
+                        # and bit_offset so just comparing with previous channel
                         prev_chan = self[-2]
                         prev_chan_includes_curr_chan = Channel.posBitBeg(info) >= 8 * prev_chan.byteOffset(info) \
                                 and Channel.posBitEnd(info) <= 8 * (prev_chan.byteOffset(info) + prev_chan.nBytes(info))
                         if embedding_channel is not None:
-                            embedding_channel_includes_curr_chan = Channel.posBitEnd(info) <= embedding_channel.posBitEnd(info)
+                            embedding_channel_includes_curr_chan = \
+                                Channel.posBitEnd(info) <= embedding_channel.posByteEnd(info) * 8
                         else:
                             embedding_channel_includes_curr_chan = False
                         if Channel.byteOffset(info) >= prev_chan.byteOffset(info) and \
@@ -690,7 +692,7 @@ class record(list):
                                 Channel.posBitEnd(info) > 8 * (prev_chan.byteOffset(info) + prev_chan.nBytes(info)):  # not byte aligned
                             self.byte_aligned = False
                         if embedding_channel is not None and \
-                                Channel.posBitEnd(info) > embedding_channel.posBitEnd(info):
+                                Channel.posBitEnd(info) > embedding_channel.posByteEnd(info) * 8:
                             embedding_channel = None
                         if prev_chan_includes_curr_chan or \
                                 embedding_channel_includes_curr_chan:  # bit(s) in byte(s)

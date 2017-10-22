@@ -441,10 +441,10 @@ class record(list):
         output = list()
         output.append('Channels :\n')
         for chan in self.channelNames:
-            output.append([chan, '\n'])
+            output.append(''.join([chan, '\n']))
         output.append('Datagroup number : {}\n'.format(self.dataGroup))
         if self.master['name'] is not None:
-            output.append(['Master channel : ', self.master['name'], '\n'])
+            output.append(''.join(['Master channel : ', self.master['name'], '\n']))
         output.append('Numpy records format : \n')
         for record in self.numpyDataRecordFormat:
             output.append('{}\n'.format(record))
@@ -499,7 +499,8 @@ class record(list):
                 prev_chan_includes_curr_chan = channel.posBitBeg >= 8 * prev_chan.byteOffset \
                         and channel.posBitEnd <= 8 * (prev_chan.byteOffset + prev_chan.nBytes)
                 if embedding_channel is not None:
-                    embedding_channel_includes_curr_chan = channel.posBitEnd <= embedding_channel.posBitEnd
+                    embedding_channel_includes_curr_chan = \
+                        channel.posBitEnd <= embedding_channel.posByteEnd * 8
                 else:
                     embedding_channel_includes_curr_chan = False
                 if channel.byteOffset >= prev_chan.byteOffset and \
@@ -508,7 +509,7 @@ class record(list):
                     # not byte aligned
                     self.byte_aligned = False
                 if embedding_channel is not None and \
-                        channel.posBitEnd > embedding_channel.posBitEnd:
+                        channel.posBitEnd > embedding_channel.posByteEnd * 8:
                     embedding_channel = None
                 if prev_chan_includes_curr_chan or \
                         embedding_channel_includes_curr_chan:  # bit(s) in byte(s)
@@ -517,7 +518,8 @@ class record(list):
                     if self.recordToChannelMatching:  # not first channel
                         self.recordToChannelMatching[channel.recAttributeName] = \
                             self.recordToChannelMatching[prev_chan.recAttributeName]
-                        channel.embedding_channel_bitOffset = channel.posBitBeg - embedding_channel.posBitBeg
+                        channel.embedding_channel_bitOffset = \
+                            channel.posBitBeg - embedding_channel.posBitBeg
                     else:  # first channels
                         self.recordToChannelMatching[channel.recAttributeName] = \
                             channel.recAttributeName
