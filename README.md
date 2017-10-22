@@ -31,7 +31,7 @@ It is also possible to export mdf data into:
 * Excel 95 to 2003 (needs xlwt, really slooow, be careful about data size)
 * Excel 2007/2010 (needs openpyxl, slow if not resampled data)
 * Matlab .mat (needs scipy.io)
-* MDF simplified file. It allows you to modify data, units, description and save it again
+* MDF simplified file. It allows you to modify data, units, description and save it again.
 * Pandas dataframe(s) (only in command line, not in mdfconverter). One dataframe per raster.
 
 Compatibility:
@@ -119,8 +119,9 @@ Command example in ipython:
     # merge 2 files
     yop2=mdfreader.mdf('NameOfFile_2')
     yop=mergeMDF(yop2)
-    # can write mdf file after modifications (by default, same version of orignal file)
-    yop.write()
+    # can write mdf file after modifications
+    yop.write()  # same version of orignal file
+    yop.write4()  # write mdf version 4 file
     # to get/show raw data from channel after read
     yop.getChannelData('channelName') # returns channel numpy array
 ```
