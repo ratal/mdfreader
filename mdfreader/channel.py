@@ -11,14 +11,14 @@ Created on Wed Oct 04 21:13:28 2017
 
 Dependencies
 -------------------
-- Python >2.6, >3.2 <http://www.python.org>
+- Python >2.6, >3.4 <http://www.python.org>
 - Numpy >1.6 <http://numpy.scipy.org>
 
 Attributes
 --------------
 PythonVersion : float
     Python version currently running, needed for compatibility of both
-    python 2.6+ and 3.2+
+    python 2.6+ and 3.4+
 
 channel module
 --------------------------
@@ -131,6 +131,23 @@ class channel4(object):
 
     def __init__(self):
         """ channel class constructor
+
+        Attributes
+        --------------
+
+        name : str
+            Name of channel
+        type : str, default 'std'
+            channel type. Can be 'std', 'NestCA',
+            'CAN' or 'Inv'
+        channelNumber : int, default 0
+            channel number corresponding to mdfinfo4.info4 class
+        channelGroup : int, default 0
+            channel group number corresponding to mdfinfo4.info4 class
+        dataGroup : int, default 0
+            data group number corresponding to mdfinfo4.info4 class
+        VLSD_CG_Flag : bool, default False
+            flag when Channel Group VLSD is used
         """
         self.name = ''
         self.type = 'std'
@@ -140,6 +157,9 @@ class channel4(object):
         self.VLSD_CG_Flag = False
 
     def __str__(self):
+        """ channel object attributes print
+
+        """
         return '{0} {1} {2} {3} {4} {5}'.format(self.name,
                                                 self.type,
                                                 self.dataGroup,
@@ -148,17 +168,74 @@ class channel4(object):
                                                 self.VLSD_CG_Flag)
 
     def attachment(self, fid, info):
-        # in case of sync channel attached to channel
-        return ATBlock(fid, info['CN'][self.dataGroup][self.channelGroup]\
+        """ In case of sync channel attached to channel
+
+        Parameters
+        ----------------
+
+        fid : class
+            file identifier
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        ATBlock class from mdfinfo4 module
+        """
+        try:
+            return ATBlock(fid, info['CN'][self.dataGroup][self.channelGroup]\
                                 [self.channelNumber]['cn_data'])
+        except KeyError:
+            print('No Attachment block for this channel')
 
     def CNBlock(self, info):
+        """ channel block
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        CNBlock class from mdfinfo4 module
+        """
         try:
             return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
         except KeyError:
             return None
 
     def signalDataType(self, info, byte_aligned=True):
+        """ extract signal data type from info4 class
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+        byte_aligned : bool
+            flag activated if channel is part of a record byte aligned
+
+        Returns
+        -----------
+        integer corresponding to channel data type
+        0 unsigned integer little endian
+        1 unsigned integer big endian
+        2 signed integer little endian
+        3 signed integer big endian
+        4 float little endian
+        5 float big endian
+        6 string latin
+        7 string utf-8
+        9 string utf-16
+        10 byte array
+        11 mime sample
+        12 mime stream
+        13 CANopen date
+        14 CANopen time
+        """
         if not self.type == 'Inv':
             return info['CN'][self.dataGroup][self.channelGroup]\
                         [self.channelNumber]['cn_data_type']
@@ -169,6 +246,18 @@ class channel4(object):
                 return 0  # uint LE
 
     def bitCount(self, info):
+        """ calculates channel number of bits
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        integer corresponding to channel number of bits
+        """
         if self.type in ('std', 'CA', 'NestCA'):
             return info['CN'][self.dataGroup][self.channelGroup]\
                         [self.channelNumber]['cn_bit_count']
@@ -188,6 +277,23 @@ class channel4(object):
             print('Not found channel type')
 
     def channelSyncType(self, info):
+        """ Extracts channel sync type from info4
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        integer corresponding to channel sync type
+        0 no sync, normal data
+        1 time
+        2 angle
+        3 distance
+        4 index
+        """
         try:
             return info['CN'][self.dataGroup][self.channelGroup]\
                     [self.channelNumber]['cn_sync_type']
@@ -195,18 +301,81 @@ class channel4(object):
             return 0  # in case of invaldi bytes channel
 
     def CABlock(self, info):
-        return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
+        """ Extracts channel CA Block from info4
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        CABlock object from mdfinfo4 module
+        """
+        try:
+            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
+        except KeyError:
+            print('No CA Block in this channel')
 
     def recordIDsize(self, info):
+        """ Extracts record id size from info4
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        integer describing record id size
+        0 no record id used
+        1 uint8
+        2 uint16
+        4 uint32
+        8 uint64
+        """
         return info['DG'][self.dataGroup]['dg_rec_id_size']
 
     def channelType(self, info):
+        """ Extracts channel type from info4
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        integer describing channel type
+        0 normal channel
+        1 variable length
+        2 master channel
+        3 virtual master channel
+        4 sync channel
+        5 max length data
+        6 virtual data channel
+        """
         try:
             return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_type']
         except KeyError:
             return 0  # in case of invaldi bytes channel
 
     def nBytes(self, info):
+        """ calculates channel bytes number
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        number of bytes integer
+        """
         if not self.type == 'Inv':
             nBytes = _bits_to_bytes(info['CN'][self.dataGroup][self.channelGroup]\
                         [self.channelNumber]['cn_bit_count'])
@@ -221,6 +390,18 @@ class channel4(object):
             return info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
 
     def little_endian(self, info):
+        """ check if channel is little endian
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        boolean
+        """
         if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]\
                 ['cn_data_type'] in (1, 3, 5, 9):  # endianness
             return False
@@ -228,9 +409,33 @@ class channel4(object):
             return True
 
     def recAttributeName(self, info):
+        """ clean up channel name from unauthorised characters
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        channel name compliant to python attributes names (for recarray)
+        """
         return _convertName(self.name)
 
     def dataFormat(self, info):
+        """ channel numpy.core.records data format
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        string data format
+        """
         if self.type == 'Inv':
             dataformat = '{}V'.format(self.nBytes(info))
         elif info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_composition'] and \
@@ -270,16 +475,52 @@ class channel4(object):
         return dataformat
 
     def RecordFormat(self, info):
+        """ recarray dtype string
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        recarray dtype
+        """
         recAttributeName = self.recAttributeName(info)
         return (('{}_title'.format(recAttributeName),
                  recAttributeName), self.dataFormat(info))
 
     def nativeRecordFormat(self, info):
+        """ channel numpy.core.records data format without endian (< or >)
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        string data format
+        """
         recAttributeName = self.recAttributeName(info)
         return (('{}_title'.format(recAttributeName), recAttributeName),
                 self.dataFormat(info).lstrip('<').lstrip('>'))
 
     def Format(self, info):
+        """ channel data C format
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        string data C format
+        """
         if self.type in ('std', 'CA', 'NestCA'):
             signalDataType = self.signalDataType(info)
             if signalDataType not in (13, 14):
@@ -303,9 +544,33 @@ class channel4(object):
             print('Not found channel type')
 
     def CFormat(self, info):
+        """ channel data C format struct object
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        string data C format struct object
+        """
         return Struct(self.Format(info))
 
     def CANOpenOffset(self, info):
+        """ CANopen channel bytes offset
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        integer, channel bytes offset
+        """
         if self.name == 'ms':
             return 0
         elif self.name == 'days':
@@ -325,6 +590,18 @@ class channel4(object):
                 print('CANopen type not understood')
 
     def bitOffset(self, info):
+        """ channel data bit offset in record
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        integer, channel bit offset
+        """
         if self.type in ('std', 'CA', 'NestCA'):
             return info['CN'][self.dataGroup][self.channelGroup]\
                         [self.channelNumber]['cn_bit_offset']
@@ -337,6 +614,18 @@ class channel4(object):
             print('Not found channel type')
 
     def byteOffset(self, info):
+        """ channel data bytes offset in record (without record id)
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        integer, channel bytes offset
+        """
         if self.type in ('std', 'CA', 'NestCA'):
             return info['CN'][self.dataGroup][self.channelGroup]\
                         [self.channelNumber]['cn_byte_offset']
@@ -349,18 +638,78 @@ class channel4(object):
             print('Not found channel type')
 
     def posByteBeg(self, info):
+        """ channel data bytes starting position in record
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        integer, channel bytes starting position
+        """
         return self.recordIDsize(info) + self.byteOffset(info)
 
     def posByteEnd(self, info):
+        """ channel data bytes ending position in record
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        integer, channel bytes ending position
+        """
         return self.posByteBeg(info) + self.nBytes(info)
 
     def posBitBeg(self, info):
+        """ channel data bit starting position in record
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        integer, channel bit starting position
+        """
         return self.posByteBeg(info) * 8 + self.bitOffset(info)
 
     def posBitEnd(self, info):
+        """ channel data bit ending position in record
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        integer, channel bit ending position
+        """
         return self.posBitBeg(info) + self.bitCount(info)
 
     def unit(self, info):
+        """ channel unit
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        channel unit string
+        """
         if self.channelNumber not in info['CC'][self.dataGroup][self.channelGroup]:
             return ''
         if 'unit' in info['CC'][self.dataGroup][self.channelGroup][self.channelNumber]:
@@ -374,6 +723,18 @@ class channel4(object):
         return unit
 
     def desc(self, info):
+        """ channel description
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        channel description string
+        """
         if not self.type == 'CAN':
             if self.channelNumber in info['CN'][self.dataGroup][self.channelGroup]:
                 if 'Comment' in info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]:
@@ -394,12 +755,36 @@ class channel4(object):
             return self.name
 
     def conversion(self, info):
+        """ channel conversion CCBlock
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        CCBlock
+        """
         try:
             return info['CC'][self.dataGroup][self.channelGroup][self.channelNumber]
         except KeyError:
             return None
 
     def invalid_bit(self, info):
+        """ extrzcts from info4 the channels valid bits positions
+
+        Parameters
+        ----------------
+
+        info : mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
+        Returns
+        -----------
+        dict of channels valid bits positions
+        """
         invalid_bit = {}
         for channelNumber in info['CN'][self.dataGroup][self.channelGroup]:
             name = info['CN'][self.dataGroup][self.channelGroup][channelNumber]['name']
@@ -408,10 +793,11 @@ class channel4(object):
         return invalid_bit
 
     def set(self, info, dataGroup, channelGroup, channelNumber):
-        """ standard record channel initialisation
+        """ channel initialisation
 
         Parameters
         ------------
+
         info : mdfinfo4.info4 class
         dataGroup : int
             data group number in mdfinfo4.info4 class
@@ -443,6 +829,7 @@ class channel4(object):
 
         Parameters
         ------------
+
         info : mdfinfo4.info4 class
         dataGroup : int
             data group number in mdfinfo4.info4 class
@@ -467,6 +854,7 @@ class channel4(object):
 
         Parameters
         ----------
+
         info : mdfinfo4.info4 class
         dataGroup : int
             data group number in mdfinfo4.info4 class
@@ -490,6 +878,7 @@ class channel4(object):
 
         Parameters
         ----------
+        
         info : mdfinfo4.info4 class
         invalid_bytes : bytes
             bytes from where to extract validity bit array
