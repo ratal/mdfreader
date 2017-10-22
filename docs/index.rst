@@ -23,6 +23,8 @@ Contents:
 
    mdfinfo4/index
 
+   channel/index
+
 Indices and tables
 ==================
 
