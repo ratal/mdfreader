@@ -34,6 +34,7 @@ from numpy.core.defchararray import encode as ncode
 from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
     dataField, conversionField, compressed_data
 from mdfinfo3 import info3
+from collections import defaultdict
 from math import log, exp
 from time import strftime, time, gmtime
 from struct import pack, Struct
@@ -850,7 +851,7 @@ class DATA(dict):
         self.fid.seek(self.pointerToData)
         stream = self.fid.read(self.BlockLength)
         # reads only the channels using offset functions, channel by channel.
-        buf = {}
+        buf = defaultdict(list)
         position = 0
         recordIdCFormat = Struct('B')
         # several channel groups per data block, check for duplicate channel names
