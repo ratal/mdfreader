@@ -968,7 +968,7 @@ class mdf3(mdf_skeleton):
             else:
                 info = self.info
 
-        if self.info.fid is None or info.fid.closed:
+        if info.fid is None or info.fid.closed:
             try:
                 info.fid = open(self.fileName, 'rb')
             except IOError:

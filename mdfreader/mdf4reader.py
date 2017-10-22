@@ -975,7 +975,7 @@ class mdf4(mdf_skeleton):
             file name
 
         info : mdfinfo4.info4 class
-            info3 class containing all MDF Blocks
+            info4 class containing all MDF Blocks
 
         multiProc : bool
             flag to activate multiprocessing of channel data conversion
@@ -1012,7 +1012,7 @@ class mdf4(mdf_skeleton):
             else:
                 info = self.info
 
-        if self.info.fid is None or info.fid.closed:
+        if info.fid is None or info.fid.closed:
             info.fid = open(self.fileName, 'rb')
 
         # set is more efficient for large number of channels (n^2 vs n*log(n)):
