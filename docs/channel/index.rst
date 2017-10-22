@@ -1,7 +1,7 @@
-mdfinfo4 module documentation
+channel module documentation
 =====================================
 
-.. automodule:: channel4
+.. automodule:: channel
     :members:
     :undoc-members:
     :show-inheritance:
