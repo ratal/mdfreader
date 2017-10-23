@@ -105,11 +105,11 @@ def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True):
         VLSDStruct = Struct('I')
         # several channel groups per data block, check for duplicate channel names
         temp = set()
-        for recordID in self:
-            intersec = set(self[recordID]['record'].dataRecordName) & temp
+        for recordID in record:
+            intersec = set(record[recordID]['record'].dataRecordName) & temp
             for name in intersec: # duplicate channels found
-                self[recordID]['record'].changeChannelName(info, name)
-            temp.update(self[recordID]['record'].dataRecordName)
+                record[recordID]['record'].changeChannelName(info, name)
+            temp.update(record[recordID]['record'].dataRecordName)
         # initialise data structure
         for recordID in record:
             for channelName in record[recordID]['record'].dataRecordName:
