@@ -878,7 +878,7 @@ class channel4(object):
 
         Parameters
         ----------
-        
+
         info : mdfinfo4.info4 class
         invalid_bytes : bytes
             bytes from where to extract validity bit array
@@ -892,6 +892,17 @@ class channel4(object):
             return bitwise_and(right_shift(invalid_bytes, self.invalid_bit(info)), 1)
         else:
             print('asking for invalid byte array but channel is not invalid byte type')
+    
+    def changeChannelName(self, channelGroup):
+        """ In case of duplicate channel names within several channel groups
+        for unsorted data, rename channel name
+
+        Parameters
+        ------------
+        channelGroup : int
+            channelGroup bumber
+        """
+        self.name = '{0}_{1}'.format(self.name, channelGroup)
 
 def arrayformat4(signalDataType, numberOfBits):
     """ function returning numpy style string from channel data type and number of bits
