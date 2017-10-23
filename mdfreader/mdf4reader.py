@@ -98,11 +98,18 @@ def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True):
 
     def readUnsorted(record, info, parent_block, channelSet=None, sortedFlag=True):
         # reads only the channels using offset functions, channel by channel.
-        buf = {}
+        buf = defaultdict(list)
         position = 0
         recordIdCFormat = record[list(record.keys())[0]]['record'].recordIDCFormat
         recordIDsize = record[list(record.keys())[0]]['record'].recordIDsize
         VLSDStruct = Struct('I')
+        # several channel groups per data block, check for duplicate channel names
+        temp = set()
+        for recordID in self:
+            intersec = set(self[recordID]['record'].dataRecordName) & temp
+            for name in intersec: # duplicate channels found
+                self[recordID]['record'].changeChannelName(info, name)
+            temp.update(self[recordID]['record'].dataRecordName)
         # initialise data structure
         for recordID in record:
             for channelName in record[recordID]['record'].dataRecordName:
@@ -931,6 +938,29 @@ class record(list):
                     buf[self[chan].recAttributeName(info)] = temp
             return buf
 
+    def changeChannelName(self, info, channelName):
+        """ In case of duplicate channel names within several channel groups
+        for unsorted data, rename channel name
+
+        Parameters
+        ------------
+        channelName : str
+            channelName to be modified to avoid duplicates in unsorted
+            channel groups
+        """
+        ind = self.dataRecordName.index(channelName) - 1
+        OldrecAttributeName = self[ind].recAttributeName(info)
+        OldName = self[ind].name
+        self[ind].changeChannelName(self.channelGroup)
+        recAttributeName = self[ind].recAttributeName(info)
+        if self.recordToChannelMatching[OldrecAttributeName] == OldrecAttributeName:
+            self.recordToChannelMatching.pop(OldrecAttributeName)
+            self.recordToChannelMatching[recAttributeName] = recAttributeName
+        if self.master['name'] == OldName:  # channel to change is master
+            self.master['name'] = self[ind].name
+        self.dataRecordName[ind] = recAttributeName
+        self.channelNames.remove(OldName)
+        self.channelNames.add(self[ind].name)
 
 class mdf4(mdf_skeleton):
 
@@ -1115,7 +1145,7 @@ class mdf4(mdf_skeleton):
 
                                     if temp is not None: # channel contains data
                                         # string data decoding
-                                        if temp.dtype.kind != 'U':
+                                        if temp.dtype.kind == 'S':
                                             signalDataType = chan.signalDataType(info)
                                             if signalDataType == 6: # string ISO-8859-1 Latin
                                                 encoding = 'latin-1'
@@ -1128,12 +1158,14 @@ class mdf4(mdf_skeleton):
                                             else:
                                                 encoding = None
                                             if encoding is not None:
+                                                temp2 = empty(len(temp), dtype='U{}'.format(temp.dtype.str[-1]))
                                                 for t in range(temp.size):
                                                     try:
-                                                        temp[t] = temp[t].decode(encoding, 'ignore')
+                                                        temp2[t] = temp[t].decode(encoding, 'ignore')
                                                     except:
                                                         print('Cannot decode channel ' + chan.name, file=stderr)
-                                                        temp[t] = ''
+                                                        temp2[t] = ''
+                                                temp = temp2
 
                                         # channel creation
                                         self.add_channel(dataGroup, chan.name, temp, \
