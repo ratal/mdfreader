@@ -108,6 +108,7 @@ Command example in ipython:
     yop.plot('channelName') or yop.plot({'channel1','channel2'})
     # file manipulations
     yop.resample(0.1) or yop.resample(channelName='master3')
+    yop.cut(begin=10, end=15)
     yop.exporToCSV(sampling=0.01)
     yop.exportNetCDF()
     yop.exportToHDF5()
@@ -122,6 +123,7 @@ Command example in ipython:
     # can write mdf file after modifications
     yop.write()  # same version of orignal file
     yop.write4()  # write mdf version 4 file
+    yop.write3()  # write mdf version 3 file
     # to get/show raw data from channel after read
     yop.getChannelData('channelName') # returns channel numpy array
 ```
