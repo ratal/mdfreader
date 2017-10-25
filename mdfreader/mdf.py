@@ -89,7 +89,7 @@ class mdf_skeleton(dict):
 
     def __init__(self, fileName=None, channelList=None, convertAfterRead=True,
                  filterChannelNames=False, noDataLoading=False,
-                 compression=False):
+                 compression=False, generator=False):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -139,12 +139,78 @@ class mdf_skeleton(dict):
         # clears class from previous reading and avoid to mess up
         self.clear()
         self.fileName = fileName
+        self.generator = generator
+        
         if fileName is not None:
             self.read(fileName, channelList=channelList,
                       convertAfterRead=convertAfterRead,
                       filterChannelNames=filterChannelNames,
                       noDataLoading=noDataLoading,
-                      compression=compression)
+                      compression=compression, generator=generator)
+
+    def get_channel_dict(self, dataGroup, channel_name, data, master_channel,
+                    master_type=1, unit='', description='', conversion=None,
+                    info=None, compression=False):
+
+        if not self._noDataLoading:
+            if channel_name in self:
+                # name doublon existing
+                channel_name += '_' + str(dataGroup)
+            # create new channel
+            self[channel_name] = {}
+            if master_channel not in self.masterChannelList:
+                self.masterChannelList[master_channel] = []
+            self.masterChannelList[master_channel].append(channel_name)
+            if self.MDFVersionNumber < 400:  # mdf3
+                self.setChannelMasterType(channel_name, 1)
+            else:  # mdf4
+                self.setChannelMasterType(channel_name, master_type)
+                
+            channel = {}
+            channel[channel_name] = {}
+            channel[channel_name]["Filename"] = self.fileName
+            channel[channel_name][unitField] = unit
+            channel[channel_name][descriptionField] = description
+            channel[channel_name][masterField] = master_channel
+            channel[channel_name][masterTypeField] = master_type
+            
+        channel[channel_name][dataField] = data
+        if conversion is not None:
+            channel[channel_name]['conversion'] = {}
+            channel[channel_name]['conversion']['type'] = conversion['cc_type']
+            channel[channel_name]['conversion']['parameters'] = {}
+            if self.MDFVersionNumber < 400:  # mdf3
+                if 'conversion' in conversion:
+                    channel[channel_name]['conversion']['parameters'] = \
+                        conversion['conversion']
+                if conversion['cc_type'] == 0 and \
+                        'P2' in channel[channel_name]['conversion']['parameters'] and \
+                        (channel[channel_name]['conversion']['parameters']['P2'] == 1.0 and
+                         channel[channel_name]['conversion']['parameters']['P1'] in (0.0, -0.0)):
+                    channel[channel_name].pop('conversion')
+            else:  # mdf4
+                if 'cc_val' in conversion:
+                    channel[channel_name]['conversion']['parameters']['cc_val'] = \
+                        conversion['cc_val']
+                if 'cc_ref' in conversion:
+                    channel[channel_name]['conversion']['parameters']['cc_ref'] = \
+                        conversion['cc_ref']
+        if info is not None:  # axis from CABlock
+            CABlock = info
+            axis = []
+            while 'CABlock' in CABlock:
+                CABlock = CABlock['CABlock']
+                if 'ca_axis_value' in CABlock:
+                    if type(CABlock['ca_dim_size']) is list:
+                        index = 0
+                        for ndim in CABlock['ca_dim_size']:
+                            axis.append(tuple(CABlock['ca_axis_value'][index:index+ndim]))
+                            index += ndim
+                    else:
+                        axis = CABlock['ca_axis_value']
+            channel[channel_name]['axis'] = axis
+            
+        return channel
 
     def add_channel(self, dataGroup, channel_name, data, master_channel,
                     master_type=1, unit='', description='', conversion=None,
@@ -715,6 +781,23 @@ def _convertName(channelName):
         channelIdentifier += '_'  # limitation from recarray object attribute
     return channelIdentifier
 
+'''
+def _gen_valid_identifier(seq):
+    # get an iterator
+    itr = iter(seq)
+    # pull characters until we get a legal one for first in identifer
+    for ch in itr:
+        if ch == '_' or ch.isalpha():
+            yield ch
+            break
+        elif ch.isdigit():
+            itr = chain(itr, ch)
+
+    # pull remaining characters and yield legal ones for identifier
+    for ch in itr:
+        if ch == '_' or ch.isalpha() or ch.isdigit():
+            yield ch
+'''
 
 def _gen_valid_identifier(seq):
     # get an iterator
@@ -731,7 +814,8 @@ def _gen_valid_identifier(seq):
     for ch in itr:
         if ch == '_' or ch.isalpha() or ch.isdigit():
             yield ch
-
+        else:
+            yield '_'
 
 def _sanitize_identifier(name):
     return ''.join(_gen_valid_identifier(name))

@@ -331,7 +331,7 @@ class mdf(mdf3, mdf4):
 
     def read(self, fileName=None, multiProc=False, channelList=None,
              convertAfterRead=True, filterChannelNames=False,
-             noDataLoading=False, compression=False):
+             noDataLoading=False, compression=False,generator=False):
         """ reads mdf file version 3.x and 4.x
 
         Parameters
@@ -389,7 +389,7 @@ class mdf(mdf3, mdf4):
                            convertAfterRead, filterChannelNames, compression)
             else:  # MDF version 4.x
                 self.read4(self.fileName, info, multiProc, channelList,
-                           convertAfterRead, filterChannelNames, compression)
+                           convertAfterRead, filterChannelNames, compression,generator=generator)
         else:  # populate minimum mdf structure
             self._noDataLoading = True
             self._info = info
