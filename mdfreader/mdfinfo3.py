@@ -84,6 +84,8 @@ class info3(dict):
         self['CGBlock'] = dict()  # Channel Group Block
         self['CNBlock'] = dict()  # Channel Block
         self['CCBlock'] = dict()  # Conversion block
+        self['allChannelList'] = set()  # all channels
+        self['ChannelNamesByDG'] = dict()
         self.filterChannelNames = filterChannelNames
         self.fileName = fileName
         self.fid = None
@@ -130,6 +132,7 @@ class info3(dict):
             self['DGBlock'][dg] = self.mdfblockread3(self.blockformats3('DGFormat'), fid, DGpointer)
             # Get pointer to next Data Group block
             DGpointer = self['DGBlock'][dg]['pointerToNextDGBlock']
+            self['ChannelNamesByDG'][dg] = set()
             if not minimal:
                 self.readCGBlock(fid, dg, minimal)
 
@@ -172,7 +175,6 @@ class info3(dict):
             # Get pointer to next first Channel block
             CNpointer = self['CGBlock'][dg][cg]['pointerToFirstCNBlock']
 
-            snames = set()
             # For each Channel
             for channel in range(self['CGBlock'][dg][cg]['numberOfChannels']):
 
@@ -205,12 +207,12 @@ class info3(dict):
                 if self.filterChannelNames:
                     signalname = signalname.split('.')[-1]  # filters channels modules
 
-                if signalname in snames:
-                    self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signalname, channel)
-                    print('WARNING added number to duplicate channel name: ' + self['CNBlock'][dg][cg][channel]['signalName'], file=stderr)
+                if signalname in self['allChannelList']:
+                    self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signalname, dg)
                 else:
                     self['CNBlock'][dg][cg][channel]['signalName'] = signalname
-                snames.add(self['CNBlock'][dg][cg][channel]['signalName'])
+                self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][channel]['signalName'])
+                self['allChannelList'].add(self['CNBlock'][dg][cg][channel]['signalName'])
 
                 # Read channel description
                 CNTXpointer = self['CNBlock'][dg][cg][channel]['pointerToChannelCommentBlock']
