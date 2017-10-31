@@ -1079,15 +1079,17 @@ class mdf4(mdf_skeleton):
             project = returnField(Comment, 'project')
             subject = returnField(Comment, 'subject')
             comment = returnField(Comment, 'TX')
-            self.add_metadata(author=author, organisation=organisation, \
-                    project=project, subject=subject, comment=comment, \
+            self.add_metadata(author=author, organisation=organisation,
+                    project=project, subject=subject, comment=comment,
                     date=ddate, time=ttime)
         else:
             self.add_metadata(date=ddate, time=ttime)
 
         for dataGroup in info['DG']:
             channelSet = channelSetFile
-            if not info['DG'][dataGroup]['dg_data'] == 0:  # there is data block
+            if not info['DG'][dataGroup]['dg_data'] == 0 and \
+                    (channelSet is None or
+                     len(channelSet & info['ChannelNamesByDG'][dataGroup]) > 0):  # there is data block and channel in
                 if not self._noDataLoading:  # load CG, CN and CC block info
                     info.readCGBlock(info.fid, dataGroup, channelSet, minimal=minimal)
                 if info['CG'][dataGroup][0]['cg_cycle_count']:  # data exists
@@ -1108,7 +1110,8 @@ class mdf4(mdf_skeleton):
                                 channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
                         if self._noDataLoading and channelSet is not None and len(channelSet & buf[recordID]['record'].channelNames) > 0:
                             channelSet = None  # will load complete datagroup
-                        if channelSet is not None and buf[recordID]['record'].CANOpen: # adds CANOpen channels if existing in not empty channelSet
+                        if channelSet is not None and buf[recordID]['record'].CANOpen:
+                            # adds CANOpen channels if existing in not empty channelSet
                             if buf[recordID]['record'].CANOpen == 'time':
                                 channelSet.add(['ms', 'days'])
                             elif buf[recordID]['record'].CANOpen == 'date':
@@ -1343,7 +1346,6 @@ class mdf4(mdf_skeleton):
                     if channelName in L:
                         self.setChannelData(channelName, L[channelName])
                         self.remove_channel_conversion(channelName)
-
 
     def write4(self, fileName=None):
         """Writes simple mdf 4.1 file

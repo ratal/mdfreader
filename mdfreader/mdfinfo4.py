@@ -1233,6 +1233,7 @@ class info4(dict):
         self['CN'] = {}  # Channel Block
         self['CC'] = {}  # Conversion block
         self['AT'] = {}  # Attachment block
+        self['allChannelList'] = set()  # all channels
         self.fileName = fileName
         self.fid = None
         if fid is None and fileName is not None:
@@ -1459,9 +1460,12 @@ class info4(dict):
         if self['CN'][dg][cg][cn]['cn_type'] == 5:
             MLSDChannels.append(cn)
         # check if already existing channel name
-        if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:
+        if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
             self['CN'][dg][cg][cn]['name'] = '{0}{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], cg, cn)
+        elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
+            self['CN'][dg][cg][cn]['name'] = '{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
         self['ChannelNamesByDG'][dg].add(self['CN'][dg][cg][cn]['name'])
+        self['allChannelList'].add(self['CN'][dg][cg][cn]['name'])
 
         if self['CG'][dg][cg]['cg_cn_first']:  # Can be NIL for VLSD
             # reads Channel Conversion Block
@@ -1525,7 +1529,10 @@ class info4(dict):
                     # check if already existing channel name
                     if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:
                         self['CN'][dg][cg][cn]['name'] = '{0}{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], cg, cn)
+                    elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
+                        self['CN'][dg][cg][cn]['name'] = '{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
                     self['ChannelNamesByDG'][dg].add(self['CN'][dg][cg][cn]['name'])
+                    self['allChannelList'].add(self['CN'][dg][cg][cn]['name'])
 
                     # reads Channel Array Block
                     if self['CN'][dg][cg][cn]['cn_composition']:
