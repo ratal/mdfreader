@@ -710,7 +710,10 @@ def _convertName(channelName):
     if PythonVersion < 3:  # python 2
         channelIdentifier = _sanitize_identifier(channelName).encode('utf-8')
     else:  # python 3
-        channelIdentifier = str(_sanitize_identifier(channelName))
+        if channelName.isidentifier():
+            return channelName
+        else:
+            channelIdentifier = str(_sanitize_identifier(channelName))
     # all characters of channel are not compliant to python
     if not channelIdentifier:
         # generate random name for recarray

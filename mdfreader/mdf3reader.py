@@ -977,10 +977,8 @@ class mdf3(mdf_skeleton):
             except IOError:
                 raise Exception('Can not find file ' + self.fileName)
 
-        if self._noDataLoading:
-            minimal = False
-        else:
-            minimal = True
+
+        minimal = True  # always read minimum info
 
         # reads metadata
         try:
@@ -1000,7 +998,8 @@ class mdf3(mdf_skeleton):
         for dataGroup in info['DGBlock']:
             channelSet = channelSetFile
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0:  # data exists
-                info.readCGBlock(info.fid, dataGroup, minimal=minimal)
+                if not self._noDataLoading:  # load CG, CN and CC block info
+                    info.readCGBlock(info.fid, dataGroup, minimal=minimal)
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
                 buf = DATA(info.fid, pointerToData)
