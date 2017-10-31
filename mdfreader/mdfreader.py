@@ -313,7 +313,7 @@ class mdf(mdf3, mdf4):
     >>> yop=mdfreader.mdf('NameOfFile')
     >>> yop.keys() # list channels names
     # list channels grouped by raster or master channel
-    >>> yop.masterChannelList()
+    >>> yop.masterChannelList
     >>> yop.plot('channelName') or yop.plot({'channel1','channel2'})
     >>> yop.resample(0.1) or yop.resample(channelName='master3')
     >>> yop.exportoCSV(sampling=0.01)
