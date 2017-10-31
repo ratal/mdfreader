@@ -189,6 +189,13 @@ class channel4(object):
         except KeyError:
             print('No Attachment block for this channel')
 
+    def data(self, info):
+        """ returns data block pointer for VLSD, MLD or sync channels"""
+        try:
+            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data']
+        except KeyError:
+            return None
+
     def CNBlock(self, info):
         """ channel block
 
@@ -474,7 +481,7 @@ class channel4(object):
                             [self.channelGroup][self.channelNumber]['cn_bit_count'])
         return dataformat
 
-    def RecordFormat(self, info):
+    def RecordFormat(self, info, recAttributeName=None):
         """ recarray dtype string
 
         Parameters
@@ -487,7 +494,8 @@ class channel4(object):
         -----------
         recarray dtype
         """
-        recAttributeName = self.recAttributeName(info)
+        if recAttributeName is None:
+            recAttributeName = self.recAttributeName(info)
         return (('{}_title'.format(recAttributeName),
                  recAttributeName), self.dataFormat(info))
 
@@ -920,35 +928,67 @@ def arrayformat4(signalDataType, numberOfBits):
         numpy dtype format used by numpy.core.records to read channel raw data
     """
 
-    if signalDataType in (0, 1):  # unsigned
+    if signalDataType == 0:  # unsigned, low endian
         if numberOfBits <= 8:
-            dataType = 'u1'
+            dataType = '<u1'
         elif numberOfBits <= 16:
-            dataType = 'u2'
+            dataType = '<u2'
         elif numberOfBits <= 32:
-            dataType = 'u4'
+            dataType = '<u4'
         elif numberOfBits <= 64:
-            dataType = 'u8'
+            dataType = '<u8'
         else:
-            dataType = '{}V'.format(_bits_to_bytes(numberOfBits) // 8)
+            dataType = '<{}V'.format(_bits_to_bytes(numberOfBits) // 8)
 
-    elif signalDataType in (2, 3):  # signed int
+    elif signalDataType == 2:  # signed int, low endian
         if numberOfBits <= 8:
-            dataType = 'i1'
+            dataType = '<i1'
         elif numberOfBits <= 16:
-            dataType = 'i2'
+            dataType = '<i2'
         elif numberOfBits <= 32:
-            dataType = 'i4'
+            dataType = '<i4'
         elif numberOfBits <= 64:
-            dataType = 'i8'
+            dataType = '<i8'
         else:
             print('Unsupported number of bits for signed int {}'.format(numberOfBits))
 
-    elif signalDataType in (4, 5):  # floating point
+    elif signalDataType == 4:  # floating point, low endian
         if numberOfBits == 32:
-            dataType = 'f4'
+            dataType = '<f4'
         elif numberOfBits == 64:
-            dataType = 'f8'
+            dataType = '<f8'
+        else:
+            print('Unsupported number of bit for floating point ' + str(numberOfBits))
+
+    elif signalDataType == 1:  # unsigned, big endian
+        if numberOfBits <= 8:
+            dataType = '>u1'
+        elif numberOfBits <= 16:
+            dataType = '>u2'
+        elif numberOfBits <= 32:
+            dataType = '>u4'
+        elif numberOfBits <= 64:
+            dataType = '>u8'
+        else:
+            dataType = '>{}V'.format(_bits_to_bytes(numberOfBits) // 8)
+
+    elif signalDataType == 3:  # signed int, big endian
+        if numberOfBits <= 8:
+            dataType = '>i1'
+        elif numberOfBits <= 16:
+            dataType = '>i2'
+        elif numberOfBits <= 32:
+            dataType = '>i4'
+        elif numberOfBits <= 64:
+            dataType = '>i8'
+        else:
+            print('Unsupported number of bits for signed int {}'.format(numberOfBits))
+
+    elif signalDataType == 5:  # floating point, big endian
+        if numberOfBits == 32:
+            dataType = '>f4'
+        elif numberOfBits == 64:
+            dataType = '>f8'
         else:
             print('Unsupported number of bit for floating point ' + str(numberOfBits))
 
@@ -957,9 +997,9 @@ def arrayformat4(signalDataType, numberOfBits):
     elif signalDataType == 7:  # UTF-8
         dataType = 'S{}'.format(numberOfBits // 8)
     elif signalDataType == 8:  # UTF-16 low endian
-        dataType = 'S{}'.format(numberOfBits // 8)
+        dataType = '<S{}'.format(numberOfBits // 8)
     elif signalDataType == 9:  # UTF-16 big endian
-        dataType = 'S{}'.format(numberOfBits // 8)
+        dataType = '>S{}'.format(numberOfBits // 8)
     elif signalDataType == 10:  # bytes array
         dataType = 'V{}'.format(numberOfBits // 8)
     elif signalDataType in (11, 12):  # MIME sample or MIME stream
@@ -968,12 +1008,6 @@ def arrayformat4(signalDataType, numberOfBits):
         dataType = None
     else:
         print('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits)
-
-    # deal with byte order
-    if signalDataType in (0, 2, 4, 8):  # low endian
-        dataType = ''.join(['<', dataType])
-    elif signalDataType in (1, 3, 5, 9):  # big endian
-        dataType = ''.join(['>', dataType])
 
     return dataType
 
