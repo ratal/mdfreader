@@ -107,7 +107,7 @@ Command example in ipython:
     # quick plot of channel(s)
     yop.plot('channelName') or yop.plot({'channel1','channel2'})
     # file manipulations
-    yop.resample(0.1) or yop.resample(channelName='master3')
+    yop.resample(0.1) or yop.resample(masterChannel='master3')
     yop.cut(begin=10, end=15)
     yop.exporToCSV(sampling=0.01)
     yop.exportNetCDF()
