@@ -967,7 +967,7 @@ class mdf3(mdf_skeleton):
         # Read information block from file
         if info is None:
             if self.info is None:
-                info = info3(self.fileName, None)
+                info = info3(self.fileName, None, False, True)
             else:
                 info = self.info
 
