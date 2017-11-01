@@ -28,10 +28,15 @@ from sys import version_info, stderr
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 from numpy import sort, zeros
-from struct import calcsize, unpack
+from struct import calcsize, unpack, Struct
 from collections import defaultdict
 from mdf import dataField, descriptionField, unitField, masterField, masterTypeField
 
+cn_struct = Struct('<2sH5IH32s128s4H3d2IH')
+tx_struct = Struct('<2sH')
+cc_struct = Struct('<2s2H2d20s2H')
+dg_struct = Struct('<2sH4I2H')
+cg_struct = Struct('<2sH3I3HI')
 
 class info3(dict):
     __slots__ = ['fileName', 'fid', 'filterChannelNames']
@@ -108,20 +113,20 @@ class info3(dict):
         """
         # reads IDBlock
         fid.seek(24)
-        self['IDBlock']['ByteOrder'] = unpack('<H', fid.read(2))
-        self['IDBlock']['FloatingPointFormat'] = unpack('<H', fid.read(2))
-        self['IDBlock']['id_ver'] = unpack('<H', fid.read(2))[0]
-        self['IDBlock']['CodePageNumber'] = unpack('<H', fid.read(2))[0]
+        (self['IDBlock']['ByteOrder'],
+         self['IDBlock']['FloatingPointFormat'],
+         self['IDBlock']['id_ver'],
+         self['IDBlock']['CodePageNumber']) = unpack('<4H', fid.read(8))
 
         # Read header block (HDBlock) information
         # Read Header block info into structure, HD pointer at 64 as mentioned in specification
-        self['HDBlock'] = self.mdfblockread3(self.blockformats3('HDFormat', self['IDBlock']['id_ver']), fid, 64)
+        self['HDBlock'] = read_hd_block(fid, 64, self['IDBlock']['id_ver'])
 
         # Read text block (TXBlock) information
-        self['HDBlock']['TXBlock'] = self.mdfblockread3(self.blockformats3('TXFormat'), fid, self['HDBlock']['pointerToTXBlock'])
+        self['HDBlock']['TXBlock'] = read_tx_block(fid, self['HDBlock']['pointerToTXBlock'])
 
         # Read text block (PRBlock) information
-        self['HDBlock']['PRBlock'] = self.mdfblockread3(self.blockformats3('PRFormat'), fid, self['HDBlock']['pointerToPRBlock'])
+        self['HDBlock']['PRBlock'] = read_tx_block(fid, self['HDBlock']['pointerToPRBlock'])
 
         # Read Data Group blocks (DGBlock) information
         # Get pointer to first Data Group block
@@ -129,7 +134,7 @@ class info3(dict):
         for dg in range(self['HDBlock']['numberOfDataGroups']):
 
             # Read data Data Group block info into structure
-            self['DGBlock'][dg] = self.mdfblockread3(self.blockformats3('DGFormat'), fid, DGpointer)
+            self['DGBlock'][dg] = read_dg_block(fid, DGpointer)
             # Get pointer to next Data Group block
             DGpointer = self['DGBlock'][dg]['pointerToNextDGBlock']
             self['ChannelNamesByDG'][dg] = set()
@@ -138,7 +143,6 @@ class info3(dict):
 
         # Close the file
         fid.close()
-
 
     def readCGBlock(self, fid, dg, minimal=False):
         """ read all CG blocks and relying CN & CC
@@ -164,13 +168,13 @@ class info3(dict):
         for cg in range(self['DGBlock'][dg]['numberOfChannelGroups']):
             self['CNBlock'][dg][cg] = dict()
             self['CCBlock'][dg][cg] = dict()
-            self['CGBlock'][dg][cg] = self.mdfblockread3(self.blockformats3('CGFormat'), fid, CGpointer)
+            self['CGBlock'][dg][cg] = read_cg_block(fid, CGpointer)
             CGpointer = self['CGBlock'][dg][cg]['pointerToNextCGBlock']
 
             CGTXpointer = self['CGBlock'][dg][cg]['pointerToChannelGroupCommentText']
 
             # Read data Text block info into structure
-            self['CGBlock'][dg][cg]['TXBlock'] = self.mdfblockread3(self.blockformats3('TXFormat'), fid, CGTXpointer)
+            self['CGBlock'][dg][cg]['TXBlock'] = read_tx_block(fid, CGTXpointer)
 
             # Get pointer to next first Channel block
             CNpointer = self['CGBlock'][dg][cg]['pointerToFirstCNBlock']
@@ -182,7 +186,7 @@ class info3(dict):
                 #self.numberOfChannels += 1
                 # Read data Channel block info into structure
 
-                self['CNBlock'][dg][cg][channel] = self.mdfblockread3(self.blockformats3('CNFormat'), fid, CNpointer)
+                self['CNBlock'][dg][cg][channel] = read_cn_block(fid, CNpointer)
                 CNpointer = self['CNBlock'][dg][cg][channel]['pointerToNextCNBlock']
 
                 # Read Channel text blocks (TXBlock)
@@ -192,8 +196,7 @@ class info3(dict):
                 CNTXpointer = self['CNBlock'][dg][cg][channel]['pointerToASAMNameBlock']
 
                 if CNTXpointer > 0:
-                    longSignalName = self.mdfblockread3(self.blockformats3('TXFormat'), fid, CNTXpointer)  # long name of signal
-                    longSignalName = longSignalName['Text']
+                    longSignalName = read_tx_block(fid, CNTXpointer)  # long name of signal
                     if len(longSignalName) > len(shortSignalName):  # long name should be used
                         signalname = longSignalName
                     else:
@@ -216,11 +219,11 @@ class info3(dict):
 
                 # Read channel description
                 CNTXpointer = self['CNBlock'][dg][cg][channel]['pointerToChannelCommentBlock']
-                self['CNBlock'][dg][cg][channel]['ChannelCommentBlock'] = self.mdfblockread3(self.blockformats3('TXFormat'), fid, CNTXpointer)
+                self['CNBlock'][dg][cg][channel]['ChannelCommentBlock'] = read_tx_block(fid, CNTXpointer)
 
                 CNTXpointer = self['CNBlock'][dg][cg][channel]['pointerToSignalIdentifierBlock']
                 # Read data Text block info into structure
-                self['CNBlock'][dg][cg][channel]['SignalIdentifierBlock'] = self.mdfblockread3(self.blockformats3('TXFormat'), fid, CNTXpointer)
+                self['CNBlock'][dg][cg][channel]['SignalIdentifierBlock'] = read_tx_block(fid, CNTXpointer)
 
                 # Read Channel Conversion block (CCBlock)
 
@@ -232,111 +235,8 @@ class info3(dict):
                     self['CCBlock'][dg][cg][channel]['cc_type'] = 65535
                 else:  # Otherwise get conversion formula, parameters and physical units
                     # Read data Channel Conversion block info into structure
-                    self['CCBlock'][dg][cg][channel] = self.mdfblockread3(self.blockformats3('CCFormat'), fid, CCpointer)
+                    self['CCBlock'][dg][cg][channel] = read_cc_block(fid, CCpointer)
 
-                    # Extract Channel Conversion formula based on conversion
-                    # type(cc_type)
-
-                    # Get current file position
-                    currentPosition = fid.tell()
-
-                    if self['CCBlock'][dg][cg][channel]['cc_type'] == 0:  # Parameteric, Linear: Physical =Integer*P2 + P1
-
-                        # Read data Channel Conversion parameters info into structure
-                        self['CCBlock'][dg][cg][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula0'), fid, currentPosition)
-
-                    elif self['CCBlock'][dg][cg][channel]['cc_type'] == 1:  # Table look up with interpolation
-
-                        # Get number of parameters sets
-                        num = self['CCBlock'][dg][cg][channel]['numberOfValuePairs']
-                        self['CCBlock'][dg][cg][channel]['conversion'] = {}
-
-                        for pair in range(num):
-
-                            # Read data Channel Conversion parameters info into structure
-                            self['CCBlock'][dg][cg][channel]['conversion'][pair] = self.mdfblockread3(self.blockformats3('CCFormatFormula1'), fid, currentPosition)
-                            # Get current file position
-                            currentPosition = fid.tell()
-
-                    elif self['CCBlock'][dg][cg][channel]['cc_type'] == 2:  # table look up
-
-                        # Get number of parameters sets
-                        num = self['CCBlock'][dg][cg][channel]['numberOfValuePairs']
-                        self['CCBlock'][dg][cg][channel]['conversion'] = {}
-
-                        for pair in range(num):
-
-                            # Read data Channel Conversion parameters info into structure
-                            self['CCBlock'][dg][cg][channel]['conversion'][pair] = self.mdfblockread3(self.blockformats3('CCFormatFormula2'), fid, currentPosition)
-                            # Get current file position
-                            currentPosition = fid.tell()
-
-                    elif self['CCBlock'][dg][cg][channel]['cc_type'] == 6:  # Polynomial
-
-                        # Read data Channel Conversion parameters info into structure
-                        self['CCBlock'][dg][cg][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula6'), fid, currentPosition)
-
-                    elif self['CCBlock'][dg][cg][channel]['cc_type'] == 7:  # Exponential
-
-                        # Read data Channel Conversion parameters info into structure
-                        self['CCBlock'][dg][cg][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula7'), fid, currentPosition)
-
-                    elif self['CCBlock'][dg][cg][channel]['cc_type'] == 8:  # Logarithmic
-
-                        # Read data Channel Conversion parameters info into structure
-                        self['CCBlock'][dg][cg][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula8'), fid, currentPosition)
-
-                    elif self['CCBlock'][dg][cg][channel]['cc_type'] == 9:  # Rational
-
-                        # Read data Channel Conversion parameters info into structure
-                        self['CCBlock'][dg][cg][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula9'), fid, currentPosition)
-
-                    elif self['CCBlock'][dg][cg][channel]['cc_type'] == 10:  # Text Formula
-
-                        # Read data Channel Conversion parameters info into structure
-                        self['CCBlock'][dg][cg][channel]['conversion'] = self.mdfblockread3(self.blockformats3('CCFormatFormula10'), fid, currentPosition, removeTrailing0=False)
-
-                    elif self['CCBlock'][dg][cg][channel]['cc_type'] == 11:  # Text table
-
-                        # Get number of parameters sets
-                        num = self['CCBlock'][dg][cg][channel]['numberOfValuePairs']
-                        self['CCBlock'][dg][cg][channel]['conversion'] = {}
-
-                        for pair in range(num):
-
-                            # Read data Channel Conversion parameters info into structure
-                            self['CCBlock'][dg][cg][channel]['conversion'][pair] = self.mdfblockread3(self.blockformats3('CCFormatFormula11'), fid, currentPosition)
-                            # Get current file position
-                            currentPosition = fid.tell()
-
-                    elif self['CCBlock'][dg][cg][channel]['cc_type'] == 12:  # Text range table
-
-                        # Get number of parameters sets
-                        num = self['CCBlock'][dg][cg][channel]['numberOfValuePairs']
-                        self['CCBlock'][dg][cg][channel]['conversion'] = {}
-
-                        for pair in range(num):  # first pair is default
-
-                            # Read data Channel Conversion parameters info into structure
-                            self['CCBlock'][dg][cg][channel]['conversion'][pair] = self.mdfblockread3(self.blockformats3('CCFormatFormula12'), fid, currentPosition)
-                            # Get current file position
-                            currentPosition = fid.tell()
-
-                        for pair in range(num):  # get text range
-                            # Read corresponding text
-                            temp = self.mdfblockread3(self.blockformats3('TXFormat'), fid, self['CCBlock'][dg][cg][channel]['conversion'][pair]['pointerToTXBlock'])
-                            try:
-                                self['CCBlock'][dg][cg][channel]['conversion'][pair]['Textrange'] = temp['Text']
-                            except:
-                                self['CCBlock'][dg][cg][channel]['conversion'][pair]['Textrange'] = ""
-
-                    elif self['CCBlock'][dg][cg][channel]['cc_type'] == 65535:  # No conversion int=phys
-                        pass
-                    else:
-
-                        # Give warning that conversion formula is not being
-                        # made
-                        print(('Conversion Formula type (cc_type=' + str(self['CCBlock'][dg][cg][channel]['cc_type']) + ')not supported.'), file=stderr)
             # reorder channel blocks and related blocks based on first bit position
             # this reorder is meant to improve performance while parsing records using core.records.fromfile
             # as it will not use cn_byte_offset
@@ -404,7 +304,7 @@ class info3(dict):
         # Set file pointer to start of HDBlock
         HDpointer = 64
         # Read Header block info into structure
-        self['HDBlock'] = self.mdfblockread3(self.blockformats3('HDFormat'), fid, HDpointer)
+        self['HDBlock'] = read_hd_block(fid, HDpointer)
 
         # Read Data Group blocks (DGBlock) information
         # Get pointer to first Data Group block
@@ -412,7 +312,7 @@ class info3(dict):
         for dataGroup in range(self['HDBlock']['numberOfDataGroups']):
 
             # Read data Data Group block info into structure
-            self['DGBlock'][dataGroup] = self.mdfblockread3(self.blockformats3('DGFormat'), fid, DGpointer)
+            self['DGBlock'][dataGroup] = read_dg_block(fid, DGpointer)
             # Get pointer to next Data Group block
             DGpointer = self['DGBlock'][dataGroup]['pointerToNextDGBlock']
 
@@ -426,7 +326,7 @@ class info3(dict):
             for channelGroup in range(self['DGBlock'][dataGroup]['numberOfChannelGroups']):
                 self['CNBlock'][dataGroup][channelGroup] = {}
                 self['CCBlock'][dataGroup][channelGroup] = {}
-                self['CGBlock'][dataGroup][channelGroup] = self.mdfblockread3(self.blockformats3('CGFormat'), fid, CGpointer)
+                self['CGBlock'][dataGroup][channelGroup] = read_cg_block(fid, CGpointer)
                 CGpointer = self['CGBlock'][dataGroup][channelGroup]['pointerToNextCGBlock']
 
                 # Get pointer to next first Channel block
@@ -439,7 +339,7 @@ class info3(dict):
                     # Read Channel block (CNBlock) information
                     #self.numberOfChannels += 1
                     # Read data Channel block info into structure
-                    self['CNBlock'][dataGroup][channelGroup][channel] = self.mdfblockread3(self.blockformats3('CNFormat'), fid, CNpointer)
+                    self['CNBlock'][dataGroup][channelGroup][channel] = read_cn_block(fid, CNpointer)
                     CNpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToNextCNBlock']
 
                     # Read Channel text blocks (TXBlock)
@@ -448,8 +348,7 @@ class info3(dict):
                     shortSignalName = self['CNBlock'][dataGroup][channelGroup][channel]['signalName']  # short name of signal
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
                     if CNTXpointer > 0:
-                        longSignalName = self.mdfblockread3(self.blockformats3('TXFormat'), fid, CNTXpointer)  # long name of signal
-                        longSignalName = longSignalName['Text']
+                        longSignalName = read_tx_block(fid, CNTXpointer)  # long name of signal
                         if len(longSignalName) > len(shortSignalName):  # long name should be used
                             signalname = longSignalName
                         else:
@@ -474,241 +373,215 @@ class info3(dict):
         fid.close()
         return channelNameList
 
-    #######blockformats3####################
-    @staticmethod
-    def blockformats3(block, version=0):
-        """ This function returns all the predefined formats for the different blocks in the MDF file
 
-        Parameters
-        ----------------
-        block : str
-            kind of block
-        version : int
-            mdf version
-
-        Returns
-        -----------
-        nested list of str and int describing structure of block to be used by mdfblockread3 method
-        """
-        # Data Type Definitions '<' for little-endian byteOrder
-        LINK = '<I'
-        CHAR = '<c'
-        REAL = '<d'
-        BOOL = '<h'
-        #UINT8 = '<B'
-        #BYTE =  '<B'
-        INT16 = '<h'
-        UINT16 = '<H'
-        UINT32 = '<I'
-        #INT32 = '<i'
-        UINT64 = '<Q'
-        #INT64 = '<q'
-
-        formats = ()
-
-        if block == 'TXFormat':
-            formats = (
-                (CHAR, 2, 'BlockType'),
-                (UINT16, 1, 'BlockSize'),
-                (CHAR, 'Var', 'Text'))
-        elif block == 'CNFormat':
-            formats = (
-                (CHAR, 2, 'BlockType'),
-                (UINT16, 1, 'BlockSize'),
-                (LINK, 1, 'pointerToNextCNBlock'),
-                (LINK, 1, 'pointerToConversionFormula'),
-                (LINK, 1, 'pointerToCEBlock'),
-                (LINK, 1, 'pointerToCDBlock'),
-                (LINK, 1, 'pointerToChannelCommentBlock'),
-                (UINT16, 1, 'channelType'),
-                (CHAR, 32, 'signalName'),
-                (CHAR, 128, 'signalDescription'),
-                (UINT16, 1, 'numberOfTheFirstBits'),
-                (UINT16, 1, 'numberOfBits'),
-                (UINT16, 1, 'signalDataType'),
-                (BOOL, 1, 'valueRangeKnown'),
-                (REAL, 1, 'valueRangeMinimum'),
-                (REAL, 1, 'valueRangeMaximum'),
-                (REAL, 1, 'rateVariableSampled'),
-                (LINK, 1, 'pointerToASAMNameBlock'),
-                (LINK, 1, 'pointerToSignalIdentifierBlock'),
-                (UINT16, 1, 'ByteOffset'))
-        elif block == 'CCFormat':
-            formats = (
-                (CHAR, 2, 'BlockType'),
-                (UINT16, 1, 'BlockSize'),
-                (BOOL, 1, 'valueRangeKnown'),
-                (REAL, 1, 'valueRangeMinimum'),
-                (REAL, 1, 'valueRangeMaximum'),
-                (CHAR, 20, 'physicalUnit'),
-                (UINT16, 1, 'cc_type'),
-                (UINT16, 1, 'numberOfValuePairs'))
-        elif block == 'CCFormatFormula0':
-            formats = (  # parametric, linear
-                (REAL, 1, 'P1'),
-                (REAL, 1, 'P2'))
-        elif block in ('CCFormatFormula1', 'CCFormatFormula2'):
-            formats = (  # Tablular or Tabular with interp
-                (REAL, 1, 'int'),
-                (REAL, 1, 'phys'))
-        elif block == 'CCFormatFormula10':
-            formats = (  # Text formula
-                (CHAR, 256, 'textFormula'),)
-        elif block == 'CCFormatFormula11':
-            formats = (  # ASAM-MCD2 text table
-                (REAL, 1, 'int'),
-                (CHAR, 32, 'text'))
-        elif block in ('CCFormatFormula6', 'CCFormatFormula9'):
-            formats = (  # polynomial
-                (REAL, 1, 'P1'),
-                (REAL, 1, 'P2'),
-                (REAL, 1, 'P3'),
-                (REAL, 1, 'P4'),
-                (REAL, 1, 'P5'),
-                (REAL, 1, 'P6'))
-        elif block in ('CCFormatFormula7', 'CCFormatFormula8'):
-            formats = (  # Exponential and logarithmic
-                (REAL, 1, 'P1'),
-                (REAL, 1, 'P2'),
-                (REAL, 1, 'P3'),
-                (REAL, 1, 'P4'),
-                (REAL, 1, 'P5'),
-                (REAL, 1, 'P6'),
-                (REAL, 1, 'P7'))
-        elif block == 'CCFormatFormula12':
-            formats = (  # ASAM-MCD2 text range table
-                (REAL, 1, 'lowerRange'),
-                (REAL, 1, 'upperRange'),
-                (LINK, 1, 'pointerToTXBlock'))
-        elif block == 'PRFormat':
-            formats = (
-                (CHAR, 2, 'BlockType'),
-                (UINT16, 1, 'BlockSize'),
-                (CHAR, 'Var', 'PRData'))
-        elif block == 'CGFormat':
-            formats = (
-                (CHAR, 2, 'BlockType'),
-                (UINT16, 1, 'BlockSize'),
-                (LINK, 1, 'pointerToNextCGBlock'),
-                (LINK, 1, 'pointerToFirstCNBlock'),
-                (LINK, 1, 'pointerToChannelGroupCommentText'),
-                (UINT16, 1, 'recordID'),
-                (UINT16, 1, 'numberOfChannels'),
-                (UINT16, 1, 'dataRecordSize'),
-                (UINT32, 1, 'numberOfRecords'))
-            # last one missing
-        elif block == 'DGFormat':
-            formats = (
-                (CHAR, 2, 'BlockType'),
-                (UINT16, 1, 'BlockSize'),  # All DGBlocks Size
-                (LINK, 1, 'pointerToNextDGBlock'),
-                (LINK, 1, 'pointerToNextCGBlock'),
-                (LINK, 1, 'reserved'),
-                (LINK, 1, 'pointerToDataRecords'),
-                (UINT16, 1, 'numberOfChannelGroups'),
-                (UINT16, 1, 'numberOfRecordIDs'))
-        elif block == 'HDFormat':
-            if version < 3.2:
-                formats = (
-                    (CHAR, 2, 'BlockType'),
-                    (UINT16, 1, 'BlockSize'),
-                    (LINK, 1, 'pointerToFirstDGBlock'),
-                    (LINK, 1, 'pointerToTXBlock'),
-                    (LINK, 1, 'pointerToPRBlock'),
-                    (UINT16, 1, 'numberOfDataGroups'),
-                    (CHAR, 10, 'Date'),
-                    (CHAR, 8, 'Time'),
-                    (CHAR, 32, 'Author'),
-                    (CHAR, 32, 'Organization'),
-                    (CHAR, 32, 'ProjectName'),
-                    (CHAR, 32, 'Subject'))
-            else:
-                formats = (
-                    (CHAR, 2, 'BlockType'),
-                    (UINT16, 1, 'BlockSize'),
-                    (LINK, 1, 'pointerToFirstDGBlock'),
-                    (LINK, 1, 'pointerToTXBlock'),
-                    (LINK, 1, 'pointerToPRBlock'),
-                    (UINT16, 1, 'numberOfDataGroups'),
-                    (CHAR, 10, 'Date'),
-                    (CHAR, 8, 'Time'),
-                    (CHAR, 32, 'Author'),
-                    (CHAR, 32, 'Organization'),
-                    (CHAR, 32, 'ProjectName'),
-                    (CHAR, 32, 'Subject'),
-                    (UINT64, 1, 'TimeStamp'),
-                    (INT16, 1, 'UTCTimeOffset'),
-                    (UINT16, 1, 'TimeQualityClass'),
-                    (CHAR, 32, 'TimeIdentification'))
-        elif block == 'IDFormat':
-            formats = (
-                (CHAR, 8, 'FileID'),
-                (CHAR, 8, 'FormatID'),
-                (CHAR, 8, 'ProgramID'),
-                (UINT16, 1, 'ByteOrder'),
-                (UINT16, 1, 'FloatingPointFormat'),
-                (UINT16, 1, 'VersionNumber'),
-                (UINT16, 1, 'CodePageNumber'))
+def read_hd_block(fid, pointer, version=0):
+    """ header block reading """
+    if pointer != 0 and pointer is not None:
+        temp = dict()
+        fid.seek(pointer)
+        if version < 3.2:
+            (temp['BlockType'],
+             temp['BlockSize'],
+             temp['pointerToFirstDGBlock'],
+             temp['pointerToTXBlock'],
+             temp['pointerToPRBlock'],
+             temp['numberOfDataGroups'],
+             temp['Date'],
+             temp['Time'],
+             temp['Author'],
+             temp['Organization'],
+             temp['ProjectName'],
+             temp['Subject']) = unpack('<2sH3IH10s8s32s32s32s32s', fid.read(164))
         else:
-            print('Block format name error ', file=stderr)
-        return formats
+            (temp['BlockType'],
+             temp['BlockSize'],
+             temp['pointerToFirstDGBlock'],
+             temp['pointerToTXBlock'],
+             temp['pointerToPRBlock'],
+             temp['numberOfDataGroups'],
+             temp['Date'],
+             temp['Time'],
+             temp['Author'],
+             temp['Organization'],
+             temp['ProjectName'],
+             temp['Subject'],
+             temp['TimeStamp'],
+             temp['UTCTimeOffset'],
+             temp['TimeQualityClass'],
+             temp['TimeIdentification']) = unpack('<2sH3IH10s8s32s32s32s32sQ2H32s', fid.read(208))
+            temp['TimeIdentification'] = temp['TimeIdentification'].rstrip(b'\x00').decode('latin1', 'replace')
+        temp['Date'] = temp['Date'].rstrip(b'\x00').decode('latin1', 'replace')
+        temp['Time'] = temp['Time'].rstrip(b'\x00').decode('latin1', 'replace')
+        temp['Author'] = temp['Author'].rstrip(b'\x00').decode('latin1', 'replace')
+        temp['Organization'] = temp['Organization'].rstrip(b'\x00').decode('latin1', 'replace')
+        temp['ProjectName'] = temp['ProjectName'].rstrip(b'\x00').decode('latin1', 'replace')
+        temp['Subject'] = temp['Subject'].rstrip(b'\x00').decode('latin1', 'replace')
+        return temp
+    else:
+        return None
 
-    #######mdfblockread3####################
-    @staticmethod
-    def mdfblockread3(blockFormat, fid, pointer, removeTrailing0=True):
-        """ Extract block of data from MDF file in original data types.
-        Returns a dictionary with keys specified in data structure blockFormat
 
-        Parameters
-        ----------------
-        blockFormat : nested list
-            output of blockformats3 method
-        fid : float
-            file identifier
-        pointer : int
-            position of block in file
-        removeTrailing0 : bool, optional
-            removes or not the trailing 0 from strings
+def read_dg_block(fid, pointer):
+    """ data group block reading """
+    if pointer != 0 and pointer is not None:
+        temp = dict()
+        fid.seek(pointer)
+        (temp['BlockType'],
+         temp['BlockSize'],
+         temp['pointerToNextDGBlock'],
+         temp['pointerToNextCGBlock'],
+         temp['reserved'],
+         temp['pointerToDataRecords'],
+         temp['numberOfChannelGroups'],
+         temp['numberOfRecordIDs']) = dg_struct.unpack(fid.read(24))
+        return temp
+    else:
+        return None
 
-        Returns
-        -----------
-        Block content in a dict
-        """
-        Block = {}
-        if pointer != 0 and pointer is not None:
-            fid.seek(pointer)
-            # Extract parameters
-            for field in range(len(blockFormat)):
-                fieldTuple = blockFormat[field]
-                fieldFormat = fieldTuple[0]
-                fieldNumber = fieldTuple[1]
-                fieldName = fieldTuple[2]
-                if fieldFormat == '<c':  # Char
-                    if fieldNumber != 'Var':
-                        value = fid.read(fieldNumber)
-                    elif Block['BlockSize'] and Block['BlockSize'] - 4 > 0:
-                        value = fid.read(Block['BlockSize'] - 4)
-                    elif not Block['BlockSize']:
-                        value = ''
-                    if PythonVersion < 3:
-                        if removeTrailing0:
-                            Block[fieldName] = value.decode('latin1', 'replace').encode('utf-8').rstrip('\x00')
-                        else:
-                            Block[fieldName] = value.decode('latin1', 'replace').encode('utf-8')
-                    elif value:
-                        if removeTrailing0:
-                            Block[fieldName] = value.decode('latin1', 'replace').rstrip('\x00')  # decode bytes
-                        else:
-                            Block[fieldName] = value.decode('latin1', 'replace')
-                else:  # numeric
-                    formatSize = calcsize(fieldFormat)
-                    number = fid.read(formatSize * fieldNumber)
-                    if number:
-                        value = unpack(fieldFormat, number)
-                        Block[fieldName] = value[0]
-                    else:
-                        Block[fieldName] = None
-            return Block
+
+def read_cg_block(fid, pointer):
+    """ channel block reading """
+    if pointer != 0 and pointer is not None:
+        temp = dict()
+        fid.seek(pointer)
+        (temp['BlockType'],
+         temp['BlockSize'],
+         temp['pointerToNextCGBlock'],
+         temp['pointerToFirstCNBlock'],
+         temp['pointerToChannelGroupCommentText'],
+         temp['recordID'],
+         temp['numberOfChannels'],
+         temp['dataRecordSize'],
+         temp['numberOfRecords']) = cg_struct.unpack(fid.read(26))
+        return temp
+    else:
+        return None
+
+
+def read_cn_block(fid, pointer):
+    """ channel block reading """
+    if pointer != 0 and pointer is not None:
+        temp = dict()
+        fid.seek(pointer)
+        (temp['BlockType'],
+         temp['BlockSize'],
+         temp['pointerToNextCNBlock'],
+         temp['pointerToConversionFormula'],
+         temp['pointerToCEBlock'],
+         temp['pointerToCDBlock'],
+         temp['pointerToChannelCommentBlock'],
+         temp['channelType'],
+         temp['signalName'],
+         temp['signalDescription'],
+         temp['numberOfTheFirstBits'],
+         temp['numberOfBits'],
+         temp['signalDataType'],
+         temp['valueRangeKnown'],
+         temp['valueRangeMinimum'],
+         temp['valueRangeMaximum'],
+         temp['rateVariableSampled'],
+         temp['pointerToASAMNameBlock'],
+         temp['pointerToSignalIdentifierBlock'],
+         temp['ByteOffset']) = cn_struct.unpack(fid.read(228))
+
+        temp['signalName'] = temp['signalName'].rstrip(b'\x00').decode('latin1', 'replace')
+        temp['signalDescription'] = temp['signalDescription'].rstrip(b'\x00').decode('latin1', 'replace')
+        return temp
+    else:
+        return None
+
+
+def read_cc_block(fid, pointer):
+    """ channel conversion block reading """
+    if pointer != 0 and pointer is not None:
+        temp = dict()
+        fid.seek(pointer)
+        (temp['BlockType'],
+         temp['BlockSize'],
+         temp['valueRangeKnown'],
+         temp['valueRangeMinimum'],
+         temp['valueRangeMaximum'],
+         temp['physicalUnit'],
+         temp['cc_type'],
+         temp['numberOfValuePairs']) = cc_struct.unpack(fid.read(46))
+        temp['physicalUnit'] = temp['physicalUnit'].rstrip(b'\x00').decode('latin1', 'replace')
+        temp['conversion'] = dict()
+
+        if temp['cc_type'] == 0:  # Parameteric, Linear: Physical = Integer*P2 + P1
+            (temp['conversion']['P1'],
+             temp['conversion']['P2']) = unpack('2d', fid.read(16))
+
+        elif temp['cc_type'] in (1, 2):  # Table look up with or without interpolation
+            for pair in range(temp['numberOfValuePairs']):
+                temp['conversion'][pair]=dict()
+                (temp['conversion'][pair]['int'],
+                 temp['conversion'][pair]['phys']) = unpack('2d', fid.read(16))
+
+        elif temp['cc_type'] in (6, 9):  # Polynomial or rationnal
+            (temp['conversion']['P1'],
+             temp['conversion']['P2'],
+             temp['conversion']['P3'],
+             temp['conversion']['P4'],
+             temp['conversion']['P5'],
+             temp['conversion']['P6']) = unpack('6d', fid.read(48))
+
+        elif temp['cc_type'] in (7, 8):  # Exponential or logarithmic
+            (temp['conversion']['P1'],
+             temp['conversion']['P2'],
+             temp['conversion']['P3'],
+             temp['conversion']['P4'],
+             temp['conversion']['P5'],
+             temp['conversion']['P6'],
+             temp['conversion']['P7']) = unpack('7d', fid.read(56))
+
+        elif temp['cc_type'] == 10:  # Text Formula
+            temp['conversion']['textFormula'] = \
+                unpack('256s', fid.read(256))[0].rstrip(b'\x00').decode('latin1', 'replace')
+
+        elif temp['cc_type'] == 11:  # ASAM-MCD2 text table
+            for pair in range(temp['numberOfValuePairs']):
+                temp['conversion'][pair] = dict()
+                (temp['conversion'][pair]['int'],
+                 temp['conversion'][pair]['text']) = unpack('d32s', fid.read(40))
+                temp['conversion'][pair]['text'] = \
+                    temp['conversion'][pair]['text'].rstrip(b'\x00').decode('latin1', 'replace')
+
+        elif temp['cc_type'] == 12:  # Text range table
+            for pair in range(temp['numberOfValuePairs']):
+                temp['conversion'][pair] = dict()
+                (temp['conversion'][pair]['lowerRange'],
+                 temp['conversion'][pair]['upperRange'],
+                 temp['conversion'][pair]['pointerToTXBlock']) = unpack('2dI', fid.read(20))
+            for pair in range(temp['numberOfValuePairs']):  # get text range
+                # Read corresponding text
+                try:
+                    temp['conversion'][pair]['Textrange'] = read_tx_block(fid, temp[pair]['pointerToTXBlock'])
+                except:
+                    temp['conversion'][pair]['Textrange'] = ""
+
+        elif temp['cc_type'] == 65535:  # No conversion int=phys
+            pass
+        else:
+            # Give warning that conversion formula is not being
+            # made
+            print(('Conversion Formula type (cc_type=' + str(
+                temp['cc_type']) + ')not supported.'), file=stderr)
+
+        return temp
+    else:
+        return None
+
+
+def read_tx_block(fid, pointer):
+    """ reads text block """
+    if pointer != 0 and pointer is not None:
+        fid.seek(pointer)
+        (block_type,
+         block_size) = tx_struct.unpack(fid.read(4))
+        text = unpack('{}s'.format(block_size - 4), fid.read(block_size - 4))[0]
+
+        return text.rstrip(b'\x00').decode('latin1', 'replace')  # .encode('utf-8')
+
 
 def _generateDummyMDF3(info, channelList):
     """ computes MasterChannelList and mdf dummy dict from an info object

@@ -327,8 +327,8 @@ class Channel():
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfBits']
         ByteOrder = info['IDBlock']['ByteOrder']
         (self.dataFormat, nativeDataType) = \
-            _arrayformat3(self.signalDataType, self.bitCount, ByteOrder[0])
-        self.CFormat = Struct(_datatypeformat3(self.signalDataType, self.bitCount, ByteOrder[0]))
+            _arrayformat3(self.signalDataType, self.bitCount, ByteOrder)
+        self.CFormat = Struct(_datatypeformat3(self.signalDataType, self.bitCount, ByteOrder))
         self.nBytes = _bits_to_bytes(self.bitCount)
         self.posBitBeg = info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfTheFirstBits']
         self.posBitEnd = self.posBitBeg + self.bitCount
@@ -988,10 +988,10 @@ class mdf3(mdf_skeleton):
         # converts date to be compatible with ISO8601
         day, month, year = info['HDBlock']['Date'].split(':')
         ddate = '-'.join([year, month, day])
-        self.add_metadata(author=info['HDBlock']['Author'], \
-                organisation=info['HDBlock']['Organization'], \
-                project=info['HDBlock']['ProjectName'], \
-                subject=info['HDBlock']['Subject'], comment=comment, \
+        self.add_metadata(author=info['HDBlock']['Author'],
+                organisation=info['HDBlock']['Organization'],
+                project=info['HDBlock']['ProjectName'],
+                subject=info['HDBlock']['Subject'], comment=comment,
                     date=ddate, time=info['HDBlock']['Time'])
 
         # Read data from file
