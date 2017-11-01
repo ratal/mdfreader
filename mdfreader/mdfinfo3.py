@@ -171,10 +171,9 @@ class info3(dict):
             self['CGBlock'][dg][cg] = read_cg_block(fid, CGpointer)
             CGpointer = self['CGBlock'][dg][cg]['pointerToNextCGBlock']
 
-            CGTXpointer = self['CGBlock'][dg][cg]['pointerToChannelGroupCommentText']
-
             # Read data Text block info into structure
-            self['CGBlock'][dg][cg]['TXBlock'] = read_tx_block(fid, CGTXpointer)
+            self['CGBlock'][dg][cg]['TXBlock'] = \
+                read_tx_block(fid, self['CGBlock'][dg][cg]['pointerToChannelGroupCommentText'])
 
             # Get pointer to next first Channel block
             CNpointer = self['CGBlock'][dg][cg]['pointerToFirstCNBlock']
@@ -193,10 +192,11 @@ class info3(dict):
 
                 # Clean signal name
                 shortSignalName = self['CNBlock'][dg][cg][channel]['signalName']  # short name of signal
-                CNTXpointer = self['CNBlock'][dg][cg][channel]['pointerToASAMNameBlock']
 
-                if CNTXpointer > 0:
-                    longSignalName = read_tx_block(fid, CNTXpointer)  # long name of signal
+                if self['CNBlock'][dg][cg][channel]['pointerToASAMNameBlock'] > 0:
+                    # long name of signal
+                    longSignalName = \
+                        read_tx_block(fid, self['CNBlock'][dg][cg][channel]['pointerToASAMNameBlock'])
                     if len(longSignalName) > len(shortSignalName):  # long name should be used
                         signalname = longSignalName
                     else:
@@ -218,24 +218,22 @@ class info3(dict):
                 self['allChannelList'].add(self['CNBlock'][dg][cg][channel]['signalName'])
 
                 # Read channel description
-                CNTXpointer = self['CNBlock'][dg][cg][channel]['pointerToChannelCommentBlock']
-                self['CNBlock'][dg][cg][channel]['ChannelCommentBlock'] = read_tx_block(fid, CNTXpointer)
+                self['CNBlock'][dg][cg][channel]['ChannelCommentBlock'] = \
+                    read_tx_block(fid, self['CNBlock'][dg][cg][channel]['pointerToChannelCommentBlock'])
 
-                CNTXpointer = self['CNBlock'][dg][cg][channel]['pointerToSignalIdentifierBlock']
                 # Read data Text block info into structure
-                self['CNBlock'][dg][cg][channel]['SignalIdentifierBlock'] = read_tx_block(fid, CNTXpointer)
+                self['CNBlock'][dg][cg][channel]['SignalIdentifierBlock'] = \
+                    read_tx_block(fid, self['CNBlock'][dg][cg][channel]['pointerToSignalIdentifierBlock'])
 
                 # Read Channel Conversion block (CCBlock)
-
-                # Get pointer to Channel conversion block
-                CCpointer = self['CNBlock'][dg][cg][channel]['pointerToConversionFormula']
-
-                if CCpointer == 0:  # If no conversion formula, set to 1:1
+                if self['CNBlock'][dg][cg][channel]['pointerToConversionFormula'] == 0:
+                    # If no conversion formula, set to 1:1
                     self['CCBlock'][dg][cg][channel] = {}
                     self['CCBlock'][dg][cg][channel]['cc_type'] = 65535
                 else:  # Otherwise get conversion formula, parameters and physical units
                     # Read data Channel Conversion block info into structure
-                    self['CCBlock'][dg][cg][channel] = read_cc_block(fid, CCpointer)
+                    self['CCBlock'][dg][cg][channel] = \
+                        read_cc_block(fid, self['CNBlock'][dg][cg][channel]['pointerToConversionFormula'])
 
             # reorder channel blocks and related blocks based on first bit position
             # this reorder is meant to improve performance while parsing records using core.records.fromfile
