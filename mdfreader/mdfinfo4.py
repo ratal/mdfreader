@@ -536,8 +536,6 @@ class CommentBlock(dict):
             if ret:
                 ret = ret[0].text
             else:
-                if etree.tostring(xml_tree) is not None:
-                    print(ret, etree.tostring(xml_tree), xml_tree.find('TX').text, find.path)
                 ret = None
             return ret
         except:
