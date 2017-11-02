@@ -142,25 +142,6 @@ def _mdfblockread(fid, Type, count):
         return None
 
 
-def _mdfblockreadBYTE(fid, count):
-    """ reads an array of UTF-8 encoded bytes. Removes trailing 0
-
-    Parameters
-    ----------------
-    count : int
-        number of bytes to read
-
-    Returns
-    -----------
-    bytes array of length count
-    """
-    # UTF-8 encoded bytes
-    if PythonVersion < 3:
-        return fid.read(count).decode('UTF-8', 'ignore').rstrip(b'\x00')
-    else:
-        return fid.read(count).decode('UTF-8', 'ignore').rstrip('\x00')
-
-
 def _writeHeader(fid, Id, block_length, link_count):
     """ Writes header of a block
 
@@ -427,12 +408,10 @@ class CommentBlock(dict):
             if self['id'] in ('##MD', b'##MD'):
                 # Metadata block
                 # removes normal 0 at end
-                self['Comment'] = None
-                Comment = _mdfblockreadBYTE(fid, self['length'] - 24)
+                # self['Comment'] = None
+                Comment = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
                 try:
-                    xml_tree = \
-                        etree.fromstring(Comment.encode('utf-8'),
-                                         _parsernsclean)
+                    xml_tree = etree.fromstring(Comment, _parsernsclean)
                 except:
                     print('xml metadata malformed', file=stderr)
                     xml_tree = None
@@ -514,10 +493,9 @@ class CommentBlock(dict):
                         print(MDType, file=stderr)
             elif self['id'] in ('##TX', b'##TX'):
                 if MDType == 'CN':  # channel comment
-                    self['name'] = _mdfblockreadBYTE(fid, self['length'] - 24)
+                    self['name'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
                 else:
-                    self['Comment'] = _mdfblockreadBYTE(fid,
-                                                        self['length'] - 24)
+                    self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
 
     def extractXmlField(self, xml_tree, find):
         """ Extract Xml field from a xml tree
