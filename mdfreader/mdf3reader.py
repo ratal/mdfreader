@@ -1088,8 +1088,7 @@ class mdf3(mdf_skeleton):
                 self.read3(fileName=None, info=self.info, channelList=[channelName], convertAfterRead=False)
             return self._convert3(channelName)
         else:
-            raise KeyError('Channel ' + channelName + ' not in mdf dictionary')
-            return channelName
+            return None
 
     def _convert3(self, channelName):
         """converts specific channel from raw to physical data according to CCBlock information
