@@ -1186,7 +1186,7 @@ class info4(dict):
     - mdfinfo['CC'][dataGroup][channelGroup][channel]
     """
 
-    def __init__(self, fileName=None, fid=None, minimal=False):
+    def __init__(self, fileName=None, fid=None, minimal=0):
         """ info4 class constructor
 
         Parameters
@@ -1195,8 +1195,10 @@ class info4(dict):
             file name
         fid : float
             file identifier
-        minimal: falg
-            to activate minimum content reading for raw data fetching
+        minimal : int
+            0 will load every metadata
+            1 will load DG, CG, CN and CC (for noDataLoading)
+            2 will load only DG (for normal reading)
 
         Notes
         ---------
@@ -1278,7 +1280,7 @@ class info4(dict):
         # reads Data Group Blocks and recursively the other related blocks
         self.readDGBlock(fid, None, minimal)
 
-    def readDGBlock(self, fid, channelNameList=False, minimal=False):
+    def readDGBlock(self, fid, channelNameList=False, minimal=0):
         """reads Data Group Blocks
 
         Parameters
@@ -1295,18 +1297,18 @@ class info4(dict):
             dg = 0
             self['DG'][dg] = {}
             self['DG'][dg].update(DGBlock(fid, self['HD']['hd_dg_first']))
-            if not minimal:
+            if minimal < 2:
                 # reads Channel Group blocks
                 self.readCGBlock(fid, dg, channelNameList, minimal)
             while self['DG'][dg]['dg_dg_next']:
                 dg += 1
                 self['DG'][dg] = {}
                 self['DG'][dg].update(DGBlock(fid, self['DG'][dg - 1]['dg_dg_next']))
-                if not minimal:
+                if minimal < 2:
                     # reads Channel Group blocks
                     self.readCGBlock(fid, dg, channelNameList, minimal)
 
-    def readCGBlock(self, fid, dg, channelNameList=False, minimal=False):
+    def readCGBlock(self, fid, dg, channelNameList=False, minimal=0):
         """reads Channel Group blocks
 
         Parameters
@@ -1332,7 +1334,7 @@ class info4(dict):
             self['CG'][dg][cg].update(CGBlock(fid, self['DG'][dg]['dg_cg_first']))
             VLSDCGBlock = []
 
-            if not channelNameList and not minimal:
+            if not channelNameList and minimal:
                 # reads Source Information Block
                 temp = SIBlock()
                 temp.read(fid, self['CG'][dg][cg]['cg_si_acq_source'])
@@ -1409,7 +1411,7 @@ class info4(dict):
                     self['CN'][dg][cg][cn] = self['CN'][dg][cg].pop(orderedMap[cn][0] + nChannel)
                     self['CC'][dg][cg][cn] = self['CC'][dg][cg].pop(orderedMap[cn][0] + nChannel)
 
-    def readCNBlock(self, fid, dg, cg, channelNameList=False, minimal=False):
+    def readCNBlock(self, fid, dg, cg, channelNameList=False, minimal=0):
         """reads Channel blocks
 
         Parameters

@@ -1045,7 +1045,7 @@ class mdf4(mdf_skeleton):
         elif fileName is not None and self.fileName is None:
             self.fileName = fileName
 
-        minimal = True  # always read minimum info
+        minimal = 2  # always read minimum info
 
         # Read information block from file
         if info is None:

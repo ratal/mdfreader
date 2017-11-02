@@ -978,7 +978,7 @@ class mdf3(mdf_skeleton):
                 raise Exception('Can not find file ' + self.fileName)
 
 
-        minimal = True  # always read minimum info
+        minimal = 2  # always reads minimum info by default
 
         # reads metadata
         try:

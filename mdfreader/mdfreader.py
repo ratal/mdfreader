@@ -117,8 +117,8 @@ class mdfinfo(dict):
         flag to filter long channel names including module names separated by a '.'
     fid
         file identifier
-    zipfile : Bool
-        flag to identify compressed file in pkzip, .mfxz extension
+    zipfile
+        flag to indicate the mdf4 is packaged in a zip 
 
     Methods
     ------------
@@ -137,7 +137,7 @@ class mdfinfo(dict):
     >>> yop.listChannels(FILENAME) # returns a simple list of channel names
     """
 
-    def __init__(self, fileName=None, filterChannelNames=False, fid=None, minimal=False):
+    def __init__(self, fileName=None, filterChannelNames=False, fid=None, minimal=0):
 
         """ You can give optionally to constructor a file name that will be parsed
 
@@ -159,7 +159,7 @@ class mdfinfo(dict):
             self.readinfo(fileName, fid, minimal)
 
 
-    def readinfo(self, fileName=None, fid=None, minimal=False):
+    def readinfo(self, fileName=None, fid=None, minimal=0):
 
         """ Reads MDF file and extracts its complete structure
 
@@ -168,6 +168,10 @@ class mdfinfo(dict):
         fileName : str, optional
             file name. If not input, uses fileName attribute
         fid : file identifier, optional
+        minimal : int
+            0 will load every metadata
+            1 will load DG, CG, CN and CC
+            2 will load only DG
         """
 
         if self.fileName is None or fileName is not None:
@@ -393,7 +397,7 @@ class mdf(mdf3, mdf4):
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
                 from mdfinfo3 import info3, _generateDummyMDF3
-                self.info = info3(None, fid=self.fid, minimal=False)
+                self.info = info3(None, fid=self.fid, minimal=1)
                 (self.masterChannelList, mdfdict) = _generateDummyMDF3(self.info, channelList)
                 self.update(mdfdict)
         else:  # MDF version 4.x
@@ -403,7 +407,7 @@ class mdf(mdf3, mdf4):
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
                 from mdfinfo4 import info4, _generateDummyMDF4
-                self.info = info4(None, fid=self.fid, minimal=False)
+                self.info = info4(None, fid=self.fid, minimal=1)
                 (self.masterChannelList, mdfdict) = _generateDummyMDF4(self.info, channelList)
                 self.update(mdfdict)
 

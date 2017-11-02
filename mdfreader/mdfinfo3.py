@@ -50,8 +50,8 @@ class info3(dict):
         flag to filter long channel names including module names separated by a '.'
     fileName : str
         name of file
-    minimal : bool
-        flag to request minimal info loading. Later loaded by data read datagroup by datagroup
+    fid : 
+        file identifier
 
     Notes
     --------
@@ -67,7 +67,7 @@ class info3(dict):
     - mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information
     """
 
-    def __init__(self, fileName=None, fid=None, filterChannelNames=False, minimal=False):
+    def __init__(self, fileName=None, fid=None, filterChannelNames=False, minimal=0):
         """ info3 class constructor
 
         Parameters
@@ -78,6 +78,10 @@ class info3(dict):
             file identifier
         filterChannelNames : bool, optional
             flag to filter long channel names including module names separated by a '.'
+        minimal : int
+            0 will load every metadata
+            1 will load DG, CG, CN and CC
+            2 will load only DG
 
         Notes
         --------
@@ -103,13 +107,17 @@ class info3(dict):
         elif fileName is None and fid is not None:
             self.readinfo3(fid, minimal)
 
-    def readinfo3(self, fid, minimal=False):
+    def readinfo3(self, fid, minimal=0):
         """ read all file blocks except data
 
         Parameters
         ----------------
         fid : float
             file identifier
+        minimal : int
+            0 will load every metadata
+            1 will load DG, CG, CN and CC
+            2 will load only DG
         """
         # reads IDBlock
         fid.seek(24)
@@ -138,13 +146,13 @@ class info3(dict):
             # Get pointer to next Data Group block
             DGpointer = self['DGBlock'][dg]['pointerToNextDGBlock']
             self['ChannelNamesByDG'][dg] = set()
-            if not minimal:
+            if minimal < 2:
                 self.readCGBlock(fid, dg, minimal)
 
         # Close the file
         fid.close()
 
-    def readCGBlock(self, fid, dg, minimal=False):
+    def readCGBlock(self, fid, dg, minimal=0):
         """ read all CG blocks and relying CN & CC
 
         Parameters
@@ -155,8 +163,10 @@ class info3(dict):
             datagroup number
         channelSet : set
             set of channel names to read
-        minimal : bool
-            flag to request minimal info loading. Later loaded by data read datagroup by datagroup
+        minimal : int
+            0 will load every metadata
+            1 will load DG, CG, CN and CC
+            2 will load only DG
         """
         # Read Channel Group block (CGBlock) information - offset set already
 
