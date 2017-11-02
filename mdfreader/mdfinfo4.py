@@ -42,22 +42,22 @@ from xml.etree.ElementTree import Element, SubElement, \
 from lxml import etree
 namespace = '{http://www.asam.net/mdf/v4}'
 _parsernsclean = etree.XMLParser(ns_clean=True)
-_find_TX = etree.XPath('/TX')  # efficient way to find TX in xml
-_find_names = etree.XPath('/names')
-_find_linker_name = etree.XPath('/linker_name')
-_find_linker_address = etree.XPath('/linker_address')
-_find_address = etree.XPath('/address')
-_find_axis_monotony = etree.XPath('/axis_monotony')
-_find_raster = etree.XPath('/raster')
-_find_formula = etree.XPath('/formula')
-_find_COMPU_METHOD = etree.XPath('/COMPU_METHOD')
-_find_path = etree.XPath('/path')
-_find_bus = etree.XPath('/bus')
-_find_protocol = etree.XPath('/protocol')
-_find_tool_id = etree.XPath('/tool_id')
-_find_tool_vendor = etree.XPath('/tool_vendor')
-_find_tool_version = etree.XPath('/tool_version')
-_find_user_name = etree.XPath('/user_name')
+_find_TX = etree.XPath('TX')  # efficient way to find TX in xml
+_find_names = etree.XPath('names')
+_find_linker_name = etree.XPath('linker_name')
+_find_linker_address = etree.XPath('linker_address')
+_find_address = etree.XPath('address')
+_find_axis_monotony = etree.XPath('axis_monotony')
+_find_raster = etree.XPath('raster')
+_find_formula = etree.XPath('formula')
+_find_COMPU_METHOD = etree.XPath('COMPU_METHOD')
+_find_path = etree.XPath('path')
+_find_bus = etree.XPath('bus')
+_find_protocol = etree.XPath('protocol')
+_find_tool_id = etree.XPath('tool_id')
+_find_tool_vendor = etree.XPath('tool_vendor')
+_find_tool_version = etree.XPath('tool_version')
+_find_user_name = etree.XPath('user_name')
 _find_common_properties = etree.XPath('common_properties')
 
 PythonVersion = version_info
@@ -536,6 +536,8 @@ class CommentBlock(dict):
             if ret:
                 ret = ret[0].text
             else:
+                if etree.tostring(xml_tree) is not None:
+                    print(ret, etree.tostring(xml_tree), xml_tree.find('TX').text, find.path)
                 ret = None
             return ret
         except:
