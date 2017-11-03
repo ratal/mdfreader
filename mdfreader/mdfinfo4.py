@@ -409,9 +409,8 @@ class CommentBlock(dict):
                 # Metadata block
                 # removes normal 0 at end
                 # self['Comment'] = None
-                Comment = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
                 try:
-                    xml_tree = etree.fromstring(Comment, _parsernsclean)
+                    xml_tree = etree.fromstring(fid.read(self['length'] - 24).rstrip(b'\x00'), _parsernsclean)
                 except:
                     print('xml metadata malformed', file=stderr)
                     xml_tree = None

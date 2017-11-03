@@ -47,7 +47,7 @@ from mdf3reader import mdf3
 from mdf4reader import mdf4
 from mdf import _open_MDF, dataField, descriptionField, unitField, masterField, masterTypeField
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
-from numpy import nan, datetime64, array, searchsorted
+from numpy import nan, datetime64, array, searchsorted, clip
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -551,6 +551,15 @@ class mdf(mdf3, mdf4):
         2. resampling will convert all your channels so be careful for big files
         and memory consumption
         """
+        def interpolate(x, y, new_x):
+            if y.dtype.kind == 'f':
+                return interp(x, y, new_x)
+            else:
+                idx = searchsorted(x, new_x, side='right')
+                idx -= 1
+                idx = clip(idx, 0, idx[-1])
+                return x[idx]
+
         if self: # mdf contains data
             # must make sure all channels are converted
             self.convertAllChannel()
@@ -606,8 +615,8 @@ class mdf(mdf3, mdf4):
                     try:
                         if Name not in list(self.masterChannelList.keys()):  # not a master channel
                             timevect = self.getChannelData(self.getChannelMaster(Name))
-                            if not self.getChannelData(Name).dtype.kind in ('S', 'U'):  # if channel not array of string
-                                self.setChannelData(Name, interp(masterData, timevect, self.getChannelData(Name)))
+                            if not self.getChannelData(Name).dtype.kind in ('S', 'U', 'V'):  # if channel not array of string
+                                self.setChannelData(Name, interpolate(masterData, timevect, self.getChannelData(Name)))
                                 self.setChannelMaster(Name, masterChannelName)
                                 self.setChannelMasterType(Name, self.getChannelMasterType(master))
                                 self.remove_channel_conversion(Name)
@@ -629,7 +638,7 @@ class mdf(mdf3, mdf4):
                 masterData = arange(masterData[0], masterData[-1], samplingTime)
                 for Name in list(self.keys()):
                     timevect = self.getChannelData(self.getChannelMaster(Name))
-                    self.setChannelData(Name, interp(masterData, timevect, self.getChannelData(Name)))
+                    self.setChannelData(Name, interpolate(masterData, timevect, self.getChannelData(Name)))
                     self.setChannelMaster(Name, masterChannelName)
                     self.setChannelMasterType(Name, self.getChannelMasterType(master))
                     self.remove_channel_conversion(Name)
