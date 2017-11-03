@@ -560,7 +560,7 @@ class mdf(mdf3, mdf4):
                 idx = clip(idx, 0, idx[-1])
                 return x[idx]
 
-        if self: # mdf contains data
+        if self:  # mdf contains data
             # must make sure all channels are converted
             self.convertAllChannel()
             masterData = None
@@ -583,39 +583,43 @@ class mdf(mdf3, mdf4):
                         masterData = linspace(min(minTime), max(maxTime), num=max(length))
                     else:
                         masterData = arange(min(minTime), max(maxTime), samplingTime)
-                    self.add_channel(0, masterChannelName, \
-                        masterData, \
-                        masterChannelName, \
-                        master_type=self.getChannelMasterType(master), \
-                        unit=self.getChannelUnit(master), \
-                        description=self.getChannelDesc(master), \
-                        conversion=None)
+                    self.add_channel(0, masterChannelName,
+                                     masterData,
+                                     masterChannelName,
+                                     master_type=self.getChannelMasterType(master),
+                                     unit=self.getChannelUnit(master),
+                                     description=self.getChannelDesc(master),
+                                     conversion=None)
             else:
                 masterChannelName = masterChannel # master channel defined in argument
                 if masterChannel not in list(self.masterChannelList.keys()):
                     print('master channel name not in existing', file=stderr)
-                    raise
+                    raise ValueError('Master Channel not existing')
+
             # resample all channels to one sampling time vector
             if len(list(self.masterChannelList.keys())) > 1:  # Not yet resampled or only 1 datagroup
                 # create master channel if not proposed
                 if masterChannel is None and masterData is not None:
-                    self.add_channel(0, masterChannelName, \
-                        masterData, \
-                        masterChannelName, \
-                        master_type=self.getChannelMasterType(master), \
-                        unit=self.getChannelUnit(master), \
-                        description=self.getChannelDesc(master), \
-                        conversion=None)
+                    self.add_channel(0, masterChannelName,
+                                     masterData,
+                                     masterChannelName,
+                                     master_type=self.getChannelMasterType(master),
+                                     unit=self.getChannelUnit(master),
+                                     description=self.getChannelDesc(master),
+                                     conversion=None)
 
                 # Interpolate channels
                 timevect = []
                 if masterChannelName in self:
                     masterData = self.getChannelData(masterChannelName)
+                if masterData is None:  # no master channel, cannot resample
+                    return None
                 for Name in list(self.keys()):
                     try:
                         if Name not in list(self.masterChannelList.keys()):  # not a master channel
                             timevect = self.getChannelData(self.getChannelMaster(Name))
-                            if not self.getChannelData(Name).dtype.kind in ('S', 'U', 'V'):  # if channel not array of string
+                            if not self.getChannelData(Name).dtype.kind in ('S', 'U', 'V'):
+                                # if channel not array of string
                                 self.setChannelData(Name, interpolate(masterData, timevect, self.getChannelData(Name)))
                                 self.setChannelMaster(Name, masterChannelName)
                                 self.setChannelMasterType(Name, self.getChannelMasterType(master))
@@ -623,17 +627,20 @@ class mdf(mdf3, mdf4):
                             else:  # can not interpolate strings, remove channel containing string
                                 self.remove_channel(Name)
                     except:
-                        if len(timevect) != len(self.getChannelData(Name)):
-                            print((Name + ' and master channel ' + self.getChannelMaster(Name) + ' do not have same length'), file=stderr)
+                        if timevect is not None and len(timevect) != len(self.getChannelData(Name)):
+                            print('{} and master channel {} do not have same length'. \
+                                  format(Name, self.getChannelMaster(Name)), file=stderr)
                         elif not all(diff(timevect) > 0):
-                            print((Name + ' has non regularly increasing master channel ' + self.getChannelMaster(Name)), file=stderr)
+                            print('{} has non regularly increasing master channel {}'.\
+                                  format(Name, self.getChannelMaster(Name)), file=stderr)
                 # remove time channels in masterChannelList
                 for ind in list(self.masterChannelList.keys()):
                     if ind != masterChannelName and ind in self:
                         self.remove_channel(ind)
                 self.masterChannelList = {}  # empty dict
                 self.masterChannelList[masterChannelName] = list(self.keys())
-            elif len(list(self.masterChannelList.keys())) == 1 and samplingTime is not None: # resamples only 1 datagroup
+            elif len(list(self.masterChannelList.keys())) == 1 and samplingTime is not None:
+                # resamples only 1 datagroup
                 masterData = self.getChannelData(list(self.masterChannelList.keys())[0])
                 masterData = arange(masterData[0], masterData[-1], samplingTime)
                 for Name in list(self.keys()):
