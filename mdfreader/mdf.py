@@ -748,6 +748,7 @@ def _sanitize_identifier(name):
 
 
 class compressed_data():
+    __slots__ = ['data', 'size', 'dtype', '_compression_level']
     """ class to represent compressed data by blosc
     """
     def __init__(self):
