@@ -17,6 +17,17 @@ Dependencies
 mdf module
 --------------------------
 """
+from io import open
+from zipfile import is_zipfile, ZipFile
+from itertools import chain
+from random import choice
+from string import ascii_letters
+from sys import version_info, getsizeof
+from pandas import set_option
+from collections import OrderedDict,defaultdict
+from numpy import array_repr, set_printoptions, recarray, empty
+set_printoptions(threshold=100, edgeitems=1)
+_notAllowedChannelNames = set(dir(recarray))
 try:
     CompressionPossible = True
     from bcolz import cparams, carray, detect_number_of_cores, set_nthreads
@@ -26,18 +37,6 @@ try:
 except ImportError:
     # Cannot compress data, please install bcolz and blosc
     CompressionPossible = False
-
-from pandas import set_option
-from collections import OrderedDict,defaultdict
-from numpy import array_repr, set_printoptions, recarray, empty
-set_printoptions(threshold=100, edgeitems=1)
-_notAllowedChannelNames = set(dir(recarray))
-from io import open
-from zipfile import is_zipfile, ZipFile
-from itertools import chain
-from random import choice
-from string import ascii_letters
-from sys import version_info, getsizeof, stderr
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -441,7 +440,7 @@ class mdf_skeleton(dict):
                     comp = self._compression_level
                 temp = carray(data,
                               cparams=cparams(clevel=comp),
-                              expectedlen=int(getsizeof(data) / 10))
+                              expectedlen=getsizeof(data))
             else:
                 temp = compressed_data()
                 temp.compression(data)
