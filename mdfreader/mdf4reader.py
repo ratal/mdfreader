@@ -28,7 +28,6 @@ mdf4reader module
 
 """
 from __future__ import print_function
-
 from struct import Struct
 from struct import unpack as structunpack
 from math import pow
@@ -37,14 +36,15 @@ from time import gmtime, strftime
 from multiprocessing import Queue, Process
 from sys import version_info, exc_info, byteorder, stderr, path
 from os.path import dirname, abspath
-_root = dirname(abspath(__file__))
-path.append(_root)
 from collections import defaultdict
 from numpy.core.records import fromstring, fromfile, fromarrays
 from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from numpy import max as npmax, min as npmin
-from mdfinfo4 import info4, ATBlock, IDBlock, HDBlock, DGBlock,\
+
+_root = dirname(abspath(__file__))
+path.append(_root)
+from mdfinfo4 import info4, ATBlock, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
     DZBlock, HLBlock, CCBlock, _writePointer, _writeHeader
 from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
@@ -103,13 +103,6 @@ def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True):
         recordIdCFormat = record[list(record.keys())[0]]['record'].recordIDCFormat
         recordIDsize = record[list(record.keys())[0]]['record'].recordIDsize
         VLSDStruct = Struct('I')
-        # several channel groups per data block, check for duplicate channel names
-        temp = set()
-        for recordID in record:
-            intersec = set(record[recordID]['record'].dataRecordName) & temp
-            for name in intersec: # duplicate channels found
-                record[recordID]['record'].changeChannelName(info, name)
-            temp.update(record[recordID]['record'].dataRecordName)
         # initialise data structure
         for recordID in record:
             for channelName in record[recordID]['record'].dataRecordName:
@@ -950,29 +943,6 @@ class record(list):
                     buf[self[chan].recAttributeName(info)] = temp
             return buf
 
-    def changeChannelName(self, info, channelName):
-        """ In case of duplicate channel names within several channel groups
-        for unsorted data, rename channel name
-
-        Parameters
-        ------------
-        channelName : str
-            channelName to be modified to avoid duplicates in unsorted
-            channel groups
-        """
-        ind = self.dataRecordName.index(channelName) - 1
-        OldrecAttributeName = self[ind].recAttributeName(info)
-        OldName = self[ind].name
-        self[ind].changeChannelName(self.channelGroup)
-        recAttributeName = self[ind].recAttributeName(info)
-        if self.recordToChannelMatching[OldrecAttributeName] == OldrecAttributeName:
-            self.recordToChannelMatching.pop(OldrecAttributeName)
-            self.recordToChannelMatching[recAttributeName] = recAttributeName
-        if self.master['name'] == OldName:  # channel to change is master
-            self.master['name'] = self[ind].name
-        self.dataRecordName[ind] = recAttributeName
-        self.channelNames.remove(OldName)
-        self.channelNames.add(self[ind].name)
 
 class mdf4(mdf_skeleton):
 
@@ -1104,18 +1074,17 @@ class mdf4(mdf_skeleton):
                         recordID = info['CG'][dataGroup][channelGroup]['cg_record_id']
                         if temp.master['name'] is not None \
                                 and buf[recordID]['record'].channelNames:
-                                #and temp.master['name'] not in self.masterChannelList:
-                            #self.masterChannelList[temp.master['name']] = []
                             if channelSet is not None and temp.master['name'] not in channelSet and not self._noDataLoading:
                                 channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
-                        if self._noDataLoading and channelSet is not None and len(channelSet & buf[recordID]['record'].channelNames) > 0:
+                        if self._noDataLoading and channelSet is not None and \
+                                len(channelSet & buf[recordID]['record'].channelNames) > 0:
                             channelSet = None  # will load complete datagroup
                         if channelSet is not None and buf[recordID]['record'].CANOpen:
                             # adds CANOpen channels if existing in not empty channelSet
                             if buf[recordID]['record'].CANOpen == 'time':
-                                channelSet.add(['ms', 'days'])
+                                channelSet.update(('ms', 'days'))
                             elif buf[recordID]['record'].CANOpen == 'date':
-                                channelSet.add(['ms', 'minute', 'hour', 'day', 'month', 'year'])
+                                channelSet.update(('ms', 'minute', 'hour', 'day', 'month', 'year'))
 
                     buf.read(channelSet, info)  # reads raw data from data block with DATA and DATABlock classes
 
@@ -1238,7 +1207,7 @@ class mdf4(mdf_skeleton):
                 if self.info.fid is None or (self.info.fid is not None and self.info.fid.closed):
                     (self.info.fid, self.info.fileName, self.info.zipfile) = _open_MDF(self.fileName)
                 self.read4(fileName=None, info=self.info, channelList=[channelName], convertAfterRead=False)
-            return self._convertChannelData4(self.getChannel(channelName), \
+            return self._convertChannelData4(self.getChannel(channelName),
                         channelName, self.convert_tables)[channelName]
         else:
             return None

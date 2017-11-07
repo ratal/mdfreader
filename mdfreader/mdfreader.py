@@ -32,22 +32,24 @@ mdfreader module
 --------------------------
 """
 from __future__ import print_function
-
 from io import open
 from struct import unpack
 from math import ceil
 from os.path import dirname, abspath, splitext
 from os import remove
 from sys import version_info, stderr, path
-_root = dirname(abspath(__file__))
-path.append(_root)
 from datetime import datetime
 from argparse import ArgumentParser
+from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
+from numpy import nan, datetime64, array, searchsorted, clip
+
+_root = dirname(abspath(__file__))
+path.append(_root)
 from mdf3reader import mdf3
 from mdf4reader import mdf4
 from mdf import _open_MDF, dataField, descriptionField, unitField, masterField, masterTypeField
-from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
-from numpy import nan, datetime64, array, searchsorted, clip
+from mdfinfo3 import info3, _generateDummyMDF3
+from mdfinfo4 import info4, _generateDummyMDF4
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -396,7 +398,6 @@ class mdf(mdf3, mdf4):
                            convertAfterRead, filterChannelNames, compression)
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
-                from mdfinfo3 import info3, _generateDummyMDF3
                 self.info = info3(None, fid=self.fid, minimal=1)
                 (self.masterChannelList, mdfdict) = _generateDummyMDF3(self.info, channelList)
                 self.update(mdfdict)
@@ -406,7 +407,6 @@ class mdf(mdf3, mdf4):
                            convertAfterRead, filterChannelNames, compression)
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
-                from mdfinfo4 import info4, _generateDummyMDF4
                 self.info = info4(None, fid=self.fid, minimal=1)
                 (self.masterChannelList, mdfdict) = _generateDummyMDF4(self.info, channelList)
                 self.update(mdfdict)

@@ -29,17 +29,17 @@ from struct import calcsize, unpack, pack, Struct
 from os.path import dirname, abspath
 from os import remove
 from sys import version_info, stderr, path
+from numpy import sort, zeros
+import time
+from xml.etree.ElementTree import Element, SubElement, \
+    tostring, register_namespace
+from lxml import etree
 _root = dirname(abspath(__file__))
 path.append(_root)
 from mdf import _open_MDF, dataField, descriptionField, unitField, \
     masterField, masterTypeField
 
-from numpy import sort, zeros
-from collections import defaultdict
-import time
-from xml.etree.ElementTree import Element, SubElement, \
-    tostring, register_namespace
-from lxml import etree
+
 namespace = '{http://www.asam.net/mdf/v4}'
 _parsernsclean = etree.XMLParser(ns_clean=True)
 _find_TX = etree.XPath('TX')  # efficient way to find TX in xml
@@ -1440,8 +1440,9 @@ class info4(dict):
             MLSDChannels.append(cn)
         # check if already existing channel name
         if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
-            self['CN'][dg][cg][cn]['name'] = '{0}{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], cg, cn)
+            self['CN'][dg][cg][cn]['name'] = '{0}_{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], cg, cn)
         elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
+            # doublon name or master channel
             self['CN'][dg][cg][cn]['name'] = '{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
         self['ChannelNamesByDG'][dg].add(self['CN'][dg][cg][cn]['name'])
         self['allChannelList'].add(self['CN'][dg][cg][cn]['name'])
@@ -1506,9 +1507,10 @@ class info4(dict):
                             self['CN'][dg][cg][cn]['SI'].update(temp)
 
                     # check if already existing channel name
-                    if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:
-                        self['CN'][dg][cg][cn]['name'] = '{0}{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], cg, cn)
+                    if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
+                        self['CN'][dg][cg][cn]['name'] = '{0}_{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], cg, cn)
                     elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
+                        # doublon name or master channel
                         self['CN'][dg][cg][cn]['name'] = '{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
                     self['ChannelNamesByDG'][dg].add(self['CN'][dg][cg][cn]['name'])
                     self['allChannelList'].add(self['CN'][dg][cg][cn]['name'])
@@ -1737,32 +1739,48 @@ def _generateDummyMDF4(info, channelList):
         for cg in info['CG'][dg]:
             channelNameList = []
             for cn in info['CN'][dg][cg]:
-                name = info['CN'][dg][cg][cn]['name']
-                if name in allChannelList or \
-                        info['CN'][dg][cg][cn]['cn_type'] in (2, 3):
-                    name = ''.join([name, '_{}'.format(dg)])
-                if channelList is None or name in channelList:
-                    channelNameList.append(name)
-                    allChannelList.add(name)
-                    # create mdf channel
-                    mdfdict[name] = {}
-                    mdfdict[name][dataField] = None
-                    if 'description' in info['CN'][dg][cg][cn]:
-                        mdfdict[name][descriptionField] = info['CN'][dg][cg][cn]['description']
-                    else:
-                        mdfdict[name][descriptionField] = ''
-                    if 'unit' in info['CN'][dg][cg][cn]:
-                        mdfdict[name][unitField] = info['CN'][dg][cg][cn]['unit']
-                    else:
-                        mdfdict[name][unitField] = ''
-                    mdfdict[name][masterField] = 0  # default is time
-                    mdfdict[name][masterTypeField] = None
-                if info['CN'][dg][cg][cn]['cn_sync_type']:
-                    # master channel of cg
-                    master = name
-                    mastertype = info['CN'][dg][cg][cn]['cn_sync_type']
+                if info['CN'][dg][cg][cn]['cn_data_type'] == 13:
+                    for name in ('ms', 'minute', 'hour', 'day', 'month', 'year'):
+                        channelNameList.append(name)
+                        allChannelList.add(name)
+                        mdfdict[name] = {}
+                        mdfdict[name][dataField] = None
+                        mdfdict[name][descriptionField] = name
+                        mdfdict[name][unitField] = name
+                elif info['CN'][dg][cg][cn]['cn_data_type'] == 14:
+                    for name in ('ms', 'days'):
+                        channelNameList.append(name)
+                        allChannelList.add(name)
+                        mdfdict[name] = {}
+                        mdfdict[name][dataField] = None
+                        mdfdict[name][descriptionField] = name
+                        mdfdict[name][unitField] = name
+                else:
+                    name = info['CN'][dg][cg][cn]['name']
+                    if name in allChannelList:
+                        name = ''.join([name, '_{}'.format(dg)])
+                    if channelList is None or name in channelList:
+                        channelNameList.append(name)
+                        allChannelList.add(name)
+                        # create mdf channel
+                        mdfdict[name] = {}
+                        mdfdict[name][dataField] = None
+                        if 'description' in info['CN'][dg][cg][cn]:
+                            mdfdict[name][descriptionField] = info['CN'][dg][cg][cn]['description']
+                        else:
+                            mdfdict[name][descriptionField] = ''
+                        if 'unit' in info['CN'][dg][cg][cn]:
+                            mdfdict[name][unitField] = info['CN'][dg][cg][cn]['unit']
+                        else:
+                            mdfdict[name][unitField] = ''
+                        mdfdict[name][masterField] = 0  # default is time
+                        mdfdict[name][masterTypeField] = None
+                    if info['CN'][dg][cg][cn]['cn_sync_type']:
+                        # master channel of cg
+                        master = name
+                        mastertype = info['CN'][dg][cg][cn]['cn_sync_type']
             for chan in channelNameList:
                 mdfdict[chan][masterField] = master
                 mdfdict[chan][masterTypeField] = mastertype
         MasterChannelList[master] = channelNameList
-    return (MasterChannelList, mdfdict)
+    return MasterChannelList, mdfdict

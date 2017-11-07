@@ -23,13 +23,11 @@ mdfinfo3 module
 --------------------------
 """
 from __future__ import print_function
-
 from sys import version_info, stderr
+from numpy import sort, zeros
+from struct import unpack, Struct
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
-from numpy import sort, zeros
-from struct import calcsize, unpack, Struct
-from collections import defaultdict
 from mdf import dataField, descriptionField, unitField, masterField, masterTypeField
 
 cn_struct = Struct('<2sH5IH32s128s4H3d2IH')
@@ -220,7 +218,11 @@ class info3(dict):
                 if self.filterChannelNames:
                     signalname = signalname.split('.')[-1]  # filters channels modules
 
-                if signalname in self['allChannelList']:
+                if self['CNBlock'][dg][cg][channel]['signalName'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
+                    self['CNBlock'][dg][cg][channel]['signalName'] = \
+                            '{0}_{1}_{2}'.format(self['CNBlock'][dg][cg][channel]['signalName'], cg, channel)
+                elif signalname in self['allChannelList']:
+                    # doublon name or master channel
                     self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signalname, dg)
                 else:
                     self['CNBlock'][dg][cg][channel]['signalName'] = signalname
@@ -616,8 +618,7 @@ def _generateDummyMDF3(info, channelList):
             channelNameList = []
             for cn in info['CNBlock'][dg][cg]:
                 name = info['CNBlock'][dg][cg][cn]['signalName']
-                if name in allChannelList or \
-                        info['CNBlock'][dg][cg][cn]['channelType']:
+                if name in allChannelList:
                     name = ''.join([name, '_{}'.format(dg)])
                 if channelList is None or name in channelList:
                     channelNameList.append(name)
@@ -634,9 +635,9 @@ def _generateDummyMDF3(info, channelList):
                         mdfdict[name][unitField] = info['CCBlock'][dg][cg][cn]['physicalUnit']
                     else:
                         mdfdict[name][unitField] = ''
-                    mdfdict[name][masterField] = 0 # default is time
+                    mdfdict[name][masterField] = 0  # default is time
                     mdfdict[name][masterTypeField] = None
-                if info['CNBlock'][dg][cg][cn]['channelType']: # master channel of cg
+                if info['CNBlock'][dg][cg][cn]['channelType']:  # master channel of cg
                     master = name
                     mastertype = info['CNBlock'][dg][cg][cn]['channelType']
             for chan in channelNameList:
