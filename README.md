@@ -72,7 +72,7 @@ In the case of big files and lack of memory, you can optionally:
 * Read only a channel list (slightly slower, argument channelList = ['channel', 'list'])
 * Keep raw data as stored in mdf without data type conversion (mdfreader argument convertAfterRead=False). Data will then be converted on the fly by the other functions (plot, exportTo..., getChannelData, etc.) but raw data type will remain as in mdf file along with conversion information.
 * Compress data in memory with blosc or bcolz with argument compression. If integer or boolean is given, it will use by default bcolz with integer compression level. If 'blosc' is given, default compression level is 9.
-* Create a usual mdf but without data using noDataLoading=True argument. Data will be loaded when needed by mdfreader methods (in general by getChannelData method)
+* Create a mdf with its metadata but without raw data using noDataLoading=True argument. Data will be loaded on demand by mdfreader methods (in general by getChannelData method)
 
 For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
 
@@ -92,6 +92,7 @@ Command example in ipython:
     yop=mdfreader.mdf('NameOfFile',compression=True)
     # for interactive file exploration, possible to read the file but not its data to save memory
     yop=mdfreader.mdf('NameOfFile',noDataLoading=True) # channel data will be loaded from file if needed
+    yop.getChannel('channelName') # to yield one channel and keep its content in mdf object
     # to get file mdf version
     yop.MDFVersionNumber
     # to get file structure or attachments, you can create a mdfinfo instance
