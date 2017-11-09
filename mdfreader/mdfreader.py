@@ -569,7 +569,7 @@ class mdf(mdf3, mdf4):
                 maxTime = []
                 length = []
                 masterChannelName = 'master'
-                for master in list(self.masterChannelList.keys()):
+                for master in self.masterChannelList:
                     if master is not None and master != '' and \
                             master in self and self.masterChannelList[master]:
                         masterData = self.getChannelData(master)

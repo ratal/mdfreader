@@ -25,7 +25,7 @@ from string import ascii_letters
 from sys import version_info, getsizeof
 from pandas import set_option
 from collections import OrderedDict,defaultdict
-from numpy import array_repr, set_printoptions, recarray, empty
+from numpy import array_repr, set_printoptions, recarray, fromstring
 set_printoptions(threshold=100, edgeitems=1)
 _notAllowedChannelNames = set(dir(recarray))
 try:
@@ -33,7 +33,7 @@ try:
     from bcolz import cparams, carray, detect_number_of_cores, set_nthreads
     _ncores = detect_number_of_cores()
     set_nthreads(_ncores)
-    from blosc import decompress_ptr, compress_ptr
+    from blosc import compress, decompress
 except ImportError:
     # Cannot compress data, please install bcolz and blosc
     CompressionPossible = False
@@ -747,7 +747,7 @@ def _sanitize_identifier(name):
 
 
 class compressed_data():
-    __slots__ = ['data', 'size', 'dtype', '_compression_level']
+    __slots__ = ['data', 'dtype']
     """ class to represent compressed data by blosc
     """
     def __init__(self):
@@ -763,9 +763,7 @@ class compressed_data():
             numpy array dtype
         """
         self.data = None
-        self.size = 0
         self.dtype = None
-        self._compression_level = 9
 
     def compression(self, a):
         """ data compression method
@@ -775,11 +773,7 @@ class compressed_data():
         a : numpy array
             data to be compresses
         """
-        self.data = compress_ptr(a.__array_interface__['data'][0],
-                                 a.size, typesize=a.dtype.itemsize,
-                                 clevel=self._compression_level,
-                                 shuffle=True)
-        self.size = a.size
+        self.data = compress(a.tobytes())
         self.dtype = a.dtype
 
     def decompression(self):
@@ -789,16 +783,9 @@ class compressed_data():
         -------------
         uncompressed numpy array
         """
-        c = empty(self.size, dtype=self.dtype)
-        decompress_ptr(self.data, c.__array_interface__['data'][0])
-        return c
+        return fromstring(decompress(self.data), dtype=self.dtype)
 
     def __str__(self):
         """ prints compressed_data object content
         """
-        output = ['Data: \n',
-                  array_repr(self.data[:],
-                             precision=3,
-                             suppress_small=True),
-                  '\n Compression level {}\n'.format(self._compression_level)]
-        return ''.join(output)
+        return self.decompression()
