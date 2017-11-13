@@ -488,11 +488,12 @@ class record(list):
                     nrecord_chunk = self.numberOfRecords - nrecord_chunk * nchunks
                     if nrecord_chunk > 0:
                         chunks.append((nrecord_chunk, self.CGrecordLength * nrecord_chunk))
+                    previous_index = 0
                     for nrecord_chunk, chunk_size in chunks:
                         bita = fid.read(chunk_size)
                         for chan in range(len(self)):
                             if self[chan].recAttributeName in channelSet:
-                                buf[self[chan].recAttributeName] = \
+                                buf[self[chan].recAttributeName][previous_index: previous_index + nrecord_chunk] = \
                                     dataRead(bytes(bita),
                                              self[chan].bitCount,
                                              convertDataType3to4[self[chan].signalDataType],
@@ -502,6 +503,7 @@ class record(list):
                                              self[chan].bitOffset,
                                              self[chan].posByteBeg,
                                              self[chan].posByteEnd)
+                        previous_index += nrecord_chunk
                     return buf
                 except:
                     print('Unexpected error:', exc_info(), file=stderr)
