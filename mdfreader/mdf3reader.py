@@ -299,7 +299,6 @@ class record(list):
     readSortedRecord(fid, pointer, channelSet=None)
     readRecordBuf(buf, channelSet=None)
     readRecordBits(bita, channelSet=None)
-    changeChannelName(channelName)
     """
 
     def __init__(self, dataGroup, channelGroup):
@@ -477,24 +476,32 @@ class record(list):
                                            7: 6, 8: 10,
                                            9: 1, 10: 3, 11: 5, 12: 5,
                                            13: 0, 14: 2, 15: 4, 16: 4}
-                    bita = fid.read(self.dataBlockLength)
                     format = []
                     for channel in self:
                         if channel.recAttributeName in channelSet:
                             format.append(channel.nativeRecordFormat)
                     buf = recarray(self.numberOfRecords, format)
-                    for chan in range(len(self)):
-                        if self[chan].recAttributeName in channelSet:
-                            buf[self[chan].recAttributeName] = \
-                                dataRead(bytes(bita),
-                                         self[chan].bitCount,
-                                         convertDataType3to4[self[chan].signalDataType],
-                                         self[chan].nativeRecordFormat[1],
-                                         self.numberOfRecords,
-                                         self.CGrecordLength,
-                                         self[chan].bitOffset,
-                                         self[chan].posByteBeg,
-                                         self[chan].posByteEnd)
+                    nchunks = self.dataBlockLength // 100000000 + 1  # reads by chunk of 100Mb
+                    chunk_length = self.dataBlockLength // nchunks
+                    nrecord_chunk = chunk_length // self.CGrecordLength
+                    chunks = [(nrecord_chunk, self.CGrecordLength * nrecord_chunk)] * nchunks
+                    nrecord_chunk = self.numberOfRecords - nrecord_chunk * nchunks
+                    if nrecord_chunk > 0:
+                        chunks.append((nrecord_chunk, self.CGrecordLength * nrecord_chunk))
+                    for nrecord_chunk, chunk_size in chunks:
+                        bita = fid.read(chunk_size)
+                        for chan in range(len(self)):
+                            if self[chan].recAttributeName in channelSet:
+                                buf[self[chan].recAttributeName] = \
+                                    dataRead(bytes(bita),
+                                             self[chan].bitCount,
+                                             convertDataType3to4[self[chan].signalDataType],
+                                             self[chan].nativeRecordFormat[1],
+                                             nrecord_chunk,
+                                             self.CGrecordLength,
+                                             self[chan].bitOffset,
+                                             self[chan].posByteBeg,
+                                             self[chan].posByteEnd)
                     return buf
                 except:
                     print('Unexpected error:', exc_info(), file=stderr)
@@ -811,15 +818,18 @@ class mdf3(mdf_skeleton):
         elif fileName is not None and self.fileName is None:
             self.fileName = fileName
 
+        minimal = 2  # always reads minimum info by default
+
         if channelList is None:
             channelSetFile = None
         else:
             channelSetFile = set(channelList)
+            minimal = 1  # reads at least CN to populate ChannelNamesByDG
 
         # Read information block from file
         if info is None:
             if self.info is None:
-                info = info3(self.fileName, None, False, True)
+                info = info3(self.fileName, fid=None, filterChannelNames=False, minimal=minimal)
             else:
                 info = self.info
 
@@ -828,9 +838,6 @@ class mdf3(mdf_skeleton):
                 info.fid = open(self.fileName, 'rb')
             except IOError:
                 raise Exception('Can not find file ' + self.fileName)
-
-
-        minimal = 2  # always reads minimum info by default
 
         # reads metadata
         try:
@@ -852,7 +859,7 @@ class mdf3(mdf_skeleton):
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0 and \
                     (channelSet is None or
                      len(channelSet & info['ChannelNamesByDG'][dataGroup]) > 0):  # data exists
-                if not self._noDataLoading:  # load CG, CN and CC block info
+                if minimal > 1:  # load CG, CN and CC block info
                     info.readCGBlock(info.fid, dataGroup, minimal=minimal)
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
@@ -864,11 +871,11 @@ class mdf3(mdf_skeleton):
 
                     if temp.numberOfRecords != 0:  # continue if there are at least some records
                         buf.addRecord(temp)
-                        if self._noDataLoading and channelSet is not None and len(channelSet & \
+                        if self._noDataLoading and channelSet is not None and len(channelSet &
                                 buf[temp.recordID]['record'].channelNames) > 0:
                             channelSet = None  # will load complete datagroup
 
-                buf.read(channelSet) # reads datablock potentially containing several channel groups
+                buf.read(channelSet)  # reads datablock potentially containing several channel groups
 
                 for recordID in buf:
                     if 'record' in buf[recordID]:
