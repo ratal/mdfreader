@@ -411,6 +411,9 @@ class mdf(mdf3, mdf4):
                 (self.masterChannelList, mdfdict) = _generateDummyMDF4(self.info, channelList)
                 self.update(mdfdict)
 
+        if not self.fid.closed:  # close file
+            self.fid.close()
+
     def write(self, fileName=None):
         """Writes simple mdf file, same format as originally read, default is 4.x
 
