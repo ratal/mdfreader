@@ -1296,6 +1296,7 @@ class info4(dict):
             dg = 0
             self['DG'][dg] = {}
             self['DG'][dg].update(DGBlock(fid, self['HD']['hd_dg_first']))
+            self['ChannelNamesByDG'][dg] = set()
             if minimal < 2:
                 # reads Channel Group blocks
                 self.readCGBlock(fid, dg, channelNameList, minimal)
@@ -1303,6 +1304,7 @@ class info4(dict):
                 dg += 1
                 self['DG'][dg] = {}
                 self['DG'][dg].update(DGBlock(fid, self['DG'][dg - 1]['dg_dg_next']))
+                self['ChannelNamesByDG'][dg] = set()
                 if minimal < 2:
                     # reads Channel Group blocks
                     self.readCGBlock(fid, dg, channelNameList, minimal)
@@ -1321,7 +1323,6 @@ class info4(dict):
         minimal: falg
             to activate minimum content reading for raw data fetching
         """
-        self['ChannelNamesByDG'][dg] = set()
         if self['DG'][dg]['dg_cg_first']:
             cg = 0
             self['CN'][dg] = {}

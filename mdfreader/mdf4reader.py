@@ -1017,6 +1017,13 @@ class mdf4(mdf_skeleton):
 
         minimal = 2  # always read minimum info
 
+        # set is more efficient for large number of channels (n^2 vs n*log(n)):
+        if channelList is not None:
+            channelSetFile = set(channelList)  # make sure it is a set
+            minimal = 1  # reads at least CN to populate ChannelNamesByDG
+        else:
+            channelSetFile = None
+
         # Read information block from file
         if info is None:
             if self.info is None:
@@ -1026,12 +1033,6 @@ class mdf4(mdf_skeleton):
 
         if info.fid is None or info.fid.closed:
             info.fid = open(self.fileName, 'rb')
-
-        # set is more efficient for large number of channels (n^2 vs n*log(n)):
-        if channelList is not None:
-            channelSetFile = set(channelList) # make sure it is a set
-        else:
-            channelSetFile = None
 
         # reads metadata
         fileDateTime = gmtime(info['HD']['hd_start_time_ns'] / 1000000000)
@@ -1060,7 +1061,7 @@ class mdf4(mdf_skeleton):
             if not info['DG'][dataGroup]['dg_data'] == 0 and \
                     (channelSet is None or
                      len(channelSet & info['ChannelNamesByDG'][dataGroup]) > 0):  # there is data block and channel in
-                if not self._noDataLoading:  # load CG, CN and CC block info
+                if minimal > 1:  # load CG, CN and CC block info
                     info.readCGBlock(info.fid, dataGroup, channelSet, minimal=minimal)
                 if info['CG'][dataGroup][0]['cg_cycle_count']:  # data exists
                     # Pointer to data block
