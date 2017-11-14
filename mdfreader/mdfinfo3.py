@@ -220,7 +220,7 @@ class info3(dict):
 
                 if self['CNBlock'][dg][cg][channel]['signalName'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
                     self['CNBlock'][dg][cg][channel]['signalName'] = \
-                            '{0}_{1}_{2}'.format(self['CNBlock'][dg][cg][channel]['signalName'], cg, channel)
+                            '{0}_{1}_{2}_{3}'.format(self['CNBlock'][dg][cg][channel]['signalName'], dg, cg, channel)
                 elif signalname in self['allChannelList']:
                     # doublon name or master channel
                     self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signalname, dg)

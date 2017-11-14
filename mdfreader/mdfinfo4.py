@@ -1441,7 +1441,7 @@ class info4(dict):
             MLSDChannels.append(cn)
         # check if already existing channel name
         if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
-            self['CN'][dg][cg][cn]['name'] = '{0}_{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], cg, cn)
+            self['CN'][dg][cg][cn]['name'] = '{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, cn)
         elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
             # doublon name or master channel
             self['CN'][dg][cg][cn]['name'] = '{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
@@ -1464,11 +1464,13 @@ class info4(dict):
                         self['CN'][dg][cg][cn]['SI'].update(temp)
 
                 # reads Channel Array Block
-                if self['CN'][dg][cg][cn]['cn_composition']:  # composition but can be either structure of channels or array
+                if self['CN'][dg][cg][cn]['cn_composition']:
+                    # composition but can be either structure of channels or array
                     fid.seek(self['CN'][dg][cg][cn]['cn_composition'])
                     id = fid.read(4)
                     if id in ('##CA', b'##CA'):
-                        self['CN'][dg][cg][cn]['CABlock'] = CABlock(fid, self['CN'][dg][cg][cn]['cn_composition'])
+                        self['CN'][dg][cg][cn]['CABlock'] = \
+                            CABlock(fid, self['CN'][dg][cg][cn]['cn_composition'])
                     elif id in ('##CN', b'##CN'):
                         self['CN'][dg][cg][cn]['CN'] = {}
                         temp = CNBlock()
@@ -1509,7 +1511,8 @@ class info4(dict):
 
                     # check if already existing channel name
                     if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
-                        self['CN'][dg][cg][cn]['name'] = '{0}_{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], cg, cn)
+                        self['CN'][dg][cg][cn]['name'] = \
+                            '{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, cn)
                     elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
                         # doublon name or master channel
                         self['CN'][dg][cg][cn]['name'] = '{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
