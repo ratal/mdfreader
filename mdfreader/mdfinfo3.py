@@ -565,7 +565,7 @@ def read_cc_block(fid, pointer):
             for pair in range(temp['numberOfValuePairs']):  # get text range
                 # Read corresponding text
                 try:
-                    temp['conversion'][pair]['Textrange'] = read_tx_block(fid, temp[pair]['pointerToTXBlock'])
+                    temp['conversion'][pair]['Textrange'] = read_tx_block(fid, temp['conversion'][pair]['pointerToTXBlock'])
                 except:
                     temp['conversion'][pair]['Textrange'] = ""
 
