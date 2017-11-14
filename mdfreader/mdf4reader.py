@@ -1164,18 +1164,19 @@ class mdf4(mdf_skeleton):
                                             self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
 
                                 elif chan.type == 'Inv' and \
-                                        (channelSet is None or chan.name in channelSet):  # invalid bytes, no bits processing
-                                    self.add_channel(dataGroup, chan.name, \
-                                            buf[recordID]['data'].__getattribute__(chan.recAttributeName(info)), \
-                                            master_channel, \
-                                            master_type=0, \
-                                            unit='', \
-                                            description='', \
-                                            info=None, \
+                                        (channelSet is None or chan.name in channelSet):
+                                    # invalid bytes, no bits processing
+                                    self.add_channel(dataGroup, chan.name,
+                                            buf[recordID]['data'].__getattribute__(chan.recAttributeName(info)),
+                                            master_channel,
+                                            master_type=0,
+                                            unit='',
+                                            description='',
+                                            info=None,
                                             compression=compression)
                         del buf[recordID]
                     del buf
-                if not self._noDataLoading:
+                if minimal > 1:
                     # clean CN, CC and CG info to free memory
                     info.cleanDGinfo(dataGroup)
         info.fid.close()  # close file
