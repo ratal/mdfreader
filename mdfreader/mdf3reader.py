@@ -843,7 +843,7 @@ class mdf3(mdf_skeleton):
 
         # reads metadata
         try:
-            comment = info['HDBlock']['TXBlock']['Text']
+            comment = info['HDBlock']['TXBlock']
         except:
             comment = ''
         # converts date to be compatible with ISO8601
@@ -916,7 +916,7 @@ class mdf3(mdf_skeleton):
                                                  info=None,
                                                  compression=compression)
                 del buf
-                if not self._noDataLoading:
+                if minimal > 1:
                     # clean CN, CC and CG info to free memory
                     info.cleanDGinfo(dataGroup)
         info.fid.close()  # close file
