@@ -28,7 +28,7 @@ from __future__ import print_function
 from numpy import right_shift, bitwise_and, interp
 from numpy import max as npmax, min as npmin
 from numpy import asarray, zeros, recarray, array, searchsorted
-from numpy.core.records import fromfile, fromarrays
+from numpy.core.records import fromstring, fromarrays, fromrecords
 from numpy.core.defchararray import encode as ncode
 from collections import defaultdict
 from math import log, exp
@@ -37,20 +37,21 @@ from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
 from sys import platform, exc_info, version_info, stderr, path
 from os.path import dirname, abspath
-import os
+from os import getlogin
+from warnings import simplefilter
 
 _root = dirname(abspath(__file__))
 path.append(_root)
-from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
+from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, \
     dataField, conversionField, compressed_data
 from mdfinfo3 import info3
 from channel import Channel3
 
 
-
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
+chunk_size_reading = 100000000  # reads by chunk of 100Mb, can be tuned for best performance
 
 def linearConv(data, conv):  # 0 Parametric, Linear: Physical =Integer*P2 + P1
     """ apply linear conversion to data
@@ -455,11 +456,27 @@ class record(list):
 
         """
         fid.seek(pointer)
+        nchunks = self.dataBlockLength // chunk_size_reading + 1
+        chunk_length = self.dataBlockLength // nchunks
+        nrecord_chunk = chunk_length // self.CGrecordLength
+        chunks = [(nrecord_chunk, self.CGrecordLength * nrecord_chunk)] * nchunks
+        nrecord_chunk = self.numberOfRecords - nrecord_chunk * nchunks
+        if nrecord_chunk > 0:
+            chunks.append((nrecord_chunk, self.CGrecordLength * nrecord_chunk))
+        previous_index = 0
         if channelSet is None and not self.hiddenBytes and self.byte_aligned:
             # reads all, quickest but memory consuming
-            return fromfile(fid, dtype=self.numpyDataRecordFormat,
-                            shape=self.numberOfRecords,
-                            names=self.dataRecordName)
+            channel_format = [channel.RecordFormat for channel in self]
+            buf = recarray(self.numberOfRecords, channel_format)  # initialise array
+            simplefilter('ignore', FutureWarning)
+            for nrecord_chunk, chunk_size in chunks:
+                buf[previous_index: previous_index + nrecord_chunk] = \
+                    fromstring(fid.read(chunk_size),
+                               dtype=self.numpyDataRecordFormat,
+                               shape=nrecord_chunk,
+                               names=self.dataRecordName)
+                previous_index += nrecord_chunk
+            return buf
         else:  # reads only some channels from a sorted data block
             if channelSet is None:
                 channelSet = self.channelNames
@@ -476,19 +493,11 @@ class record(list):
                                            7: 6, 8: 10,
                                            9: 1, 10: 3, 11: 5, 12: 5,
                                            13: 0, 14: 2, 15: 4, 16: 4}
-                    format = []
+                    channel_format = []
                     for channel in self:
                         if channel.recAttributeName in channelSet:
-                            format.append(channel.nativeRecordFormat)
-                    buf = recarray(self.numberOfRecords, format)
-                    nchunks = self.dataBlockLength // 100000000 + 1  # reads by chunk of 100Mb
-                    chunk_length = self.dataBlockLength // nchunks
-                    nrecord_chunk = chunk_length // self.CGrecordLength
-                    chunks = [(nrecord_chunk, self.CGrecordLength * nrecord_chunk)] * nchunks
-                    nrecord_chunk = self.numberOfRecords - nrecord_chunk * nchunks
-                    if nrecord_chunk > 0:
-                        chunks.append((nrecord_chunk, self.CGrecordLength * nrecord_chunk))
-                    previous_index = 0
+                            channel_format.append(channel.nativeRecordFormat)
+                    buf = recarray(self.numberOfRecords, channel_format)  # initialise array
                     for nrecord_chunk, chunk_size in chunks:
                         bita = fid.read(chunk_size)
                         for chan in range(len(self)):
@@ -781,8 +790,8 @@ class mdf3(mdf_skeleton):
         Writes simple mdf 3.3 file
     """
 
-    def read3(self, fileName=None, info=None, multiProc=False, channelList=None, \
-        convertAfterRead=True, filterChannelNames=False, compression=False):
+    def read3(self, fileName=None, info=None, multiProc=False, channelList=None,
+              convertAfterRead=True, filterChannelNames=False, compression=False):
         """ Reads mdf 3.x file data and stores it in dict
 
         Parameters
@@ -1066,7 +1075,7 @@ class mdf3(mdf_skeleton):
         if self.file_metadata['author'] is not None:  # Author
             author = '{:\x00<32.31}'.format(self.file_metadata['author']).encode('latin-1')
         elif PythonVersion >= 3:
-            author = '{:\x00<32.31}'.format(os.getlogin()).encode('latin-1')
+            author = '{:\x00<32.31}'.format(getlogin()).encode('latin-1')
         else:
             author = b'\x00' * 32
         if self.file_metadata['organisation'] is not None:  # Organization
