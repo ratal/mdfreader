@@ -30,9 +30,6 @@ set_printoptions(threshold=100, edgeitems=1)
 _notAllowedChannelNames = set(dir(recarray))
 try:
     CompressionPossible = True
-    from bcolz import cparams, carray, detect_number_of_cores, set_nthreads
-    _ncores = detect_number_of_cores()
-    set_nthreads(_ncores)
     from blosc import compress, decompress
 except ImportError:
     # Cannot compress data, please install bcolz and blosc
@@ -433,17 +430,8 @@ class mdf_skeleton(dict):
             trigger for data compression
         """
         if compression and CompressionPossible:
-            if not isinstance(compression, str):
-                if isinstance(compression, int):
-                    comp = compression
-                else:
-                    comp = self._compression_level
-                temp = carray(data,
-                              cparams=cparams(clevel=comp),
-                              expectedlen=getsizeof(data))
-            else:
-                temp = compressed_data()
-                temp.compression(data)
+            temp = compressed_data()
+            temp.compression(data)
             self._setChannel(channelName, temp, field=dataField)
         else:
             self._setChannel(channelName, data, field=dataField)

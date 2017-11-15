@@ -6,7 +6,7 @@ from distutils.extension import Extension
 from Cython.Build import cythonize
 
 name = 'mdfreader'
-version = '2.7.1'
+version = '2.7.2'
 
 description = 'A Measured Data Format file parser'
 
@@ -69,7 +69,7 @@ extras_require = {
     'export': ['scipy', 'h5py', 'xlwt', 'xlwt3', 'openpyxl', 'pandas'],
     'converter': ['PyQt4'],
     'experimental': ['bitarray'],
-    'compression': ['bcolz', 'blosc'],
+    'compression': ['blosc'],
 }
 
 # If there are data files included in your packages that need to be

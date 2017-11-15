@@ -1277,7 +1277,7 @@ class mdf(mdf3, mdf4):
         else:
             datetimeInfo = datetime64(datetime.now())
         originalKeys = list(self.keys())
-        for group in list(self.masterChannelList.keys()):
+        for group in self.masterChannelList:
             if group not in self.masterChannelList[group]:
                 print('no master channel in group ' + group, file=stderr)
             elif self.getChannelMasterType(group) != 1:
