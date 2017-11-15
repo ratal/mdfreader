@@ -703,7 +703,12 @@ def _bits_to_bytes(nBits):
 
 
 def _convertName(channelName):
+    return channelName
+
+
+def _convertName_old(channelName):
     """ Check if channelName is valid python identifier
+    to be removed with next function if no more need
     """
 
     if PythonVersion < 3:  # python 2
