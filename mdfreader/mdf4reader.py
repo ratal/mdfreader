@@ -47,7 +47,7 @@ path.append(_root)
 from mdfinfo4 import info4, ATBlock, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
     DZBlock, HLBlock, CCBlock, _writePointer, _writeHeader
-from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, _convertName,\
+from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, \
     dataField, conversionField, compressed_data
 from channel import channel4
 
@@ -1099,9 +1099,10 @@ class mdf4(mdf_skeleton):
                                 if (channelSet is None or chan.name in channelSet) \
                                         and not chan.type == 'Inv': # normal channel
                                     if chan.channelType(info) not in (3, 6):  # not virtual channel
-                                        recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName(info)]  # in case record is used for several channels
+                                        # in case record is used for several channels
+                                        recordName = buf[recordID]['record'].recordToChannelMatching[chan.recAttributeName(info)]
                                         if 'data' in buf[recordID] and \
-                                                buf[recordID]['data'] is not None: # no data in channel group
+                                                buf[recordID]['data'] is not None:  # no data in channel group
                                             temp = buf[recordID]['data'][recordName]  # extract channel vector
                                         else:
                                             temp = None
