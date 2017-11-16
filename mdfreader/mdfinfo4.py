@@ -397,35 +397,35 @@ class CommentBlock(dict):
                 # #extracts specific tags from xml
                 if MDType == 'CN':  # channel comment
                     try:
-                        self['description'] = xml_tree.TX
+                        self['description'] = xml_tree.TX.text
                     except AttributeError:
                         print('Could not parse CN block TX tag')
                     try:
-                        self['names'] = xml_tree.names
+                        self['names'] = xml_tree.names.text
                     except AttributeError:
                         pass  # optional
                     try:
-                        self['linker_name'] = xml_tree.linker_name
+                        self['linker_name'] = xml_tree.linker_name.text
                     except AttributeError:
                         pass  # optional
                     try:
-                        self['linker_address'] = xml_tree.linker_address
+                        self['linker_address'] = xml_tree.linker_address.text
                     except AttributeError:
                         pass  # optional
                     try:
-                        self['address'] = xml_tree.address
+                        self['address'] = xml_tree.address.text
                     except AttributeError:
                         pass  # optional
                     try:
-                        self['axis_monotony'] = xml_tree.axis_monotony
+                        self['axis_monotony'] = xml_tree.axis_monotony.text
                     except AttributeError:
                         pass  # optional
                     try:
-                        self['raster'] = xml_tree.raster
+                        self['raster'] = xml_tree.raster.text
                     except AttributeError:
                         pass  # optional
                     try:
-                        self['formula'] = xml_tree.formula
+                        self['formula'] = xml_tree.formula.text
                     except AttributeError:
                         pass  # optional
                 elif MDType == 'unit':  # channel comment
@@ -435,11 +435,11 @@ class CommentBlock(dict):
                         print('Could not parse unit TX tag')
                 elif MDType == 'HD':  # header comment
                     try:
-                        self['TX'] = xml_tree.TX
+                        self['TX'] = xml_tree.TX.text
                     except AttributeError:
                         print('Could not parse HD block TX tag')
                     try:
-                        self['time_source'] = xml_tree.time_source
+                        self['time_source'] = xml_tree.time_source.text
                     except AttributeError:
                         pass  # optional
                     try:
@@ -450,61 +450,61 @@ class CommentBlock(dict):
                         pass  # optional
                 elif MDType == 'FH':  # File History comment
                     try:
-                        self['TX'] = xml_tree.TX
+                        self['TX'] = xml_tree.TX.text
                     except AttributeError:
                         print('Could not parse FH block TX tag')
                     try:
-                        self['tool_id'] = xml_tree.tool_id
+                        self['tool_id'] = xml_tree.tool_id.text
                     except AttributeError:
                         print('Could not parse FH block tool_id tag')
                     try:
-                        self['tool_vendor'] = xml_tree.tool_vendor
+                        self['tool_vendor'] = xml_tree.tool_vendor.text
                     except AttributeError:
                         print('Could not parse extract HD block tool_vendor tag')
                     try:
-                        self['tool_version'] = xml_tree.tool_version
+                        self['tool_version'] = xml_tree.tool_version.text
                     except AttributeError:
                         print('Could not parse extract HD block tool_vendor tag')
                     try:
-                        self['user_name'] = xml_tree.user_name
+                        self['user_name'] = xml_tree.user_name.text
                     except AttributeError:
                         pass  # optional
                 elif MDType == 'SI':
                     try:
-                        self['TX'] = xml_tree.TX
+                        self['TX'] = xml_tree.TX.text
                     except AttributeError:
                         print('Could not parse SI block TX tag')
                     try:
-                        self['names'] = xml_tree.names
+                        self['names'] = xml_tree.names.text
                     except AttributeError:
                         pass  # optional
                     try:
-                        self['path'] = xml_tree.path
+                        self['path'] = xml_tree.path.text
                     except AttributeError:
                         pass  # optional
                     try:
-                        self['bus'] = xml_tree.bus
+                        self['bus'] = xml_tree.bus.text
                     except AttributeError:
                         pass  # optional
                     try:
-                        self['protocol'] = xml_tree.protocol
+                        self['protocol'] = xml_tree.protocol.text
                     except AttributeError:
                         pass  # optional
                 elif MDType == 'CC':
                     try:
-                        self['TX'] = xml_tree.TX
+                        self['TX'] = xml_tree.TX.text
                     except AttributeError:
                         print('Could not parse CC block TX tag')
                     try:
-                        self['names'] = xml_tree.names
+                        self['names'] = xml_tree.names.text
                     except AttributeError:
                         pass  # optional
                     try:
-                        self['COMPU_METHOD'] = xml_tree.COMPU_METHOD
+                        self['COMPU_METHOD'] = xml_tree.COMPU_METHOD.text
                     except AttributeError:
                         pass  # optional
                     try:
-                        self['formula'] = xml_tree.formula
+                        self['formula'] = xml_tree.formula.text
                     except AttributeError:
                         pass  # optional
                 else:
