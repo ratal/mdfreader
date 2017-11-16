@@ -33,32 +33,11 @@ from numpy import sort, zeros
 import time
 from xml.etree.ElementTree import Element, SubElement, \
     tostring, register_namespace
-from lxml import etree
+from lxml import objectify
 _root = dirname(abspath(__file__))
 path.append(_root)
 from mdf import _open_MDF, dataField, descriptionField, unitField, \
     masterField, masterTypeField
-
-
-namespace = '{http://www.asam.net/mdf/v4}'
-_parsernsclean = etree.XMLParser(ns_clean=True)
-_find_TX = etree.XPath('TX')  # efficient way to find TX in xml
-_find_names = etree.XPath('names')
-_find_linker_name = etree.XPath('linker_name')
-_find_linker_address = etree.XPath('linker_address')
-_find_address = etree.XPath('address')
-_find_axis_monotony = etree.XPath('axis_monotony')
-_find_raster = etree.XPath('raster')
-_find_formula = etree.XPath('formula')
-_find_COMPU_METHOD = etree.XPath('COMPU_METHOD')
-_find_path = etree.XPath('path')
-_find_bus = etree.XPath('bus')
-_find_protocol = etree.XPath('protocol')
-_find_tool_id = etree.XPath('tool_id')
-_find_tool_vendor = etree.XPath('tool_vendor')
-_find_tool_version = etree.XPath('tool_version')
-_find_user_name = etree.XPath('user_name')
-_find_common_properties = etree.XPath('common_properties')
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -410,82 +389,124 @@ class CommentBlock(dict):
                 # removes normal 0 at end
                 # self['Comment'] = None
                 try:
-                    xml_tree = etree.fromstring(fid.read(self['length'] - 24).rstrip(b'\x00'), _parsernsclean)
+                    xml_tree = objectify.fromstring(fid.read(self['length'] - 24).rstrip(b'\x00'))
                 except:
                     print('xml metadata malformed', file=stderr)
                     xml_tree = None
                 # specific action per comment block type,
                 # #extracts specific tags from xml
                 if MDType == 'CN':  # channel comment
-                    self['description'] = \
-                        self.extractXmlField(xml_tree, _find_TX)
-                    self['names'] = \
-                        self.extractXmlField(xml_tree, _find_names)
-                    self['linker_name'] = \
-                        self.extractXmlField(xml_tree,
-                                             _find_linker_name)
-                    self['linker_address'] = \
-                        self.extractXmlField(xml_tree,
-                                             _find_linker_address)
-                    self['address'] = \
-                        self.extractXmlField(xml_tree, _find_address)
-                    self['axis_monotony'] = \
-                        self.extractXmlField(xml_tree,
-                                             _find_axis_monotony)
-                    self['raster'] = \
-                        self.extractXmlField(xml_tree, _find_raster)
-                    self['formula'] = \
-                        self.extractXmlField(xml_tree, _find_formula)
+                    try:
+                        self['description'] = xml_tree.TX
+                    except AttributeError:
+                        print('Could not parse CN block TX tag')
+                    try:
+                        self['names'] = xml_tree.names
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['linker_name'] = xml_tree.linker_name
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['linker_address'] = xml_tree.linker_address
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['address'] = xml_tree.address
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['axis_monotony'] = xml_tree.axis_monotony
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['raster'] = xml_tree.raster
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['formula'] = xml_tree.formula
+                    except AttributeError:
+                        pass  # optional
                 elif MDType == 'unit':  # channel comment
-                    self['unit'] = self.extractXmlField(xml_tree,
-                                                        _find_TX)
+                    try:
+                        self['unit'] = xml_tree.TX
+                    except AttributeError:
+                        print('Could not parse unit TX tag')
                 elif MDType == 'HD':  # header comment
-                    self['TX'] = self.extractXmlField(xml_tree,
-                                                      _find_TX)
-                    tmp = self.extractXmlField(xml_tree,
-                                               _find_common_properties)
-                    tmp = xml_tree.find(namespace +
-                                                'common_properties')
-                    if tmp is None:
-                        tmp = xml_tree.find('common_properties')
-                    if tmp is not None:
-                        for t in tmp:
-                            self[t.attrib['name']] = t.text
+                    try:
+                        self['TX'] = xml_tree.TX
+                    except AttributeError:
+                        print('Could not parse HD block TX tag')
+                    try:
+                        self['time_source'] = xml_tree.time_source
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        tmp = xml_tree.common_properties
+                        for t in range(tmp.countchildren()):
+                            self[tmp.e[t].attrib.values()[0]] = tmp.e[t].text
+                    except AttributeError:
+                        pass  # optional
                 elif MDType == 'FH':  # File History comment
-                    self['TX'] = self.extractXmlField(xml_tree,
-                                                      _find_TX)
-                    self['tool_id'] = self.extractXmlField(xml_tree,
-                                                           _find_tool_id)
-                    self['tool_vendor'] = \
-                        self.extractXmlField(xml_tree,
-                                             _find_tool_vendor)
-                    self['tool_version'] = \
-                        self.extractXmlField(xml_tree,
-                                             _find_tool_version)
-                    self['user_name'] = \
-                        self.extractXmlField(xml_tree,
-                                             _find_user_name)
+                    try:
+                        self['TX'] = xml_tree.TX
+                    except AttributeError:
+                        print('Could not parse FH block TX tag')
+                    try:
+                        self['tool_id'] = xml_tree.tool_id
+                    except AttributeError:
+                        print('Could not parse FH block tool_id tag')
+                    try:
+                        self['tool_vendor'] = xml_tree.tool_vendor
+                    except AttributeError:
+                        print('Could not parse extract HD block tool_vendor tag')
+                    try:
+                        self['tool_version'] = xml_tree.tool_version
+                    except AttributeError:
+                        print('Could not parse extract HD block tool_vendor tag')
+                    try:
+                        self['user_name'] = xml_tree.user_name
+                    except AttributeError:
+                        pass  # optional
                 elif MDType == 'SI':
-                    self['TX'] = self.extractXmlField(xml_tree,
-                                                      _find_TX)
-                    self['names'] = self.extractXmlField(xml_tree,
-                                                         _find_names)
-                    self['path'] = self.extractXmlField(xml_tree,
-                                                        _find_path)
-                    self['bus'] = self.extractXmlField(xml_tree,
-                                                       _find_bus)
-                    self['protocol'] = self.extractXmlField(xml_tree,
-                                                            _find_protocol)
+                    try:
+                        self['TX'] = xml_tree.TX
+                    except AttributeError:
+                        print('Could not parse SI block TX tag')
+                    try:
+                        self['names'] = xml_tree.names
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['path'] = xml_tree.path
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['bus'] = xml_tree.bus
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['protocol'] = xml_tree.protocol
+                    except AttributeError:
+                        pass  # optional
                 elif MDType == 'CC':
-                    self['TX'] = self.extractXmlField(xml_tree,
-                                                      _find_TX)
-                    self['names'] = self.extractXmlField(xml_tree,
-                                                         _find_names)
-                    self['COMPU_METHOD'] = \
-                        self.extractXmlField(xml_tree,
-                                             _find_COMPU_METHOD)
-                    self['formula'] = self.extractXmlField(xml_tree,
-                                                           _find_formula)
+                    try:
+                        self['TX'] = xml_tree.TX
+                    except AttributeError:
+                        print('Could not parse CC block TX tag')
+                    try:
+                        self['names'] = xml_tree.names
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['COMPU_METHOD'] = xml_tree.COMPU_METHOD
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['formula'] = xml_tree.formula
+                    except AttributeError:
+                        pass  # optional
                 else:
                     if MDType is not None:
                         print('No recognized MDType', file=stderr)
@@ -496,28 +517,6 @@ class CommentBlock(dict):
                 else:
                     self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
 
-    def extractXmlField(self, xml_tree, find):
-        """ Extract Xml field from a xml tree
-
-        Parameters
-        ----------------
-        xml_tree : xml tree from xml.etree.ElementTree
-        field : str
-
-        Returns
-        -----------
-        field value in xml tree
-        """
-        try:
-            ret = find(xml_tree)
-            if ret:
-                ret = ret[0].text
-            else:
-                ret = None
-            return ret
-        except:
-            print('problem parsing metadata', file=stderr)
-            return None
 
     def write(self, fid, data, MDType):
 
