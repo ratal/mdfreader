@@ -389,7 +389,7 @@ def read_hd_block(fid, pointer, version=0):
     if pointer != 0 and pointer is not None:
         temp = dict()
         fid.seek(pointer)
-        if version < 3.2:
+        if version < 320:
             (temp['BlockType'],
              temp['BlockSize'],
              temp['pointerToFirstDGBlock'],
