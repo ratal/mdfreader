@@ -239,7 +239,16 @@ def textRangeTableConv(data, conv):  # 12 Text range table
         npair = len(conv)
         lower = [conv[pair]['lowerRange'] for pair in range(npair)]
         upper = [conv[pair]['upperRange'] for pair in range(npair)]
-        text = [conv[pair]['Textrange'] for pair in range(npair)]
+        text = {}
+        for pair in range(npair):
+            text[pair] = conv[pair]['Textrange']
+            if 'LINEAR CONV' in text[pair]:  # linear conversion from CANape
+                from sympy import lambdify, symbols
+                X = symbols('X')  # variable is X
+                left = text[pair].find('"')
+                right = text[pair].rfind('"')
+                text[pair] = text[pair][left + 1: right].replace('{', '').replace('}', '')
+                text[pair] = lambdify(X, text[pair], modules='numpy', dummify=False)
         temp = []
         for Lindex in range(len(data)):
             value = text[0]  # default value
@@ -247,6 +256,8 @@ def textRangeTableConv(data, conv):  # 12 Text range table
                 if lower[pair] <= data[Lindex] <= upper[pair]:
                     value = text[pair]
                     break
+            if callable(value):
+                value = value(data[Lindex])
             temp.append(value)
         try:
             temp = asarray(temp)  # try to convert to numpy
