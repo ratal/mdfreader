@@ -573,21 +573,6 @@ class CommentBlock(dict):
         return block_start
 
 
-def elementTreeToDict(element):
-    """ converts xml tree into dictionnary
-
-    Parameters
-    ----------------
-    element : xml tree from xml.etree.ElementTree
-
-    Returns
-    -----------
-    dict of xml tree flattened
-    """
-    return element.tag, \
-        dict(map(elementTreeToDict, element)) or element.text
-
-
 class DGBlock(dict):
 
     """ reads Data Group block and saves in class dict

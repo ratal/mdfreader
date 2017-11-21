@@ -41,6 +41,7 @@ from numpy.core.records import fromstring, fromfile, fromarrays
 from numpy import array, recarray, append, asarray, empty, zeros, dtype, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from numpy import max as npmax, min as npmin
+from numpy.lib.recfunctions import rec_append_fields, rename_fields
 
 _root = dirname(abspath(__file__))
 path.append(_root)
@@ -54,18 +55,7 @@ from channel import channel4
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
-LINK = '<Q'
-REAL = '<d'
-BOOL = '<h'
-UINT8 = '<B'
-BYTE = '<c'
-INT16 = '<h'
-UINT16 = '<H'
-UINT32 = '<I'
-INT32 = '<i'
-UINT64 = '<Q'
-INT64 = '<q'
-CHAR = '<c'
+chunk_size_reading = 100000000  # reads by chunk of 100Mb, can be tuned for best performance
 
 
 def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True):
@@ -95,48 +85,6 @@ def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True):
     This function will read DTBlock, RDBlock, DZBlock (compressed),
     RDBlock (VLSD), sorted or unsorted
     """
-
-    def readUnsorted(record, info, parent_block, channelSet=None, sortedFlag=True):
-        # reads only the channels using offset functions, channel by channel.
-        buf = defaultdict(list)
-        position = 0
-        recordIdCFormat = record[list(record.keys())[0]]['record'].recordIDCFormat
-        recordIDsize = record[list(record.keys())[0]]['record'].recordIDsize
-        VLSDStruct = Struct('I')
-        # initialise data structure
-        for recordID in record:
-            for channelName in record[recordID]['record'].dataRecordName:
-                buf[channelName] = []  # empty(record.numberOfRecords,dtype=record[recordID]['record'].dataFormat)
-                # index[channelName]=0
-        # read data
-        while position < len(parent_block['data']):
-            recordID = recordIdCFormat.unpack(parent_block['data'][position:position + recordIDsize])[0]
-            if not record[recordID]['record'].Flags & 0b1:  # not VLSD CG)
-                temp = record.readRecord(recordID, info, parent_block['data'][position:position + record[recordID]['record'].CGrecordLength + 1], channelSet)
-                position += record[recordID]['record'].CGrecordLength
-                for channelName in temp:
-                    buf[channelName].append(temp[channelName])
-            else:  # VLSD CG
-                position += recordIDsize
-                VLSDLen = VLSDStruct.unpack(parent_block['data'][position:position + 4])[0]  # VLSD length
-                position += 4
-                temp = parent_block['data'][position:position + VLSDLen - 1]
-                signalDataType = record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType(info)
-                if signalDataType == 6:
-                    temp = temp.decode('ISO8859')
-                elif signalDataType == 7:
-                    temp = temp.decode('utf-8')
-                elif signalDataType == 8:
-                    temp = temp.decode('<utf-16')
-                elif signalDataType == 9:
-                    temp = temp.decode('>utf-16')
-                buf[record[recordID]['record'].VLSD_CG[recordID]['channelName']].append(temp)
-                position += VLSDLen
-        # convert list to array
-        for chan in buf:
-            buf[chan] = array(buf[chan])
-        return buf
-
     if parent_block['id'] in ('##DT', '##RD', b'##DT', b'##RD'):  # normal data block
         if sortedFlag:
             if channelSet is None and not record.hiddenBytes and\
@@ -190,6 +138,48 @@ def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True):
             return readUnsorted(record, info, parent_block, channelSet, sortedFlag)
 
 
+def readUnsorted(record, info, parent_block, channelSet=None, sortedFlag=True):
+    # reads only the channels using offset functions, channel by channel.
+    buf = defaultdict(list)
+    position = 0
+    recordIdCFormat = record[list(record.keys())[0]]['record'].recordIDCFormat
+    recordIDsize = record[list(record.keys())[0]]['record'].recordIDsize
+    VLSDStruct = Struct('I')
+    # initialise data structure
+    for recordID in record:
+        for channelName in record[recordID]['record'].dataRecordName:
+            buf[channelName] = []  # empty(record.numberOfRecords,dtype=record[recordID]['record'].dataFormat)
+            # index[channelName]=0
+    # read data
+    while position < len(parent_block['data']):
+        recordID = recordIdCFormat.unpack(parent_block['data'][position:position + recordIDsize])[0]
+        if not record[recordID]['record'].Flags & 0b1:  # not VLSD CG)
+            temp = record.readRecord(recordID, info, parent_block['data'][position:position + record[recordID]['record'].CGrecordLength + 1], channelSet)
+            position += record[recordID]['record'].CGrecordLength
+            for channelName in temp:
+                buf[channelName].append(temp[channelName])
+        else:  # VLSD CG
+            position += recordIDsize
+            VLSDLen = VLSDStruct.unpack(parent_block['data'][position:position + 4])[0]  # VLSD length
+            position += 4
+            temp = parent_block['data'][position:position + VLSDLen - 1]
+            signalDataType = record[recordID]['record'].VLSD_CG[recordID]['channel'].signalDataType(info)
+            if signalDataType == 6:
+                temp = temp.decode('ISO8859')
+            elif signalDataType == 7:
+                temp = temp.decode('utf-8')
+            elif signalDataType == 8:
+                temp = temp.decode('<utf-16')
+            elif signalDataType == 9:
+                temp = temp.decode('>utf-16')
+            buf[record[recordID]['record'].VLSD_CG[recordID]['channelName']].append(temp)
+            position += VLSDLen
+    # convert list to array
+    for chan in buf:
+        buf[chan] = array(buf[chan])
+    return buf
+
+
 def decompress_datablock(block, zip_type, zip_parameter, org_data_length):
     """ decompress datablock.
 
@@ -241,58 +231,6 @@ def equalizeStringLength(buf):
     return buf
 
 
-def append_field(rec, name, arr, numpy_dtype=None):
-    """ append new field in a recarray
-
-    Parameters
-    ----------------
-    rec : numpy recarray
-    name : str
-        name of field to be appended
-    arr : numpy array to be appended
-    numpy_dtype : numpy dtype, optional
-        apply same dtype as arr by default but can be modified
-
-    Returns
-    -----------
-    numpy recarray appended
-    """
-    arr = asarray(arr)
-    if numpy_dtype is None:
-        numpy_dtype = arr.dtype
-    newdtype = dtype(rec.dtype.descr + [(name, numpy_dtype)])
-    newrec = empty(rec.shape, dtype=newdtype)
-    for field in rec.dtype.fields:
-        newrec[field] = rec[field]
-    newrec[name] = arr
-    return newrec
-
-
-def change_field_name(arr, old_name, new_name):
-    """ modifies name of field in a recarray
-
-    Parameters
-    ----------------
-    arr : numpy recarray
-    old_name : str
-        old field
-    new_name : str
-        new field
-
-    Returns
-    -----------
-    numpy recarray with modified field name
-    """
-    names = list(arr.dtype.names)
-    for n in range(len(names)):
-        if names[n] == old_name:
-            break
-    names[n] = new_name
-    names = tuple(names)
-    arr.dtype.names = names
-    return arr
-
-    
 class DATA(dict):
     __slots__ = ['fid', 'pointerTodata', 'type']
     """ DATA class is organizing record classes itself made of channel class.
@@ -366,14 +304,12 @@ class DATA(dict):
             for cn in record.VLSD:  # VLSD channels
                 if channelSet is None or record[cn].name in channelSet:
                     temp = DATA(self.fid, record[cn].data(info))  # all channels
-                    rec = self[recordID]['data']  # recarray from data block
-                    # determine maximum length of values in VLSD for array dtype
-                    # record[cn].maxLengthVLSDRecord=max(diff(rec[_convertName(record[cn].name)])-4)
                     temp = temp.load(record, info, zip=None, nameList=channelSet, sortedFlag=True)
                     recAttributeName = record[cn].recAttributeName(info)
-                    rec = change_field_name(rec, recAttributeName, '{}_offset'.format(recAttributeName))
-                    rec = append_field(rec, recAttributeName, temp)
-                    self[recordID]['data'] = rec.view(recarray)
+                    self[recordID]['data'] = rename_fields(self[recordID]['data'],
+                                                           {recAttributeName: '{}_offset'.format(recAttributeName)})
+                    self[recordID]['data'] = rec_append_fields(self[recordID]['data'],
+                                                               recAttributeName, temp)
         else:  # unsorted DataGroup
             self.type = 'unsorted'
             data = self.load(self, info, zip=None, nameList=channelSet, sortedFlag=False)
@@ -437,7 +373,8 @@ class DATA(dict):
                             buf.extend(data_block['data'])
                             data_block['id'] = '##DT'  # do not uncompress in DATABlock function
                 data_block['data'] = buf
-                temps['data'] = DATABlock(record, info, parent_block=data_block, channelSet=nameList, sortedFlag=sortedFlag)
+                temps['data'] = DATABlock(record, info, parent_block=data_block,
+                                          channelSet=nameList, sortedFlag=sortedFlag)
             else:  # empty datalist
                 temps['data'] = None
         elif temps['id'] in ('##HL', b'##HL'):  # header list block for DZBlock
@@ -784,7 +721,8 @@ class record(list):
         if channelSet is None:  # reads all, quickest but memory consuming
             if self.byte_aligned and not self.hiddenBytes:
                 # print(self) # for debugging purpose
-                return fromfile(fid, dtype=self.numpyDataRecordFormat, shape=self.numberOfRecords, names=self.dataRecordName)
+                return fromfile(fid, dtype=self.numpyDataRecordFormat,
+                                shape=self.numberOfRecords, names=self.dataRecordName)
             else:
                 return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), info, channelSet)
         else:  # reads only some channels from a sorted data block
@@ -859,7 +797,7 @@ class record(list):
         # initialise data structure
         if channelSet is None:
             channelSet = self.channelNames
-        try: # use rather cython compiled code for performance
+        try:  # use rather cython compiled code for performance
             format = []
             for chan in range(len(self)):
                 if self[chan].name in channelSet:
