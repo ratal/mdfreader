@@ -37,7 +37,10 @@ from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
 from sys import platform, exc_info, version_info, stderr, path
 from os.path import dirname, abspath
-from os import getlogin
+import os
+if os.name == 'posix':
+    from os import getlogin
+
 from warnings import simplefilter
 
 _root = dirname(abspath(__file__))
@@ -1085,7 +1088,7 @@ class mdf3(mdf_skeleton):
         ndataGroup = len(self.masterChannelList)
         if self.file_metadata['author'] is not None:  # Author
             author = '{:\x00<32.31}'.format(self.file_metadata['author']).encode('latin-1')
-        elif PythonVersion >= 3:
+        elif os.name == 'posix':
             author = '{:\x00<32.31}'.format(getlogin()).encode('latin-1')
         else:
             author = b'\x00' * 32
