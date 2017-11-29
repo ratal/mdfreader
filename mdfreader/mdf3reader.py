@@ -28,7 +28,7 @@ from __future__ import print_function
 from numpy import right_shift, bitwise_and, interp
 from numpy import max as npmax, min as npmin
 from numpy import asarray, zeros, recarray, array, searchsorted
-from numpy.core.records import fromstring, fromarrays, fromrecords
+from numpy.core.records import fromstring, fromarrays
 from numpy.core.defchararray import encode as ncode
 from collections import defaultdict
 from math import log, exp
@@ -377,8 +377,7 @@ class record(list):
         self.dataBlockLength = self.CGrecordLength * self.numberOfRecords
         if self.recordIDnumber > 0:  # record ID existing at beginning of record
             self.dataRecordName.append('RecordID{}'.format(self.channelGroup))
-            format = ('{}_title'.format(self.dataRecordName[-1]), self.dataRecordName[-1])
-            self.numpyDataRecordFormat.append((format, 'uint8'))
+            self.numpyDataRecordFormat.append('uint8')
             self.dataBlockLength = (self.CGrecordLength + 1) * self.numberOfRecords
         embedding_channel = None
         for channelNumber in range(info['CGBlock'][self.dataGroup][self.channelGroup]['numberOfChannels']):
@@ -395,7 +394,7 @@ class record(list):
                 # so just comparing with previous channel
                 prev_chan = self[-2]
                 prev_chan_includes_curr_chan = channel.posBitBeg >= 8 * prev_chan.byteOffset \
-                        and channel.posBitEnd <= 8 * (prev_chan.byteOffset + prev_chan.nBytes)
+                    and channel.posBitEnd <= 8 * (prev_chan.byteOffset + prev_chan.nBytes)
                 if embedding_channel is not None:
                     embedding_channel_includes_curr_chan = \
                         channel.posBitEnd <= embedding_channel.posByteEnd * 8
@@ -414,26 +413,25 @@ class record(list):
                     if embedding_channel is None and prev_chan_includes_curr_chan:
                         embedding_channel = prev_chan  # new embedding channel detected
                     if self.recordToChannelMatching:  # not first channel
-                        self.recordToChannelMatching[channel.recAttributeName] = \
-                            self.recordToChannelMatching[prev_chan.recAttributeName]
+                        self.recordToChannelMatching[channel.name] = \
+                            self.recordToChannelMatching[prev_chan.name]
                         channel.embedding_channel_bitOffset = \
                             channel.posBitBeg - embedding_channel.posBitBeg
                     else:  # first channels
-                        self.recordToChannelMatching[channel.recAttributeName] = \
-                            channel.recAttributeName
-                        self.numpyDataRecordFormat.append(channel.RecordFormat)
-                        self.dataRecordName.append(channel.recAttributeName)
+                        self.recordToChannelMatching[channel.name] = \
+                            channel.name
+                        self.numpyDataRecordFormat.append(channel.dataFormat)
+                        self.dataRecordName.append(channel.name)
                         self.recordLength += channel.nBytes
             if embedding_channel is None:  # adding bytes
-                self.recordToChannelMatching[channel.recAttributeName] = \
-                    channel.recAttributeName
-                self.numpyDataRecordFormat.append(channel.RecordFormat)
-                self.dataRecordName.append(channel.recAttributeName)
+                self.recordToChannelMatching[channel.name] = \
+                    channel.name
+                self.numpyDataRecordFormat.append(channel.dataFormat)
+                self.dataRecordName.append(channel.name)
                 self.recordLength += channel.nBytes
         if self.recordIDnumber == 2:  # second record ID at end of record
             self.dataRecordName.append('RecordID{}_2'.format(self.channelGroup))
-            format = ('{}_title'.format(self.dataRecordName[-1]), self.dataRecordName[-1])
-            self.numpyDataRecordFormat.append((format, 'uint8'))
+            self.numpyDataRecordFormat.append('uint8')
             self.dataBlockLength = (self.CGrecordLength + 2) * self.numberOfRecords
         # check for hidden bytes
         if self.CGrecordLength > self.recordLength:
@@ -480,15 +478,15 @@ class record(list):
         previous_index = 0
         if channelSet is None and not self.hiddenBytes and self.byte_aligned:
             # reads all, quickest but memory consuming
-            channel_format = [channel.RecordFormat for channel in self]
-            buf = recarray(self.numberOfRecords, channel_format)  # initialise array
+            buf = recarray(self.numberOfRecords, dtype={'names': self.dataRecordName,
+                                                        'formats': self.numpyDataRecordFormat})  # initialise array
             simplefilter('ignore', FutureWarning)
             for nrecord_chunk, chunk_size in chunks:
                 buf[previous_index: previous_index + nrecord_chunk] = \
                     fromstring(fid.read(chunk_size),
-                               dtype=self.numpyDataRecordFormat,
-                               shape=nrecord_chunk,
-                               names=self.dataRecordName)
+                               dtype={'names': self.dataRecordName,
+                                      'formats': self.numpyDataRecordFormat},
+                               shape=nrecord_chunk)
                 previous_index += nrecord_chunk
             return buf
         else:  # reads only some channels from a sorted data block
@@ -500,6 +498,16 @@ class record(list):
                 # check if master channel is in the list
                 if not self.master['name'] in channelSet:
                     channelSet.add(self.master['name'])  # adds master channel
+                recChan = []
+                numpyDataRecordFormat = []
+                dataRecordName = []
+                for channel in self:  # list of Channels from channelSet
+                    if channel.name in channelSet:
+                        recChan.append(channel)
+                        dataRecordName.append(channel.name)
+                        numpyDataRecordFormat.append(channel.dataFormat)
+                rec = recarray(self.numberOfRecords, dtype={'names': dataRecordName,
+                                                            'formats': numpyDataRecordFormat})
                 try:  # use rather cython compiled code for performance
                     from dataRead import dataRead
                     # converts data type from mdf 3.x to 4.x
@@ -507,46 +515,31 @@ class record(list):
                                            7: 6, 8: 10,
                                            9: 1, 10: 3, 11: 5, 12: 5,
                                            13: 0, 14: 2, 15: 4, 16: 4}
-                    channel_format = []
-                    for channel in self:
-                        if channel.recAttributeName in channelSet:
-                            channel_format.append(channel.nativeRecordFormat)
-                    buf = recarray(self.numberOfRecords, channel_format)  # initialise array
                     for nrecord_chunk, chunk_size in chunks:
                         bita = fid.read(chunk_size)
                         for chan in range(len(self)):
-                            if self[chan].recAttributeName in channelSet:
-                                buf[self[chan].recAttributeName][previous_index: previous_index + nrecord_chunk] = \
+                            if self[chan].name in channelSet:
+                                rec[self[chan].name][previous_index: previous_index + nrecord_chunk] = \
                                     dataRead(bytes(bita),
                                              self[chan].bitCount,
                                              convertDataType3to4[self[chan].signalDataType],
-                                             self[chan].nativeRecordFormat[1],
+                                             self[chan].nativedataFormat,
                                              nrecord_chunk,
                                              self.CGrecordLength,
                                              self[chan].bitOffset,
                                              self[chan].posByteBeg,
                                              self[chan].posByteEnd)
                         previous_index += nrecord_chunk
-                    return buf
+                    return rec
                 except:
                     print('Unexpected error:', exc_info(), file=stderr)
                     print('dataRead crashed, back to python data reading',
                           file=stderr)
-                    rec = {}
-                    recChan = []
-                    numpyDataRecordFormat = []
-                    for channel in channelSet:  # initialise data structure
-                        rec[channel] = 0
-                    for channel in self:  # list of Channels from channelSet
-                        if channel.recAttributeName in channelSet:
-                            recChan.append(channel)
-                            numpyDataRecordFormat.append(channel.RecordFormat)
-                    rec = zeros((self.numberOfRecords, ), dtype=numpyDataRecordFormat)
                     recordLength = self.recordIDnumber + self.CGrecordLength
                     for r in range(self.numberOfRecords):  # for each record,
                         buf = fid.read(recordLength)
                         for channel in recChan:
-                            rec[channel.recAttributeName][r] = \
+                            rec[channel.name][r] = \
                                 channel.CFormat.unpack(buf[channel.posByteBeg:
                                                            channel.posByteEnd])[0]
                     return rec.view(recarray)
@@ -572,7 +565,7 @@ class record(list):
             channelSet = self.channelNames
         for Channel in self:  # list of channel classes from channelSet
             if Channel.name in channelSet:
-                temp[self.recordToChannelMatching[Channel.recAttributeName]] = \
+                temp[self.recordToChannelMatching[Channel.name]] = \
                     Channel.CFormat.unpack(buf[Channel.posByteBeg:
                                                Channel.posByteEnd])[0]
         return temp  # returns dictionary of channel with its corresponding values
@@ -617,25 +610,25 @@ class record(list):
             channelSet = self.channelNames
         for Channel in self:  # list of channel classes from channelSet
             if Channel.name in channelSet:
-                temp[Channel.recAttributeName] = B[Channel.posBitBeg: Channel.posBitEnd]
-                nbytes = len(temp[Channel.recAttributeName].tobytes())
+                temp[Channel.name] = B[Channel.posBitBeg: Channel.posBitEnd]
+                nbytes = len(temp[Channel.name].tobytes())
                 if not nbytes == Channel.nBytes:
                     byte = bitarray(8 * (Channel.nBytes - nbytes), endian='little')
                     byte.setall(False)
                     if Channel.signalDataType not in (1, 10, 14):  # not signed integer
-                        temp[Channel.recAttributeName].extend(byte)
+                        temp[Channel.name].extend(byte)
                     else:  # signed integer (two's complement), keep sign bit and extend with bytes
-                        temp[Channel.recAttributeName] = signedInt(temp[Channel.recAttributeName], byte)
+                        temp[Channel.name] = signedInt(temp[Channel.name], byte)
                 nTrailBits = Channel.nBytes*8 - Channel.bitCount
                 if Channel.signalDataType in (1, 10, 14) and \
                         nbytes == Channel.nBytes and \
                         nTrailBits > 0:  # Ctype byte length but signed integer
                     trailBits = bitarray(nTrailBits, endian='little')
-                    temp[Channel.recAttributeName] = signedInt(temp[Channel.recAttributeName], trailBits)
+                    temp[Channel.name] = signedInt(temp[Channel.name], trailBits)
                 if 's' not in Channel.dataFormat:
-                    temp[Channel.recAttributeName] = Channel.CFormat.unpack(temp[Channel.recAttributeName].tobytes())[0]
+                    temp[Channel.name] = Channel.CFormat.unpack(temp[Channel.name].tobytes())[0]
                 else:
-                    temp[Channel.recAttributeName] = temp[Channel.recAttributeName].tobytes()
+                    temp[Channel.name] = temp[Channel.name].tobytes()
         return temp  # returns dictionary of channel with its corresponding values
 
 
@@ -703,9 +696,9 @@ class DATA(dict):
             for recordID in list(self.keys()):
                 self[recordID]['data'] = {}
                 for channel in self[recordID]['record']:
-                    self[recordID]['data'][channel.recAttributeName] = \
+                    self[recordID]['data'][channel.name] = \
                         data[self[recordID]['record'].
-                             recordToChannelMatching[channel.recAttributeName]]
+                             recordToChannelMatching[channel.name]]
         else:  # empty data group
             pass
 
@@ -914,7 +907,7 @@ class mdf3(mdf_skeleton):
                         for chan in channels: # for each recordchannel
                             # in case record is used for several channels
                             recordName = buf[recordID]['record'].\
-                                    recordToChannelMatching[chan.recAttributeName]
+                                    recordToChannelMatching[chan.name]
                             temp = buf[recordID]['data'][recordName]
 
                             if len(temp) != 0:

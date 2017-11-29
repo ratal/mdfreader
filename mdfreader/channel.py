@@ -482,6 +482,9 @@ class channel4(object):
                             [self.channelGroup][self.channelNumber]['cn_bit_count'])
         return dataformat
 
+    def nativedataFormat(self, info):
+        return self.dataFormat(info).lstrip('<').lstrip('>')
+
     def RecordFormat(self, info, recAttributeName=None):
         """ recarray dtype string
 
@@ -497,7 +500,7 @@ class channel4(object):
         """
         if recAttributeName is None:
             recAttributeName = self.recAttributeName(info)
-        return (('{}_title'.format(recAttributeName),
+        return ((u'{}_title'.format(recAttributeName),
                  recAttributeName), self.dataFormat(info))
 
     def nativeRecordFormat(self, info):
@@ -514,7 +517,7 @@ class channel4(object):
         string data format
         """
         recAttributeName = self.recAttributeName(info)
-        return (('{}_title'.format(recAttributeName), recAttributeName),
+        return ((u'{}_title'.format(recAttributeName), recAttributeName),
                 self.dataFormat(info).lstrip('<').lstrip('>'))
 
     def Format(self, info):
@@ -1145,7 +1148,7 @@ class Channel3:
         self.signalDataType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['signalDataType']
         self.bitCount = info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfBits']
         ByteOrder = info['IDBlock']['ByteOrder']
-        (self.dataFormat, nativeDataType) = \
+        (self.dataFormat, self.nativedataFormat) = \
             _arrayformat3(self.signalDataType, self.bitCount, ByteOrder)
         self.CFormat = Struct(_datatypeformat3(self.signalDataType, self.bitCount, ByteOrder))
         self.nBytes = _bits_to_bytes(self.bitCount)
@@ -1157,9 +1160,6 @@ class Channel3:
         self.posByteBeg = recordIDnumber + self.byteOffset
         self.posByteEnd = recordIDnumber + self.byteOffset + self.nBytes
         self.channelType = info['CNBlock'][dataGroup][channelGroup][channelNumber]['channelType']
-        self.recAttributeName = _convertName(self.name)
-        self.RecordFormat = (('{}_title'.format(self.recAttributeName), self.recAttributeName), self.dataFormat)
-        self.nativeRecordFormat = (('{}_title'.format(self.recAttributeName), self.recAttributeName), nativeDataType)
         if 'physicalUnit' in info['CCBlock'][dataGroup][channelGroup][channelNumber]:
             self.unit = info['CCBlock'][dataGroup][channelGroup][channelNumber]['physicalUnit']
         else:
