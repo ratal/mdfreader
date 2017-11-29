@@ -245,7 +245,7 @@ def textRangeTableConv(data, conv):  # 12 Text range table
         text = {}
         for pair in range(npair):
             text[pair] = conv[pair]['Textrange']
-            if 'LINEAR CONV' in text[pair]:  # linear conversion from CANape
+            if 'LINEAR_CONV' in text[pair]:  # linear conversion from CANape
                 from sympy import lambdify, symbols
                 X = symbols('X')  # variable is X
                 left = text[pair].find('"')
