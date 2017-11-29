@@ -37,7 +37,7 @@ from lxml import objectify
 _root = dirname(abspath(__file__))
 path.append(_root)
 from mdf import _open_MDF, dataField, descriptionField, unitField, \
-    masterField, masterTypeField
+    masterField, masterTypeField, _convertName
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -1317,6 +1317,7 @@ class info4(dict):
             self['CG'][dg][cg] = {}
             self['CG'][dg][cg].update(CGBlock(fid, self['DG'][dg]['dg_cg_first']))
             VLSDCGBlock = []
+            vlsd = False  # flag for at least one VLSD channel in CG
 
             if not channelNameList and minimal:
                 # reads Source Information Block
@@ -1331,12 +1332,19 @@ class info4(dict):
 
             if not self['CG'][dg][cg]['cg_flags'] & 0b1:  # if not a VLSD channel group
                 # reads Channel Block
-                self.readCNBlock(fid, dg, cg, channelNameList, minimal)
+                vlsd = self.readCNBlock(fid, dg, cg, channelNameList, minimal)
+                if vlsd:
+                    # VLSD needs to rename and append records but with python 2.x impossible,
+                    # convert name to compatible python identifier
+                    for cn in self['CN'][dg][cg]:
+                        self['CN'][dg][cg][cn]['name'] = _convertName(
+                            self['CN'][dg][cg][cn]['name'].encode('latin-1', ' ignore'))
             else:
                 VLSDCGBlock.append(cg)
 
             while self['CG'][dg][cg]['cg_cg_next']:
                 cg += 1
+                vlsd = False  # flag for at least one VLSD channel in CG
                 self['CG'][dg][cg] = {}
                 self['CG'][dg][cg].update(CGBlock(fid, self['CG'][dg][cg - 1]['cg_cg_next']))
                 self['CN'][dg][cg] = {}
@@ -1354,12 +1362,19 @@ class info4(dict):
 
                 if not self['CG'][dg][cg]['cg_flags'] & 0b1:  # if not a VLSD channel group
                     # reads Channel Block
-                    self.readCNBlock(fid, dg, cg, channelNameList, minimal)
+                    vlsd = self.readCNBlock(fid, dg, cg, channelNameList, minimal)
+                    if vlsd:
+                        # VLSD needs to rename and append records but with python 2.x impossible,
+                        # convert name to compatible python identifier
+                        for cn in self['CN'][dg][cg]:
+                            self['CN'][dg][cg][cn]['name'] = _convertName(
+                                self['CN'][dg][cg][cn]['name'].encode('latin-1', ' ignore'))
                 else:
                     VLSDCGBlock.append(cg)
 
             if VLSDCGBlock:  # VLSD CG Block exiting
                 self['VLSD_CG'] = {}
+
             # Matching VLSD CGBlock with corresponding channel
             for VLSDcg in VLSDCGBlock:
                 VLSDCGBlockAdress = self['CG'][dg][VLSDcg]['pointer']
@@ -1412,6 +1427,7 @@ class info4(dict):
             to activate minimum content reading for raw data fetching
         """
         cn = 0
+        vlsd = False
         self['CN'][dg][cg][cn] = {}
         self['CC'][dg][cg][cn] = {}
         self['CN'][dg][cg][cn] = {}
@@ -1425,10 +1441,14 @@ class info4(dict):
             MLSDChannels.append(cn)
         # check if already existing channel name
         if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
-            self['CN'][dg][cg][cn]['name'] = '{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, cn)
+            self['CN'][dg][cg][cn]['name'] = u'{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, cn)
         elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
             # doublon name or master channel
-            self['CN'][dg][cg][cn]['name'] = '{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
+            self['CN'][dg][cg][cn]['name'] = u'{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
+        if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
+            # VLSD needs to rename and append records but with python 2.x impossible,
+            # convert name to compatible python identifier
+            vlsd = True
         self['ChannelNamesByDG'][dg].add(self['CN'][dg][cg][cn]['name'])
         self['allChannelList'].add(self['CN'][dg][cg][cn]['name'])
 
@@ -1496,10 +1516,14 @@ class info4(dict):
                     # check if already existing channel name
                     if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
                         self['CN'][dg][cg][cn]['name'] = \
-                            '{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, cn)
+                            u'{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, cn)
                     elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
                         # doublon name or master channel
-                        self['CN'][dg][cg][cn]['name'] = '{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
+                        self['CN'][dg][cg][cn]['name'] = u'{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
+                    if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
+                        # VLSD needs to rename and append records but with python 2.x impossible,
+                        # convert name to compatible python identifier
+                        vlsd = True
                     self['ChannelNamesByDG'][dg].add(self['CN'][dg][cg][cn]['name'])
                     self['allChannelList'].add(self['CN'][dg][cg][cn]['name'])
 
@@ -1539,6 +1563,7 @@ class info4(dict):
                 if self['CN'][dg][cg][cn]['pointer'] == self['CN'][dg][cg][MLSDcn]['cn_data']:
                     self['MLSD'][dg][cg][MLSDcn] = cn
                     break
+        return vlsd
 
     def cleanDGinfo(self, dg):
         """ delete CN,CC and CG blocks related to data group
