@@ -58,7 +58,7 @@ PythonVersion = PythonVersion[0]
 chunk_size_reading = 100000000  # reads by chunk of 100Mb, can be tuned for best performance
 
 
-def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True):
+def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True, vlsd=False):
     """ DATABlock converts raw data into arrays
 
     Parameters
@@ -75,6 +75,8 @@ def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True):
         or unsorted (several Channel Groups identified by a recordID).
         As unsorted block can contain CG records in random order, block
         is processed iteratively, not in raw like sorted -> much slower reading
+    vlsd : bool
+        indicate a sd block, compressed (DZ) or not (SD)
 
     Returns
     ---------
@@ -101,35 +103,16 @@ def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True):
             return readUnsorted(record, info, parent_block, channelSet, sortedFlag)
 
     elif parent_block['id'] in ('##SD', b'##SD'):
-        for chan in record:
-            if chan.channelType(info) == 1:  # channel should be a VLSD type
-                break
-        signalDataType = chan.signalDataType(info)
-        if signalDataType == 6:
-            format = 'ISO8859'
-        elif signalDataType == 7:
-            format = 'utf-8'
-        elif signalDataType == 8:
-            format = '<utf-16'
-        elif signalDataType == 9:
-            format = '>utf-16'
-        pointer = 0
-        buf = []  # buf=array(record.numberOfRecords,dtype='s'+str(record.maxLengthVLSDRecord))
-
-        while pointer < parent_block['length'] - 24:
-            VLSDLen = structunpack('I', parent_block['data'][pointer:pointer + 4])[0]  # length of data
-            pointer += 4
-            # to be improved, removing append :
-            buf.append(parent_block['data'][pointer:pointer + VLSDLen].decode(format).rstrip('\x00'))
-            # buf[nElement]=fid.read(VLSDLen).decode(format).rstrip('\x00')
-            pointer += VLSDLen
-        buf = equalizeStringLength(buf)
-        return array(buf)
+        return read_sdblock(record[record.VLSD[0]].signalDataType(info),
+                            parent_block['data'], parent_block['length'] - 24)
 
     elif parent_block['id'] in ('##DZ', b'##DZ'):  # zipped data block
         # uncompress data
         parent_block['data'] = decompress_datablock(parent_block['data'], parent_block['dz_zip_type'],
                 parent_block['dz_zip_parameter'], parent_block['dz_org_data_length'])
+        if vlsd:  # VLSD channel
+            return read_sdblock(record[record.VLSD[0]].signalDataType(info),
+                                parent_block['data'], parent_block['dz_org_data_length'])
         if channelSet is None and sortedFlag:  # reads all blocks if sorted block and no channelSet defined
             if record.byte_aligned and not record.hiddenBytes:
                 record.numberOfRecords = parent_block['dz_org_data_length'] // record.CGrecordLength
@@ -220,6 +203,43 @@ def decompress_datablock(block, zip_type, zip_parameter, org_data_length):
     return block
 
 
+def read_sdblock(signal_data_type, sdblock, sdblock_length):
+    """ Reads vlsd channel from its SD Block bytes
+
+        Parameters
+        ----------------
+        signal_data_type : int
+
+        sdblock : bytes
+        SD Block bytes
+
+        sdblock_length: int
+        SD Block data length (header not included)
+
+        Returns
+        -----------
+        array
+    """
+    if signal_data_type == 6:
+        channel_format = 'ISO8859'
+    elif signal_data_type == 7:
+        channel_format = 'utf-8'
+    elif signal_data_type == 8:
+        channel_format = '<utf-16'
+    elif signal_data_type == 9:
+        channel_format = '>utf-16'
+    pointer = 0
+    buf = []
+
+    while pointer < sdblock_length:
+        VLSDLen = structunpack('I', sdblock[pointer:pointer + 4])[0]  # length of data
+        pointer += 4
+        buf.append(sdblock[pointer:pointer + VLSDLen].decode(channel_format).rstrip('\x00'))
+        pointer += VLSDLen
+    buf = equalizeStringLength(buf)
+    return array(buf)
+
+
 def equalizeStringLength(buf):
     """ Makes all strings in a list having same length by appending spaces strings.
 
@@ -300,6 +320,8 @@ class DATA(dict):
         ----------------
         channelSet : set of str
             set of channel names
+        info : info object
+            contains blocks structures
         zip : bool, optional
             flag to track if data block is compressed
         """
@@ -310,7 +332,7 @@ class DATA(dict):
             for cn in record.VLSD:  # VLSD channels
                 if channelSet is None or record[cn].name in channelSet:
                     temp = DATA(self.fid, record[cn].data(info))  # all channels
-                    temp = temp.load(record, info, zip=None, nameList=channelSet, sortedFlag=True)
+                    temp = temp.load(record, info, zip=None, nameList=channelSet, sortedFlag=True, vlsd=True)
                     self[recordID]['data'] = rename_fields(self[recordID]['data'],
                                                            {record[cn].name: '{}_offset'.format(record[cn].name)})
                     self[recordID]['data'] = rec_append_fields(self[recordID]['data'],
@@ -323,7 +345,7 @@ class DATA(dict):
                 for channel in self[recordID]['record']:
                     self[recordID]['data'][channel.name] = data[channel.name]
 
-    def load(self, record, info, zip=None, nameList=None, sortedFlag=True):
+    def load(self, record, info, zip=None, nameList=None, sortedFlag=True, vlsd=False):
         """Reads data block from record definition
 
         Parameters
@@ -334,6 +356,13 @@ class DATA(dict):
             flag to track if data block is compressed
         nameList : list of str, optional
             list of channel names
+        sortedFlag : bool, optional
+            flag to know if data block is sorted (only one Channel Group in block)
+            or unsorted (several Channel Groups identified by a recordID).
+            As unsorted block can contain CG records in random order, block
+            is processed iteratively, not in raw like sorted -> much slower reading
+        vlsd : bool
+            indicate a sd block, compressed (DZ) or not (SD)
 
         Returns
         -----------
@@ -379,7 +408,7 @@ class DATA(dict):
                             data_block['id'] = '##DT'  # do not uncompress in DATABlock function
                 data_block['data'] = buf
                 temps['data'] = DATABlock(record, info, parent_block=data_block,
-                                          channelSet=nameList, sortedFlag=sortedFlag)
+                                          channelSet=nameList, sortedFlag=sortedFlag, vlsd=vlsd)
             else:  # empty datalist
                 temps['data'] = None
         elif temps['id'] in ('##HL', b'##HL'):  # header list block for DZBlock
@@ -395,7 +424,8 @@ class DATA(dict):
         elif temps['id'] in ('##DZ', b'##DZ'):  # zipped data block
             temps.update(DZBlock(self.fid))
             temps['data'] = self.fid.read(temps['dz_data_length'])
-            temps['data'] = DATABlock(record, info, parent_block=temps, channelSet=nameList, sortedFlag=sortedFlag)
+            temps['data'] = DATABlock(record, info, parent_block=temps,
+                                      channelSet=nameList, sortedFlag=sortedFlag, vlsd=vlsd)
         else:
             raise Exception('unknown data block')
         return temps['data']
