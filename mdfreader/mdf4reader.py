@@ -37,20 +37,27 @@ from multiprocessing import Queue, Process
 from sys import version_info, exc_info, byteorder, stderr, path
 from os.path import dirname, abspath
 from collections import defaultdict
-from numpy.core.records import fromstring, fromfile, fromarrays
+from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, append, asarray, empty, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from numpy import max as npmax, min as npmin
 from numpy.lib.recfunctions import rec_append_fields, rename_fields
+from warnings import simplefilter, warn
 
 _root = dirname(abspath(__file__))
 path.append(_root)
-from mdfinfo4 import info4, ATBlock, IDBlock, HDBlock, DGBlock, \
+from mdfinfo4 import info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
     DZBlock, HLBlock, CCBlock, _writePointer, _writeHeader
-from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, \
+from mdf import mdf_skeleton, _open_MDF, \
     dataField, conversionField, compressed_data
 from channel import channel4
+try:
+    from dataRead import dataRead
+    dataRead_available = True
+except ImportError:
+    warn('dataRead cannot be imported, compile it with cython', ImportWarning)
+    dataRead_available = False
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -97,9 +104,8 @@ def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True, vlsd
                                                                'formats': record.numpyDataRecordFormat},
                                   shape=record.numberOfRecords)
             else:  # record is not byte aligned or channelSet not None
-                return record.readBitarray(parent_block['data'], info, channelSet)
+                return record.read_channels_from_bytes(parent_block['data'], info, channelSet)
         else:  # unsorted reading
-            # not so much tested, missing example file
             return readUnsorted(record, info, parent_block, channelSet, sortedFlag)
 
     elif parent_block['id'] in ('##SD', b'##SD'):
@@ -120,9 +126,9 @@ def DATABlock(record, info, parent_block, channelSet=None, sortedFlag=True, vlsd
                                                                'formats': record.numpyDataRecordFormat},
                                   shape=record.numberOfRecords)
             else:
-                return record.readBitarray(parent_block['data'], info, channelSet)
+                return record.read_channels_from_bytes(parent_block['data'], info, channelSet)
         elif channelSet is not None and sortedFlag:  # sorted data but channel list requested
-            return record.readBitarray(parent_block['data'], info, channelSet)
+            return record.read_channels_from_bytes(parent_block['data'], info, channelSet)
         else:  # unsorted reading
             return readUnsorted(record, info, parent_block, channelSet, sortedFlag)
 
@@ -313,7 +319,7 @@ class DATA(dict):
         for recordID in self[record.recordID]['record'].VLSD_CG:
             self[recordID]['record'].VLSD_CG = self[record.recordID]['record'].VLSD_CG
 
-    def read(self, channelSet, info, zip=None):
+    def read(self, channelSet, info):
         """Reads data block
 
         Parameters
@@ -322,38 +328,34 @@ class DATA(dict):
             set of channel names
         info : info object
             contains blocks structures
-        zip : bool, optional
-            flag to track if data block is compressed
         """
         if len(self) == 1:  # sorted dataGroup
             recordID = list(self.keys())[0]
             record = self[recordID]['record']
-            self[recordID]['data'] = self.load(record, info, zip=None, nameList=channelSet, sortedFlag=True)
+            self[recordID]['data'] = self.load(record, info, nameList=channelSet, sortedFlag=True)
             for cn in record.VLSD:  # VLSD channels
                 if channelSet is None or record[cn].name in channelSet:
                     temp = DATA(self.fid, record[cn].data(info))  # all channels
-                    temp = temp.load(record, info, zip=None, nameList=channelSet, sortedFlag=True, vlsd=True)
+                    temp = temp.load(record, info, nameList=channelSet, sortedFlag=True, vlsd=True)
                     self[recordID]['data'] = rename_fields(self[recordID]['data'],
                                                            {record[cn].name: '{}_offset'.format(record[cn].name)})
                     self[recordID]['data'] = rec_append_fields(self[recordID]['data'],
                                                                record[cn].name, temp)
         else:  # unsorted DataGroup
             self.type = 'unsorted'
-            data = self.load(self, info, zip=None, nameList=channelSet, sortedFlag=False)
+            data = self.load(self, info, nameList=channelSet, sortedFlag=False)
             for recordID in self:
                 self[recordID]['data'] = {}
                 for channel in self[recordID]['record']:
                     self[recordID]['data'][channel.name] = data[channel.name]
 
-    def load(self, record, info, zip=None, nameList=None, sortedFlag=True, vlsd=False):
+    def load(self, record, info, nameList=None, sortedFlag=True, vlsd=False):
         """Reads data block from record definition
 
         Parameters
         ----------------
         record class
             channel group definition listing record channel classes
-        zip : bool, optional
-            flag to track if data block is compressed
         nameList : list of str, optional
             list of channel names
         sortedFlag : bool, optional
@@ -415,9 +417,9 @@ class DATA(dict):
             # link section
             temps.update(HLBlock(self.fid))
             self.pointerTodata = temps['hl_dl_first']
-            temps['data'] = self.load(record, info, zip=temps['hl_zip_type'], nameList=nameList, sortedFlag=sortedFlag)
+            temps['data'] = self.load(record, info, nameList=nameList, sortedFlag=sortedFlag)
         elif temps['id'] in ('##DT', '##RD', b'##DT', b'##RD'):  # normal sorted data block, direct read
-            temps['data'] = record.readSortedRecord(self.fid, self.pointerTodata, info, channelSet=nameList)
+            temps['data'] = record.readSortedRecord(self.fid, info, channelSet=nameList)
         elif temps['id'] in ('##SD', b'##SD'):  # VLSD
             temps['data'] = self.fid.read(temps['length'] - 24)
             temps['data'] = DATABlock(record, info, parent_block=temps, channelSet=nameList, sortedFlag=sortedFlag)
@@ -505,7 +507,7 @@ class record(list):
     loadInfo(info)
     readSortedRecord(fid, pointer, info, channelSet=None)
     readRecordBuf(buf, info, channelSet=None)
-    readBitarray(bita, info, channelSet=None)
+    read_channels_from_bytes(bita, info, channelSet=None)
     """
 
     def __init__(self, dataGroup, channelGroup):
@@ -717,12 +719,12 @@ class record(list):
         elif self.CGrecordLength < self.recordLength:
             self.byte_aligned = False  # forces to use dataRead instead of numpy records.
 
-    def readSortedRecord(self, fid, pointer, info, channelSet=None):
+    def readSortedRecord(self, fid, info, channelSet=None):
         """ reads record, only one channel group per datagroup
 
         Parameters
         ----------------
-        fid : float
+        fid :
             file identifier
         pointer
             position in file of data block beginning
@@ -740,44 +742,100 @@ class record(list):
         However, in case of large file, you can use channelSet to load only interesting channels or
         only one channel on demand, but be aware it might be much slower.
         """
-        if channelSet is None:  # reads all, quickest but memory consuming
-            if self.byte_aligned and not self.hiddenBytes:
-                # print(self) # for debugging purpose
-                return fromfile(fid, dtype={'names': self.dataRecordName,
-                                            'formats': self.numpyDataRecordFormat},
-                                shape=self.numberOfRecords)
-            else:
-                return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), info, channelSet)
+        if channelSet is None and self.byte_aligned and not self.hiddenBytes:
+            return self.read_all_channels_sorted_record(fid)
         else:  # reads only some channels from a sorted data block
-            if len(channelSet & self.channelNames) > 0:  # are channelSet in this dataGroup
-                try:
-                    return self.readBitarray(fid.read(self.CGrecordLength * self.numberOfRecords), channelSet)
-                except:  # still memory efficient but takes time
-                    print('Unexpected error:', exc_info(), file=stderr)
-                    print('dataRead crashed, back to python data reading', file=stderr)
-                    # check if master channel is in the list
-                    if not self.master['name'] in channelSet:
-                        channelSet.add(self.master['name'])  # adds master channel
-                    rec = {}
-                    recChan = []
-                    dataRecordName = []
-                    numpyDataRecordFormat = []
-                    for channel in channelSet:  # initialise data structure
-                        rec[channel] = 0
-                    for channel in self:  # list of channel classes from channelSet
-                        if channel.name in channelSet:
-                            recChan.append(channel)
-                            dataRecordName.append(channel.name)
-                            numpyDataRecordFormat.append(channel.dataFormat(info))
-                    rec = recarray((self.numberOfRecords, ), dtype={'names': dataRecordName,
-                                                                 'formats': numpyDataRecordFormat})
-                    recordLength = self.recordIDsize + self.CGrecordLength
-                    for r in range(self.numberOfRecords):  # for each record,
-                        buf = fid.read(recordLength)
-                        for channel in recChan:
-                            rec[channel.name][r] = \
-                                channel.CFormat(info).unpack(buf[channel.posByteBeg(info):channel.posByteEnd(info)])[0]
-                    return rec.view(recarray)
+            if channelSet is None or len(channelSet & self.channelNames) > 0:
+                return self.read_not_all_channels_sorted_record(fid, info, channelSet)
+
+    def generate_chunks(self):
+        """ Initialise recarray
+
+        Returns
+        --------
+        (nrecord_chunk, chunk_size)
+        """
+        nchunks = (self.CGrecordLength * self.numberOfRecords) // chunk_size_reading + 1
+        chunk_length = (self.CGrecordLength * self.numberOfRecords) // nchunks
+        nrecord_chunk = chunk_length // self.CGrecordLength
+        chunks = [(nrecord_chunk, self.CGrecordLength * nrecord_chunk)] * nchunks
+        nrecord_chunk = self.numberOfRecords - nrecord_chunk * nchunks
+        if nrecord_chunk > 0:
+            chunks.append((nrecord_chunk, self.CGrecordLength * nrecord_chunk))
+        return chunks
+
+    def read_all_channels_sorted_record(self, fid):
+        """ reads all channels from file
+
+        Parameters
+        ------------
+        bita : stream
+            stream of bytes
+        info: info class
+        channelSet : set of str, optional
+            set of channel to read
+
+        Returns
+        --------
+        rec : numpy recarray
+            contains a matrix of raw data in a recarray (attributes corresponding to channel name)
+        """
+        chunks = self.generate_chunks()
+        previous_index = 0
+        buf = recarray(self.numberOfRecords, dtype={'names': self.dataRecordName,
+                                                    'formats': self.numpyDataRecordFormat})  # initialise array
+        simplefilter('ignore', FutureWarning)
+        for nrecord_chunk, chunk_size in chunks:
+            buf[previous_index: previous_index + nrecord_chunk] = \
+                fromstring(fid.read(chunk_size),
+                           dtype={'names': self.dataRecordName,
+                                  'formats': self.numpyDataRecordFormat},
+                           shape=nrecord_chunk)
+            previous_index += nrecord_chunk
+        return buf
+
+    def read_not_all_channels_sorted_record(self, fid, info, channelSet):
+        """ reads channels from file listed in channelSet
+
+        Parameters
+        ------------
+        bita : stream
+            stream of bytes
+        info: info class
+        channelSet : set of str, optional
+            set of channel to read
+
+        Returns
+        --------
+        rec : numpy recarray
+            contains a matrix of raw data in a recarray (attributes corresponding to channel name)
+        """
+        chunks = self.generate_chunks()
+        previous_index = 0
+        if channelSet is None:
+            channelSet = self.channelNames
+        if channelSet is not None and not self.master['name'] in channelSet:
+            channelSet.add(self.master['name'])  # adds master channel
+        rec, channels_indexes = self.initialise_recarray(info, channelSet, self.numberOfRecords)
+        if rec is not None:
+            if dataRead_available:
+                for nrecord_chunk, chunk_size in chunks:
+                    rec[previous_index: previous_index + nrecord_chunk] = \
+                        self.read_channels_from_bytes(fid.read(chunk_size),
+                                                      info, channelSet, nrecord_chunk,
+                                                      rec.dtype, channels_indexes)
+                    previous_index += nrecord_chunk
+                return rec
+            else:
+                for nrecord_chunk, chunk_size in chunks:
+                    rec[previous_index: previous_index + nrecord_chunk] = \
+                        self.read_channels_from_bytes_fallback(fid.read(chunk_size),
+                                                               info, channelSet, nrecord_chunk,
+                                                               rec.dtype, channels_indexes)
+                    previous_index += nrecord_chunk
+                return rec
+        else:
+            return []
 
     def readRecordBuf(self, buf, info, channelSet=None):
         """ read stream of record bytes
@@ -805,109 +863,180 @@ class record(list):
                                                      Channel.posByteEnd(info)])[0]
         return temp  # returns dictionary of channel with its corresponding values
 
-    def readBitarray(self, bita, info, channelSet=None):
-        """ reads stream of record bytes using bitarray module needed for not byte aligned data
+    def initialise_recarray(self, info, channelSet, nrecords, dtype=None, channels_indexes=None):
+        """ Initialise recarray
+
+        Parameters
+        ------------
+        bita : stream
+            stream of bytes
+        info: info class
+        channelSet : set of str, optional
+            set of channel to read
+        nrecords: int
+            number of records
+        dtype: numpy dtype
+        channels_indexes: list of int
+
+        Returns
+        --------
+        rec : numpy recarray
+            contains a matrix of raw data in a recarray (attributes corresponding to channel name)
+        """
+        if dtype is not None and channels_indexes is not None:
+            return recarray(nrecords, dtype=dtype), channels_indexes
+        else:
+            if channelSet is None:
+                channelSet = self.channelNames
+            formats = []
+            names = []
+            channels_indexes = []
+            for chan in range(len(self)):
+                if self[chan].name in channelSet:
+                    channels_indexes.append(chan)
+                    formats.append(self[chan].nativedataFormat(info))
+                    names.append(self[chan].name)
+            if formats:
+                rec = recarray(nrecords, dtype={'names': names, 'formats': formats})
+                return rec, channels_indexes
+            else:
+                return None, []
+
+    def read_channels_from_bytes(self, bita, info, channelSet=None, nrecords=None,
+                                 dtype=None, channels_indexes=None):
+        """ reads stream of record bytes using dataRead module if available otherwise bitarray
         
         Parameters
         ------------
         bita : stream
             stream of bytes
+        info: info class
         channelSet : set of str, optional
             set of channel to read
+        nrecords: int
+            number of records
+        dtype: numpy dtype
+        channels_indexes: list of int
         
         Returns
         --------
         rec : numpy recarray
             contains a matrix of raw data in a recarray (attributes corresponding to channel name)
         """
-        # initialise data structure
-        if channelSet is None:
-            channelSet = self.channelNames
-        try:  # use rather cython compiled code for performance
-            formats = []
-            names = []
-            for chan in range(len(self)):
-                if self[chan].name in channelSet:
-                    # dataRead will take care of byte order, switch to native
-                    formats.append(self[chan].nativedataFormat(info))
-                    names.append(self[chan].name)
-            if formats:  # at least some channels should be parsed
-                buf = recarray(self.numberOfRecords, formats=formats, names=names)
-                from dataRead import dataRead
+        if nrecords is None:
+            nrecords = self.numberOfRecords
+        # initialise recarray
+        if dtype is None:
+            buf, channels_indexes = self.initialise_recarray(info, channelSet, nrecords, dtype, channels_indexes)
+        else:
+            buf = recarray(nrecords, dtype=dtype)
+        if buf is not None:  # at least some channels should be parsed
+            if dataRead_available:  # use rather cython compiled code for performance
                 bytesdata = bytes(bita)
-                for chan in range(len(self)):
-                    if self[chan].name in channelSet:
-                        buf[self[chan].name] = \
-                            dataRead(bytesdata, self[chan].bitCount(info),
-                                     self[chan].signalDataType(info),
-                                     self[chan].nativedataFormat(info),
-                                     self.numberOfRecords, self.CGrecordLength,
-                                     self[chan].bitOffset(info), self[chan].posByteBeg(info),
-                                     self[chan].posByteEnd(info))
+                for chan in channels_indexes:
+                    buf[self[chan].name] = \
+                        dataRead(bytesdata, self[chan].bitCount(info),
+                                 self[chan].signalDataType(info),
+                                 self[chan].nativedataFormat(info),
+                                 nrecords, self.CGrecordLength,
+                                 self[chan].bitOffset(info), self[chan].posByteBeg(info),
+                                 self[chan].posByteEnd(info))
                 return buf
-        except:
-            print('Unexpected error:', exc_info(), file=stderr)
-            print('dataRead crashed, back to python data reading', file=stderr)
+            else:
+                return self.read_channels_from_bytes_fallback(bita, info, channelSet, nrecords, dtype)
+        else:
+            return []
+
+    def read_channels_from_bytes_fallback(self, bita, info, channelSet=None, nrecords=None,
+                                          dtype=None, channels_indexes=None):
+        """ reads stream of record bytes using bitarray in case no dataRead available
+
+        Parameters
+        ------------
+        bita : stream
+            stream of bytes
+        info: info class
+        channelSet : set of str, optional
+            set of channel to read
+        nrecords: int
+            number of records
+        dtype: numpy dtype
+        channels_indexes: list of int
+
+        Returns
+        --------
+        rec : numpy recarray
+            contains a matrix of raw data in a recarray (attributes corresponding to channel name)
+        """
+
+        def signedInt(temp, extension):
+            """ extend bits of signed data managing two's complement
+            """
+            extension.setall(False)
+            extensionInv = bitarray(extension, endian='little')
+            extensionInv.setall(True)
+            for i in range(nrecords):  # extend data of bytes to match numpy requirement
+                signBit = temp[i][-1]
+                if not signBit:  # positive value, extend with 0
+                    temp[i].extend(extension)
+                else:  # negative value, extend with 1
+                    signBit = temp[i].pop(-1)
+                    temp[i].extend(extensionInv)
+                    temp[i].append(signBit)
+            return temp
+        if nrecords is None:
+            nrecords = self.numberOfRecords
+        if dtype is None:
+            buf, channels_indexes = self.initialise_recarray(info, channelSet, nrecords, dtype, channels_indexes)
+        else:
+            buf = recarray(nrecords, dtype=dtype)
+        if buf is not None:
+            # read data
             from bitarray import bitarray
             B = bitarray(endian="little")  # little endian by default
             B.frombytes(bytes(bita))
-            def signedInt(temp, extension):
-                """ extend bits of signed data managing two's complement
-                """
-                extension.setall(False)
-                extensionInv = bitarray(extension, endian='little')
-                extensionInv.setall(True)
-                for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
-                    signBit = temp[i][-1]
-                    if not signBit:  # positive value, extend with 0
-                        temp[i].extend(extension)
-                    else:  # negative value, extend with 1
-                        signBit = temp[i].pop(-1)
-                        temp[i].extend(extensionInv)
-                        temp[i].append(signBit)
-                return temp
-            # read data
             record_bit_size = self.CGrecordLength * 8
-            for chan in range(len(self)):
-                if self[chan].name in channelSet:
-                    temp = [B[self[chan].posBitBeg(info) + record_bit_size * i:\
-                            self[chan].posBitEnd(info) + record_bit_size * i]\
-                                for i in range(self.numberOfRecords)]
-                    nbytes = len(temp[0].tobytes())
-                    signalDataType = self[chan].signalDataType(info)
-                    nBytes = self[chan].nBytes(info)
-                    if not nbytes == nBytes and \
-                            signalDataType not in (6, 7, 8, 9, 10, 11, 12): # not Ctype byte length
-                        byte = bitarray(8 * (nBytes - nbytes), endian='little')
-                        byte.setall(False)
-                        if signalDataType not in (2, 3):  # not signed integer
-                            for i in range(self.numberOfRecords):  # extend data of bytes to match numpy requirement
-                                temp[i].extend(byte)
-                        else:  # signed integer (two's complement), keep sign bit and extend with bytes
-                            temp = signedInt(temp, byte)
-                    nTrailBits = nBytes*8 - self[chan].bitCount(info)
-                    if signalDataType in (2, 3) and \
-                            nbytes == nBytes and \
-                            nTrailBits > 0:  # Ctype byte length but signed integer
-                        trailBits = bitarray(nTrailBits, endian='little')
-                        temp = signedInt(temp, trailBits)
-                    if 's' not in self[chan].Format(info):
-                        CFormat = self[chan].CFormat(info)
-                        if ('>' in self[chan].dataFormat(info) and byteorder == 'little') or \
-                           (byteorder == 'big' and '<' in self[chan].dataFormat(info)):
-                            temp = [CFormat.unpack(temp[i].tobytes())[0]
-                                    for i in range(self.numberOfRecords)]
-                            temp = asarray(temp).byteswap().newbyteorder()
-                        else: 
-                            temp = [CFormat.unpack(temp[i].tobytes())[0]
-                                    for i in range(self.numberOfRecords)]
-                            temp = asarray(temp)
+            for chan in channels_indexes:
+                temp = [B[self[chan].posBitBeg(info) + record_bit_size * i:
+                        self[chan].posBitEnd(info) + record_bit_size * i]
+                        for i in range(nrecords)]
+                nbytes = len(temp[0].tobytes())
+                signalDataType = self[chan].signalDataType(info)
+                nBytes = self[chan].nBytes(info)
+                if not nbytes == nBytes and \
+                        signalDataType not in (6, 7, 8, 9, 10, 11, 12):  # not Ctype byte length
+                    byte = bitarray(8 * (nBytes - nbytes), endian='little')
+                    byte.setall(False)
+                    if signalDataType not in (2, 3):  # not signed integer
+                        for i in range(nrecords):  # extend data of bytes to match numpy requirement
+                            temp[i].extend(byte)
+                    else:  # signed integer (two's complement), keep sign bit and extend with bytes
+                        temp = signedInt(temp, byte)
+                nTrailBits = nBytes*8 - self[chan].bitCount(info)
+                if signalDataType in (2, 3) and \
+                        nbytes == nBytes and \
+                        nTrailBits > 0:  # Ctype byte length but signed integer
+                    trailBits = bitarray(nTrailBits, endian='little')
+                    temp = signedInt(temp, trailBits)
+                if 's' not in self[chan].Format(info):
+                    CFormat = self[chan].CFormat(info)
+                    if ('>' in self[chan].dataFormat(info) and byteorder == 'little') or \
+                       (byteorder == 'big' and '<' in self[chan].dataFormat(info)):
+                        temp = [CFormat.unpack(temp[i].tobytes())[0]
+                                for i in range(nrecords)]
+                        temp = asarray(temp).byteswap().newbyteorder()
                     else:
-                        temp = [temp[i].tobytes()
-                                for i in range(self.numberOfRecords)]
+                        temp = [CFormat.unpack(temp[i].tobytes())[0]
+                                for i in range(nrecords)]
                         temp = asarray(temp)
-                    buf[self[chan].name] = temp
+                else:
+                    temp = [temp[i].tobytes()
+                            for i in range(nrecords)]
+                    temp = asarray(temp)
+                buf[self[chan].name] = temp
             return buf
+        else:
+            return []
 
 
 class mdf4(mdf_skeleton):
@@ -945,8 +1074,8 @@ class mdf4(mdf_skeleton):
         Converts all channels from raw data to converted data according to CCBlock information
     """
 
-    def read4(self, fileName=None, info=None, multiProc=False, channelList=None, \
-            convertAfterRead=True, filterChannelNames=False, compression=False):
+    def read4(self, fileName=None, info=None, multiProc=False, channelList=None,
+              convertAfterRead=True, filterChannelNames=False, compression=False):
         """ Reads mdf 4.x file data and stores it in dict
 
         Parameters
@@ -1272,7 +1401,7 @@ class mdf4(mdf_skeleton):
                         if conversion['type'] in (1, 2):  # more time in multi proc
                             self._convertChannel4(channelName)
                         else:
-                            proc.append(Process(target=convertChannelData4, \
+                            proc.append(Process(target=self._convertChannelData4,
                                     args=(channel, channelName, self.convert_tables, True, Q)))
                             proc[-1].start()
                 for p in proc:
