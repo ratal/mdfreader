@@ -218,9 +218,9 @@ class info3(dict):
                 if self.filterChannelNames:
                     signalname = signalname.split('.')[-1]  # filters channels modules
 
-                if self['CNBlock'][dg][cg][channel]['signalName'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
+                if signalname in self['ChannelNamesByDG'][dg]:  # for unsorted data
                     self['CNBlock'][dg][cg][channel]['signalName'] = \
-                            '{0}_{1}_{2}_{3}'.format(self['CNBlock'][dg][cg][channel]['signalName'], dg, cg, channel)
+                            '{0}_{1}_{2}_{3}'.format(signalname, dg, cg, channel)
                 elif signalname in self['allChannelList']:
                     # doublon name or master channel
                     self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signalname, dg)
