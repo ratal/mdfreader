@@ -554,9 +554,9 @@ class mdf(mdf3, mdf4):
         2. resampling will convert all your channels so be careful for big files
         and memory consumption
         """
-        def interpolate(x, y, new_x):
+        def interpolate(new_x, x, y):
             if y.dtype.kind == 'f':
-                return interp(x, y, new_x)
+                return interp(new_x, x, y)
             else:
                 idx = searchsorted(x, new_x, side='right')
                 idx -= 1
