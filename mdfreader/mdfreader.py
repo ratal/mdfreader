@@ -561,7 +561,7 @@ class mdf(mdf3, mdf4):
                 idx = searchsorted(x, new_x, side='right')
                 idx -= 1
                 idx = clip(idx, 0, idx[-1])
-                return x[idx]
+                return y[idx]
 
         if self:  # mdf contains data
             # must make sure all channels are converted
