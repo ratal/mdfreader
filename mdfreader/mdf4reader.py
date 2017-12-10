@@ -1176,26 +1176,27 @@ class mdf4(mdf_skeleton):
             info.fid = open(self.fileName, 'rb')
 
         # reads metadata
-        fileDateTime = gmtime(info['HD']['hd_start_time_ns'] / 1000000000)
-        ddate = strftime('%Y-%m-%d', fileDateTime)
-        ttime = strftime('%H:%M:%S', fileDateTime)
-        def returnField(obj, field):
-            if field in obj:
-                return obj[field]
+        if not self._noDataLoading:
+            fileDateTime = gmtime(info['HD']['hd_start_time_ns'] / 1000000000)
+            ddate = strftime('%Y-%m-%d', fileDateTime)
+            ttime = strftime('%H:%M:%S', fileDateTime)
+            def returnField(obj, field):
+                if field in obj:
+                    return obj[field]
+                else:
+                    return ''
+            if 'Comment' in info['HD']:
+                Comment = info['HD']['Comment']
+                author = returnField(Comment, 'author')
+                organisation = returnField(Comment, 'department')
+                project = returnField(Comment, 'project')
+                subject = returnField(Comment, 'subject')
+                comment = returnField(Comment, 'TX')
+                self.add_metadata(author=author, organisation=organisation,
+                        project=project, subject=subject, comment=comment,
+                        date=ddate, time=ttime)
             else:
-                return ''
-        if 'Comment' in info['HD']:
-            Comment = info['HD']['Comment']
-            author = returnField(Comment, 'author')
-            organisation = returnField(Comment, 'department')
-            project = returnField(Comment, 'project')
-            subject = returnField(Comment, 'subject')
-            comment = returnField(Comment, 'TX')
-            self.add_metadata(author=author, organisation=organisation,
-                    project=project, subject=subject, comment=comment,
-                    date=ddate, time=ttime)
-        else:
-            self.add_metadata(date=ddate, time=ttime)
+                self.add_metadata(date=ddate, time=ttime)
 
         for dataGroup in info['DG']:
             channelSet = channelSetFile
@@ -1218,9 +1219,6 @@ class mdf4(mdf_skeleton):
                                 and buf[recordID]['record'].channelNames:
                             if channelSet is not None and temp.master['name'] not in channelSet and not self._noDataLoading:
                                 channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
-                        if self._noDataLoading and channelSet is not None and \
-                                len(channelSet & buf[recordID]['record'].channelNames) > 0:
-                            channelSet = None  # will load complete datagroup
                         if channelSet is not None and buf[recordID]['record'].CANOpen:
                             # adds CANOpen channels if existing in not empty channelSet
                             if buf[recordID]['record'].CANOpen == 'time':
@@ -1241,7 +1239,11 @@ class mdf4(mdf_skeleton):
                                         and not chan.type == 'Inv': # normal channel
                                     if chan.channelType(info) not in (3, 6):  # not virtual channel
                                         # in case record is used for several channels
-                                        recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]
+                                        if channelSet is None and not buf[recordID]['record'].hiddenBytes \
+                                                and buf[recordID]['record'].byte_aligned:
+                                            recordName = buf[recordID]['record'].recordToChannelMatching[chan.name]
+                                        else:
+                                            recordName = chan.name
                                         if 'data' in buf[recordID] and \
                                                 buf[recordID]['data'] is not None:  # no data in channel group
                                             temp = buf[recordID]['data'][recordName]  # extract channel vector
@@ -1253,7 +1255,8 @@ class mdf4(mdf_skeleton):
                                     # Process concatenated bits inside uint8
                                     bitCount = chan.bitCount(info)
                                     if buf[recordID]['record'].byte_aligned \
-                                            and not buf[recordID]['record'].hiddenBytes and\
+                                            and not buf[recordID]['record'].hiddenBytes and \
+                                            channelSet is None and\
                                             0 < bitCount < 64 and bitCount not in (8, 16, 32) \
                                             and temp is not None\
                                             and temp.dtype.kind not in ('S', 'U'):

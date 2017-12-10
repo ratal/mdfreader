@@ -505,7 +505,7 @@ class record(list):
                     if channel.name in channelSet:
                         recChan.append(channel)
                         dataRecordName.append(channel.name)
-                        numpyDataRecordFormat.append(channel.dataFormat)
+                        numpyDataRecordFormat.append(channel.nativedataFormat)
                 rec = recarray(self.numberOfRecords, dtype={'names': dataRecordName,
                                                             'formats': numpyDataRecordFormat})
                 try:  # use rather cython compiled code for performance
@@ -517,18 +517,17 @@ class record(list):
                                            13: 0, 14: 2, 15: 4, 16: 4}
                     for nrecord_chunk, chunk_size in chunks:
                         bita = fid.read(chunk_size)
-                        for chan in range(len(self)):
-                            if self[chan].name in channelSet:
-                                rec[self[chan].name][previous_index: previous_index + nrecord_chunk] = \
-                                    dataRead(bytes(bita),
-                                             self[chan].bitCount,
-                                             convertDataType3to4[self[chan].signalDataType],
-                                             self[chan].nativedataFormat,
-                                             nrecord_chunk,
-                                             self.CGrecordLength,
-                                             self[chan].bitOffset,
-                                             self[chan].posByteBeg,
-                                             self[chan].posByteEnd)
+                        for chan in recChan:
+                            rec[chan.name][previous_index: previous_index + nrecord_chunk] = \
+                                dataRead(bytes(bita),
+                                         chan.bitCount,
+                                         convertDataType3to4[chan.signalDataType],
+                                         chan.nativedataFormat,
+                                         nrecord_chunk,
+                                         self.CGrecordLength,
+                                         chan.bitOffset,
+                                         chan.posByteBeg,
+                                         chan.posByteEnd)
                         previous_index += nrecord_chunk
                     return rec
                 except:
@@ -858,18 +857,19 @@ class mdf3(mdf_skeleton):
                 raise Exception('Can not find file ' + self.fileName)
 
         # reads metadata
-        try:
-            comment = info['HDBlock']['TXBlock']
-        except:
-            comment = ''
-        # converts date to be compatible with ISO8601
-        day, month, year = info['HDBlock']['Date'].split(':')
-        ddate = '-'.join([year, month, day])
-        self.add_metadata(author=info['HDBlock']['Author'],
-                organisation=info['HDBlock']['Organization'],
-                project=info['HDBlock']['ProjectName'],
-                subject=info['HDBlock']['Subject'], comment=comment,
-                    date=ddate, time=info['HDBlock']['Time'])
+        if not self._noDataLoading:
+            try:
+                comment = info['HDBlock']['TXBlock']
+            except:
+                comment = ''
+            # converts date to be compatible with ISO8601
+            day, month, year = info['HDBlock']['Date'].split(':')
+            ddate = '-'.join([year, month, day])
+            self.add_metadata(author=info['HDBlock']['Author'],
+                    organisation=info['HDBlock']['Organization'],
+                    project=info['HDBlock']['ProjectName'],
+                    subject=info['HDBlock']['Subject'], comment=comment,
+                        date=ddate, time=info['HDBlock']['Time'])
 
         # Read data from file
         for dataGroup in info['DGBlock']:
@@ -889,9 +889,6 @@ class mdf3(mdf_skeleton):
 
                     if temp.numberOfRecords != 0:  # continue if there are at least some records
                         buf.addRecord(temp)
-                        if self._noDataLoading and channelSet is not None and len(channelSet &
-                                buf[temp.recordID]['record'].channelNames) > 0:
-                            channelSet = None  # will load complete datagroup
 
                 buf.read(channelSet)  # reads datablock potentially containing several channel groups
 
@@ -904,17 +901,22 @@ class mdf3(mdf_skeleton):
                         channels = (c for c in buf[recordID]['record']
                                     if channelSet is None or c.name in channelSet)
 
-                        for chan in channels: # for each recordchannel
+                        for chan in channels:  # for each recordchannel
                             # in case record is used for several channels
-                            recordName = buf[recordID]['record'].\
+                            if channelSet is None and not buf[recordID]['record'].hiddenBytes \
+                                    and buf[recordID]['record'].byte_aligned:
+                                recordName = buf[recordID]['record'].\
                                     recordToChannelMatching[chan.name]
+                            else:
+                                recordName = chan.name
                             temp = buf[recordID]['data'][recordName]
 
                             if len(temp) != 0:
                                 # Process concatenated bits inside uint8
                                 if not chan.bitCount // 8.0 == chan.bitCount / 8.0 \
                                         and not buf[recordID]['record'].hiddenBytes \
-                                        and buf[recordID]['record'].byte_aligned:
+                                        and buf[recordID]['record'].byte_aligned \
+                                        and channelSet is None:
                                     # if channel data do not use complete bytes
                                     if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
                                         temp = right_shift(temp, chan.embedding_channel_bitOffset)
