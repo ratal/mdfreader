@@ -931,6 +931,8 @@ class mdf(mdf3, mdf4):
                 compression_opts = None
             elif compression == 'lzf':
                 compression_opts = None
+            if compression_opts not in range(10):
+                compression_opts = None
         else:
             compression_opts = None
 
