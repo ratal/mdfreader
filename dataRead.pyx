@@ -61,13 +61,13 @@ def dataRead(bytes tmp, unsigned short bitCount, \
         else: #  swap bytes
             return dataReadDouble(bita, RecordFormat, numberOfRecords, \
                 record_byte_size, posByteBeg, 1)
-    elif signalDataType in (0, 1) and bitCount <= 8:  # unsigned char
+    elif signalDataType in (0, 1, 13) and bitCount <= 8:  # unsigned char
         return dataReadUChar(bita, RecordFormat, numberOfRecords, \
             record_byte_size, posByteBeg, bitCount, bitOffset)
     elif signalDataType in (2, 3) and bitCount <= 8:  # signed char
         return dataReadChar(bita, RecordFormat, numberOfRecords, \
             record_byte_size, posByteBeg, bitCount, bitOffset)
-    elif signalDataType in (0, 1) and bitCount <=16:  # unsigned short
+    elif signalDataType in (0, 1, 13, 14) and bitCount <=16:  # unsigned short
         if (byteorder == 'little' and signalDataType == 0) or \
                 (byteorder == 'big' and signalDataType == 1):
             return dataReadUShort(bita, RecordFormat, numberOfRecords, \
@@ -83,7 +83,7 @@ def dataRead(bytes tmp, unsigned short bitCount, \
         else: #  swap bytes
             return dataReadShort(bita, RecordFormat, numberOfRecords, \
                 record_byte_size, posByteBeg, bitCount, bitOffset, 1)
-    elif signalDataType in (0, 1) and bitCount <=32:  # unsigned int
+    elif signalDataType in (0, 1, 14) and bitCount <=32:  # unsigned int
         if (byteorder == 'little' and signalDataType == 0) or \
                 (byteorder == 'big' and signalDataType == 1):
             return dataReadUInt(bita, RecordFormat, numberOfRecords, \
