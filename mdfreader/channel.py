@@ -393,6 +393,16 @@ class channel4(object):
                 while 'CABlock' in Block:  # nested array
                     Block = Block['CABlock']
                     nBytes *= Block['PNd']
+            if self.type == 'CAN':
+                if self.name == 'ms':
+                    if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'] == 13:
+                        nBytes = 2
+                    else:
+                        nBytes = 4
+                elif self.name == 'days':
+                    nBytes = 2
+                else:
+                    nBytes = 1
             return nBytes
         else:
             return info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
@@ -572,19 +582,18 @@ class channel4(object):
             return 0
         elif self.name == 'days':
             return 4
+        elif self.name == 'minute':
+            return 2
+        elif self.name == 'hour':
+            return 3
+        elif self.name == 'day':
+            return 4
+        elif self.name == 'month':
+            return 5
+        elif self.name == 'year':
+            return 6
         else:
-            if self.name == 'minute':
-                return 2
-            elif self.name == 'hour':
-                return 3
-            elif self.name == 'day':
-                return 4
-            elif self.name == 'month':
-                return 5
-            elif self.name == 'year':
-                return 6
-            else:
-                print('CANopen type not understood')
+            print('CANopen type not understood')
 
     def bitOffset(self, info):
         """ channel data bit offset in record
