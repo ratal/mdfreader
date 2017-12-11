@@ -873,7 +873,7 @@ class mdf(mdf3, mdf4):
             var[name] = self.getChannelData(name)
         f.close()
 
-    def exportToHDF5(self, filename=None, sampling=None):
+    def exportToHDF5(self, filename=None, sampling=None, compression=None, compression_opts=None):
         """Exports mdf class data structure into hdf5 file
 
         Parameters
@@ -883,6 +883,15 @@ class mdf(mdf3, mdf4):
 
         sampling : float, optional
             sampling interval.
+
+        compression : str, optional
+            HDF5 compression algorithm. Valid options are 'gzip', 'lzf'.
+            gzip compression recommended for portability.
+            szip compression not supported due to legal reasons.
+
+        compression_opts : int, optional
+            HDF5 gzip compression level, 0-9. Only valid if gzip compression is used.
+            Level 4 (default) recommended for best balance between compression and time.
 
         Dependency
         ------------------
@@ -915,6 +924,18 @@ class mdf(mdf3, mdf4):
         if filename is None:
             filename = splitext(self.fileName)[0]
             filename = filename + '.hdf'
+        if compression is not None:
+            compression = compression.lower()
+            if compression not in ['gzip', 'lzf']:
+                compression = None
+                compression_opts = None
+            elif compression == 'lzf':
+                compression_opts = None
+            if compression_opts not in range(10):
+                compression_opts = None
+        else:
+            compression_opts = None
+
         f = h5py.File(filename, 'w')  # create hdf5 file
         # create group in root associated to file
         filegroup = f.create_group(os.path.basename(filename))
@@ -951,7 +972,10 @@ class mdf(mdf3, mdf4):
                 elif masterField in self[channel] and masterName in list(groups.keys()):
                     group_name = masterName
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
-                    dset = grp[groups[group_name]].create_dataset(channel, data=channelData)
+                    dset = grp[groups[group_name]].create_dataset(channel,
+                                                                  data=channelData,
+                                                                  compression=compression,
+                                                                  compression_opts=compression_opts)
                     setAttribute(dset, unitField, self.getChannelUnit(channel))
                     if descriptionField in self[channel]:
                         setAttribute(dset, descriptionField, self.getChannelDesc(channel))
@@ -963,7 +987,9 @@ class mdf(mdf3, mdf4):
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
-                    dset = filegroup.create_dataset(channel, data=channelData)
+                    dset = filegroup.create_dataset(channel, data=channelData,
+                                                    compression=compression,
+                                                    compression_opts=compression_opts)
                     setAttribute(dset, unitField, self.getChannelUnit(channel))
                     if descriptionField in self[channel]:
                         setAttribute(dset, descriptionField, self.getChannelDesc(channel))
