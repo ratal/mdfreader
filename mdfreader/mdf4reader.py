@@ -980,13 +980,18 @@ class record(list):
             if dataRead_available:  # use rather cython compiled code for performance
                 bytesdata = bytes(bita)
                 for chan in channels_indexes:
+                    ca = self[chan].CABlock(info)
+                    if ca is not None:
+                        array_flag = ca['ca_ndim']
+                    else:
+                        array_flag = 0
                     buf[self[chan].name] = \
                         dataRead(bytesdata, self[chan].bitCount(info),
                                  self[chan].signalDataType(info),
                                  self[chan].nativedataFormat(info),
                                  nrecords, self.CGrecordLength,
                                  self[chan].bitOffset(info), self[chan].posByteBeg(info),
-                                 self[chan].posByteEnd(info))
+                                 self[chan].posByteEnd(info), array_flag)
                 return buf
             else:
                 return self.read_channels_from_bytes_fallback(bita, info, channelSet, nrecords, dtype)

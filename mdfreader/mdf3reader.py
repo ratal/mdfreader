@@ -527,7 +527,7 @@ class record(list):
                                          self.CGrecordLength,
                                          chan.bitOffset,
                                          chan.posByteBeg,
-                                         chan.posByteEnd)
+                                         chan.posByteEnd, 0)
                         previous_index += nrecord_chunk
                     return rec
                 except:
