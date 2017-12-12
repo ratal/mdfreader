@@ -22,19 +22,21 @@ PythonVersion : float
 mdfinfo3 module
 --------------------------
 """
+from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
 from sys import version_info, stderr
 from numpy import sort, zeros
 from struct import unpack, Struct
+from .mdf import dataField, descriptionField, unitField, masterField, masterTypeField
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
-from mdf import dataField, descriptionField, unitField, masterField, masterTypeField
 
 cn_struct = Struct('<2sH5IH32s128s4H3d2IH')
 tx_struct = Struct('<2sH')
 cc_struct = Struct('<2s2H2d20s2H')
 dg_struct = Struct('<2sH4I2H')
 cg_struct = Struct('<2sH3I3HI')
+
 
 class info3(dict):
     __slots__ = ['fileName', 'fid', 'filterChannelNames']

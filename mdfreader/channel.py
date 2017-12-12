@@ -24,14 +24,11 @@ channel module
 --------------------------
 
 """
+from __future__ import absolute_import  # for consistency between python 2 and 3
 from struct import Struct
-from sys import path, stderr
-from os.path import dirname, abspath
-_root = dirname(abspath(__file__))
-path.append(_root)
-from mdfinfo4 import ATBlock
-from mdf import _bits_to_bytes, _convertName
 from numpy import right_shift, bitwise_and
+from .mdfinfo4 import ATBlock
+from .mdf import _bits_to_bytes, _convertName
 
 
 class channel4(object):

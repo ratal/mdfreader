@@ -27,6 +27,7 @@ mdf4reader module
 --------------------------
 
 """
+from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
 from struct import Struct
 from struct import unpack as structunpack
@@ -34,8 +35,7 @@ from math import pow
 from io import open  # for python 3 and 2 consistency
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
-from sys import version_info, byteorder, stderr, path
-from os.path import dirname, abspath
+from sys import version_info, byteorder, stderr
 from collections import defaultdict
 from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, append, asarray, empty, where
@@ -43,15 +43,12 @@ from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from numpy import max as npmax, min as npmin
 from numpy.lib.recfunctions import rec_append_fields, rename_fields
 from warnings import simplefilter, warn
-
-_root = dirname(abspath(__file__))
-path.append(_root)
-from mdfinfo4 import info4, IDBlock, HDBlock, DGBlock, \
+from .mdfinfo4 import info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
     DZBlock, HLBlock, CCBlock, _writePointer, _writeHeader
-from mdf import mdf_skeleton, _open_MDF, \
+from .mdf import mdf_skeleton, _open_MDF, \
     dataField, conversionField, compressed_data
-from channel import channel4
+from .channel import channel4
 try:
     from dataRead import dataRead
     dataRead_available = True

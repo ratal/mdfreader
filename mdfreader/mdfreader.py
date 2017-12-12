@@ -31,25 +31,23 @@ PythonVersion : float
 mdfreader module
 --------------------------
 """
+from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
 from io import open
 from struct import unpack
 from math import ceil
-from os.path import dirname, abspath, splitext
+from os.path import splitext
 from os import remove
-from sys import version_info, stderr, path
+from sys import version_info, stderr
 from datetime import datetime
 from argparse import ArgumentParser
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
 from numpy import nan, datetime64, array, searchsorted, clip
-
-_root = dirname(abspath(__file__))
-path.append(_root)
-from mdf3reader import mdf3
-from mdf4reader import mdf4
-from mdf import _open_MDF, dataField, descriptionField, unitField, masterField, masterTypeField
-from mdfinfo3 import info3, _generateDummyMDF3
-from mdfinfo4 import info4, _generateDummyMDF4
+from .mdf3reader import mdf3
+from .mdf4reader import mdf4
+from .mdf import _open_MDF, dataField, descriptionField, unitField, masterField, masterTypeField
+from .mdfinfo3 import info3, _generateDummyMDF3
+from .mdfinfo4 import info4, _generateDummyMDF4
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -188,10 +186,8 @@ class mdfinfo(dict):
         MDFVersionNumber = unpack('<H', self.fid.read(2))
         self.mdfversion = MDFVersionNumber[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
-            from mdfinfo3 import info3
             self.update(info3(None, self.fid, self.filterChannelNames))
         else:  # MDF version 4.x
-            from mdfinfo4 import info4
             self.update(info4(None, self.fid, minimal))
             if self.zipfile and fid is None: # not from mdfreader.read()
                 remove(self.fileName)

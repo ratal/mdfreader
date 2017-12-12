@@ -23,20 +23,17 @@ PythonVersion : float
 mdfinfo4 module
 --------------------------
 """
+from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
-
 from struct import calcsize, unpack, pack, Struct
-from os.path import dirname, abspath
 from os import remove
-from sys import version_info, stderr, path
+from sys import version_info, stderr
 from numpy import sort, zeros
 import time
 from xml.etree.ElementTree import Element, SubElement, \
     tostring, register_namespace
 from lxml import objectify
-_root = dirname(abspath(__file__))
-path.append(_root)
-from mdf import _open_MDF, dataField, descriptionField, unitField, \
+from .mdf import _open_MDF, dataField, descriptionField, unitField, \
     masterField, masterTypeField, _convertName
 
 PythonVersion = version_info

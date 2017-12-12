@@ -17,12 +17,14 @@ Dependencies
 mdf module
 --------------------------
 """
+from __future__ import absolute_import  # for consistency between python 2 and 3
+from __future__ import print_function
 from io import open
 from zipfile import is_zipfile, ZipFile
 from itertools import chain
 from random import choice
 from string import ascii_letters
-from sys import version_info, getsizeof
+from sys import version_info
 from pandas import set_option
 from collections import OrderedDict,defaultdict
 from numpy import array_repr, set_printoptions, recarray, fromstring

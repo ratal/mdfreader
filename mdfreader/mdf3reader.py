@@ -24,6 +24,7 @@ PythonVersion : float
 mdf3reader module
 --------------------------
 """
+from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
 from numpy import right_shift, bitwise_and, interp
 from numpy import max as npmax, min as npmin
@@ -35,20 +36,15 @@ from math import log, exp
 from time import strftime, time, gmtime
 from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
-from sys import platform, exc_info, version_info, stderr, path
-from os.path import dirname, abspath
+from sys import platform, exc_info, version_info, stderr
 import os
+from warnings import simplefilter
+from .mdf import mdf_skeleton, _open_MDF, \
+    dataField, conversionField, compressed_data
+from .mdfinfo3 import info3
+from .channel import Channel3
 if os.name == 'posix':
     from os import getlogin
-
-from warnings import simplefilter
-
-_root = dirname(abspath(__file__))
-path.append(_root)
-from mdf import mdf_skeleton, _open_MDF, _bits_to_bytes, \
-    dataField, conversionField, compressed_data
-from mdfinfo3 import info3
-from channel import Channel3
 
 
 PythonVersion = version_info
@@ -982,7 +978,7 @@ class mdf3(mdf_skeleton):
         numpy array
             returns numpy array converted to physical values according to conversion type
         """
-        
+
         if self[channelName][dataField] is None:
             vect = self[channelName][dataField]
         else:
