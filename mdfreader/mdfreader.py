@@ -216,11 +216,9 @@ class mdfinfo(dict):
         MDFVersionNumber = unpack('<H', self.fid.read(2))
         self.mdfversion = MDFVersionNumber[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
-            from mdfinfo3 import info3
             channelNameList = info3()
             nameList = channelNameList.listChannels3(self.fileName, self.fid)
         else:
-            from mdfinfo4 import info4
             channelNameList = info4()
             nameList = channelNameList.listChannels4(self.fileName, self.fid)
             if zipfile: # not from mdfreader.read()
@@ -236,10 +234,8 @@ class mdfinfo(dict):
             list of channels
         """
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
-            from mdfinfo3 import _generateDummyMDF3
             return _generateDummyMDF3(self, channelList)
         else:  # MDF version 4.x
-            from mdfinfo4 import _generateDummyMDF4
             return _generateDummyMDF4(self, channelList)
 
 
