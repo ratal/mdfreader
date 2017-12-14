@@ -651,7 +651,7 @@ class record(list):
         if 'MLSD' in info:
             self.MLSD = info['MLSD']
         embedding_channel = None
-        for channelNumber in range(len(info['CN'][self.dataGroup][self.channelGroup])):
+        for channelNumber in info['CN'][self.dataGroup][self.channelGroup]:
             Channel = channel4()
             Channel.set(info, self.dataGroup, self.channelGroup, channelNumber)
             channelType = Channel.channelType(info)
@@ -1506,18 +1506,16 @@ class mdf4(mdf_skeleton):
         temp.write(fid, self.file_metadata, 'FH')
 
         # write DG block
-        _writePointer(fid, pointers['HD']['DG'], fid.tell()) # first DG
+        _writePointer(fid, pointers['HD']['DG'], fid.tell())  # first DG
 
         pointers['DG'] = {}
         pointers['CG'] = {}
         pointers['CN'] = {}
         DG_flag = 0
-        ndataGroup = len(self.masterChannelList)
-        for dataGroup in range(ndataGroup):
+        for ndataGroup, dataGroup in enumerate(self.masterChannelList):
             masterChannel = list(self.masterChannelList.keys())[dataGroup]
             # writes dataGroup Block
             temp = DGBlock()
-            DG_pointer = fid.tell()
             pointers['DG'][dataGroup] = temp.write(fid)
             if DG_flag:
                 _writePointer(fid, pointers['DG'][dataGroup-1]['DG'], pointers['DG'][dataGroup]['block_start'])  # Next DG
@@ -1533,22 +1531,20 @@ class mdf4(mdf_skeleton):
             # write channels
             record_byte_offset = 0
             CN_flag = 0
-            nChannel = len(self.masterChannelList[masterChannel])
             number_of_channel = 0
             nRecords = 0
             dataList = ()
             dataTypeList = ''
-            for nchannel in range(nChannel):
-                channel = self.masterChannelList[masterChannel][nchannel]
+            for nchannel, channel in enumerate(self.masterChannelList[masterChannel]):
                 data = self.getChannelData(channel)
                 # no interest to write invalid bytes as channel
                 if channel.find('invalid_bytes') == -1 and len(data) > 0:
                     dataList = dataList + (data, )
-                    number_of_channel +=1
+                    number_of_channel += 1
                     temp = CNBlock()
                     temp['cn_val_range_min'] = npmin(data)
                     temp['cn_val_range_max'] = npmax(data)
-                    temp['cn_flags'] = 16 # only Bit 4: Limit range valid flag
+                    temp['cn_flags'] = 16  # only Bit 4: Limit range valid flag
                     if masterChannel is not channel:
                         temp['cn_type'] = 0
                         temp['cn_sync_type'] = 0
@@ -1575,7 +1571,7 @@ class mdf4(mdf_skeleton):
                         print(cn_numpy_dtype, cn_numpy_kind, file=stderr)
                         raise Exception('Not recognized dtype')
                     temp['cn_data_type'] = data_type
-                    temp['cn_bit_offset'] = 0 # always byte aligned
+                    temp['cn_bit_offset'] = 0  # always byte aligned
                     if cn_numpy_dtype in ('float64', 'int64', 'uint64'):
                         bit_count = 64
                         byte_count = 8
