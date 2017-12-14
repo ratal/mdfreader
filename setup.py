@@ -47,6 +47,8 @@ classifiers = [
     'Programming Language :: Python :: 2.7',
     'Programming Language :: Python :: 3',
     'Programming Language :: Python :: 3.4',
+    'Programming Language :: Python :: 3.5',
+    'Programming Language :: Python :: 3.6'
 ]
 
 # What does your project relate to?
@@ -60,13 +62,14 @@ packages = find_packages(exclude=['contrib', 'docs', 'tests*'])
 # project is installed. For an analysis of "install_requires" vs pip's
 # requirements files see:
 # https://packaging.python.org/en/latest/technical.html#install-requires-vs-requirements-files
-install_requires = ['numpy>=1.7', 'sympy', 'cython>=0.21', 'lxml']
+install_requires = ['numpy>=1.13', 'sympy', 'cython>=0.21', 'lxml']
 
 # List additional groups of dependencies here (e.g. development dependencies).
 # You can install these using the following syntax, for example:
 # $ pip install -e .[dev,test]
 extras_require = {
     'export': ['scipy', 'h5py', 'xlwt', 'xlwt3', 'openpyxl', 'pandas'],
+    'plot': ['matplotlib'],
     'converter': ['PyQt4'],
     'experimental': ['bitarray'],
     'compression': ['blosc'],
