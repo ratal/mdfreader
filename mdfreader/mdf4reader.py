@@ -1277,13 +1277,13 @@ class mdf4(mdf_skeleton):
                                         # string data decoding
                                         if temp.dtype.kind == 'S':
                                             signalDataType = chan.signalDataType(info)
-                                            if signalDataType == 6: # string ISO-8859-1 Latin
+                                            if signalDataType == 6:  # string ISO-8859-1 Latin
                                                 encoding = 'latin-1'
-                                            elif signalDataType == 7: # UTF-8
+                                            elif signalDataType == 7:  # UTF-8
                                                 encoding = 'UTF-8'
-                                            elif signalDataType == 8: # UTF-16 low endian
+                                            elif signalDataType == 8:
                                                 encoding = 'UTF-16LE'
-                                            elif signalDataType == 9: # UTF-16 big endian
+                                            elif signalDataType == 9:  # UTF-16 big endian
                                                 encoding = 'UTF-16BE'
                                             else:
                                                 encoding = None
@@ -1298,14 +1298,14 @@ class mdf4(mdf_skeleton):
                                                 temp = temp2
 
                                         # channel creation
-                                        self.add_channel(dataGroup, chan.name, temp, \
-                                            master_channel, \
-                                            master_type=chan.channelSyncType(info), \
-                                            unit=chan.unit(info), \
-                                            description=chan.desc(info), \
-                                            conversion=chan.conversion(info), \
-                                            info=chan.CNBlock(info), \
-                                            compression=compression)
+                                        self.add_channel(dataGroup, chan.name, temp,
+                                                         master_channel,
+                                                         master_type=chan.channelSyncType(info),
+                                                         unit=chan.unit(info),
+                                                         description=chan.desc(info),
+                                                         conversion=chan.conversion(info),
+                                                         info=chan.CNBlock(info),
+                                                         compression=compression)
                                         if chan.channelType(info) == 4:  # sync channel
                                             # attach stream to be synchronised
                                             self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
@@ -1389,7 +1389,7 @@ class mdf4(mdf_skeleton):
                 vect = channel[dataField].decompression()  # uncompressed blosc data
             else:
                 vect = channel[dataField][:]  # to have bcolz uncompressed data
-        if conversionField in channel:  # there is conversion property
+        if conversionField in channel and channel[conversionField]['type']:  # there is conversion property
             text_type = vect.dtype.kind in ['S', 'U', 'V']  # channel of string or not ?
             conversion_type = channel[conversionField]['type']
             conversion_parameter = channel[conversionField]['parameters']
@@ -1869,7 +1869,7 @@ def valueRangeToTextConv(vect, cc_val, cc_ref):
                 # formula to be applied
                 cc_ref[ref] = lambdify(X, cc_ref[ref]['cc_ref']['Comment']
                                        , modules='numpy', dummify=False)
-            elif cc_ref[ref]['cc_type'] == 1: # linear conversion
+            elif cc_ref[ref]['cc_type'] == 1:  # linear conversion
                 cc_ref[ref] = lambdify(X, '{0}* X + {1}'.format(cc_val[1], cc_val[0])
                                        , modules='numpy', dummify=False)
             else:  # identity, non conversion
