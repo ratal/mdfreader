@@ -25,9 +25,13 @@ from itertools import chain
 from random import choice
 from string import ascii_letters
 from sys import version_info
-from pandas import set_option
 from collections import OrderedDict,defaultdict
+from warnings import simplefilter, warn
 from numpy import array_repr, set_printoptions, recarray, fromstring
+try:
+    from pandas import set_option
+except ImportError:
+    warn('Pandas export will not be possible', ImportWarning)
 set_printoptions(threshold=100, edgeitems=1)
 _notAllowedChannelNames = set(dir(recarray))
 try:
