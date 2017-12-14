@@ -62,7 +62,7 @@ packages = find_packages(exclude=['contrib', 'docs', 'tests*'])
 # project is installed. For an analysis of "install_requires" vs pip's
 # requirements files see:
 # https://packaging.python.org/en/latest/technical.html#install-requires-vs-requirements-files
-install_requires = ['numpy>=1.13', 'sympy', 'cython>=0.21', 'lxml']
+install_requires = ['numpy>=1.13.1', 'sympy', 'cython>=0.21', 'lxml']
 
 # List additional groups of dependencies here (e.g. development dependencies).
 # You can install these using the following syntax, for example:
