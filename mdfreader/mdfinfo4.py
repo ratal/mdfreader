@@ -252,7 +252,9 @@ class HDBlock(dict):
          self['hd_start_distance']) = unpack('<4sI9Q2h4B2Q', fid.read(104))
         if self['hd_md_comment']:  # if comments exist
             self['Comment'] = {}
-            self['Comment'].update(CommentBlock(fid, self['hd_md_comment'], 'HD'))
+            comment = CommentBlock()
+            comment.read(fid=fid, pointer=self['hd_md_comment'], MDType='HD')
+            self['Comment'].update(comment)
 
     def write(self, fid):
         # write block header
@@ -306,7 +308,9 @@ class FHBlock(dict):
          fh_reserved) = unpack('<4sI5Q2hB3s', fid.read(56))
         if self['fh_md_comment']:  # comments exist
             self['Comment'] = {}
-            self['Comment'].update(CommentBlock(fid, self['fh_md_comment'], 'FH'))
+            comment = CommentBlock()
+            comment.read(fid=fid, pointer=self['fh_md_comment'], MDType='FH')
+            self['Comment'].update(comment)
 
     def write(self, fid):
         # write block header
@@ -350,23 +354,28 @@ class CHBlock(dict):
          ch_reserved) = unpack('<IB3s', fid.read(8))
         if self['ch_md_comment']:  # comments exist
             self['Comment'] = {}
-            self['Comment'].update(CommentBlock(fid, self['ch_md_comment']))
+            comment= CommentBlock()
+            comment.read(fid=fid, pointer=self['ch_md_comment'])
+            self['Comment'].update(comment)
         if self['ch_tx_name']:  # text block containing name of hierarchy level
             self['ch_name_level'] = {}
-            self['ch_name_level'].update(CommentBlock(fid, self['ch_tx_name']))
+            comment = CommentBlock()
+            comment.read(fid=fid, pointer=self['ch_tx_name'])
+            self['ch_name_level'].update(comment)
 
 
 class CommentBlock(dict):
-    __slots__ = []
     """ reads or writes Comment block and saves in class dict
     """
-
-    def __init__(self, fid=None, pointer=None, MDType=None):
-        if fid is not None:
-            self.read(fid, pointer, MDType)
-
-    def read(self, fid, pointer, MDType=None):
+    def read(self, **kargs):
         """ reads Comment block and saves in class dict
+        Parameters
+        ----------
+        fid: file identifier
+        pointer: int
+            position in file
+        MDType: str
+            describes metadata type, ('CN', 'unit', 'FH', 'SI', 'HD', 'CC')
 
         Notes
         --------
@@ -374,145 +383,148 @@ class CommentBlock(dict):
         kind of blocks
         """
 
-        if pointer > 0:
-            fid.seek(pointer)
+        if kargs['pointer'] > 0:
+            kargs['fid'].seek(kargs['pointer'])
             # block header
             (self['id'],
              reserved,
              self['length'],
-             self['link_count']) = HeaderStruct.unpack(fid.read(24))
+             self['link_count']) = HeaderStruct.unpack(kargs['fid'].read(24))
             if self['id'] in ('##MD', b'##MD'):
                 # Metadata block
                 # removes normal 0 at end
                 # self['Comment'] = None
                 try:
-                    xml_tree = objectify.fromstring(fid.read(self['length'] - 24).rstrip(b'\x00'))
+                    xml_tree = objectify.fromstring(kargs['fid'].read(self['length'] - 24).rstrip(b'\x00'))
                 except:
                     print('xml metadata malformed', file=stderr)
                     xml_tree = None
                 # specific action per comment block type,
                 # #extracts specific tags from xml
-                if MDType == 'CN':  # channel comment
-                    try:
-                        self['description'] = xml_tree.TX.text
-                    except AttributeError:
-                        print('Could not parse CN block TX tag')
-                    try:
-                        self['names'] = xml_tree.names.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        self['linker_name'] = xml_tree.linker_name.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        self['linker_address'] = xml_tree.linker_address.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        self['address'] = xml_tree.address.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        self['axis_monotony'] = xml_tree.axis_monotony.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        self['raster'] = xml_tree.raster.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        self['formula'] = xml_tree.formula.text
-                    except AttributeError:
-                        pass  # optional
-                elif MDType == 'unit':  # channel comment
-                    try:
-                        self['unit'] = xml_tree.TX
-                    except AttributeError:
-                        print('Could not parse unit TX tag')
-                elif MDType == 'HD':  # header comment
-                    try:
-                        self['TX'] = xml_tree.TX.text
-                    except AttributeError:
-                        print('Could not parse HD block TX tag')
-                    try:
-                        self['time_source'] = xml_tree.time_source.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        tmp = xml_tree.common_properties
-                        for t in range(tmp.countchildren()):
-                            self[tmp.e[t].attrib.values()[0]] = tmp.e[t].text
-                    except AttributeError:
-                        pass  # optional
-                elif MDType == 'FH':  # File History comment
-                    try:
-                        self['TX'] = xml_tree.TX.text
-                    except AttributeError:
-                        print('Could not parse FH block TX tag')
-                    try:
-                        self['tool_id'] = xml_tree.tool_id.text
-                    except AttributeError:
-                        print('Could not parse FH block tool_id tag')
-                    try:
-                        self['tool_vendor'] = xml_tree.tool_vendor.text
-                    except AttributeError:
-                        print('Could not parse extract HD block tool_vendor tag')
-                    try:
-                        self['tool_version'] = xml_tree.tool_version.text
-                    except AttributeError:
-                        print('Could not parse extract HD block tool_vendor tag')
-                    try:
-                        self['user_name'] = xml_tree.user_name.text
-                    except AttributeError:
-                        pass  # optional
-                elif MDType == 'SI':
-                    try:
-                        self['TX'] = xml_tree.TX.text
-                    except AttributeError:
-                        print('Could not parse SI block TX tag')
-                    try:
-                        self['names'] = xml_tree.names.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        self['path'] = xml_tree.path.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        self['bus'] = xml_tree.bus.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        self['protocol'] = xml_tree.protocol.text
-                    except AttributeError:
-                        pass  # optional
-                elif MDType == 'CC':
-                    try:
-                        self['TX'] = xml_tree.TX.text
-                    except AttributeError:
-                        print('Could not parse CC block TX tag')
-                    try:
-                        self['names'] = xml_tree.names.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        self['COMPU_METHOD'] = xml_tree.COMPU_METHOD.text
-                    except AttributeError:
-                        pass  # optional
-                    try:
-                        self['formula'] = xml_tree.formula.text
-                    except AttributeError:
-                        pass  # optional
-                else:
-                    if MDType is not None:
-                        print('No recognized MDType', file=stderr)
-                        print(MDType, file=stderr)
+                if 'MDType' in kargs:
+                    if kargs['MDType'] == 'CN':  # channel comment
+                        try:
+                            self['description'] = xml_tree.TX.text
+                        except AttributeError:
+                            print('Could not parse CN block TX tag')
+                        try:
+                            self['names'] = xml_tree.names.text
+                        except AttributeError:
+                            pass  # optional
+                        if 'minimal' in kargs and kargs['minimal'] is False:
+                            # not really used for the moment
+                            try:
+                                self['axis_monotony'] = xml_tree.axis_monotony.text
+                            except AttributeError:
+                                pass  # optional
+                            try:
+                                self['raster'] = xml_tree.raster.text
+                            except AttributeError:
+                                pass  # optional
+                            try:
+                                self['formula'] = xml_tree.formula.text
+                            except AttributeError:
+                                pass  # optional
+                            try:
+                                self['linker_name'] = xml_tree.linker_name.text
+                            except AttributeError:
+                                pass  # optional
+                            try:
+                                self['linker_address'] = xml_tree.linker_address.text
+                            except AttributeError:
+                                pass  # optional
+                            try:
+                                self['address'] = xml_tree.address.text
+                            except AttributeError:
+                                pass  # optional
+                    elif kargs['MDType'] == 'unit':  # channel comment
+                        try:
+                            self['unit'] = xml_tree.TX
+                        except AttributeError:
+                            print('Could not parse unit TX tag')
+                    elif kargs['MDType'] == 'HD':  # header comment
+                        try:
+                            self['TX'] = xml_tree.TX.text
+                        except AttributeError:
+                            print('Could not parse HD block TX tag')
+                        try:
+                            self['time_source'] = xml_tree.time_source.text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            tmp = xml_tree.common_properties
+                            for t in range(tmp.countchildren()):
+                                self[tmp.e[t].attrib.values()[0]] = tmp.e[t].text
+                        except AttributeError:
+                            pass  # optional
+                    elif kargs['MDType'] == 'FH':  # File History comment
+                        try:
+                            self['TX'] = xml_tree.TX.text
+                        except AttributeError:
+                            print('Could not parse FH block TX tag')
+                        try:
+                            self['tool_id'] = xml_tree.tool_id.text
+                        except AttributeError:
+                            print('Could not parse FH block tool_id tag')
+                        try:
+                            self['tool_vendor'] = xml_tree.tool_vendor.text
+                        except AttributeError:
+                            print('Could not parse extract HD block tool_vendor tag')
+                        try:
+                            self['tool_version'] = xml_tree.tool_version.text
+                        except AttributeError:
+                            print('Could not parse extract HD block tool_vendor tag')
+                        try:
+                            self['user_name'] = xml_tree.user_name.text
+                        except AttributeError:
+                            pass  # optional
+                    elif kargs['MDType'] == 'SI':
+                        try:
+                            self['TX'] = xml_tree.TX.text
+                        except AttributeError:
+                            print('Could not parse SI block TX tag')
+                        try:
+                            self['names'] = xml_tree.names.text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['path'] = xml_tree.path.text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['bus'] = xml_tree.bus.text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['protocol'] = xml_tree.protocol.text
+                        except AttributeError:
+                            pass  # optional
+                    elif kargs['MDType'] == 'CC':
+                        try:
+                            self['TX'] = xml_tree.TX.text
+                        except AttributeError:
+                            print('Could not parse CC block TX tag')
+                        try:
+                            self['names'] = xml_tree.names.text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['COMPU_METHOD'] = xml_tree.COMPU_METHOD.text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['formula'] = xml_tree.formula.text
+                        except AttributeError:
+                            pass  # optional
+                    else:
+                        if kargs['MDType'] is not None:
+                            print('No recognized MDType', file=stderr)
+                            print(kargs['MDType'], file=stderr)
             elif self['id'] in ('##TX', b'##TX'):
-                if MDType == 'CN':  # channel comment
-                    self['name'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+                if 'MDType' in kargs and kargs['MDType'] == 'CN':  # channel comment
+                    self['name'] = kargs['fid'].read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
                 else:
-                    self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+                    self['Comment'] = kargs['fid'].read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
 
 
     def write(self, fid, data, MDType):
@@ -594,7 +606,9 @@ class DGBlock(dict):
          dg_reserved) = DGStruct.unpack(fid.read(64))
         if self['dg_md_comment']:  # comments exist
             self['Comment'] = {}
-            self['Comment'].update(CommentBlock(fid, self['dg_md_comment']))
+            comment = CommentBlock()
+            comment.read(fid=fid, pointer=self['dg_md_comment'])
+            self['Comment'].update(comment)
 
     def write(self, fid):
         pointers = {}
@@ -645,11 +659,13 @@ class CGBlock(dict):
          self['cg_data_bytes'],
          self['cg_invalid_bytes']) = CGStruct.unpack(fid.read(104))
         if self['cg_md_comment']:  # comments exist
-            self['Comment'] = {}
-            self['Comment'].update(CommentBlock(fid, self['cg_md_comment']))
+            self['Comment'] = CommentBlock()
+            self['Comment'].read(fid=fid, pointer=self['cg_md_comment'])
         if self['cg_tx_acq_name']:  # comments exist
             self['acq_name'] = {}
-            self['acq_name'].update(CommentBlock(fid, self['cg_tx_acq_name']))
+            comment = CommentBlock()
+            comment.read(fid=fid, pointer=self['cg_tx_acq_name'])
+            self['acq_name'].update(comment)
 
     def write(self, fid, cg_cycle_count, cg_data_bytes):
         pointers = {}
@@ -685,16 +701,16 @@ class CNBlock(dict):
     """ reads Channel block and saves in class dict
     """
 
-    def read(self, fid, pointer):
-        if pointer != 0 and pointer is not None:
-            fid.seek(pointer)
+    def read(self, **kargs):
+        if kargs['pointer'] != 0 and kargs['pointer'] is not None:
+            kargs['fid'].seek(kargs['pointer'])
             (self['id'],
              reserved,
              self['length'],
-             self['link_count']) = HeaderStruct.unpack(fid.read(24))
-            self['pointer'] = pointer
+             self['link_count']) = HeaderStruct.unpack(kargs['fid'].read(24))
+            self['pointer'] = kargs['pointer']
             # data section
-            fid.seek(pointer + self['length'] - 72)
+            kargs['fid'].seek(kargs['pointer'] + self['length'] - 72)
             (self['cn_type'],
              self['cn_sync_type'],
              self['cn_data_type'],
@@ -706,14 +722,14 @@ class CNBlock(dict):
              self['cn_precision'],
              self['cn_reserved'],
              self['cn_attachment_count'],
-             self['cn_val_range_min'],
-             self['cn_val_range_max'],
-             self['cn_limit_min'],
-             self['cn_limit_max'],
-             self['cn_limit_ext_min'],
-             self['cn_limit_ext_max']) = CNStruct.unpack(fid.read(72))
+             cn_val_range_min,
+             cn_val_range_max,
+             cn_limit_min,
+             cn_limit_max,
+             cn_limit_ext_min,
+             cn_limit_ext_max) = CNStruct.unpack(kargs['fid'].read(72))
             # Channel Group block : Links
-            fid.seek(pointer + 24)
+            kargs['fid'].seek(kargs['pointer'] + 24)
             (self['cn_cn_next'],
              self['cn_composition'],
              self['cn_tx_name'],
@@ -721,31 +737,32 @@ class CNBlock(dict):
              self['cn_cc_conversion'],
              self['cn_data'],
              self['cn_md_unit'],
-             self['cn_md_comment']) = unpack('<8Q', fid.read(64))
+             self['cn_md_comment']) = unpack('<8Q', kargs['fid'].read(64))
             if self['cn_attachment_count'] > 0:
                 self['cn_at_reference'] = \
-                    _mdfblockread(fid, LINK, self['cn_attachment_count'])
+                    _mdfblockread(kargs['fid'], LINK, self['cn_attachment_count'])
                 self['attachment'] = {}
                 if self['cn_attachment_count'] > 1:
                     for at in range(self['cn_attachment_count']):
                         self['attachment'][at] = \
-                            ATBlock(fid, self['cn_at_reference'][at])
+                            ATBlock(kargs['fid'], self['cn_at_reference'][at])
                 else:
                     self['attachment'][0] = \
-                        ATBlock(fid, self['cn_at_reference'])
+                        ATBlock(kargs['fid'], self['cn_at_reference'])
             if self['link_count'] > (8 + self['cn_attachment_count']):
-                self['cn_default_x'] = _mdfblockread(fid, LINK, 3)
+                self['cn_default_x'] = _mdfblockread(kargs['fid'], LINK, 3)
             else:
                 self['cn_default_x'] = None
             if self['cn_md_comment']:  # comments exist
-                self['Comment'] = {}
-                self['Comment'].update(CommentBlock(fid, self['cn_md_comment'], MDType='CN'))
+                self['Comment'] = CommentBlock()
+                self['Comment'].read(fid=kargs['fid'], pointer=self['cn_md_comment'], MDType='CN', minimal=True)
             if self['cn_md_unit']:  # comments exist
-                self['unit'] = {}
-                self['unit'].update(CommentBlock(fid, self['cn_md_unit'], 'unit'))
+                self['unit'] = CommentBlock()
+                self['unit'].read(fid=kargs['fid'], pointer=self['cn_md_unit'], MDType='unit')
             if self['cn_tx_name']:  # comments exist
-                self['name'] = CommentBlock(fid, self['cn_tx_name'], MDType='CN')['name']
-            self['name'] = self['name'].replace(':', '')
+                comment = CommentBlock()
+                comment.read(fid=kargs['fid'], pointer=self['cn_tx_name'], MDType='CN')
+                self['name'] = comment['name']
 
     def write(self, fid):
         pointers = {}
@@ -790,10 +807,6 @@ class CCBlock(dict):
     """ reads Channel Conversion block and saves in class dict
     """
 
-    def __init__(self, fid=None, pointer=None):
-        if fid is not None:
-            self.read(fid, pointer)
-
     def read(self, fid, pointer):
         # block header
         if pointer != 0 and pointer is not None:
@@ -823,7 +836,9 @@ class CCBlock(dict):
             if self['cc_type'] == 3:  # reads Algebraic formula
                 pointer = self['cc_ref']
                 self['cc_ref'] = {}
-                self['cc_ref'].update(CommentBlock(fid, pointer))
+                cc = CommentBlock()
+                cc.read(fid=fid, pointer=pointer)
+                self['cc_ref'].update(cc)
             elif self['cc_type']in (7, 8, 9, 10):  # text list
                 self['cc_ref'] = list(self['cc_ref'])
                 for i in range(self['cc_ref_count']):
@@ -832,21 +847,23 @@ class CCBlock(dict):
                     ID = unpack('4s', fid.read(4))[0]
                     # for algebraic formulae
                     if ID in ('##TX', '##MD', b'##TX', b'##MD'):
-                        temp = CommentBlock(fid, self['cc_ref'][i])
+                        temp = CommentBlock()
+                        temp.read(fid=fid, pointer=self['cc_ref'][i])
                         self['cc_ref'][i] = temp['Comment']
                     elif ID in ('##CC', b'##CC'):  # for table conversion
                         # much more complicated nesting conversions !!!
-                        self['cc_ref'][i] = CCBlock(fid, self['cc_ref'][i])
+                        cc = CCBlock()
+                        cc.read(fid, self['cc_ref'][i])
+                        self['cc_ref'][i] = cc
             if self['cc_md_comment']:  # comments exist
-                self['Comment'] = {}
-                self['Comment'].update(CommentBlock(fid, self['cc_md_comment'],
-                                               MDType='CC'))
+                self['Comment'] = CommentBlock()
+                self['Comment'].read(fid=fid, pointer=self['cc_md_comment'], MDType='CC')
             if self['cc_md_unit']:  # comments exist
-                self['unit'] = {}
-                self['unit'].update(CommentBlock(fid, self['cc_md_unit']))
+                self['unit'] = CommentBlock()
+                self['unit'].read(fid=fid, pointer=self['cc_md_unit'])
             if self['cc_tx_name']:  # comments exist
-                self['name'] = {}
-                self['name'].update(CommentBlock(fid, self['cc_tx_name']))
+                self['name'] = CommentBlock()
+                self['name'].read(fid=fid, pointer=self['cc_tx_name'])
         else:  # no conversion
             self['cc_type'] = 0
 
@@ -944,7 +961,9 @@ class ATBlock(dict):
                 self['at_embedded_data'] = fid.read(self['at_embedded_size'])
             if self['at_md_comment']:  # comments exist
                 self['Comment'] = {}
-                self['Comment'].update(CommentBlock(fid, self['at_md_comment']))
+                comment = CommentBlock()
+                comment.read(fid=fid, pointer=self['at_md_comment'])
+                self['Comment'].update(comment)
 
 
 class EVBlock(dict):
@@ -999,11 +1018,11 @@ class EVBlock(dict):
                     self['attachment'][at] = \
                         ATBlock(fid, self['ev_at_reference'][at])
             if self['ev_md_comment']:  # comments exist
-                self['Comment'] = {}
-                self['Comment'].update(CommentBlock(fid, self['ev_md_comment']))
+                self['Comment'] = CommentBlock()
+                self['Comment'].read(fid=fid, pointer=self['ev_md_comment'])
             if self['ev_tx_name']:  # comments exist
-                self['name'] = {}
-                self['name'].update(CommentBlock(fid, self['ev_tx_name']))
+                self['name'] =  CommentBlock()
+                self['name'].read(fid=fid, pointer=self['ev_tx_name'])
 
 
 class SRBlock(dict):
@@ -1079,13 +1098,12 @@ class SIBlock(dict):
             elif self['si_bus_type'] == 8:
                 self['si_bus_type'] = 'USB'
             # post treatment
-            self['source_name'] = {}
-            self['source_name'].update(CommentBlock(fid, self['si_tx_name']))
-            self['source_path'] = {}
-            self['source_path'].update(CommentBlock(fid, self['si_tx_path']))
-            self['comment'] = {}
-            self['comment'].update(CommentBlock(fid, self['si_md_comment'],
-                                                MDType='SI'))
+            self['source_name'] = CommentBlock()
+            self['source_name'].read(fid=fid, pointer=self['si_tx_name'])
+            self['source_path'] = CommentBlock()
+            self['source_path'].read(fid=fid, pointer=self['si_tx_path'])
+            self['comment'] = CommentBlock()
+            self['comment'].read(fid=fid, pointer=self['si_md_comment'], MDType='SI')
 
 
 class DLBlock(dict):
@@ -1429,7 +1447,7 @@ class info4(dict):
         self['CC'][dg][cg][cn] = {}
         self['CN'][dg][cg][cn] = {}
         temp = CNBlock()
-        temp.read(fid, self['CG'][dg][cg]['cg_cn_first'])
+        temp.read(fid=fid, pointer=self['CG'][dg][cg]['cg_cn_first'])
         if temp is not None:
             self['CN'][dg][cg][cn].update(temp)
         MLSDChannels = []
@@ -1451,10 +1469,8 @@ class info4(dict):
 
         if self['CG'][dg][cg]['cg_cn_first']:  # Can be NIL for VLSD
             # reads Channel Conversion Block
-            self['CC'][dg][cg][cn] = {}
-            temp = CCBlock()
-            temp.read(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
-            self['CC'][dg][cg][cn].update(temp)
+            self['CC'][dg][cg][cn] = CCBlock()
+            self['CC'][dg][cg][cn].read(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
             if not channelNameList:
                 if not minimal:
                     # reads Channel Source Information
@@ -1475,7 +1491,7 @@ class info4(dict):
                     elif id in ('##CN', b'##CN'):
                         self['CN'][dg][cg][cn]['CN'] = {}
                         temp = CNBlock()
-                        temp.read(fid, self['CN'][dg][cg][cn]['cn_composition'])
+                        temp.read(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
                         self['CN'][dg][cg][cn]['CN'].update(temp)
                     else:
                         raise('unknown channel composition')
@@ -1486,21 +1502,21 @@ class info4(dict):
                         for at in range(self['CN'][dg][cg][cn]['cn_attachment_count']):
                             self['CN'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
                     elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
-                        self['CN'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
+                        self['CN'][dg][cg][cn]['attachment'][0].update(
+                            self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
 
             while self['CN'][dg][cg][cn]['cn_cn_next']:
                 cn = cn + 1
                 self['CN'][dg][cg][cn] = {}
                 temp = CNBlock()
-                temp.read(fid, self['CN'][dg][cg][cn - 1]['cn_cn_next'])
+                temp.read(fid=fid, pointer=self['CN'][dg][cg][cn - 1]['cn_cn_next'])
                 self['CN'][dg][cg][cn].update(temp)
                 # check for MLSD
                 if self['CN'][dg][cg][cn]['cn_type'] == 5:
                     MLSDChannels.append(cn)
                 # reads Channel Conversion Block
-                self['CC'][dg][cg][cn] = {}
-                temp = CCBlock(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
-                self['CC'][dg][cg][cn].update(temp)
+                self['CC'][dg][cg][cn] = CCBlock()
+                self['CC'][dg][cg][cn].read(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
                 if not channelNameList:
                     if not minimal:
                         # reads Channel Source Information
@@ -1535,7 +1551,7 @@ class info4(dict):
                         elif id in ('##CN', b'##CN'):
                             self['CN'][dg][cg][cn]['CN'] = {}
                             temp = CNBlock()
-                            temp.read(fid, self['CN'][dg][cg][cn]['cn_composition'])
+                            temp.read(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
                             self['CN'][dg][cg][cn]['CN'].update(temp)
                         else:
                             raise('unknown channel composition')
@@ -1547,7 +1563,8 @@ class info4(dict):
                                 print(self['CN'][dg][cg][cn]['cn_at_reference'][at], file=stderr)
                                 self['CN'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
                         elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
-                            self['CN'][dg][cg][cn]['attachment'][0].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
+                            self['CN'][dg][cg][cn]['attachment'][0].update(
+                                self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
 
         MLSDChannels = self.readComposition(fid, dg, cg, MLSDChannels, channelNameList=False)
 
@@ -1615,22 +1632,20 @@ class info4(dict):
                 ID = unpack('4s', fid.read(4))[0]
                 if ID in ('##CN', b'##CN'):  # Structures
                     self['CN'][dg][cg][chan] = CNBlock()
-                    self['CN'][dg][cg][chan].read(fid,
-                        self['CN'][dg][cg][cn]['cn_composition'])
-                    self['CC'][dg][cg][chan] = \
-                        CCBlock(fid, self['CN']
-                                [dg][cg][chan]['cn_cc_conversion'])
+                    self['CN'][dg][cg][chan].read(fid=fid,
+                                                  pointer=self['CN'][dg][cg][cn]['cn_composition'])
+                    self['CC'][dg][cg][chan] = CCBlock()
+                    self['CC'][dg][cg][chan].read(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
+
                     if self['CN'][dg][cg][chan]['cn_type'] == 5:
                         MLSDChannels.append(chan)
                     while self['CN'][dg][cg][chan]['cn_cn_next']:
                         chan += 1
                         self['CN'][dg][cg][chan] = CNBlock()
-                        self['CN'][dg][cg][chan]\
-                            .read(fid, self['CN']
-                                  [dg][cg][chan - 1]['cn_cn_next'])
-                        self['CC'][dg][cg][chan] = \
-                            CCBlock(fid, self['CN']
-                                    [dg][cg][chan]['cn_cc_conversion'])
+                        self['CN'][dg][cg][chan].read(fid=fid, pointer=self['CN'][dg][cg][chan - 1]['cn_cn_next'])
+
+                        self['CC'][dg][cg][chan] = CCBlock()
+                        self['CC'][dg][cg][chan].read(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
                         if self['CN'][dg][cg][chan]['cn_type'] == 5:
                             MLSDChannels.append(chan)
                     # makes the channel virtual
