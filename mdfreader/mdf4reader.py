@@ -1205,7 +1205,7 @@ class mdf4(mdf_skeleton):
             if not info['DG'][dataGroup]['dg_data'] == 0 and \
                     (channelSet is None or
                      len(channelSet & info['ChannelNamesByDG'][dataGroup]) > 0):  # there is data block and channel in
-                if minimal > 1:  # load CG, CN and CC block info
+                if minimal > 1 and not self._noDataLoading:  # load CG, CN and CC block info
                     info.readCGBlock(info.fid, dataGroup, channelSet, minimal=minimal)
                 if info['CG'][dataGroup][0]['cg_cycle_count']:  # data exists
                     # Pointer to data block
@@ -1512,8 +1512,8 @@ class mdf4(mdf_skeleton):
         pointers['CG'] = {}
         pointers['CN'] = {}
         DG_flag = 0
-        for ndataGroup, dataGroup in enumerate(self.masterChannelList):
-            masterChannel = list(self.masterChannelList.keys())[dataGroup]
+        for dataGroup, masterChannel in enumerate(self.masterChannelList):
+            #masterChannel = list(self.masterChannelList.keys())[dataGroup]
             # writes dataGroup Block
             temp = DGBlock()
             pointers['DG'][dataGroup] = temp.write(fid)
@@ -1870,23 +1870,23 @@ def valueRangeToTextConv(vect, cc_val, cc_ref):
                 cc_ref[ref] = lambdify(X, cc_ref[ref]['cc_ref']['Comment']
                                        , modules='numpy', dummify=False)
             elif cc_ref[ref]['cc_type'] == 1:  # linear conversion
-                cc_ref[ref] = lambdify(X, '{0}* X + {1}'.format(cc_val[1], cc_val[0])
+                cc_ref[ref] = lambdify(X, '{0} * X + {1}'.format(cc_val[1], cc_val[0])
                                        , modules='numpy', dummify=False)
-            else:  # identity, non conversion
-                cc_ref[ref] = lambdify(X, 'X'
+            else:  # identity, no conversion
+                cc_ref[ref] = lambdify(X, '1 * X'
                                        , modules='numpy', dummify=False)
             # Otherwise a string
     # look up in range keys
     temp = []
-    for Lindex in range(len(vect)):
+    for value in vect:
         key_index = val_count  # default index if not found
         for i in range(val_count):
-            if key_min[i] < vect[Lindex] < key_max[i]:
+            if key_min[i] <= value <= key_max[i]:
                 key_index = i
                 break
         if callable(cc_ref[key_index]):
             # TXBlock string
-            temp.append(cc_ref[key_index](vect[i]))
+            temp.append(cc_ref[key_index](value))
         else:  # scale to be applied
             temp.append(cc_ref[key_index])
     return asarray(temp)

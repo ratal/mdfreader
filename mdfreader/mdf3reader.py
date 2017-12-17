@@ -873,7 +873,7 @@ class mdf3(mdf_skeleton):
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0 and \
                     (channelSet is None or
                      len(channelSet & info['ChannelNamesByDG'][dataGroup]) > 0):  # data exists
-                if minimal > 1:  # load CG, CN and CC block info
+                if minimal > 1 and not self._noDataLoading:  # load CG, CN and CC block info
                     info.readCGBlock(info.fid, dataGroup, minimal=minimal)
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
