@@ -323,6 +323,13 @@ class channel4(object):
         except KeyError:
             return None
 
+    def isCABlock(self, info):
+        try:
+            info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
+            return True
+        except KeyError:
+            return False
+
     def recordIDsize(self, info):
         """ Extracts record id size from info4
 
