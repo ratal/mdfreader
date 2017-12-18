@@ -27,7 +27,7 @@ from __future__ import print_function
 from sys import version_info, stderr
 from numpy import sort, zeros
 from struct import unpack, Struct
-from .mdf import dataField, descriptionField, unitField, masterField, masterTypeField
+from .mdf import dataField, descriptionField, unitField, masterField, masterTypeField, idField
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
@@ -639,6 +639,7 @@ def _generateDummyMDF3(info, channelList):
                         mdfdict[name][unitField] = ''
                     mdfdict[name][masterField] = 0  # default is time
                     mdfdict[name][masterTypeField] = None
+                    mdfdict[name][idField] = (dg, cg, cn)
                 if info['CNBlock'][dg][cg][cn]['channelType']:  # master channel of cg
                     master = name
                     mastertype = info['CNBlock'][dg][cg][cn]['channelType']

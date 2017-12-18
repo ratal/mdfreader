@@ -28,7 +28,7 @@ from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
 from numpy import right_shift, bitwise_and, interp
 from numpy import max as npmax, min as npmin
-from numpy import asarray, zeros, recarray, array, searchsorted
+from numpy import asarray, recarray, array, searchsorted
 from numpy.core.records import fromstring, fromarrays
 from numpy.core.defchararray import encode as ncode
 from collections import defaultdict
@@ -40,7 +40,7 @@ from sys import platform, exc_info, version_info, stderr
 import os
 from warnings import simplefilter
 from .mdf import mdf_skeleton, _open_MDF, \
-    dataField, conversionField, compressed_data
+    dataField, conversionField, idField, compressed_data
 from .mdfinfo3 import info3
 from .channel import Channel3
 if os.name == 'posix':
@@ -870,8 +870,13 @@ class mdf3(mdf_skeleton):
                     subject=info['HDBlock']['Subject'], comment=comment,
                         date=ddate, time=info['HDBlock']['Time'])
 
+        if not self._noDataLoading:
+            data_groups = info['DGBlock']  # parse all data groups
+        else:
+            data_groups = [self[channel][idField][0] for channel in channelList]
+
         # Read data from file
-        for dataGroup in info['DGBlock']:
+        for dataGroup in data_groups:
             channelSet = channelSetFile
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0 and \
                     (channelSet is None or
@@ -902,10 +907,14 @@ class mdf3(mdf_skeleton):
                         if master_channel in self and self[master_channel][dataField] is not None:
                             master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
 
-                        channels = (c for c in buf[recordID]['record']
-                                    if channelSet is None or c.name in channelSet)
+                        if not self._noDataLoading:
+                            channels = (c for c in buf[recordID]['record']
+                                        if channelSet is None or c.name in channelSet)
+                        else:
+                            channels = buf[recordID]['record']
+                            channels = [channels[self[channel][idField][2]] for channel in channelList]
 
-                        for chan in channels:  # for each recordchannel
+                        for chan in channels:  # for each channel
                             # in case record is used for several channels
                             if channelSet is None and not buf[recordID]['record'].hiddenBytes \
                                     and buf[recordID]['record'].byte_aligned:

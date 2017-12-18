@@ -50,6 +50,7 @@ masterField = 'master'
 masterTypeField = 'masterType'
 conversionField = 'conversion'
 attachmentField = 'attachment'
+idField = 'id'
 
 
 class mdf_skeleton(dict):

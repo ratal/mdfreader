@@ -34,7 +34,7 @@ from xml.etree.ElementTree import Element, SubElement, \
     tostring, register_namespace
 from lxml import objectify
 from .mdf import _open_MDF, dataField, descriptionField, unitField, \
-    masterField, masterTypeField, _convertName
+    masterField, masterTypeField, idField, _convertName
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -722,8 +722,8 @@ class CNBlock(dict):
              self['cn_precision'],
              self['cn_reserved'],
              self['cn_attachment_count'],
-             cn_val_range_min,
-             cn_val_range_max,
+             self['cn_val_range_min'],
+             self['cn_val_range_max'],
              cn_limit_min,
              cn_limit_max,
              cn_limit_ext_min,
@@ -1772,6 +1772,7 @@ def _generateDummyMDF4(info, channelList):
                         mdfdict[name][dataField] = None
                         mdfdict[name][descriptionField] = name
                         mdfdict[name][unitField] = name
+                        mdfdict[name][idField] = (dg, cg, cn)
                 elif info['CN'][dg][cg][cn]['cn_data_type'] == 14:
                     for name in ('ms', 'days'):
                         channelNameList.append(name)
@@ -1780,6 +1781,7 @@ def _generateDummyMDF4(info, channelList):
                         mdfdict[name][dataField] = None
                         mdfdict[name][descriptionField] = name
                         mdfdict[name][unitField] = name
+                        mdfdict[name][idField] = (dg, cg, cn)
                 else:
                     name = info['CN'][dg][cg][cn]['name']
                     if name in allChannelList:
@@ -1800,6 +1802,7 @@ def _generateDummyMDF4(info, channelList):
                             mdfdict[name][unitField] = ''
                         mdfdict[name][masterField] = 0  # default is time
                         mdfdict[name][masterTypeField] = None
+                        mdfdict[name][idField] = (dg, cg, cn)
                     if info['CN'][dg][cg][cn]['cn_sync_type']:
                         # master channel of cg
                         master = name

@@ -47,7 +47,7 @@ from .mdfinfo4 import info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
     DZBlock, HLBlock, CCBlock, _writePointer, _writeHeader
 from .mdf import mdf_skeleton, _open_MDF, \
-    dataField, conversionField, compressed_data
+    dataField, conversionField, idField, compressed_data
 from .channel import channel4
 try:
     from dataRead import dataRead
@@ -1205,7 +1205,12 @@ class mdf4(mdf_skeleton):
             else:
                 self.add_metadata(date=ddate, time=ttime)
 
-        for dataGroup in info['DG']:
+        if not self._noDataLoading:
+            data_groups = info['DG']  # parse all data groups
+        else:
+            data_groups = [self[channel][idField][0] for channel in channelList]
+
+        for dataGroup in data_groups:
             channelSet = channelSetFile
             if not info['DG'][dataGroup]['dg_data'] == 0 and \
                     (channelSet is None or
@@ -1243,12 +1248,15 @@ class mdf4(mdf_skeleton):
                     buf.read(channelSet, info, self.fileName)
 
                     # processing data from buf then transfer to self
-                    for recordID in list(buf.keys()): # for each record in data block
+                    for recordID in buf:  # for each channel group in data block
                         if 'record' in buf[recordID]:
                             master_channel = buf[recordID]['record'].master['name']
                             if master_channel in self and self[master_channel][dataField] is not None:
                                 master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
-                            for chan in buf[recordID]['record']:  # for each channel class
+                            channels = buf[recordID]['record']
+                            if self._noDataLoading:
+                                channels = [channels[self[channel][idField][2]] for channel in channelList]
+                            for chan in channels:  # for each channel class
                                 if channelSet is None or chan.name in channelSet:
                                     if not chan.type == 'Inv':  # normal channel
                                         if chan.channelType(info) not in (3, 6):  # not virtual channel
@@ -1331,8 +1339,6 @@ class mdf4(mdf_skeleton):
                                                 description='',
                                                 info=None,
                                                 compression=compression)
-                        if not self._noDataLoading:
-                            del buf[recordID]
                     del buf
                 if minimal > 1:
                     # clean CN, CC and CG info to free memory
