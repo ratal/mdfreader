@@ -673,7 +673,7 @@ class DATA(dict):
         self[record.recordID]['record'] = record
         self.BlockLength += record.dataBlockLength
 
-    def read(self, channelSet):
+    def read(self, channelSet, filename):
         """Reads data block
 
         Parameters
@@ -681,6 +681,9 @@ class DATA(dict):
         channelSet : set of str, optional
             list of channel names
         """
+        # checks if file is closed
+        if self.fid is None or self.fid.closed:
+            self.fid = open(filename, 'rb')
         if len(self) == 1:  # sorted dataGroup
             recordID = list(self.keys())[0]
             self[recordID]['data'] = \
@@ -877,16 +880,21 @@ class mdf3(mdf_skeleton):
                     info.readCGBlock(info.fid, dataGroup, minimal=minimal)
                 # Pointer to data block
                 pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
-                buf = DATA(info.fid, pointerToData)
 
-                for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
-                    temp = record(dataGroup, channelGroup)  # create record class
-                    temp.loadInfo(info)  # load all info related to record
+                if 'dataClass' not in info['DGBlock'][dataGroup]:
+                    buf = DATA(info.fid, pointerToData)
+                    for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
+                        temp = record(dataGroup, channelGroup)  # create record class
+                        temp.loadInfo(info)  # load all info related to record
 
-                    if temp.numberOfRecords != 0:  # continue if there are at least some records
-                        buf.addRecord(temp)
+                        if temp.numberOfRecords != 0:  # continue if there are at least some records
+                            buf.addRecord(temp)
+                    if self._noDataLoading:
+                        self.info['DGBlock'][dataGroup]['dataClass'] = buf
+                else:
+                    buf = self.info['DGBlock'][dataGroup]['dataClass']
 
-                buf.read(channelSet)  # reads datablock potentially containing several channel groups
+                buf.read(channelSet, self.fileName)  # reads datablock potentially containing several channel groups
 
                 for recordID in buf:
                     if 'record' in buf[recordID]:
