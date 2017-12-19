@@ -182,9 +182,9 @@ class mdf_skeleton(dict):
             flag to ask for channel data compression
         """
         if not self._noDataLoading:
-            if channel_name in self:
+            # if channel_name in self: should not happen anymore, handled in info class
                 # name doublon existing
-                channel_name = ''.join([channel_name, '_{}'.format(dataGroup)])
+            #    channel_name = ''.join([channel_name, '_{}'.format(dataGroup)])
             # create new channel
             self[channel_name] = {}
             if master_channel not in self.masterChannelList:
