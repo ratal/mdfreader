@@ -1761,6 +1761,7 @@ def _generateDummyMDF4(info, channelList):
     for dg in info['DG']:
         master = ''
         mastertype = 0
+        ChannelNamesByDG = set()
         for cg in info['CG'][dg]:
             channelNameList = []
             for cn in info['CN'][dg][cg]:
@@ -1768,6 +1769,7 @@ def _generateDummyMDF4(info, channelList):
                     for name in ('ms', 'minute', 'hour', 'day', 'month', 'year'):
                         channelNameList.append(name)
                         allChannelList.add(name)
+                        ChannelNamesByDG.add(name)
                         mdfdict[name] = {}
                         mdfdict[name][dataField] = None
                         mdfdict[name][descriptionField] = name
@@ -1777,6 +1779,7 @@ def _generateDummyMDF4(info, channelList):
                     for name in ('ms', 'days'):
                         channelNameList.append(name)
                         allChannelList.add(name)
+                        ChannelNamesByDG.add(name)
                         mdfdict[name] = {}
                         mdfdict[name][dataField] = None
                         mdfdict[name][descriptionField] = name
@@ -1784,8 +1787,10 @@ def _generateDummyMDF4(info, channelList):
                         mdfdict[name][idField] = (dg, cg, cn)
                 else:
                     name = info['CN'][dg][cg][cn]['name']
-                    if name in allChannelList:
-                        name = ''.join([name, '_{}'.format(dg)])
+                    if name in ChannelNamesByDG:
+                        name = u'{0}_{1}_{2}_{3}'.format(name, dg, cg, cn)
+                    elif name in allChannelList:
+                        name = u'{0}_{1}'.format(name, dg)
                     if channelList is None or name in channelList:
                         channelNameList.append(name)
                         allChannelList.add(name)

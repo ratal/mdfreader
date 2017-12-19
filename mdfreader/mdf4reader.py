@@ -1187,10 +1187,11 @@ class mdf4(mdf_skeleton):
             fileDateTime = gmtime(info['HD']['hd_start_time_ns'] / 1000000000)
             ddate = strftime('%Y-%m-%d', fileDateTime)
             ttime = strftime('%H:%M:%S', fileDateTime)
+
             def returnField(obj, field):
-                if field in obj:
+                try:
                     return obj[field]
-                else:
+                except KeyError:
                     return ''
             if 'Comment' in info['HD']:
                 Comment = info['HD']['Comment']
@@ -1247,12 +1248,17 @@ class mdf4(mdf_skeleton):
                     # reads raw data from data block with DATA and DATABlock classes
                     buf.read(channelSet, info, self.fileName)
 
+                    channel_groups = buf
+                    if self._noDataLoading:
+                        channel_groups = [info['CG'][dataGroup][self[channel][idField][1]]['cg_record_id']
+                                          for channel in channelList]
+
                     # processing data from buf then transfer to self
-                    for recordID in buf:  # for each channel group in data block
+                    for recordID in channel_groups:  # for each channel group in data block
                         if 'record' in buf[recordID]:
                             master_channel = buf[recordID]['record'].master['name']
-                            if master_channel in self and self[master_channel][dataField] is not None:
-                                master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
+                            #if master_channel in self and self[master_channel][dataField] is not None:
+                            #    master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
                             channels = buf[recordID]['record']
                             if self._noDataLoading:
                                 channels = [channels[self[channel][idField][2]] for channel in channelList]
@@ -1339,6 +1345,7 @@ class mdf4(mdf_skeleton):
                                                 description='',
                                                 info=None,
                                                 compression=compression)
+                            buf[recordID].pop('data', None)
                     del buf
                 if minimal > 1:
                     # clean CN, CC and CG info to free memory

@@ -616,15 +616,19 @@ def _generateDummyMDF3(info, channelList):
     for dg in info['DGBlock']:
         master = ''
         mastertype = 0
+        ChannelNamesByDG =set()
         for cg in info['CGBlock'][dg]:
             channelNameList = []
             for cn in info['CNBlock'][dg][cg]:
                 name = info['CNBlock'][dg][cg][cn]['signalName']
-                if name in allChannelList:
+                if name in ChannelNamesByDG:
+                    name = '{0}_{1}_{2}_{3}'.format(name, dg, cg, cn)
+                elif name in allChannelList:
                     name = ''.join([name, '_{}'.format(dg)])
                 if channelList is None or name in channelList:
                     channelNameList.append(name)
                     allChannelList.add(name)
+                    ChannelNamesByDG.add(name)
                     # create mdf channel
                     mdfdict[name] = {}
                     mdfdict[name][dataField] = None

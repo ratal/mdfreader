@@ -901,11 +901,16 @@ class mdf3(mdf_skeleton):
 
                 buf.read(channelSet, self.fileName)  # reads datablock potentially containing several channel groups
 
-                for recordID in buf:
-                    if 'record' in buf[recordID]:
+                channel_groups = buf
+                if self._noDataLoading:
+                    channel_groups = [info['CGBlock'][dataGroup][self[channel][idField][1]]['recordID']
+                                      for channel in channelList]
+
+                for recordID in channel_groups:
+                    if recordID in buf and 'record' in buf[recordID]:
                         master_channel = buf[recordID]['record'].master['name']
-                        if master_channel in self and self[master_channel][dataField] is not None:
-                            master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
+                        #if master_channel in self and self[master_channel][dataField] is not None:
+                        #    master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
 
                         if not self._noDataLoading:
                             channels = (c for c in buf[recordID]['record']
@@ -946,6 +951,7 @@ class mdf3(mdf_skeleton):
                                                  conversion=chan.conversion,
                                                  info=None,
                                                  compression=compression)
+                        buf[recordID].pop('data', None)
                 del buf
                 if minimal > 1:
                     # clean CN, CC and CG info to free memory
@@ -974,7 +980,7 @@ class mdf3(mdf_skeleton):
         """
         if channelName in self:
             vect = self.getChannel(channelName)[dataField]
-            if vect is None: # noDataLoading reading argument flag activated
+            if vect is None:  # noDataLoading reading argument flag activated
                 if self.info.fid is None or (self.info.fid is not None and self.info.fid.closed):
                     (self.info.fid, self.info.fileName, zipfile) = _open_MDF(self.fileName)
                 self.read3(fileName=None, info=self.info, channelList=[channelName], convertAfterRead=False)
