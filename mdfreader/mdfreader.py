@@ -449,9 +449,13 @@ class mdf(mdf3, mdf4):
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if self.MDFVersionNumber < 400:
-            return self._getChannelData3(channelName)
+            vect = self._getChannelData3(channelName)
         else:
-            return self._getChannelData4(channelName)
+            vect = self._getChannelData4(channelName)
+        if self._noDataLoading:
+            # remove data loaded in object
+            self.setChannelData(channelName, None)
+        return vect
 
     def convertAllChannel(self):
         """Converts all channels from raw data to converted data according to CCBlock information
