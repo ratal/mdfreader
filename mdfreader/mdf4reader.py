@@ -1206,9 +1206,8 @@ class mdf4(mdf_skeleton):
             else:
                 self.add_metadata(date=ddate, time=ttime)
 
-        if not self._noDataLoading:
-            data_groups = info['DG']  # parse all data groups
-        else:
+        data_groups = info['DG']  # parse all data groups
+        if self._noDataLoading and channelList is not None:
             data_groups = [self[channel][idField][0] for channel in channelList]
 
         for dataGroup in data_groups:
@@ -1231,8 +1230,8 @@ class mdf4(mdf_skeleton):
                             recordID = info['CG'][dataGroup][channelGroup]['cg_record_id']
                             if temp.master['name'] is not None \
                                     and buf[recordID]['record'].channelNames:
-                                if channelSet is not None and temp.master['name'] not in channelSet \
-                                        and not self._noDataLoading:
+                                if channelSet is not None and not self._noDataLoading\
+                                        and temp.master['name'] not in channelSet:
                                     channelSet.add(temp.master['name'])  # adds master channel in channelSet if missing
                             if channelSet is not None and buf[recordID]['record'].CANOpen:
                                 # adds CANOpen channels if existing in not empty channelSet
@@ -1249,7 +1248,7 @@ class mdf4(mdf_skeleton):
                     buf.read(channelSet, info, self.fileName)
 
                     channel_groups = buf
-                    if self._noDataLoading:
+                    if self._noDataLoading and channelList is not None:
                         channel_groups = [info['CG'][dataGroup][self[channel][idField][1]]['cg_record_id']
                                           for channel in channelList]
 
@@ -1257,10 +1256,9 @@ class mdf4(mdf_skeleton):
                     for recordID in channel_groups:  # for each channel group in data block
                         if 'record' in buf[recordID]:
                             master_channel = buf[recordID]['record'].master['name']
-                            #if master_channel in self and self[master_channel][dataField] is not None:
-                            #    master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
+
                             channels = buf[recordID]['record']
-                            if self._noDataLoading:
+                            if self._noDataLoading and channelList is not None:
                                 channels = [channels[self[channel][idField][2]] for channel in channelList]
                             for chan in channels:  # for each channel class
                                 if channelSet is None or chan.name in channelSet:

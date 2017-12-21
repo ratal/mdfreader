@@ -870,9 +870,8 @@ class mdf3(mdf_skeleton):
                     subject=info['HDBlock']['Subject'], comment=comment,
                         date=ddate, time=info['HDBlock']['Time'])
 
-        if not self._noDataLoading:
-            data_groups = info['DGBlock']  # parse all data groups
-        else:
+        data_groups = info['DGBlock']  # parse all data groups
+        if self._noDataLoading and channelList is not None:
             data_groups = [self[channel][idField][0] for channel in channelList]
 
         # Read data from file
@@ -909,10 +908,8 @@ class mdf3(mdf_skeleton):
                 for recordID in channel_groups:
                     if recordID in buf and 'record' in buf[recordID]:
                         master_channel = buf[recordID]['record'].master['name']
-                        #if master_channel in self and self[master_channel][dataField] is not None:
-                        #    master_channel = ''.join([master_channel, '_{}'.format(dataGroup)])
 
-                        if not self._noDataLoading:
+                        if channelList is None or not self._noDataLoading:
                             channels = (c for c in buf[recordID]['record']
                                         if channelSet is None or c.name in channelSet)
                         else:
