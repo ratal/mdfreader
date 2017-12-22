@@ -985,19 +985,21 @@ class mdf3(mdf_skeleton):
                     (self.info.fid, self.info.fileName, zipfile) = _open_MDF(self.fileName)
                 self.read3(fileName=None, info=self.info, channelList=[channelName], convertAfterRead=False)
             if not raw_data:
-                return self._convert3(channelName)
+                return self._convert3(channelName, self.convert_tables)
             else:
                 return self.getChannel(channelName)[dataField]
         else:
             return None
 
-    def _convert3(self, channelName):
+    def _convert3(self, channelName, convert_tables=False):
         """converts specific channel from raw to physical data according to CCBlock information
 
         Parameters
         ----------------
         channelName : str
             Name of channel
+        convert_tables : bool
+            activates computation intensive loops for conversion with tables. Default is False
 
         Returns
         -----------
@@ -1030,7 +1032,7 @@ class mdf3(mdf_skeleton):
                 return rationalConv(vect, conversion['parameters'])
             elif conversion['type'] == 10:
                 return formulaConv(vect, conversion['parameters'])
-            elif conversion['type'] == 12:
+            elif conversion['type'] == 12 and convert_tables:
                 return textRangeTableConv(vect, conversion['parameters'])
             else:
                 return vect
@@ -1045,7 +1047,7 @@ class mdf3(mdf_skeleton):
         channelName : str
             Name of channel
         """
-        self.setChannelData(channelName, self._convert3(channelName))
+        self.setChannelData(channelName, self._convert3(channelName, self.convert_tables))
         self.remove_channel_conversion(channelName)
 
     def _convertAllChannel3(self):

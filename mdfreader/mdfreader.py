@@ -383,7 +383,6 @@ class mdf(mdf3, mdf4):
         MDFVersionNumber = unpack('<H', self.fid.read(2))
         self.MDFVersionNumber = MDFVersionNumber[0]
 
-        
         if self.MDFVersionNumber < 400:  # up to version 3.x not compatible with version 4.x
             if not noDataLoading:
                 self.read3(self.fileName, None, multiProc, channelList,
