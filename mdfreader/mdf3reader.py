@@ -241,6 +241,8 @@ def textRangeTableConv(data, conv):  # 12 Text range table
         text = {}
         for pair in range(npair):
             text[pair] = conv[pair]['Textrange']
+            if text[pair] is None:
+                continue
             if 'LINEAR_CONV' in text[pair]:  # linear conversion from CANape
                 from sympy import lambdify, symbols
                 X = symbols('X')  # variable is X
@@ -680,6 +682,8 @@ class DATA(dict):
         ----------------
         channelSet : set of str, optional
             list of channel names
+        filename : str
+            name of file
         """
         # checks if file is closed
         if self.fid is None or self.fid.closed:
@@ -687,8 +691,7 @@ class DATA(dict):
         if len(self) == 1:  # sorted dataGroup
             recordID = list(self.keys())[0]
             self[recordID]['data'] = \
-                self.loadSorted(self[recordID]['record'],
-                                nameList=channelSet)
+                self.loadSorted(self[recordID]['record'], nameList=channelSet)
         elif len(self) >= 2:  # unsorted DataGroup
             data = self.loadUnSorted(nameList=channelSet)
             for recordID in list(self.keys()):
@@ -697,8 +700,6 @@ class DATA(dict):
                     self[recordID]['data'][channel.name] = \
                         data[self[recordID]['record'].
                              recordToChannelMatching[channel.name]]
-        else:  # empty data group
-            pass
 
     def loadSorted(self, record, nameList=None):  # reads sorted data
         """Reads sorted data block from record definition
@@ -958,13 +959,15 @@ class mdf3(mdf_skeleton):
             self._noDataLoading = False
             self._convertAllChannel3()
 
-    def _getChannelData3(self, channelName):
+    def _getChannelData3(self, channelName, raw_data=False):
         """Returns channel numpy array
 
         Parameters
         ----------------
         channelName : str
             channel name
+        raw_data: bool
+            flag to return non converted data
 
         Returns:
         -----------
@@ -981,7 +984,10 @@ class mdf3(mdf_skeleton):
                 if self.info.fid is None or (self.info.fid is not None and self.info.fid.closed):
                     (self.info.fid, self.info.fileName, zipfile) = _open_MDF(self.fileName)
                 self.read3(fileName=None, info=self.info, channelList=[channelName], convertAfterRead=False)
-            return self._convert3(channelName)
+            if not raw_data:
+                return self._convert3(channelName)
+            else:
+                return self.getChannel(channelName)[dataField]
         else:
             return None
 

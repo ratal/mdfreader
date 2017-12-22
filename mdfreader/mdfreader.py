@@ -431,13 +431,15 @@ class mdf(mdf3, mdf4):
         else:
             self.write4(fileName=fileName)
 
-    def getChannelData(self, channelName):
+    def getChannelData(self, channelName, raw_data=False):
         """Return channel numpy array
 
         Parameters
         ----------------
         channelName : str
             channel name
+        raw_data: bool
+            flag to return non converted data
 
         Returns:
         -----------
@@ -449,11 +451,11 @@ class mdf(mdf3, mdf4):
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if self.MDFVersionNumber < 400:
-            vect = self._getChannelData3(channelName)
+            vect = self._getChannelData3(channelName, raw_data)
         else:
-            vect = self._getChannelData4(channelName)
+            vect = self._getChannelData4(channelName, raw_data)
         if self._noDataLoading:
-            # remove data loaded in object
+            # remove data loaded in object to save memory
             self.setChannelData(channelName, None)
         return vect
 

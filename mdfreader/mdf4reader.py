@@ -1355,13 +1355,15 @@ class mdf4(mdf_skeleton):
             self._convertAllChannel4()
         # print( 'Finished in ' + str( time.clock() - inttime ) , file=stderr)
 
-    def _getChannelData4(self, channelName):
+    def _getChannelData4(self, channelName, raw_data=False):
         """Returns channel numpy array
 
         Parameters
         ----------------
         channelName : str
             channel name
+        raw_data: bool
+            flag to return non converted data
 
         Returns:
         -----------
@@ -1378,8 +1380,11 @@ class mdf4(mdf_skeleton):
                 if self.info.fid is None or (self.info.fid is not None and self.info.fid.closed):
                     (self.info.fid, self.info.fileName, self.info.zipfile) = _open_MDF(self.fileName)
                 self.read4(fileName=None, info=None, channelList=[channelName], convertAfterRead=False)
-            return self._convertChannelData4(self.getChannel(channelName),
+            if not raw_data:
+                return self._convertChannelData4(self.getChannel(channelName),
                         channelName, self.convert_tables)[channelName]
+            else:
+                return self.getChannel(channelName)[dataField]
         else:
             return None
 
@@ -1388,8 +1393,8 @@ class mdf4(mdf_skeleton):
 
         Parameters
         ----------------
-        channelName : dict
-            channel dict containing keys like 'data', 'unit', 'comment' and potentially 'conversion' dict
+        channel : channel class
+            channel4 object
         channelName : str
             name of channel
         convert_tables : bool
