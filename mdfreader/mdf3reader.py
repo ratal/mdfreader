@@ -902,7 +902,7 @@ class mdf3(mdf_skeleton):
                 buf.read(channelSet, self.fileName)  # reads datablock potentially containing several channel groups
 
                 channel_groups = buf
-                if self._noDataLoading:
+                if self._noDataLoading and channelList is not None:
                     channel_groups = [info['CGBlock'][dataGroup][self[channel][idField][1]]['recordID']
                                       for channel in channelList]
 
