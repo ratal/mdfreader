@@ -1269,7 +1269,7 @@ class mdf(mdf3, mdf4):
         yop.MDFVersionNumber = self.MDFVersionNumber
         yop.filterChannelNames = self.filterChannelNames
         yop.convert_tables = self.convert_tables
-        for channel in list(self.keys()):
+        for channel in self:
             yop[channel] = self[channel]
         return yop
 
@@ -1339,35 +1339,35 @@ if __name__ == "__main__":
     except:
         None
     parser = ArgumentParser(prog='mdfreader', description='reads mdf file')
-    parser.add_argument('--export', dest='export', default=None, \
-            choices=['CSV', 'HDF5', 'Matlab', 'Xlsx', 'Excel', 'NetCDF', 'MDF'], \
-            help='Export after parsing to defined file type')
-    parser.add_argument('--list_channels', dest='list_channels', action='store_true', \
-            help='list of channels in file')
+    parser.add_argument('--export', dest='export', default=None,
+                        choices=['CSV', 'HDF5', 'Matlab', 'Xlsx', 'Excel', 'NetCDF', 'MDF'],
+                        help='Export after parsing to defined file type')
+    parser.add_argument('--list_channels', dest='list_channels', action='store_true',
+                        help='list of channels in file')
     parser.add_argument('fileName', help='mdf file name')
-    parser.add_argument('--channelList', dest='channelList', nargs='+', type=str, \
-            default=None, help='list of channels to only read')
-    parser.add_argument('--plot', dest='plot_channel_list', nargs='+', type=str, \
-            default=None, help='plots list of channels')
-    parser.add_argument('--noConversion', action='store_false', \
-            help='Do not convert raw channel data \
+    parser.add_argument('--channelList', dest='channelList', nargs='+', type=str,
+                        default=None, help='list of channels to only read')
+    parser.add_argument('--plot', dest='plot_channel_list', nargs='+', type=str,
+                        default=None, help='plots list of channels')
+    parser.add_argument('--noConversion', action='store_false',
+                        help='Do not convert raw channel data \
             to physical values just after reading. Useful if you have memory concerns')
-    parser.add_argument('--filterChannelNames', action='store_true', \
-            help='activates channel name filtering; \
+    parser.add_argument('--filterChannelNames', action='store_true',
+                        help='activates channel name filtering; \
             removes modules names separated by a point character')
-    parser.add_argument('--noDataLoading', action='store_true', \
-            help='Do not load data in memory, creates dummy \
+    parser.add_argument('--noDataLoading', action='store_true',
+                        help='Do not load data in memory, creates dummy \
             mdf structure and load data from file when needed')
-    parser.add_argument('--compression', action='store_true', \
-            help='compress data in memory')
+    parser.add_argument('--compression', action='store_true',
+                        help='compress data in memory')
 
     args = parser.parse_args()
 
-    temp = mdf(fileName=args.fileName, channelList=args.channelList \
-        , converAfterRead=args.convertAfterRead, \
-        filterChannelNames=args.filterChannelNames, \
-        noDataLoading=args.noDataLoading, \
-        compression=args.compression)
+    temp = mdf(fileName=args.fileName, channelList=args.channelList,
+               converAfterRead=args.convertAfterRead,
+               filterChannelNames=args.filterChannelNames,
+               noDataLoading=args.noDataLoading,
+               compression=args.compression)
     if args.export is not None:
         if args.export == 'CSV':
             temp.exportToCSV()
