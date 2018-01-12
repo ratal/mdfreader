@@ -3,7 +3,11 @@ from setuptools import setup, find_packages
 from codecs import open  # To use a consistent encoding
 from os import path
 from distutils.extension import Extension
-from Cython.Build import cythonize
+try:
+    from Cython.Build import cythonize
+    use_cython = True
+except ImportError:
+    use_cython = False
 
 name = 'mdfreader'
 version = '2.7.5'
@@ -75,6 +79,11 @@ extras_require = {
     'compression': ['blosc'],
 }
 
+ext = '.pyx' if use_cython else '.c'
+
+ext_modules = cythonize(Extension('dataRead', ['dataRead'+ext],
+                        include_dirs=[numpy.get_include()]))
+
 # If there are data files included in your packages that need to be
 # installed, specify them here.  If using Python 2.6 or less, then these
 # have to be included in MANIFEST.in as well.
@@ -96,20 +105,17 @@ entry_points = {
     'mdfconverter=mdfconverter.mdfconverter:main',
     ],
 }
-ext_modules = cythonize(Extension('dataRead', ['dataRead.pyx'],
-                        include_dirs=[numpy.get_include()]))
 
 try:
     setup(name=name, version=version, description=description, long_description=long_description,
-        url=url, author=author, author_email=author_email, license=license, classifiers=classifiers, 
-        keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require, 
-        entry_points=entry_points, ext_modules=ext_modules)
-except SystemExit:  # in case cython failed
+          url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
+          keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
+          entry_points=entry_points, ext_modules=ext_modules)
+except SystemExit:  # in case dataRead compilation failed
     extras_require.pop('experimental')
     install_requires.pop(-1)  # removes cython requirement 
     install_requires.append('bitarray')  # replaces cython requirement by bitarray
     setup(name=name, version=version, description=description, long_description=long_description,
-        url=url, author=author, author_email=author_email, license=license, classifiers=classifiers, 
-        keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require, 
-        entry_points=entry_points)
-    
+          url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
+          keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
+          entry_points=entry_points)
