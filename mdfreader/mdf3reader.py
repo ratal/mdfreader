@@ -29,6 +29,7 @@ from __future__ import print_function
 from numpy import right_shift, bitwise_and, interp
 from numpy import max as npmax, min as npmin
 from numpy import asarray, recarray, array, searchsorted
+from numpy import issubdtype, number as numpy_number
 from numpy.core.records import fromstring, fromarrays
 from numpy.core.defchararray import encode as ncode
 from collections import defaultdict
@@ -1216,25 +1217,21 @@ class mdf3(mdf_skeleton):
                 if PythonVersion >= 3 and data.dtype.kind in ['S', 'U']:
                     temp = ncode(temp, encoding='latin1', errors='replace')
                 dataList = dataList + (temp, )
-                if data.dtype in ('float64', 'int64', 'uint64'):
-                    numberOfBits = 64
-                elif data.dtype in ('float32', 'int32', 'uint32'):
-                    numberOfBits = 32
-                elif data.dtype in ('uint16', 'int16'):
-                    numberOfBits = 16
-                elif data.dtype in ('uint8', 'int8', 'bool'):
-                    numberOfBits = 8
-                else:
-                    numberOfBits = 8  # if string, considered later
-                if data.dtype == 'float64':
-                    dataType = 3
-                elif data.dtype in ('uint8', 'uint16', 'uint32', 'uint64', 'bool'):
+                cn_numpy_kind = data.dtype.kind
+                cn_numpy_itemsize = data.dtype.itemsize
+                numberOfBits = cn_numpy_itemsize * 8
+                if cn_numpy_kind in ('u', 'b'):
                     dataType = 0
-                elif data.dtype in ('int8', 'int16', 'int32', 'int64'):
+                elif cn_numpy_kind == 'i':
                     dataType = 1
-                elif data.dtype == 'float32':
-                    dataType = 2
-                elif data.dtype.kind in ['S', 'U']:
+                elif cn_numpy_kind == 'f':
+                    if cn_numpy_itemsize == 8:
+                        dataType = 3
+                    elif cn_numpy_itemsize == 4:
+                        dataType = 2
+                    else:
+                        raise Exception('Not recognized dtype')
+                elif cn_numpy_kind in ('S', 'U', 'V'):
                     dataType = 7
                 else:
                     raise Exception('Not recognized dtype')
@@ -1247,7 +1244,7 @@ class mdf3(mdf_skeleton):
                 recordNumberOfBits += numberOfBits
                 if data.dtype.kind not in ['S', 'U']:
                     valueRangeValid = 1
-                    if len(data) > 0:
+                    if len(data) > 0 and issubdtype(data.dtype, numpy_number):
                         maximum = npmax(data)
                         minimum = npmin(data)
                     else:
@@ -1291,8 +1288,8 @@ class mdf3(mdf_skeleton):
                 # conversion already done during reading
                 # additional size information, not necessary for 65535 conversion type ?
                 try:
-                    unit = '{:\x00<20.19}'.format(self.getChannelUnit(channel)\
-                            .encode('latin-1', 'replace'))
+                    unit = '{:\x00<20.19}'.format(self.getChannelUnit(channel)
+                                                  .encode('latin-1', 'replace'))
                 except:
                     unit = b'\x00' * 20
                 head = (b'CC', 46, valueRangeValid, minimum, maximum,
