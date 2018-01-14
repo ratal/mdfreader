@@ -1254,7 +1254,7 @@ class mdf(mdf3, mdf4):
                 self.setChannelData(channel, hstack((data, refill)))
 
     def copy(self):
-        """copy a mdf class
+        """make a shallow copy a mdf class
 
         Returns:
         ------------
