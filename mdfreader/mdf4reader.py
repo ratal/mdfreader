@@ -396,8 +396,6 @@ class DATA(dict):
                 index += 1
             if temps['dl_count']:
                 # read and concatenate raw blocks
-                # initialise the final recarray
-                temps['data'], channels_indexes = record.initialise_recarray(info, nameList, record.numberOfRecords)
                 previous_index = 0
                 data_block = defaultdict()
                 data_block['data'] = bytearray()
@@ -448,10 +446,12 @@ class DATA(dict):
                             if previous_index + nrecord_chunk > record.numberOfRecords:
                                 # there could be more data than needed for the expected number of records
                                 nrecord_chunk = record.numberOfRecords - previous_index
-                            temps['data'][previous_index: previous_index + nrecord_chunk] = \
-                                DATABlock(record, info, parent_block=data_block,
-                                          channelSet=nameList, nrecords=nrecord_chunk,
-                                          sortedFlag=sortedFlag, vlsd=vlsd)
+                            tmp = DATABlock(record, info, parent_block=data_block,
+                                            channelSet=nameList, nrecords=nrecord_chunk,
+                                            sortedFlag=sortedFlag, vlsd=vlsd)
+                            if 'data' not in temps:  # initialise recarray
+                                temps['data'] = recarray(record.numberOfRecords, dtype=tmp.dtype)
+                            temps['data'][previous_index: previous_index + nrecord_chunk] = tmp
                             previous_index += nrecord_chunk
                             if nremain:
                                 data_block['data'] = remain
@@ -1552,7 +1552,13 @@ class mdf4(mdf_skeleton):
 
             # write CGBlock
             temp = CGBlock()
-            cg_cycle_count = len(self._getChannelData4(masterChannel))
+            master_channel_data = self._getChannelData4(masterChannel)
+            if master_channel_data is not None:
+                cg_cycle_count = len(master_channel_data)
+            else:
+                # no data in datagroup, skip
+                print('no data in datagroup {0} with master channel {1}'.format(dataGroup, masterChannel))
+                continue
             cg_data_bytes = 0
             pointers['CG'][dataGroup] = temp.write(fid, cg_cycle_count, cg_data_bytes)
 
@@ -1566,7 +1572,7 @@ class mdf4(mdf_skeleton):
             for nchannel, channel in enumerate(self.masterChannelList[masterChannel]):
                 data = self.getChannelData(channel)
                 # no interest to write invalid bytes as channel
-                if channel.find('invalid_bytes') == -1 and len(data) > 0:
+                if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
                     dataList = dataList + (data, )
                     number_of_channel += 1
                     temp = CNBlock()
