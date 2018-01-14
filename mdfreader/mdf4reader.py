@@ -40,6 +40,7 @@ from collections import defaultdict
 from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, append, asarray, empty, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
+from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
 from numpy.lib.recfunctions import rec_append_fields, rename_fields
 from warnings import simplefilter, warn
@@ -1569,8 +1570,12 @@ class mdf4(mdf_skeleton):
                     dataList = dataList + (data, )
                     number_of_channel += 1
                     temp = CNBlock()
-                    temp['cn_val_range_min'] = npmin(data)
-                    temp['cn_val_range_max'] = npmax(data)
+                    if issubdtype(data.dtype, numpy_number):  # is numeric
+                        temp['cn_val_range_min'] = npmin(data)
+                        temp['cn_val_range_max'] = npmax(data)
+                    else:
+                        temp['cn_val_range_min'] = 0
+                        temp['cn_val_range_max'] = 0
                     temp['cn_flags'] = 16  # only Bit 4: Limit range valid flag
                     if masterChannel is not channel:
                         temp['cn_type'] = 0
@@ -1580,13 +1585,12 @@ class mdf4(mdf_skeleton):
                         temp['cn_sync_type'] = 1  # default is time channel
                         nRecords = len(data)
 
-                    cn_numpy_dtype = data.dtype
                     cn_numpy_kind = data.dtype.kind
-                    if cn_numpy_dtype in ('uint8', 'uint16', 'uint32', 'uint64', 'bool'):
+                    if cn_numpy_kind in ('u', 'b'):
                         data_type = 0  # LE
-                    elif cn_numpy_dtype in ('int8', 'int16', 'int32', 'int64'):
+                    elif cn_numpy_kind == 'i':
                         data_type = 2  # LE
-                    elif cn_numpy_dtype in ('float32', 'float64'):
+                    elif cn_numpy_kind == 'f':
                         data_type = 4  # LE
                     elif cn_numpy_kind == 'S':
                         data_type = 6
@@ -1595,32 +1599,14 @@ class mdf4(mdf_skeleton):
                     elif cn_numpy_kind == 'V':
                         data_type = 10  # bytes
                     else:
-                        print(cn_numpy_dtype, cn_numpy_kind, file=stderr)
+                        print(channel, data.dtype, cn_numpy_kind, file=stderr)
                         raise Exception('Not recognized dtype')
                     temp['cn_data_type'] = data_type
                     temp['cn_bit_offset'] = 0  # always byte aligned
-                    if cn_numpy_dtype in ('float64', 'int64', 'uint64'):
-                        bit_count = 64
-                        byte_count = 8
-                    elif cn_numpy_dtype in ('float32', 'int32', 'uint32'):
-                        bit_count = 32
-                        byte_count = 4
-                    elif cn_numpy_dtype in ('uint16', 'int16'):
-                        bit_count = 16
-                        byte_count = 2
-                    elif cn_numpy_dtype in ('uint8', 'int8', 'bool'):
-                        bit_count = 8
-                        byte_count = 1
-                    elif cn_numpy_kind in ('S', 'U', 'V'):
-                        byte_count = len(data[0])
-                        # if string, not considered
-                        bit_count = 8 * byte_count
-                    else:
-                        bit_count = 8
-                        byte_count = 1
                     temp['cn_byte_offset'] = record_byte_offset
+                    byte_count = data.dtype.itemsize
                     record_byte_offset += byte_count
-                    temp['cn_bit_count'] = bit_count
+                    temp['cn_bit_count'] = byte_count * 8
                     # if data.dtype.kind not in ('S', 'U', 'V'):
                     #    dataTypeList = ''.join([dataTypeList, data.dtype.char])
                     # else:
