@@ -81,9 +81,6 @@ extras_require = {
 
 ext = '.pyx' if use_cython else '.c'
 
-ext_modules = cythonize(Extension('dataRead', ['dataRead'+ext],
-                        include_dirs=[numpy.get_include()]))
-
 # If there are data files included in your packages that need to be
 # installed, specify them here.  If using Python 2.6 or less, then these
 # have to be included in MANIFEST.in as well.
@@ -107,6 +104,8 @@ entry_points = {
 }
 
 try:
+    ext_modules = cythonize(Extension('dataRead', ['dataRead' + ext],
+                                      include_dirs=[numpy.get_include()]))
     setup(name=name, version=version, description=description, long_description=long_description,
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
