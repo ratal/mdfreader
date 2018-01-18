@@ -1,7 +1,7 @@
 mdfreader module documentation
 =====================================
 
-.. automodule:: mdfreader
+.. automodule:: mdfreader.mdfreader
     :members:
     :undoc-members:
     :show-inheritance:

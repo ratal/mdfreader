@@ -1,7 +1,8 @@
 channel module documentation
 =====================================
 
-.. automodule:: channel
+.. automodule:: mdfreader.channel
     :members:
     :undoc-members:
     :show-inheritance:
+

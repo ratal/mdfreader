@@ -1,7 +1,7 @@
 mdfinfo4 module documentation
 =====================================
 
-.. automodule:: mdfinfo4
+.. automodule:: mdfreader.mdfinfo4
     :members:
     :undoc-members:
     :show-inheritance:
