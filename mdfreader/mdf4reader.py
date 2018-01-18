@@ -30,13 +30,13 @@ mdf4reader module
 from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
 from struct import Struct
-from struct import unpack as structunpack
+from struct import pack, unpack as structunpack
 from math import pow
 from io import open  # for python 3 and 2 consistency
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
 from sys import version_info, byteorder, stderr
-from collections import defaultdict
+from collections import defaultdict, OrderedDict
 from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, append, asarray, empty, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
@@ -46,7 +46,7 @@ from numpy.lib.recfunctions import rec_append_fields, rename_fields
 from warnings import simplefilter, warn
 from .mdfinfo4 import info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
-    DZBlock, HLBlock, CCBlock, _writePointer, _writeHeader
+    DZBlock, HLBlock, CCBlock, _calculate_block_start, HeaderStruct
 from .mdf import mdf_skeleton, _open_MDF, \
     dataField, conversionField, idField, compressed_data
 from .channel import channel4
@@ -1507,51 +1507,60 @@ class mdf4(mdf_skeleton):
         All channels will be converted to physical data, so size might be bigger than original file
         """
 
-        pointers = {}  # records pointers of blocks when writing
-
         # Starts first to write ID and header
         fid = open(fileName, 'wb')  # buffering should automatically be set
         # IDBLock writing
         temp = IDBlock()
         temp.write(fid)
 
+        blocks = OrderedDict()
+        pointer = 64
         # Header Block
-        temp = HDBlock()
-        pointers.update(temp.write(fid))
+        blocks['HD'] = HDBlock()
+        blocks['HD']['block_start'] = pointer
+        pointer += 104
 
         # Header Block comments
-        _writePointer(fid, pointers['HD']['MD'], fid.tell())
-        temp = CommentBlock()
-        temp.write(fid, self.file_metadata, 'HD')
+        blocks['HD']['MD'] = pointer
+        blocks['HD_comment'] = CommentBlock()
+        blocks['HD_comment']['block_start'] = pointer
+        blocks['HD_comment'].load(self.file_metadata, 'HD')
+        pointer = blocks['HD_comment']['block_start'] + blocks['HD_comment']['block_length']
 
         # file history block
-        temp = FHBlock()
-        _writePointer(fid, pointers['HD']['FH'], fid.tell()) 
-        pointers.update(temp.write(fid))
+        blocks['FH'] = FHBlock()
+        blocks['HD']['FH'] = pointer
+        blocks['FH']['block_start'] = pointer
+        pointer = blocks['FH']['block_start'] + 56
+
         # File History comment
-        _writePointer(fid, pointers['FH']['MD'], fid.tell())
-        temp = CommentBlock()
-        temp.write(fid, self.file_metadata, 'FH')
+        blocks['FH']['MD'] = pointer
+        blocks['FH_comment'] = CommentBlock()
+        blocks['FH_comment']['block_start'] = pointer
+        blocks['FH_comment'].load(self.file_metadata, 'FH')
+        pointer = blocks['FH_comment']['block_start'] + blocks['FH_comment']['block_length']
 
         # write DG block
-        _writePointer(fid, pointers['HD']['DG'], fid.tell())  # first DG
+        blocks['HD']['DG'] = pointer  # first DG
 
-        pointers['DG'] = {}
-        pointers['CG'] = {}
-        pointers['CN'] = {}
-        DG_flag = 0
+        # write all files header blocks
+        for block in blocks.values():
+            block.write(fid)
+
         for dataGroup, masterChannel in enumerate(self.masterChannelList):
             # writes dataGroup Block
-            temp = DGBlock()
-            pointers['DG'][dataGroup] = temp.write(fid)
-            if DG_flag:
-                # Next DG
-                _writePointer(fid, pointers['DG'][dataGroup-1]['DG'], pointers['DG'][dataGroup]['block_start'])
-            DG_flag = pointers['DG'][dataGroup]['block_start']
-            _writePointer(fid, pointers['DG'][dataGroup]['CG'], fid.tell())  # First CG
+            DG = DGBlock()
+            DG['block_start'] = pointer
+            pointer = DG['block_start'] + 64
+            DG['CG'] = pointer  # First CG link
 
+            blocks = OrderedDict()  # initialise blocks for this datagroup
             # write CGBlock
-            temp = CGBlock()
+            blocks['CG'] = CGBlock()
+            blocks['CG']['block_start'] = pointer
+            pointer = blocks['CG']['block_start'] + 104
+            blocks['CG']['CN'] = pointer  # First CN link
+
             master_channel_data = self._getChannelData4(masterChannel)
             if master_channel_data is not None:
                 cg_cycle_count = len(master_channel_data)
@@ -1559,8 +1568,7 @@ class mdf4(mdf_skeleton):
                 # no data in datagroup, skip
                 print('no data in datagroup {0} with master channel {1}'.format(dataGroup, masterChannel))
                 continue
-            cg_data_bytes = 0
-            pointers['CG'][dataGroup] = temp.write(fid, cg_cycle_count, cg_data_bytes)
+            blocks['CG']['cg_cycle_count'] = cg_cycle_count
 
             # write channels
             record_byte_offset = 0
@@ -1575,20 +1583,20 @@ class mdf4(mdf_skeleton):
                 if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
                     dataList = dataList + (data, )
                     number_of_channel += 1
-                    temp = CNBlock()
+                    blocks[nchannel] = CNBlock()
                     if issubdtype(data.dtype, numpy_number):  # is numeric
-                        temp['cn_val_range_min'] = npmin(data)
-                        temp['cn_val_range_max'] = npmax(data)
+                        blocks[nchannel]['cn_val_range_min'] = npmin(data)
+                        blocks[nchannel]['cn_val_range_max'] = npmax(data)
                     else:
-                        temp['cn_val_range_min'] = 0
-                        temp['cn_val_range_max'] = 0
-                    temp['cn_flags'] = 16  # only Bit 4: Limit range valid flag
+                        blocks[nchannel]['cn_val_range_min'] = 0
+                        blocks[nchannel]['cn_val_range_max'] = 0
+                    blocks[nchannel]['cn_flags'] = 16  # only Bit 4: Limit range valid flag
                     if masterChannel is not channel:
-                        temp['cn_type'] = 0
-                        temp['cn_sync_type'] = 0
+                        blocks[nchannel]['cn_type'] = 0
+                        blocks[nchannel]['cn_sync_type'] = 0
                     else:
-                        temp['cn_type'] = 2  # master channel
-                        temp['cn_sync_type'] = 1  # default is time channel
+                        blocks[nchannel]['cn_type'] = 2  # master channel
+                        blocks[nchannel]['cn_sync_type'] = 1  # default is time channel
                         nRecords = len(data)
 
                     cn_numpy_kind = data.dtype.kind
@@ -1607,53 +1615,75 @@ class mdf4(mdf_skeleton):
                     else:
                         print(channel, data.dtype, cn_numpy_kind, file=stderr)
                         raise Exception('Not recognized dtype')
-                    temp['cn_data_type'] = data_type
-                    temp['cn_bit_offset'] = 0  # always byte aligned
-                    temp['cn_byte_offset'] = record_byte_offset
+                    blocks[nchannel]['cn_data_type'] = data_type
+                    blocks[nchannel]['cn_bit_offset'] = 0  # always byte aligned
+                    blocks[nchannel]['cn_byte_offset'] = record_byte_offset
                     byte_count = data.dtype.itemsize
                     record_byte_offset += byte_count
-                    temp['cn_bit_count'] = byte_count * 8
-                    # if data.dtype.kind not in ('S', 'U', 'V'):
-                    #    dataTypeList = ''.join([dataTypeList, data.dtype.char])
-                    # else:
-                    #    dataTypeList = ''.join([dataTypeList, '{}s'.format(data.dtype.itemsize)])
-                    # write channel block
-                    pointers['CN'][nchannel] = temp.write(fid)
+                    blocks[nchannel]['cn_bit_count'] = byte_count * 8
+                    blocks[nchannel]['block_start'] = pointer
+                    pointer = blocks[nchannel]['block_start'] + 160
+
                     if CN_flag:
                         # Next DG
-                        _writePointer(fid, pointers['CN'][nchannel-1]['CN'], pointers['CN'][nchannel]['block_start'])
+                        blocks[nchannel-1]['CN'] = blocks[nchannel]['block_start']
                     else:
-                        CN_flag = pointers['CN'][nchannel]['block_start']
-                        _writePointer(fid, pointers['CG'][dataGroup]['CN'], CN_flag)  # first CN block pointer in CG
+                        CN_flag = blocks[nchannel]['block_start']
+                        blocks[nchannel]['CN'] = 0  # last CN link is null
+
                     # write channel name
-                    _writePointer(fid, pointers['CN'][nchannel]['TX'], fid.tell())
-                    temp = CommentBlock()
-                    temp.write(fid, channel, 'TX')
+                    blocks[nchannel]['TX'] = pointer
+                    blocks[channel] = CommentBlock()
+                    blocks[channel]['block_start'] = pointer
+                    blocks[channel].load(channel, 'TX')
+                    pointer = blocks[channel]['block_start'] + blocks[channel]['block_length']
 
                     # write channel unit
                     unit = self.getChannelUnit(channel)
                     if unit is not None and len(unit) > 0:
-                        temp = CommentBlock()
-                        block_start = temp.write(fid, unit, 'TX')
-                        _writePointer(fid, pointers['CN'][nchannel]['Unit'], block_start)
+                        blocks[nchannel]['Unit'] = pointer
+                        unit_name = ''.join([channel, '_U'])
+                        blocks[unit_name] = CommentBlock()
+                        blocks[unit_name]['block_start'] = pointer
+                        blocks[unit_name].load(unit, 'TX')
+                        pointer = blocks[unit_name]['block_start'] + blocks[unit_name]['block_length']
+                    else:
+                        blocks[nchannel]['Unit'] = 0
 
                     # write channel description
                     desc = self.getChannelDesc(channel)
                     if desc is not None and len(desc) > 0:
-                        temp = CommentBlock()
-                        block_start = temp.write(fid, desc, 'TX')
-                        _writePointer(fid, pointers['CN'][nchannel]['Comment'], block_start)
+                        blocks[nchannel]['Comment'] = pointer
+                        desc_name= ''.join([channel, '_C'])
+                        blocks[desc_name] = CommentBlock()
+                        blocks[desc_name]['block_start'] = pointer
+                        blocks[desc_name].load(desc, 'TX')
+                        pointer = blocks[desc_name]['block_start'] + blocks[desc_name]['block_length']
+                    else:
+                        blocks[nchannel]['Comment'] = 0
 
+            blocks[nchannel]['CN'] = 0  # last CN link is null
             # writes size of record in CG
-            _writePointer(fid, pointers['CG'][dataGroup]['cg_data_bytes'], record_byte_offset)
+            blocks['CG']['cg_data_bytes'] = record_byte_offset
 
-            # data writing
-            # write data pointer in datagroup
-            DTposition = _writeHeader(fid, b'##DT', 24 + record_byte_offset * nRecords, 0)
-            _writePointer(fid, pointers['DG'][dataGroup]['data'], DTposition)
+            # data pointer in datagroup
+            DG['data'] = pointer
+            datablock_length = 24 + record_byte_offset * nRecords
+            pointer = _calculate_block_start(pointer + datablock_length)
+            DG['DG'] = pointer  # last DG pointer is null
+            DG.write(fid)
+
+            # writes all blocks before writing data block
+            for block in blocks.values():
+                block.write(fid)
+
+            # data block writing
+            fid.write(HeaderStruct.pack(b'##DT', 0, datablock_length, 0))
             # dumps data vector from numpy
             fid.write(fromarrays(dataList).tobytes(order='F'))
 
+        fid.seek(DG['block_start'] + 24)
+        fid.write(pack('Q', 0))
         # print(pointers, file=stderr)
         fid.close()
 
