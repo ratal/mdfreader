@@ -1,7 +1,7 @@
 mdf module documentation
 =====================================
 
-.. automodule:: mdf
+.. automodule:: mdfreader.mdf
     :members:
     :undoc-members:
     :show-inheritance:
