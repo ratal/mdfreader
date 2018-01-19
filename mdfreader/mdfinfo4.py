@@ -325,6 +325,7 @@ class CHBlock(dict):
 class CommentBlock(dict):
     """ reads or writes Comment block and saves in class dict
     """
+
     def read(self, **kargs):
         """ reads Comment block and saves in class dict
         Parameters
@@ -1108,8 +1109,7 @@ class info4(dict):
     Channel block including text blocks for comment and identifier
     - mdfinfo['CN'][dataGroup][channelGroup][channel]
     Channel conversion information
-    - mdfinfo['CC'][dataGroup][channelGroup][channel]
-    """
+    - mdfinfo['CC'][dataGroup][channelGroup][channel]"""
 
     def __init__(self, fileName=None, fid=None, minimal=0):
         """ info4 class constructor
@@ -1127,8 +1127,8 @@ class info4(dict):
 
         Notes
         ---------
-        Either fileName or fid can be used as argument
-        """
+        Either fileName or fid can be used as argument"""
+
         self['ID'] = {}  # Identifier Block
         self['HD'] = {}  # Header Block
         self['FH'] = {}
