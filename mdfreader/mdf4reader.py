@@ -38,7 +38,7 @@ from multiprocessing import Queue, Process
 from sys import version_info, byteorder, stderr
 from collections import defaultdict, OrderedDict
 from numpy.core.records import fromstring, fromarrays
-from numpy import array, recarray, append, asarray, empty, where
+from numpy import array, recarray, asarray, empty, where
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
@@ -46,7 +46,7 @@ from numpy.lib.recfunctions import rec_append_fields, rename_fields
 from warnings import simplefilter, warn
 from .mdfinfo4 import info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
-    DZBlock, HLBlock, CCBlock, _calculate_block_start, HeaderStruct
+    DZBlock, HLBlock, CCBlock, DTBlock
 from .mdf import mdf_skeleton, _open_MDF, \
     dataField, conversionField, idField, compressed_data
 from .channel import channel4
@@ -116,7 +116,7 @@ def DATABlock(record, info, parent_block, channelSet=None, nrecords=None, sorted
 
     elif parent_block['id'] in ('##DZ', b'##DZ'):  # zipped data block
         # uncompress data
-        parent_block['data'] = decompress_datablock(parent_block['data'], parent_block['dz_zip_type'],
+        parent_block['data'] = DZBlock.decompress_datablock(parent_block['data'], parent_block['dz_zip_type'],
                 parent_block['dz_zip_parameter'], parent_block['dz_org_data_length'])
         if vlsd:  # VLSD channel
             return read_sdblock(record[record.VLSD[0]].signalDataType(info),
@@ -174,40 +174,6 @@ def readUnsorted(record, info, parent_block, channelSet=None):
     for chan in buf:
         buf[chan] = array(buf[chan])
     return buf
-
-
-def decompress_datablock(block, zip_type, zip_parameter, org_data_length):
-    """ decompress datablock.
-
-    Parameters
-    --------------
-    block : bytes
-        raw data compressed
-    zip_type : int
-        0 for non transposed, 1 for transposed data
-    zip_parameter : int
-        first dimension of matrix to be transposed
-    org_data_length : int
-        uncompressed data length
-
-    Returns
-    ---------
-    uncompressed raw data
-    """
-    from zlib import decompress
-    if PythonVersion > 3:  # decompress data
-        block = decompress(block)
-    else:
-        block = decompress(bytes(block))  # decompress data
-    if zip_type == 1:  # data bytes transposed
-        M = org_data_length // zip_parameter
-        temp = array(memoryview(block[:M * zip_parameter]))
-        tail = array(memoryview(block[M * zip_parameter:]))
-        temp = temp.reshape(zip_parameter, M).T.ravel()
-        if len(tail) > 0:
-            temp = append(temp, tail)
-        block = temp.tostring()
-    return block
 
 
 def read_sdblock(signal_data_type, sdblock, sdblock_length):
@@ -382,7 +348,9 @@ class DATA(dict):
         # block header
         temps.update(_loadHeader(self.fid, self.pointerTodata))
         if temps['id'] in ('##DL', b'##DL'):  # data list block
-            temps.update(DLBlock(self.fid, temps['link_count']))
+            temp = DLBlock()
+            temp.read(self.fid, temps['link_count'])
+            temps.update(temp)
             if temps['dl_dl_next']:
                 index = 1
             while temps['dl_dl_next']:  # reads pointers to all data blocks (DT, RD, SD, DZ)
@@ -407,8 +375,10 @@ class DATA(dict):
                             if data_block['id'] in ('##SD', b'##SD'):
                                 data_block['data'].extend(self.fid.read(data_block['length'] - 24))
                             elif data_block['id'] in ('##DZ', b'##DZ'):
-                                data_block.update(DZBlock(self.fid))
-                                data_block['data'].extend(decompress_datablock(
+                                temp = DZBlock()
+                                temp.read(self.fid)
+                                data_block.update(temp)
+                                data_block['data'].extend(DZBlock.decompress_datablock(
                                     self.fid.read(data_block['dz_data_length']),
                                     data_block['dz_zip_type'],
                                     data_block['dz_zip_parameter'],
@@ -428,8 +398,10 @@ class DATA(dict):
                             if data_block['id'] in ('##DT', '##RD', b'##DT', b'##RD'):
                                 data_block['data'].extend(self.fid.read(data_block['length'] - 24))
                             elif data_block['id'] in ('##DZ', b'##DZ'):
-                                data_block.update(DZBlock(self.fid))
-                                data_block['data'].extend(decompress_datablock(
+                                temp = DZBlock()
+                                temp.read(self.fid)
+                                data_block.update(temp)
+                                data_block['data'].extend(DZBlock.decompress_datablock(
                                                           self.fid.read(data_block['dz_data_length']),
                                                           data_block['dz_zip_type'],
                                                           data_block['dz_zip_parameter'],
@@ -461,7 +433,9 @@ class DATA(dict):
                 temps['data'] = None
         elif temps['id'] in ('##HL', b'##HL'):  # header list block for DZBlock
             # link section
-            temps.update(HLBlock(self.fid))
+            temp = HLBlock()
+            temp.read(self.fid)
+            temps.update(temp)
             self.pointerTodata = temps['hl_dl_first']
             temps['data'] = self.load(record, info, nameList=nameList, sortedFlag=sortedFlag)
         elif temps['id'] in ('##DT', '##RD', b'##DT', b'##RD'):  # normal sorted data block, direct read
@@ -471,7 +445,9 @@ class DATA(dict):
             temps['data'] = DATABlock(record, info, parent_block=temps, channelSet=nameList,
                                       nrecords=None, sortedFlag=sortedFlag)
         elif temps['id'] in ('##DZ', b'##DZ'):  # zipped data block
-            temps.update(DZBlock(self.fid))
+            temp = DZBlock()
+            temp.read(self.fid)
+            temps.update(temp)
             temps['data'] = self.fid.read(temps['dz_data_length'])
             temps['data'] = DATABlock(record, info, parent_block=temps,
                                       channelSet=nameList, nrecords=None,
@@ -801,7 +777,7 @@ class record(list):
                 return self.read_not_all_channels_sorted_record(fid, info, channelSet)
 
     def generate_chunks(self):
-        """ Initialise recarray
+        """ calculate data split
 
         Returns
         --------
@@ -1493,7 +1469,7 @@ class mdf4(mdf_skeleton):
                         self.setChannelData(channelName, L[channelName])
                         self.remove_channel_conversion(channelName)
 
-    def write4(self, fileName=None):
+    def write4(self, fileName=None, compression=False):
         """Writes simple mdf 4.1 file
 
         Parameters
@@ -1501,6 +1477,8 @@ class mdf4(mdf_skeleton):
         fileName : str, optional
             Name of file
             If file name is not input, written file name will be the one read with appended '_new' string before extension
+        compression : bool
+            flag to store data compressed
 
         Notes
         --------
@@ -1576,11 +1554,12 @@ class mdf4(mdf_skeleton):
             number_of_channel = 0
             nRecords = 0
             dataList = ()
-            # dataTypeList = ''
+            last_channel = 0
             for nchannel, channel in enumerate(self.masterChannelList[masterChannel]):
                 data = self.getChannelData(channel)
                 # no interest to write invalid bytes as channel
                 if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
+                    last_channel = nchannel
                     dataList = dataList + (data, )
                     number_of_channel += 1
                     blocks[nchannel] = CNBlock()
@@ -1627,9 +1606,10 @@ class mdf4(mdf_skeleton):
                     if CN_flag:
                         # Next DG
                         blocks[nchannel-1]['CN'] = blocks[nchannel]['block_start']
+                        blocks[nchannel]['CN'] = 0  # initialise 'CN' key
                     else:
                         CN_flag = blocks[nchannel]['block_start']
-                        blocks[nchannel]['CN'] = 0  # last CN link is null
+                        blocks[nchannel]['CN'] = 0  # creates first CN link, null for the moment
 
                     # write channel name
                     blocks[nchannel]['TX'] = pointer
@@ -1654,7 +1634,7 @@ class mdf4(mdf_skeleton):
                     desc = self.getChannelDesc(channel)
                     if desc is not None and len(desc) > 0:
                         blocks[nchannel]['Comment'] = pointer
-                        desc_name= ''.join([channel, '_C'])
+                        desc_name = ''.join([channel, '_C'])
                         blocks[desc_name] = CommentBlock()
                         blocks[desc_name]['block_start'] = pointer
                         blocks[desc_name].load(desc, 'TX')
@@ -1662,29 +1642,38 @@ class mdf4(mdf_skeleton):
                     else:
                         blocks[nchannel]['Comment'] = 0
 
-            blocks[nchannel]['CN'] = 0  # last CN link is null
+            if last_channel in blocks:
+                blocks[last_channel]['CN'] = 0  # last CN link is null
             # writes size of record in CG
             blocks['CG']['cg_data_bytes'] = record_byte_offset
 
             # data pointer in datagroup
             DG['data'] = pointer
-            datablock_length = 24 + record_byte_offset * nRecords
-            pointer = _calculate_block_start(pointer + datablock_length)
-            DG['DG'] = pointer  # last DG pointer is null
-            DG.write(fid)
+            if compression:
+                data = HLBlock()
+                data.load(record_byte_offset, nRecords, pointer)
+                DG_start_position = fid.tell()
+            else:
+                data = DTBlock()
+                data.load(record_byte_offset, nRecords, pointer)
+                DG['DG'] = data['end_position']
 
-            # writes all blocks before writing data block
+            DG.write(fid)  # write DG block
+
+            # writes all blocks (CG, CN, TX for unit and description) before writing data block
             for block in blocks.values():
                 block.write(fid)
 
             # data block writing
-            fid.write(HeaderStruct.pack(b'##DT', 0, datablock_length, 0))
-            # dumps data vector from numpy
-            fid.write(fromarrays(dataList).tobytes(order='F'))
+            pointer = data.write(fid, fromarrays(dataList).tobytes(order='F'))
+            if compression:
+                # next DG position is not predictable due to DZ Blocks unknown length
+                fid.seek(DG_start_position + 24)
+                fid.write(pack('<Q', pointer))
+                fid.seek(pointer)
 
         fid.seek(DG['block_start'] + 24)
-        fid.write(pack('Q', 0))
-        # print(pointers, file=stderr)
+        fid.write(pack('Q', 0))  # last DG pointer is null
         fid.close()
 
 
