@@ -33,6 +33,7 @@ from struct import Struct
 from struct import pack, unpack as structunpack
 from math import pow
 from io import open  # for python 3 and 2 consistency
+from os.path import splitext
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
 from sys import version_info, byteorder, stderr
@@ -1486,6 +1487,11 @@ class mdf4(mdf_skeleton):
         """
 
         # Starts first to write ID and header
+        if fileName is None:
+            splitName = splitext(self.fileName)
+            if splitName[-1] in ('.mfxz', '.MFXZ'):
+                splitName[-1] = '.mfx'  # do not resave in compressed file
+            fileName = ''.join([splitName[-2], '_New', splitName[-1]])
         fid = open(fileName, 'wb')  # buffering should automatically be set
         # IDBLock writing
         temp = IDBlock()
@@ -1653,6 +1659,7 @@ class mdf4(mdf_skeleton):
                 data = HLBlock()
                 data.load(record_byte_offset, nRecords, pointer)
                 DG_start_position = fid.tell()
+                DG['DG'] = 0
             else:
                 data = DTBlock()
                 data.load(record_byte_offset, nRecords, pointer)

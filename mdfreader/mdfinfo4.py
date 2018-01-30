@@ -1074,11 +1074,13 @@ class DLBlock(dict):
         self['block_start'] = position
         number_DL = len(chunks)
         self['block_length'] = 40 + 16 * number_DL
-        dl_offset = zeros(shape=number_DL, dtype='<uint64')
-        for counter, (nrecord_chunk, chunk_size) in enumerate(self['chunks']):
-            dl_offset[counter] = dl_offset[counter - 1] + chunk_size
+        dl_offset = zeros(shape=number_DL, dtype='<u8')
+        if number_DL > 1:
+            for counter in range(1, number_DL):
+                (nrecord_chunk, chunk_size) = chunks[counter]
+                dl_offset[counter] = dl_offset[counter - 1] + chunk_size
         dataBytes = (b'##DL', 0, self['block_length'], number_DL + 1,
-                     0, zeros(shape=number_DL, dtype='<uint64'), 1,
+                     0, zeros(shape=number_DL, dtype='<u8'), 1,
                      number_DL, dl_offset)
         fid.write(pack('<4sI3Q{0}Q2I{1}Q'.format(number_DL, number_DL), *dataBytes))
 
@@ -1179,9 +1181,9 @@ class HLBlock(dict):
             self['chunks'].append((nrecord_chunk, record_byte_offset * nrecord_chunk))
 
     def write(self, fid, data):
-        fid.write(HeaderStruct.pack((b'##HL', 0, self['block_length'], 1)))
+        fid.write(HeaderStruct.pack(b'##HL', 0, self['block_length'], 1))
         # uses not equal length blocks, transposed compressed data
-        fid.write(HLStruct.pack(self['block_start'] + self['block_length'], 0, 1, 0))
+        fid.write(HLStruct.pack(self['block_start'] + self['block_length'], 0, 1, b'\x00'*5))
         pointer = self['block_start'] + self['block_length']
         DL = DLBlock()
         DL.write(fid, self['chunks'], pointer)
