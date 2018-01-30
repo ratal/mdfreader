@@ -782,26 +782,6 @@ class channel4(object):
         except KeyError:
             return None
 
-    def invalid_bit(self, info):
-        """ extrzcts from info4 the channels valid bits positions
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        Returns
-        -----------
-        dict of channels valid bits positions
-        """
-        invalid_bit = {}
-        for channelNumber in info['CN'][self.dataGroup][self.channelGroup]:
-            name = info['CN'][self.dataGroup][self.channelGroup][channelNumber]['name']
-            invalid_bit[name] = info['CN'][self.dataGroup][self.channelGroup]\
-                                    [channelNumber]['cn_invalid_bit_pos']
-        return invalid_bit
-
     def set(self, info, dataGroup, channelGroup, channelNumber):
         """ channel initialisation
 
@@ -880,25 +860,27 @@ class channel4(object):
         self.dataGroup = dataGroup
         self.channelGroup = channelGroup
 
-    def validity_channel(self, info, invalid_bytes):
-        """ extract channel validity bits
+    def invalid_bit(self, info):
+        """ extracts from info4 the channels valid bits positions
 
         Parameters
-        ----------
+        ----------------
 
         info : mdfinfo4.info4 class
-        invalid_bytes : bytes
-            bytes from where to extract validity bit array
+            info4 class containing all MDF Blocks
 
-        Return
-        -------
-        Numpy vector of validity
-
+        Returns
+        -----------
+        channel valid bit position
         """
-        if self.type == 'Inv':
-            return bitwise_and(right_shift(invalid_bytes, self.invalid_bit(info)), 1)
+        return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_invalid_bit_pos']
+
+    def has_invalid_bit(self, info):
+        flags = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_flags']
+        if flags & 0b10:
+            return True
         else:
-            print('asking for invalid byte array but channel is not invalid byte type')
+            return False
     
     def changeChannelName(self, channelGroup):
         """ In case of duplicate channel names within several channel groups

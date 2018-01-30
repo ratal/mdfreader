@@ -44,6 +44,7 @@ from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
 from numpy.lib.recfunctions import rec_append_fields, rename_fields
+from numpy.ma import MaskedArray
 from warnings import simplefilter, warn
 from .mdfinfo4 import info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
@@ -1311,16 +1312,19 @@ class mdf4(mdf_skeleton):
                                             if chan.channelType(info) == 4:  # sync channel
                                                 # attach stream to be synchronised
                                                 self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
+                                            if chan.has_invalid_bit(info):  # has invalid bit
+                                                self.setInvalidBit(chan.name, chan.invalid_bit(info))
+                                                self.setInvalidChannel(chan.name, 'invalid_bytes{}'.format(dataGroup))
                                     else:
-                                        # invalid bytes, no bits processing
+                                        # invalid bytes channel
                                         self.add_channel(dataGroup, chan.name,
-                                                buf[recordID]['data'].__getattribute__(chan.name),
-                                                master_channel,
-                                                master_type=0,
-                                                unit='',
-                                                description='',
-                                                info=None,
-                                                compression=compression)
+                                                         buf[recordID]['data'].__getattribute__(chan.name),
+                                                         master_channel,
+                                                         master_type=0,
+                                                         unit='',
+                                                         description='',
+                                                         info=None,
+                                                         compression=compression)
                             buf[recordID].pop('data', None)
                     del buf
                 if minimal > 1:
@@ -1682,6 +1686,24 @@ class mdf4(mdf_skeleton):
         fid.seek(DG['block_start'] + 24)
         fid.write(pack('Q', 0))  # last DG pointer is null
         fid.close()
+
+    def apply_channel_invalid_bit(self, channel_name):
+        """Mask data of channel based on its invalid bit definition if there is
+
+        Parameters
+        ----------------
+        channel_name : str
+            Name of channel
+        """
+        try:
+            mask = self._getChannelData4(self.getInvalidChannel(channel_name))
+            data = self._getChannelData4(channel_name)
+            data.view(MaskedArray)
+            invalid_bit_pos = self.getInvalidBit(channel_name)
+            data.mask = bitwise_and(right_shift(mask, invalid_bit_pos), 1)
+            self.setChannelData(channel_name, data)
+        except:
+            print('no invalid data found for channel ')
 
 
 def linearConv(vect, cc_val):

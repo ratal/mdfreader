@@ -51,6 +51,8 @@ masterTypeField = 'masterType'
 conversionField = 'conversion'
 attachmentField = 'attachment'
 idField = 'id'
+invalidPosField = 'invalid_bit'
+invalidChannel = 'invalid_channel'
 
 
 class mdf_skeleton(dict):
@@ -182,10 +184,6 @@ class mdf_skeleton(dict):
             flag to ask for channel data compression
         """
         if not self._noDataLoading:
-            # if channel_name in self: should not happen anymore, handled in info class
-                # name doublon existing
-            #    channel_name = ''.join([channel_name, '_{}'.format(dataGroup)])
-            # create new channel
             self[channel_name] = {}
             if master_channel not in self.masterChannelList:
                 self.masterChannelList[master_channel] = []
@@ -355,7 +353,7 @@ class mdf_skeleton(dict):
 
         Returns
         -------
-        channel mater type integer
+        channel mater type integer : 0=None, 1=Time, 2=Angle, 3=Distance, 4=index
         """
         return self._getChannelField(channelName, field=masterTypeField)
 
@@ -372,6 +370,12 @@ class mdf_skeleton(dict):
         channel conversion dict
         """
         return self._getChannelField(channelName, field=conversionField)
+
+    def getInvalidBit(self, channelName):
+        return self._getChannelField(channelName, field=invalidPosField)
+
+    def getInvalidChannel(self, channelName):
+        return self._getChannelField(channelName, field=invalidChannel)
 
     def getChannel(self, channelName):
         """Extract channel dict from mdf structure
@@ -502,6 +506,12 @@ class mdf_skeleton(dict):
             channel attachment
         """
         self._setChannel(channelName, attachment, field=attachmentField)
+
+    def setInvalidBit(self, channelName, bit_position):
+        self[channelName][invalidPosField] = bit_position
+
+    def setInvalidChannel(self, channelName, invalidChannel):
+        self[channelName][invalidChannel] = invalidChannel
 
     def _setChannel(self, channelName, item, field=None):
         """General purpose method to modify channel values
