@@ -1698,12 +1698,13 @@ class mdf4(mdf_skeleton):
         try:
             mask = self._getChannelData4(self.getInvalidChannel(channel_name))
             data = self._getChannelData4(channel_name)
-            data.view(MaskedArray)
+            data = data.view(MaskedArray)
             invalid_bit_pos = self.getInvalidBit(channel_name)
-            data.mask = bitwise_and(right_shift(mask, invalid_bit_pos), 1)
+            data.mask = bitwise_and(mask, mask[0] >> invalid_bit_pos)
             self.setChannelData(channel_name, data)
-        except:
-            print('no invalid data found for channel ')
+        except KeyError:
+            pass
+            # print('no invalid data found for channel ')
 
 
 def linearConv(vect, cc_val):

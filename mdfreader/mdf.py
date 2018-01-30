@@ -510,8 +510,8 @@ class mdf_skeleton(dict):
     def setInvalidBit(self, channelName, bit_position):
         self[channelName][invalidPosField] = bit_position
 
-    def setInvalidChannel(self, channelName, invalidChannel):
-        self[channelName][invalidChannel] = invalidChannel
+    def setInvalidChannel(self, channelName, invalid_channel):
+        self[channelName][invalidChannel] = invalid_channel
 
     def _setChannel(self, channelName, item, field=None):
         """General purpose method to modify channel values
