@@ -39,7 +39,7 @@ from multiprocessing import Queue, Process
 from sys import version_info, byteorder, stderr
 from collections import defaultdict, OrderedDict
 from numpy.core.records import fromstring, fromarrays
-from numpy import array, recarray, asarray, empty, where
+from numpy import array, recarray, asarray, empty, where, frombuffer
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
@@ -49,8 +49,8 @@ from warnings import simplefilter, warn
 from .mdfinfo4 import info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
     DZBlock, HLBlock, CCBlock, DTBlock
-from .mdf import mdf_skeleton, _open_MDF, \
-    dataField, conversionField, idField, compressed_data
+from .mdf import mdf_skeleton, _open_MDF, invalidChannel, dataField, \
+    conversionField, idField, invalidPosField, compressed_data
 from .channel import channel4
 try:
     from dataRead import dataRead
@@ -1317,8 +1317,11 @@ class mdf4(mdf_skeleton):
                                                 self.setInvalidChannel(chan.name, 'invalid_bytes{}'.format(dataGroup))
                                     else:
                                         # invalid bytes channel
+                                        data = buf[recordID]['data'].__getattribute__(chan.name)
+                                        data = frombuffer(data.tobytes(), dtype='u1').reshape(len(data),
+                                                                                              data.dtype.itemsize)
                                         self.add_channel(dataGroup, chan.name,
-                                                         buf[recordID]['data'].__getattribute__(chan.name),
+                                                         data,
                                                          master_channel,
                                                          master_type=0,
                                                          unit='',
@@ -1687,7 +1690,7 @@ class mdf4(mdf_skeleton):
         fid.write(pack('Q', 0))  # last DG pointer is null
         fid.close()
 
-    def apply_channel_invalid_bit(self, channel_name):
+    def apply_invalid_bit(self, channel_name):
         """Mask data of channel based on its invalid bit definition if there is
 
         Parameters
@@ -1700,8 +1703,11 @@ class mdf4(mdf_skeleton):
             data = self._getChannelData4(channel_name)
             data = data.view(MaskedArray)
             invalid_bit_pos = self.getInvalidBit(channel_name)
-            data.mask = bitwise_and(mask, mask[0] >> invalid_bit_pos)
+            invalid_byte = invalid_bit_pos >> 3
+            data.mask = bitwise_and(mask[:, invalid_byte], invalid_bit_pos & 0x07)
             self.setChannelData(channel_name, data)
+            self._remove_channel_field(channel_name, invalidPosField)
+            self._remove_channel_field(channel_name, invalidChannel)
         except KeyError:
             pass
             # print('no invalid data found for channel ')
