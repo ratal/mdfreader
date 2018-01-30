@@ -1699,15 +1699,16 @@ class mdf4(mdf_skeleton):
             Name of channel
         """
         try:
-            mask = self._getChannelData4(self.getInvalidChannel(channel_name))
-            data = self._getChannelData4(channel_name)
-            data = data.view(MaskedArray)
             invalid_bit_pos = self.getInvalidBit(channel_name)
-            invalid_byte = invalid_bit_pos >> 3
-            data.mask = bitwise_and(mask[:, invalid_byte], invalid_bit_pos & 0x07)
-            self.setChannelData(channel_name, data)
-            self._remove_channel_field(channel_name, invalidPosField)
-            self._remove_channel_field(channel_name, invalidChannel)
+            if isinstance(invalid_bit_pos, int):  # invalid bit existing
+                mask = self._getChannelData4(self.getInvalidChannel(channel_name))
+                data = self._getChannelData4(channel_name)
+                data = data.view(MaskedArray)
+                invalid_byte = invalid_bit_pos >> 3
+                data.mask = bitwise_and(mask[:, invalid_byte], invalid_bit_pos & 0x07)
+                self.setChannelData(channel_name, data)
+                self._remove_channel_field(channel_name, invalidPosField)
+                self._remove_channel_field(channel_name, invalidChannel)
         except KeyError:
             pass
             # print('no invalid data found for channel ')
