@@ -36,6 +36,7 @@ tx_struct = Struct('<2sH')
 cc_struct = Struct('<2s2H2d20s2H')
 dg_struct = Struct('<2sH4I2H')
 cg_struct = Struct('<2sH3I3HI')
+ce_struct = Struct('<2s2H')
 
 
 class info3(dict):
@@ -191,8 +192,6 @@ class info3(dict):
             # For each Channel
             for channel in range(self['CGBlock'][dg][cg]['numberOfChannels']):
 
-                # Read Channel block (CNBlock) information
-                #self.numberOfChannels += 1
                 # Read data Channel block info into structure
 
                 self['CNBlock'][dg][cg][channel] = read_cn_block(fid, CNpointer)
@@ -221,11 +220,23 @@ class info3(dict):
                     signalname = signalname.split('.')[-1]  # filters channels modules
 
                 if signalname in self['ChannelNamesByDG'][dg]:  # for unsorted data
+                    pointer = self['CNBlock'][dg][cg][channel]['pointerToCEBlock']
+                    if pointer:
+                        temp = read_ce_block(fid, pointer)
+                    else:
+                        temp = dict()
+                        temp['tail'] = channel
                     self['CNBlock'][dg][cg][channel]['signalName'] = \
-                            '{0}_{1}_{2}_{3}'.format(signalname, dg, cg, channel)
+                            '{0}_{1}_{2}_{3}'.format(signalname, dg, cg, temp['tail'])
                 elif signalname in self['allChannelList']:
                     # doublon name or master channel
-                    self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signalname, dg)
+                    pointer = self['CNBlock'][dg][cg][channel]['pointerToCEBlock']
+                    if pointer:
+                        temp = read_ce_block(fid, pointer)
+                    else:
+                        temp = dict()
+                        temp['tail'] = dg
+                    self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signalname, temp['tail'])
                 else:
                     self['CNBlock'][dg][cg][channel]['signalName'] = signalname
                 self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][channel]['signalName'])
@@ -592,7 +603,34 @@ def read_tx_block(fid, pointer):
          block_size) = tx_struct.unpack(fid.read(4))
         text = unpack('{}s'.format(block_size - 4), fid.read(block_size - 4))[0]
 
-        return text.rstrip(b'\x00').decode('latin1', 'replace')  # .encode('utf-8')
+        return text.rstrip(b'\x00').decode('latin1', 'replace')
+
+
+def read_ce_block(fid, pointer):
+    """ reads source block """
+    if pointer != 0 and pointer is not None:
+        fid.seek(pointer)
+        temp = dict()
+        (block_type,
+         block_size,
+         temp['extension_type']) = ce_struct.unpack(fid.read(6))
+        if temp['extension_type'] == 2:
+            (temp['n_module'],
+             temp['address'],
+             temp['description'],
+             temp['ECU_id']) = unpack('HI80s32s', fid.read(88))
+            temp['tail'] = temp['ECU_id']
+        elif temp['extension_type'] == 19:
+            (temp['CAN_id'],
+             temp['CAN_channel_id'],
+             temp['message'],
+             temp['sender']) = unpack('HI80s32s', fid.read(88))
+            temp['name'] = temp['name'].rstrip(b'\x00').decode('latin1', 'replace')
+            temp['sender'] = temp['sender'].rstrip(b'\x00').decode('latin1', 'replace')
+            temp['tail'] = temp['message']
+        else:
+            return None
+        return temp
 
 
 def _generateDummyMDF3(info, channelList):

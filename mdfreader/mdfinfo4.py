@@ -1203,6 +1203,7 @@ class HLBlock(dict):
         fid.seek(pointer)
         return _calculate_block_start(pointer)
 
+
 class info4(dict):
     __slots__ = ['fileName', 'fid', 'zipfile']
     """ information block parser fo MDF file version 4.x
@@ -1504,10 +1505,24 @@ class info4(dict):
             MLSDChannels.append(cn)
         # check if already existing channel name
         if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
-            self['CN'][dg][cg][cn]['name'] = u'{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, cn)
+            # reads Channel Source Information
+            if self['CN'][dg][cg][cn]['cn_si_source']:
+                temp = SIBlock()
+                temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+            else:
+                temp = dict()
+                temp['source_name'] = cn
+            self['CN'][dg][cg][cn]['name'] = \
+                u'{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, temp['source_name'])
         elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
             # doublon name or master channel
-            self['CN'][dg][cg][cn]['name'] = u'{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
+            if self['CN'][dg][cg][cn]['cn_si_source']:
+                temp = SIBlock()
+                temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+            else:
+                temp = dict()
+                temp['source_name'] = dg
+            self['CN'][dg][cg][cn]['name'] = u'{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], temp['source_name'])
         if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
             # VLSD needs to rename and append records but with python 2.x impossible,
             # convert name to compatible python identifier
@@ -1576,11 +1591,26 @@ class info4(dict):
 
                     # check if already existing channel name
                     if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
+                        # reads Channel Source Information
+                        if self['CN'][dg][cg][cn]['cn_si_source']:
+                            temp = SIBlock()
+                            temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+                        else:
+                            temp = dict()
+                            temp['source_name'] = cn
                         self['CN'][dg][cg][cn]['name'] = \
-                            u'{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, cn)
+                            u'{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, temp['source_name'])
                     elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
                         # doublon name or master channel
-                        self['CN'][dg][cg][cn]['name'] = u'{0}_{1}'.format(self['CN'][dg][cg][cn]['name'], dg)
+                        # reads Channel Source Information
+                        if self['CN'][dg][cg][cn]['cn_si_source']:
+                            temp = SIBlock()
+                            temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+                        else:
+                            temp = dict()
+                            temp['source_name'] = dg
+                        self['CN'][dg][cg][cn]['name'] = u'{0}_{1}'.format(self['CN'][dg][cg][cn]['name'],
+                                                                           temp['source_name'])
                     if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
                         # VLSD needs to rename and append records but with python 2.x impossible,
                         # convert name to compatible python identifier
