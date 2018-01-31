@@ -256,12 +256,16 @@ class mdf_skeleton(dict):
         newname : str
             new channel name
         """
-        if channelName in self:
-            #add the new name to the same master
+        if channelName in self and newname not in self:
+            # add the new name to the same master
             self.masterChannelList[self.getChannelMaster(channelName)].append(newname)
-            #remove the old name
+            # remove the old name
             self.masterChannelList[self.getChannelMaster(channelName)].remove(channelName)
-            self[newname] = self.pop(channelName)  #copy the data
+            self[newname] = self.pop(channelName)  # copy the data
+            if channelName in self.masterChannelList:  # it is a master channel
+                self.masterChannelList[newname] = self.pop(channelName)
+                for channel in self.masterChannelList[newname]:
+                    self.setChannelMaster(channel, newname)
             return self[newname]
         else:
             return None
