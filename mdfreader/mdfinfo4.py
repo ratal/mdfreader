@@ -1079,10 +1079,11 @@ class DLBlock(dict):
             for counter in range(1, number_DL):
                 (nrecord_chunk, chunk_size) = chunks[counter]
                 dl_offset[counter] = dl_offset[counter - 1] + chunk_size
-        dataBytes = (b'##DL', 0, self['block_length'], number_DL + 1,
-                     0, zeros(shape=number_DL, dtype='<u8'), 1,
-                     number_DL, dl_offset)
-        fid.write(pack('<4sI3Q{0}Q2I{1}Q'.format(number_DL, number_DL), *dataBytes))
+        dataBytes = (b'##DL', 0, self['block_length'], number_DL + 1, 0)
+        fid.write(pack('<4sI3Q'.format(number_DL, number_DL), *dataBytes))
+        fid.write(pack('{0}Q'.format(number_DL), *zeros(shape=number_DL, dtype='<u8')))
+        fid.write(pack('<2I', 0, number_DL))
+        fid.write(pack('{0}Q'.format(number_DL), *dl_offset))
 
 
 class DZBlock(dict):
@@ -1141,15 +1142,16 @@ class DZBlock(dict):
         M = org_data_length // record_length
         temp = array(memoryview(data[:M * record_length]))
         tail = array(memoryview(data[M * record_length:]))
-        temp = temp.reshape(record_length, M).T.ravel()
+        temp = temp.reshape(M, record_length).T.ravel()
         if len(tail) > 0:
             temp = append(temp, tail)
         # compress transposed data
         compressed_data = compress(temp.tostring())
-        self['DZBlock_length'] = 48 + len(compressed_data)
+        dz_data_length = len(compressed_data)
+        self['DZBlock_length'] = 48 + dz_data_length
         # writes header
-        fid.write(HeaderStruct.pack((b'##DZ', 0, self['DZBlock_length'], 0)))
-        dataBytes = (b'DT', 1, 0, record_length, org_data_length, self['DZBlock_length'])
+        fid.write(HeaderStruct.pack(b'##DZ', 0, self['DZBlock_length'], 0))
+        dataBytes = (b'DT', 1, 0, record_length, org_data_length, dz_data_length)
         fid.write(DZStruct.pack(*dataBytes))
         # writes compressed data
         fid.write(compressed_data)
@@ -1188,7 +1190,7 @@ class HLBlock(dict):
         DL = DLBlock()
         DL.write(fid, self['chunks'], pointer)
         pointer += DL['block_length']
-        dl_data = zeros(shape=len(self['chunks']), dtype='<uint64')
+        dl_data = zeros(shape=len(self['chunks']), dtype='<u8')
         for counter, (nrecord_chunk, chunk_size) in enumerate(self['chunks']):
             DZ = DZBlock()
             DZ['block_start'] = _calculate_block_start(pointer)
@@ -1199,7 +1201,7 @@ class HLBlock(dict):
         fid.seek(DL['block_start'] + 32)
         fid.write(dl_data.tobytes())
         fid.seek(pointer)
-        return pointer
+        return _calculate_block_start(pointer)
 
 class info4(dict):
     __slots__ = ['fileName', 'fid', 'zipfile']
