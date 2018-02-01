@@ -227,7 +227,7 @@ class info3(dict):
                         temp = dict()
                         temp['tail'] = channel
                     self['CNBlock'][dg][cg][channel]['signalName'] = \
-                            '{0}_{1}_{2}_{3}'.format(signalname, dg, cg, temp['tail'])
+                        '{0}_{1}_{2}_{3}'.format(signalname, dg, cg, temp['tail'])
                 elif signalname in self['allChannelList']:
                     # doublon name or master channel
                     pointer = self['CNBlock'][dg][cg][channel]['pointerToCEBlock']
@@ -368,7 +368,7 @@ class info3(dict):
                     # Read Channel text blocks (TXBlock)
 
                     # Clean signal name
-                    shortSignalName = self['CNBlock'][dataGroup][channelGroup][channel]['signalName']  # short name of signal
+                    shortSignalName = self['CNBlock'][dataGroup][channelGroup][channel]['signalName']
                     CNTXpointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToASAMNameBlock']
                     if CNTXpointer > 0:
                         longSignalName = read_tx_block(fid, CNTXpointer)  # long name of signal
@@ -384,8 +384,16 @@ class info3(dict):
                         signalname = signalname.split('.')[-1]
 
                     if signalname in snames:
-                        self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = '{0}_{1}'.format(signalname, channel)
-                        print('WARNING added number to duplicate signal name: ' + self['CNBlock'][dataGroup][channelGroup][channel]['signalName'], file=stderr)
+                        pointer = self['CNBlock'][dataGroup][channelGroup][channel]['pointerToCEBlock']
+                        if pointer:
+                            temp = read_ce_block(fid, pointer)
+                        else:
+                            temp = dict()
+                            temp['tail'] = channel
+                        self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = \
+                            '{0}_{1}'.format(signalname, temp['tail'])
+                        print('WARNING added number to duplicate signal name: ' +
+                              self['CNBlock'][dataGroup][channelGroup][channel]['signalName'], file=stderr)
                     else:
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
                         snames.add(signalname)
@@ -619,6 +627,8 @@ def read_ce_block(fid, pointer):
              temp['address'],
              temp['description'],
              temp['ECU_id']) = unpack('HI80s32s', fid.read(120))
+            temp['ECU_id'] = temp['ECU_id'].rstrip(b'\x00').decode('latin1', 'replace')
+            temp['description'] = temp['description'].rstrip(b'\x00').decode('latin1', 'replace')
             temp['tail'] = temp['ECU_id']
         elif temp['extension_type'] == 19:
             (temp['CAN_id'],
