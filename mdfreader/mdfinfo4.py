@@ -162,7 +162,7 @@ class IDBlock(dict):
          self['id_custom_unfi_flags']) = unpack('<8s8s8sIH30s2H',
                                                 fid.read(64))
         # treatment of unfinalised file
-        if self['id_ver'] > 410 and 'UnFin' in self['id_file']:
+        if self['id_ver'] > 410 and b'UnFin' in self['id_file']:
             print('  ! unfinalised file', file=stderr)
             if self['id_unfi_flags'] & 1:
                 print('Update of cycle counters for CG/CA blocks required',
