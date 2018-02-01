@@ -618,13 +618,13 @@ def read_ce_block(fid, pointer):
             (temp['n_module'],
              temp['address'],
              temp['description'],
-             temp['ECU_id']) = unpack('HI80s32s', fid.read(88))
+             temp['ECU_id']) = unpack('HI80s32s', fid.read(120))
             temp['tail'] = temp['ECU_id']
         elif temp['extension_type'] == 19:
             (temp['CAN_id'],
              temp['CAN_channel_id'],
              temp['message'],
-             temp['sender']) = unpack('HI80s32s', fid.read(88))
+             temp['sender']) = unpack('2I36s36s', fid.read(80))
             temp['name'] = temp['name'].rstrip(b'\x00').decode('latin1', 'replace')
             temp['sender'] = temp['sender'].rstrip(b'\x00').decode('latin1', 'replace')
             temp['tail'] = temp['message']
