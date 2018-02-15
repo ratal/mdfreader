@@ -1191,11 +1191,13 @@ class HLBlock(dict):
         DL.write(fid, self['chunks'], pointer)
         pointer += DL['block_length']
         dl_data = zeros(shape=len(self['chunks']), dtype='<u8')
+        data_pointer = 0
         for counter, (nrecord_chunk, chunk_size) in enumerate(self['chunks']):
             DZ = DZBlock()
             DZ['block_start'] = _calculate_block_start(pointer)
             dl_data[counter] = DZ['block_start']
-            pointer = DZ.write(fid, data[pointer: pointer + chunk_size], self['record_length'])
+            pointer = DZ.write(fid, data[data_pointer: data_pointer + chunk_size], self['record_length'])
+            data_pointer += chunk_size
         # writes links to all DZBlocks
         # write dl_data
         fid.seek(DL['block_start'] + 32)
