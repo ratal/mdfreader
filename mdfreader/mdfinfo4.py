@@ -1611,7 +1611,7 @@ class info4(dict):
                         else:
                             temp = dict()
                             temp['source_name'] = dg
-                        self['CN'][dg][cg][cn]['name'] = u'{0}_{1}'.format(self['CN'][dg][cg][cn]['name'],
+                        self['CN'][dg][cg][cn]['name'] = u'{0}_{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], dg,
                                                                            temp['source_name'])
                     if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
                         # VLSD needs to rename and append records but with python 2.x impossible,
