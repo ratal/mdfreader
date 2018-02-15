@@ -1579,10 +1579,11 @@ class mdf4(mdf_skeleton):
                     if issubdtype(data.dtype, numpy_number):  # is numeric
                         blocks[nchannel]['cn_val_range_min'] = npmin(data)
                         blocks[nchannel]['cn_val_range_max'] = npmax(data)
+                        blocks[nchannel]['cn_flags'] = 8  # only Bit 3: Limit range valid flag
                     else:
                         blocks[nchannel]['cn_val_range_min'] = 0
                         blocks[nchannel]['cn_val_range_max'] = 0
-                    blocks[nchannel]['cn_flags'] = 16  # only Bit 4: Limit range valid flag
+                        blocks[nchannel]['cn_flags'] = 0
                     if masterChannel is not channel:
                         blocks[nchannel]['cn_type'] = 0
                         blocks[nchannel]['cn_sync_type'] = 0
