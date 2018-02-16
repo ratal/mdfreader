@@ -97,7 +97,7 @@ class mdf_skeleton(dict):
 
     def __init__(self, fileName=None, channelList=None, convertAfterRead=True,
                  filterChannelNames=False, noDataLoading=False,
-                 compression=False):
+                 compression=False, convertTables=False):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -124,6 +124,9 @@ class mdf_skeleton(dict):
             separated by '.'
         compression : bool optional
             flag to compress data in memory
+        convertTables : bool, optional, default False
+            flag to convert or not only conversions with tables.
+            These conversions types take generally long time and memory
         """
         self.masterChannelList = OrderedDict()
         # flag to control multiprocessing, default deactivate,
@@ -140,7 +143,7 @@ class mdf_skeleton(dict):
         self.MDFVersionNumber = 300
         self.filterChannelNames = filterChannelNames
         # by default, do not convert table conversion types, taking lot of time and memory
-        self.convert_tables = False
+        self.convert_tables = convertTables
         self._pandasframe = False
         self.info = None
         self._compression_level = 9  # default compression level
