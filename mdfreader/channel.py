@@ -26,7 +26,7 @@ channel module
 """
 from __future__ import absolute_import  # for consistency between python 2 and 3
 from struct import Struct
-from numpy import right_shift, bitwise_and
+from warnings import warn
 from .mdfinfo4 import ATBlock
 from .mdf import _bits_to_bytes, _convertName
 
@@ -279,7 +279,7 @@ class channel4(object):
         elif self.type == 'Inv':
             return self.nBytes(info) * 8
         else:
-            print('Not found channel type')
+            warn('Not found channel type')
 
     def channelSyncType(self, info):
         """ Extracts channel sync type from info4
@@ -597,7 +597,7 @@ class channel4(object):
         elif self.name == 'year':
             return 6
         else:
-            print('CANopen type not understood')
+            warn('CANopen type not understood')
 
     def bitOffset(self, info):
         """ channel data bit offset in record
@@ -621,7 +621,7 @@ class channel4(object):
         elif self.type == 'Inv':
             return 0
         else:
-            print('Not found channel type')
+            warn('Not found channel type')
 
     def byteOffset(self, info):
         """ channel data bytes offset in record (without record id)
@@ -645,7 +645,7 @@ class channel4(object):
         elif self.type == 'Inv':
             return info['CG'][self.dataGroup][self.channelGroup]['cg_data_bytes']
         else:
-            print('Not found channel type')
+            warn('Not found channel type')
 
     def posByteBeg(self, info):
         """ channel data bytes starting position in record
@@ -933,7 +933,7 @@ def arrayformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 64:
             dataType = 'i8'
         else:
-            print('Unsupported number of bits for signed int {}'.format(numberOfBits))
+            warn('Unsupported number of bits for signed int {}'.format(numberOfBits))
         endian = '<'
 
     elif signalDataType == 4:  # floating point, low endian
@@ -942,7 +942,7 @@ def arrayformat4(signalDataType, numberOfBits):
         elif numberOfBits == 64:
             dataType = 'f8'
         else:
-            print('Unsupported number of bit for floating point ' + str(numberOfBits))
+            warn('Unsupported number of bit for floating point {}'.format(numberOfBits))
         endian = '<'
 
     elif signalDataType == 1:  # unsigned, big endian
@@ -968,7 +968,7 @@ def arrayformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 64:
             dataType = 'i8'
         else:
-            print('Unsupported number of bits for signed int {}'.format(numberOfBits))
+            warn('Unsupported number of bits for signed int {}'.format(numberOfBits))
         endian = '>'
 
     elif signalDataType == 5:  # floating point, big endian
@@ -977,7 +977,7 @@ def arrayformat4(signalDataType, numberOfBits):
         elif numberOfBits == 64:
             dataType = 'f8'
         else:
-            print('Unsupported number of bit for floating point ' + str(numberOfBits))
+            warn('Unsupported number of bit for floating point {}'.format(numberOfBits))
         endian = '>'
 
     elif signalDataType == 6:  # string ISO-8859-1 Latin
@@ -1002,7 +1002,7 @@ def arrayformat4(signalDataType, numberOfBits):
         dataType = ''
         endian = ''
     else:
-        print('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits)
+        warn('Unsupported Signal Data Type {} {}'.format(signalDataType, numberOfBits))
 
     return endian, dataType
 
@@ -1045,7 +1045,7 @@ def datatypeformat4(signalDataType, numberOfBits):
         elif numberOfBits <= 64:
             dataType = 'q'
         else:
-            print(('Unsupported number of bits for signed int ' + str(signalDataType)))
+            warn('Unsupported number of bits for signed int {}'.format(signalDataType))
 
     elif signalDataType in (4, 5):  # floating point
         if numberOfBits == 32:
@@ -1053,12 +1053,12 @@ def datatypeformat4(signalDataType, numberOfBits):
         elif numberOfBits == 64:
             dataType = 'd'
         else:
-            print(('Unsupported number of bit for floating point ' + str(signalDataType)))
+            warn('Unsupported number of bit for floating point {}'.format(signalDataType))
 
     elif signalDataType in (6, 7, 8, 9, 10, 11, 12):  # string/bytes
         dataType = '{}s'.format(numberOfBits // 8)
     else:
-        print(('Unsupported Signal Data Type ' + str(signalDataType) + ' ', numberOfBits))
+        warn('Unsupported Signal Data Type {} {}'.format(signalDataType, numberOfBits))
     # deal with byte order
     if signalDataType in (0, 2, 4, 8):  # low endian
         dataType = '<{}'.format(dataType)
@@ -1208,7 +1208,7 @@ def _datatypeformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits <= 64:
             dataType = 'Q'
         else:
-            print('Unsupported number of bits for unsigned int {}'.format(signalDataType))
+            warn('Unsupported number of bits for unsigned int {}'.format(signalDataType))
 
     elif signalDataType in (1, 10, 14):  # signed int
         if numberOfBits <= 8:
@@ -1220,7 +1220,7 @@ def _datatypeformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits <= 64:
             dataType = 'q'
         else:
-            print('Unsupported number of bits for signed int {}'.format(signalDataType))
+            warn('Unsupported number of bits for signed int {}'.format(signalDataType))
 
     elif signalDataType in (2, 3, 11, 12, 15, 16):  # floating point
         if numberOfBits == 32:
@@ -1228,14 +1228,14 @@ def _datatypeformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits == 64:
             dataType = 'd'
         else:
-            print('Unsupported number of bit for floating point {}'.format(signalDataType))
+            warn('Unsupported number of bit for floating point {}'.format(signalDataType))
 
     elif signalDataType == 7:  # string
         dataType = str(numberOfBits // 8) + 's'
     elif signalDataType == 8:  # array of bytes
         dataType = str(numberOfBits // 8) + 's'
     else:
-        print('Unsupported Signal Data Type {0} nBits {1}'.format(signalDataType, numberOfBits))
+        warn('Unsupported Signal Data Type {0} nBits {1}'.format(signalDataType, numberOfBits))
 
     # deal with byte order
     if signalDataType in (0, 1, 2, 3):
@@ -1277,7 +1277,7 @@ def _arrayformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits <= 64:
             dataType = 'u8'
         else:
-            print('Unsupported number of bits for unsigned int {} nBits '.format(signalDataType, numberOfBits))
+            warn('Unsupported number of bits for unsigned int {} nBits '.format(signalDataType, numberOfBits))
 
     elif signalDataType in (1, 10, 14):  # signed int
         if numberOfBits <= 8:
@@ -1289,7 +1289,7 @@ def _arrayformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits <= 64:
             dataType = 'i8'
         else:
-            print('Unsupported number of bits for signed int {0} nBits {1}'.format(signalDataType, numberOfBits))
+            warn('Unsupported number of bits for signed int {0} nBits {1}'.format(signalDataType, numberOfBits))
 
     elif signalDataType in (2, 3, 11, 12, 15, 16):  # floating point
         if numberOfBits == 32:
@@ -1297,14 +1297,14 @@ def _arrayformat3(signalDataType, numberOfBits, ByteOrder):
         elif numberOfBits == 64:
             dataType = 'f8'
         else:
-            print('Unsupported number of bit for floating point {0} nBits {1}'.format(signalDataType, numberOfBits))
+            warn('Unsupported number of bit for floating point {0} nBits {1}'.format(signalDataType, numberOfBits))
 
     elif signalDataType == 7:  # string
         dataType = 'S{}'.format(numberOfBits // 8)  # not directly processed
     elif signalDataType == 8:  # array of bytes
         dataType = 'V{}'.format(numberOfBits // 8)  # not directly processed
     else:
-        print('Unsupported Signal Data Type {0} nBits {1}'.format(signalDataType, numberOfBits))
+        warn('Unsupported Signal Data Type {0} nBits {1}'.format(signalDataType, numberOfBits))
 
     nativeDataType = dataType
     # deal with byte order

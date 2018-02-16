@@ -24,7 +24,8 @@ mdfinfo3 module
 """
 from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
-from sys import version_info, stderr
+from sys import version_info
+from warnings import warn
 from numpy import sort, zeros
 from struct import unpack, Struct
 from .mdf import dataField, descriptionField, unitField, masterField, masterTypeField, idField
@@ -392,8 +393,8 @@ class info3(dict):
                             temp['tail'] = channel
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = \
                             '{0}_{1}'.format(signalname, temp['tail'])
-                        print('WARNING added number to duplicate signal name: ' +
-                              self['CNBlock'][dataGroup][channelGroup][channel]['signalName'], file=stderr)
+                        warn('WARNING added number to duplicate signal name: {}'.
+                             format(self['CNBlock'][dataGroup][channelGroup][channel]['signalName']))
                     else:
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signalname
                         snames.add(signalname)
@@ -595,8 +596,7 @@ def read_cc_block(fid, pointer):
         else:
             # Give warning that conversion formula is not being
             # made
-            print(('Conversion Formula type (cc_type=' + str(
-                temp['cc_type']) + ')not supported.'), file=stderr)
+            warn('Conversion Formula type (cc_type={})not supported.'.format(temp['cc_type']))
 
         return temp
     else:

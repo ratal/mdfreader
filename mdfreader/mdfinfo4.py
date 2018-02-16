@@ -27,7 +27,8 @@ from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
 from struct import calcsize, unpack, pack, Struct
 from os import remove
-from sys import version_info, stderr
+from sys import version_info
+from warnings import warn
 from zlib import compress, decompress
 from numpy import sort, zeros, array, append
 import time
@@ -163,28 +164,24 @@ class IDBlock(dict):
                                                 fid.read(64))
         # treatment of unfinalised file
         if self['id_ver'] > 410 and b'UnFin' in self['id_file']:
-            print('  ! unfinalised file', file=stderr)
+            warn('  ! unfinalised file')
             if self['id_unfi_flags'] & 1:
-                print('Update of cycle counters for CG/CA blocks required',
-                      file=stderr)
+                warn('Update of cycle counters for CG/CA blocks required')
             if self['id_unfi_flags'] & (1 << 1):
-                print('Update of cycle counters for SR blocks required',
-                      file=stderr)
+                warn('Update of cycle counters for SR blocks required')
             if self['id_unfi_flags'] & (1 << 2):
-                print('Update of length for last DT block required',
-                      file=stderr)
+                warn('Update of length for last DT block required')
             if self['id_unfi_flags'] & (1 << 3):
-                print('Update of length for last RD block required',
-                      file=stderr)
+                warn('Update of length for last RD block required')
             if self['id_unfi_flags'] & (1 << 4):
-                print('Update of last DL block in each chained list of \
-                      DL blocks required', file=stderr)
+                warn('Update of last DL block in each chained list of '
+                     'DL blocks required')
             if self['id_unfi_flags'] & (1 << 5):
-                print('Update of cg_data_bytes and cg_inval_bytes in VLSD \
-                      CG block required', file=stderr)
+                warn('Update of cg_data_bytes and cg_inval_bytes in VLSD '
+                     'CG block required')
             if self['id_unfi_flags'] & (1 << 6):
-                print('Update of offset values for VLSD channel required \
-                      in case a VLSD CG block is used', file=stderr)
+                warn('Update of offset values for VLSD channel required '
+                     'in case a VLSD CG block is used')
 
     def write(self, fid):
         """ Writes IDBlock
@@ -359,7 +356,7 @@ class CommentBlock(dict):
                 try:
                     xml_tree = objectify.fromstring(kargs['fid'].read(self['length'] - 24).rstrip(b'\x00'))
                 except:
-                    print('xml metadata malformed', file=stderr)
+                    warn('xml metadata malformed')
                     xml_tree = None
                 # specific action per comment block type,
                 # #extracts specific tags from xml
@@ -368,7 +365,7 @@ class CommentBlock(dict):
                         try:
                             self['description'] = xml_tree.TX.text
                         except AttributeError:
-                            print('Could not parse CN block TX tag')
+                            warn('Could not parse CN block TX tag')
                         try:
                             self['names'] = xml_tree.names.text
                         except AttributeError:
@@ -403,12 +400,12 @@ class CommentBlock(dict):
                         try:
                             self['unit'] = xml_tree.TX
                         except AttributeError:
-                            print('Could not parse unit TX tag')
+                            warn('Could not parse unit TX tag')
                     elif kargs['MDType'] == 'HD':  # header comment
                         try:
                             self['TX'] = xml_tree.TX.text
                         except AttributeError:
-                            print('Could not parse HD block TX tag')
+                            warn('Could not parse HD block TX tag')
                         try:
                             self['time_source'] = xml_tree.time_source.text
                         except AttributeError:
@@ -423,19 +420,19 @@ class CommentBlock(dict):
                         try:
                             self['TX'] = xml_tree.TX.text
                         except AttributeError:
-                            print('Could not parse FH block TX tag')
+                            warn('Could not parse FH block TX tag')
                         try:
                             self['tool_id'] = xml_tree.tool_id.text
                         except AttributeError:
-                            print('Could not parse FH block tool_id tag')
+                            warn('Could not parse FH block tool_id tag')
                         try:
                             self['tool_vendor'] = xml_tree.tool_vendor.text
                         except AttributeError:
-                            print('Could not parse extract HD block tool_vendor tag')
+                            warn('Could not parse extract HD block tool_vendor tag')
                         try:
                             self['tool_version'] = xml_tree.tool_version.text
                         except AttributeError:
-                            print('Could not parse extract HD block tool_vendor tag')
+                            warn('Could not parse extract HD block tool_vendor tag')
                         try:
                             self['user_name'] = xml_tree.user_name.text
                         except AttributeError:
@@ -444,7 +441,7 @@ class CommentBlock(dict):
                         try:
                             self['TX'] = xml_tree.TX.text
                         except AttributeError:
-                            print('Could not parse SI block TX tag')
+                            warn('Could not parse SI block TX tag')
                         try:
                             self['names'] = xml_tree.names.text
                         except AttributeError:
@@ -465,7 +462,7 @@ class CommentBlock(dict):
                         try:
                             self['TX'] = xml_tree.TX.text
                         except AttributeError:
-                            print('Could not parse CC block TX tag')
+                            warn('Could not parse CC block TX tag')
                         try:
                             self['names'] = xml_tree.names.text
                         except AttributeError:
@@ -480,8 +477,7 @@ class CommentBlock(dict):
                             pass  # optional
                     else:
                         if kargs['MDType'] is not None:
-                            print('No recognized MDType', file=stderr)
-                            print(kargs['MDType'], file=stderr)
+                            warn('No recognized MDType {}'.format(kargs['MDType']))
             elif self['id'] in ('##TX', b'##TX'):
                 if 'MDType' in kargs and kargs['MDType'] == 'CN':  # channel comment
                     self['name'] = kargs['fid'].read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
@@ -1295,7 +1291,7 @@ class info4(dict):
         self['HD'].update(HDBlock(fid))
 
         if not minimal:
-            # print('reads File History blocks, always exists', file=stderr)
+            # warn('reads File History blocks, always exists')
             fh = 0  # index of fh blocks
             self['FH'][fh] = {}
             self['FH'][fh] .update(FHBlock(fid, self['HD']['hd_fh_first']))
@@ -1304,7 +1300,7 @@ class info4(dict):
                 self['FH'][fh + 1].update(FHBlock(fid, self['FH'][fh]['fh_fh_next']))
                 fh += 1
 
-        # print('reads Channel Hierarchy blocks', file=stderr)
+        # warn('reads Channel Hierarchy blocks')
         if self['HD']['hd_ch_first']:
             ch = 0
             self['CH'][ch] = {}
@@ -1640,7 +1636,7 @@ class info4(dict):
                         # reads Attachment Block
                         if self['CN'][dg][cg][cn]['cn_attachment_count'] > 1:
                             for at in range(self['CN'][dg][cg][cn]['cn_attachment_count']):
-                                print(self['CN'][dg][cg][cn]['cn_at_reference'][at], file=stderr)
+                                warn(self['CN'][dg][cg][cn]['cn_at_reference'][at])
                                 self['CN'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
                         elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
                             self['CN'][dg][cg][cn]['attachment'][0].update(
@@ -1733,7 +1729,7 @@ class info4(dict):
                 elif ID in ('##CA', b'##CA'):  # arrays
                     pass
                 else:
-                    print('unknown channel composition', file=stderr)
+                    warn('unknown channel composition')
         return MLSDChannels
 
     def readSRBlock(self, fid, pointer):

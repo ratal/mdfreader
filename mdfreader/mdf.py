@@ -25,6 +25,7 @@ from itertools import chain
 from random import choice
 from string import ascii_letters
 from sys import version_info
+from warnings import warn
 from collections import OrderedDict,defaultdict
 from warnings import simplefilter, warn
 from numpy import array_repr, set_printoptions, recarray, fromstring
@@ -536,7 +537,7 @@ class mdf_skeleton(dict):
         try:
             self[channelName][field] = item
         except KeyError:
-            print('Channel {} not in dictionary'.format(channelName))
+            warn('Channel {} not in dictionary'.format(channelName))
 
     def _channelInMDF(self, channelName):
         """Efficiently assess if channel is already in mdf

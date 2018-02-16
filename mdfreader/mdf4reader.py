@@ -36,7 +36,8 @@ from io import open  # for python 3 and 2 consistency
 from os.path import splitext
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
-from sys import version_info, byteorder, stderr
+from sys import version_info, byteorder
+from warnings import warn
 from collections import defaultdict, OrderedDict
 from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer
@@ -1272,7 +1273,8 @@ class mdf4(mdf_skeleton):
                                                 mask = int(pow(2, bitCount) - 1)  # masks isBitUnit8
                                                 temp = bitwise_and(temp, mask)
                                             else:  # should not happen
-                                                print('bit count and offset not applied to correct data type ',  chan.name, file=stderr)
+                                                warn('bit count and offset not applied to correct '
+                                                     'data type {}'.format(chan.name))
                                         else:  # data using full bytes
                                             pass
 
@@ -1296,7 +1298,7 @@ class mdf4(mdf_skeleton):
                                                         try:
                                                             temp2[t] = temp[t].decode(encoding, 'ignore')
                                                         except:
-                                                            print('Cannot decode channel ' + chan.name, file=stderr)
+                                                            warn('Cannot decode channel {}'.format(chan.name))
                                                             temp2[t] = ''
                                                     temp = temp2
 
@@ -1557,7 +1559,7 @@ class mdf4(mdf_skeleton):
                 cg_cycle_count = len(master_channel_data)
             else:
                 # no data in datagroup, skip
-                print('no data in datagroup {0} with master channel {1}'.format(dataGroup, masterChannel))
+                warn('no data in datagroup {0} with master channel {1}'.format(dataGroup, masterChannel))
                 continue
             blocks['CG']['cg_cycle_count'] = cg_cycle_count
 
@@ -1606,7 +1608,7 @@ class mdf4(mdf_skeleton):
                     elif cn_numpy_kind == 'V':
                         data_type = 10  # bytes
                     else:
-                        print(channel, data.dtype, cn_numpy_kind, file=stderr)
+                        warn('{} {} {}'.format(channel, data.dtype, cn_numpy_kind))
                         raise Exception('Not recognized dtype')
                     blocks[nchannel]['cn_data_type'] = data_type
                     blocks[nchannel]['cn_bit_offset'] = 0  # always byte aligned
@@ -1712,7 +1714,7 @@ class mdf4(mdf_skeleton):
                 self._remove_channel_field(channel_name, invalidChannel)
         except KeyError:
             pass
-            # print('no invalid data found for channel ')
+            # warn('no invalid data found for channel ')
 
 
 def linearConv(vect, cc_val):
@@ -1774,7 +1776,7 @@ def formulaConv(vect, formula):
     try:
         from sympy import lambdify, symbols
     except:
-        print('Please install sympy to convert channel ', file=stderr)
+        warn('Please install sympy to convert channel ')
     X = symbols('X')
     expr = lambdify(X, formula, modules='numpy', dummify=False)
     return expr(vect)
@@ -1804,7 +1806,7 @@ def valueToValueTableWOInterpConv(vect, cc_val):
         f = interpolate.interp1d(intVal, physVal, kind='nearest', bounds_error=False)  # nearest
         return f(vect)  # fill with Nan out of bounds while should be bounds
     else:
-        print('X values for interpolation of channel are not increasing', file=stderr)
+        warn('X values for interpolation of channel are not increasing')
 
 
 def valueToValueTableWInterpConv(vect, cc_val):
@@ -1826,7 +1828,7 @@ def valueToValueTableWInterpConv(vect, cc_val):
     if all(diff(intVal) > 0):
         return interp(vect, intVal, physVal)  # with interpolation
     else:
-        print('X values for interpolation of channel are not increasing', file=stderr)
+        warn('X values for interpolation of channel are not increasing')
 
 
 def valueRangeToValueTableConv(vect, cc_val):
@@ -1877,7 +1879,7 @@ def valueToTextConv(vect, cc_val, cc_ref):
     try:
         from sympy import lambdify, symbols
     except:
-        print('Please install sympy to convert channel ', file=stderr)
+        warn('Please install sympy to convert channel ')
     X = symbols('X')
     for ref in range(len(cc_ref)):
         if isinstance(cc_ref[ref], CCBlock):
@@ -1889,7 +1891,7 @@ def valueToTextConv(vect, cc_val, cc_ref):
                 cc_ref[ref] = lambdify(X, '{0}* X + {1}'.format(cc_ref[ref]['cc_val'][1], cc_ref[ref]['cc_val'][0]) 
                                        , modules='numpy', dummify=False)
             else:
-                print('implement missing conversion')
+                warn('To implement missing conversion, please ask')
         elif (PythonVersion > 3 and not isinstance(cc_ref[ref], str)) or \
                 (PythonVersion < 3 and not isinstance(cc_ref[ref], unicode)):  # identity, non conversion
             cc_ref[ref] = lambdify(X, 'X'
@@ -1938,7 +1940,7 @@ def valueRangeToTextConv(vect, cc_val, cc_ref):
     try:
         from sympy import lambdify, symbols
     except:
-        print('Please install sympy to convert channel ', file=stderr)
+        warn('Please install sympy to convert channel ')
     X = symbols('X')
     for ref in range(len(cc_ref)):
         if isinstance(cc_ref[ref], CCBlock):

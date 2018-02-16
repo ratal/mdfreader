@@ -37,7 +37,8 @@ from math import log, exp
 from time import strftime, time, gmtime
 from struct import pack, Struct
 from io import open  # for python 3 and 2 consistency
-from sys import platform, exc_info, version_info, stderr
+from sys import platform, exc_info, version_info
+from warnings import warn
 import os
 from warnings import simplefilter
 from .mdf import mdf_skeleton, _open_MDF, \
@@ -146,7 +147,7 @@ def expConv(data, conv):  # 7 Exponential
         return exp((conv['P3'] / (data - conv['P7']) - conv['P6'])
                    / conv['P4']) / conv['P5']
     else:
-        print('Non possible conversion parameters for channel ', file=stderr)
+        warn('Non possible exponential parameters for channel')
 
 
 def logConv(data, conv):  # 8 Logarithmic
@@ -169,7 +170,7 @@ def logConv(data, conv):  # 8 Logarithmic
         return log((conv['P3'] / (data - conv['P7']) - conv['P6'])
                    / conv['P4']) / conv['P5']
     else:
-        print('Non possible conversion parameters for channel ', file=stderr)
+        warn('Non possible logarithmic conversion parameters for channel')
 
 
 def rationalConv(data, conv):  # 9 rational
@@ -218,8 +219,8 @@ def formulaConv(data, conv):  # 10 Text Formula
         expr = lambdify(X, formula, modules='numpy', dummify=False)
         return expr(data)
     except:
-        print('Please install sympy to convert channel ', file=stderr)
-        print('Failed to convert formulae ' + conv['textFormula'], file=stderr)
+        warn('Failed to convert formulae ' + conv['textFormula'] +
+             ' Sympy is correctly installed ?')
 
 
 def textTableConv(data, conv):  # 11 Text table
@@ -286,7 +287,7 @@ def textRangeTableConv(data, conv):  # 12 Text range table
             pass
         return temp
     except:
-        print('Failed to convert text to range table', file=stderr)
+        warn('Failed to convert text to range table')
 
 
 class record(list):
@@ -549,9 +550,8 @@ class record(list):
                         previous_index += nrecord_chunk
                     return rec
                 except:
-                    print('Unexpected error:', exc_info(), file=stderr)
-                    print('dataRead crashed, back to python data reading',
-                          file=stderr)
+                    warn('Unexpected error:', exc_info())
+                    warn('dataRead crashed, back to python data reading')
                     recordLength = self.recordIDnumber + self.CGrecordLength
                     for r in range(self.numberOfRecords):  # for each record,
                         buf = fid.read(recordLength)
@@ -959,8 +959,8 @@ class mdf3(mdf_skeleton):
                                         mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
-                                        print('bit count and offset not applied \
-                                              to correct data type', file=stderr)
+                                        warn('bit count and offset not applied '
+                                             'to correct data type')
                                 self.add_channel(dataGroup, chan.name, temp,
                                                  master_channel,
                                                  master_type=1,
