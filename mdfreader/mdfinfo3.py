@@ -538,17 +538,17 @@ def read_cc_block(fid, pointer):
         temp['physicalUnit'] = temp['physicalUnit'].rstrip(b'\x00').decode('latin1', 'replace')
         temp['conversion'] = dict()
 
-        if temp['cc_type'] == 0:  # Parameteric, Linear: Physical = Integer*P2 + P1
+        if temp['cc_type'] == 0:  # Parametric, Linear: Physical = Integer*P2 + P1
             (temp['conversion']['P1'],
              temp['conversion']['P2']) = unpack('2d', fid.read(16))
 
         elif temp['cc_type'] in (1, 2):  # Table look up with or without interpolation
             for pair in range(temp['numberOfValuePairs']):
-                temp['conversion'][pair]=dict()
+                temp['conversion'][pair] = dict()
                 (temp['conversion'][pair]['int'],
                  temp['conversion'][pair]['phys']) = unpack('2d', fid.read(16))
 
-        elif temp['cc_type'] in (6, 9):  # Polynomial or rationnal
+        elif temp['cc_type'] in (6, 9):  # Polynomial or rational
             (temp['conversion']['P1'],
              temp['conversion']['P2'],
              temp['conversion']['P3'],
