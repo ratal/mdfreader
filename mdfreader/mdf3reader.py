@@ -28,7 +28,7 @@ from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
 from numpy import right_shift, bitwise_and, interp
 from numpy import max as npmax, min as npmin
-from numpy import asarray, recarray, array, searchsorted
+from numpy import asarray, recarray, array, searchsorted, vectorize
 from numpy import issubdtype, number as numpy_number
 from numpy.core.records import fromstring, fromarrays
 from numpy.core.defchararray import encode as ncode
@@ -220,6 +220,25 @@ def formulaConv(data, conv):  # 10 Text Formula
     except:
         print('Please install sympy to convert channel ', file=stderr)
         print('Failed to convert formulae ' + conv['textFormula'], file=stderr)
+
+
+def textTableConv(data, conv):  # 11 Text table
+    """ apply text table conversion to data
+
+    Parameters
+    ----------------
+    data : numpy 1D array
+        raw data to be converted to physical value
+    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+
+    Returns
+    -----------
+    converted data to physical value
+    """
+    conversion_table = dict()
+    for pair in conv:
+        conversion_table[conv[pair]['int']] = conv[pair]['text']
+    return vectorize(conversion_table.__getitem__)(data)
 
 
 def textRangeTableConv(data, conv):  # 12 Text range table
@@ -1033,6 +1052,8 @@ class mdf3(mdf_skeleton):
                 return rationalConv(vect, conversion['parameters'])
             elif conversion['type'] == 10:
                 return formulaConv(vect, conversion['parameters'])
+            elif conversion['type'] == 11 and convert_tables:
+                return textTableConv(vect, conversion['parameters'])
             elif conversion['type'] == 12 and convert_tables:
                 return textRangeTableConv(vect, conversion['parameters'])
             else:
