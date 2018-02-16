@@ -139,7 +139,8 @@ class mdf_skeleton(dict):
         self.file_metadata['date'] = ''
         self.MDFVersionNumber = 300
         self.filterChannelNames = filterChannelNames
-        self.convert_tables = True
+        # by default, do not convert table conversion types, taking lot of time and memory
+        self.convert_tables = False
         self._pandasframe = False
         self.info = None
         self._compression_level = 9  # default compression level
