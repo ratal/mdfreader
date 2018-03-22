@@ -334,7 +334,7 @@ class CommentBlock(dict):
         pointer: int
             position in file
         MDType: str
-            describes metadata type, ('CN', 'unit', 'FH', 'SI', 'HD', 'CC')
+            describes metadata type, ('CN', 'unit', 'FH', 'SI', 'HD', 'CC', 'EV')
 
         Notes
         --------
@@ -473,6 +473,27 @@ class CommentBlock(dict):
                             pass  # optional
                         try:
                             self['formula'] = xml_tree.formula.text
+                        except AttributeError:
+                            pass  # optional
+                    elif kargs['MDType'] == 'EV':
+                        try:
+                            self['TX'] = xml_tree.TX.text
+                        except AttributeError:
+                            warn('Could not parse EV block TX tag')
+                        try:
+                            self['pre_trigger_interval'] = xml_tree.pre_trigger_interval.text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['post_trigger_interval'] = xml_tree.post_trigger_interval.text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['formula'] = xml_tree.formula.text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['timeout'] = xml_tree.timeout.text
                         except AttributeError:
                             pass  # optional
                     else:
@@ -946,9 +967,9 @@ class EVBlock(dict):
                         ATBlock(fid, self['ev_at_reference'][at])
             if self['ev_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock()
-                self['Comment'].read(fid=fid, pointer=self['ev_md_comment'])
+                self['Comment'].read(fid=fid, pointer=self['ev_md_comment'], MDType='EV')
             if self['ev_tx_name']:  # comments exist
-                self['name'] =  CommentBlock()
+                self['name'] = CommentBlock()
                 self['name'].read(fid=fid, pointer=self['ev_tx_name'])
 
 
@@ -1316,11 +1337,11 @@ class info4(dict):
         # reads Event Block
         if self['HD']['hd_ev_first'] and not minimal:
             ev = 0
-            self['EVBlock'] = {}
-            self['EVBlock'][ev] = EVBlock(fid, self['HD']['hd_ev_first'])
-            while self['EVBlock'][ev]['ev_ev_next']:
+            self['EV'] = {}
+            self['EV'][ev] = EVBlock(fid, self['HD']['hd_ev_first'])
+            while self['EV'][ev]['ev_ev_next']:
                 ev += 1
-                self['EVBlock'][ev] = EVBlock(fid, self['EVBlock'][ev - 1]['ev_ev_next'])
+                self['EV'][ev] = EVBlock(fid, self['EV'][ev - 1]['ev_ev_next'])
 
         # reads Data Group Blocks and recursively the other related blocks
         self.readDGBlock(fid, None, minimal)
