@@ -1235,8 +1235,11 @@ class mdf3(mdf_skeleton):
                     byteOffset += 8192
                 data = self.getChannelData(channel)  # channel data
                 temp = data
-                if PythonVersion >= 3 and data.dtype.kind in ['S', 'U']:
-                    temp = ncode(temp, encoding='latin1', errors='replace')
+                if PythonVersion >= 3:
+                    if data.dtype.kind == 'S':
+                        temp = ncode(temp, encoding='latin1', errors='replace')
+                    elif data.dtype.kind == 'U':
+                        temp = ncode(temp, encoding='utf-8', errors='replace')
                 dataList = dataList + (temp, )
                 cn_numpy_kind = data.dtype.kind
                 cn_numpy_itemsize = data.dtype.itemsize
