@@ -1657,7 +1657,6 @@ class info4(dict):
                         # reads Attachment Block
                         if self['CN'][dg][cg][cn]['cn_attachment_count'] > 1:
                             for at in range(self['CN'][dg][cg][cn]['cn_attachment_count']):
-                                warn(self['CN'][dg][cg][cn]['cn_at_reference'][at])
                                 self['CN'][dg][cg][cn]['attachment'][at].update(self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
                         elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
                             self['CN'][dg][cg][cn]['attachment'][0].update(
