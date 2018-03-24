@@ -720,9 +720,9 @@ class mdf(mdf3, mdf4):
                 filename = splitext(self.fileName)[0]
                 filename = filename + '.csv'
             if self.MDFVersionNumber >= 400:
-                encoding = 'utf8' # mdf4 encoding is unicode
+                encoding = 'utf8'  # mdf4 encoding is unicode
             else:
-                encoding = 'latin-1' # mdf3 encoding is latin-1
+                encoding = 'latin-1'  # mdf3 encoding is latin-1
             # writes header
             if PythonVersion < 3:
                 units = []
@@ -748,19 +748,19 @@ class mdf(mdf3, mdf4):
                                 units.append(unit.encode(encoding, 'replace'))
                             except:
                                 units.append(unit)
-                writer.writerow(names) # writes channel names
+                writer.writerow(names)  # writes channel names
                 writer.writerow(units)  # writes units
             else:
                 f = open(filename, "wt", encoding=encoding)
                 writer = csv.writer(f, dialect=csv.excel)
-                writer.writerow([name for name in list(self.keys()) \
-                        if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V') \
-                        and self.getChannelData(name).ndim <= 1])  # writes channel names
+                writer.writerow([name for name in list(self.keys())
+                                 if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V')
+                                 and self.getChannelData(name).ndim <= 1])  # writes channel names
                 # writes units
-                writer.writerow([self.getChannelUnit(name) \
-                        for name in list(self.keys())
-                        if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V') \
-                        and self.getChannelData(name).ndim <= 1])  # writes units
+                writer.writerow([self.getChannelUnit(name)
+                                 for name in list(self.keys())
+                                 if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V')
+                                 and self.getChannelData(name).ndim <= 1])  # writes units
             # concatenate all channels
             temp = []
             for name in list(self.keys()):
