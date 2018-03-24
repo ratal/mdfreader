@@ -1873,7 +1873,7 @@ def valueToTextConv(vect, cc_val, cc_ref):
     -----------
     converted data to physical value
     """
-    maxlen = max([len(str(ref)) for ref in cc_ref])
+    maxlen = max([len(ref) for ref in cc_ref])
     temp = empty(len(vect), dtype='U{}'.format(maxlen))  # initialize empty array with max length
     # checks for scaling
     try:
