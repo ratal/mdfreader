@@ -71,7 +71,7 @@ def _convertMatlabName(channel):
         try:
             channel = channel.decode('utf-8')
         except:
-            warn('channel name can not be decoded : {}'.format(channel))
+            warn(u'channel name can not be decoded : {}'.format(channel))
     channelName = channel.replace('[', '_ls_')
     channelName = channelName.replace(']', '_rs_')
     channelName = channelName.replace('$', '')
@@ -1028,7 +1028,7 @@ class mdf(mdf3, mdf4):
                 if len(channelName) > 0  and channelName is not None:
                     temp[channelName] = data
                 elif channelName is not None:
-                    warn('Could not export {}, name is not compatible with Matlab'.format(channel))
+                    warn(u'Could not export {}, name is not compatible with Matlab'.format(channel))
         try:  # depends of version used , compression can be used
             savemat(filename, temp, long_field_names=True, format='5', do_compression=True, oned_as='column')
         except:
@@ -1135,62 +1135,31 @@ class mdf(mdf3, mdf4):
         if filename is None:
             filename = splitext(self.fileName)[0]
             filename = filename + '.xlsx'
-        channels = list(self.keys())
-        # find max column length
-        maxRows = max([len(self.getChannelData(channel)) for channel in channels])
-        maxCols = len(channels)  # number of columns
+
         warn('Creating Excel sheet')
-        # not resampled data, can be long, writing cell by cell !
-        if len(list(self.masterChannelList.keys())) > 1:
-            wb = openpyxl.workbook.Workbook()
-            ws = wb.active #get_active_sheet()
-            # write header
-            if PythonVersion < 3:
-                for j in range(maxCols):
-                    ws.cell(row=1, column=j+1).value = channels[j]
-                    ws.cell(row=2, column=j+1).value = self.getChannelUnit(channels[j])
-            else:
-                for j in range(maxCols):
-                    ws.cell(row=1, column=j+1).value = channels[j]
-                    ws.cell(row=2, column=j+1).value = self.getChannelUnit(channels[j])
-            # arrange data
-            for j in range(maxCols):
-                data = self.getChannelData(channels[j])
-                try:
-                    if data.ndim <= 1: # not an array channel
-                        if data.dtype.kind in ('i', 'u') or 'f4' in data.dtype.str:
-                            for r in range(len(data)):
-                                ws.cell(row=r + 3, column=j+1).value = float64(data[r])
-                        elif data.dtype.kind not in ('V', 'U'):
-                            for r in range(len(data)):
-                                ws.cell(row=r + 3, column=j+1).value = data[r]
-                except IllegalCharacterError:
-                    warn('could not export {}'.format(channels[j]))
-        else:  # resampled data
-            wb = openpyxl.workbook.Workbook()
-            ws = wb.create_sheet()
-            # write header
-            ws.append(channels)
-            ws.append([self.getChannelUnit(channel) for channel in channels])
-            # write data
-            bigmat = zeros(maxRows)  # create empty column
-            buf = bigmat
-            for col in range(maxCols):
-                data = self.getChannelData(channels[col])
-                if data.ndim <= 1: # not an array channel
-                    if data.dtype.kind not in ('S', 'U', 'V'):
-                        chanlen = len(data)
-                        if chanlen < maxRows:
-                            buf[:] = None
-                            buf[0:chanlen] = data
-                            bigmat = vstack((bigmat, buf))
-                        else:
-                            bigmat = vstack((bigmat, data))
-                    else:
-                        buf[:] = None
-                        bigmat = vstack((bigmat, buf))
-            bigmat = delete(bigmat, 0, 0)
-            [ws.append(list(bigmat[:, row])) for row in range(maxRows)]
+        wb = openpyxl.workbook.Workbook()
+        ws = wb.active  # get_active_sheet()
+
+        ncol = 1
+        for master in self.masterChannelList:
+            channels = self.masterChannelList[master]
+            for channel in channels:
+                data = self.getChannelData(channel)
+                if data.ndim <= 1:  # not an array channel
+                    ws.cell(row=1, column=ncol).value = channel
+                    ws.cell(row=2, column=ncol).value = self.getChannelUnit(channel)
+                    try:
+                        if data.ndim <= 1:  # not an array channel
+                            if data.dtype.kind in ('i', 'u') or 'f4' in data.dtype.str:
+                                for r, cell_data in enumerate(data):
+                                    ws.cell(row=r + 3, column=ncol).value = float64(cell_data)
+                            elif not data.dtype.kind == 'V':
+                                for r, cell_data in enumerate(data):
+                                    ws.cell(row=r + 3, column=ncol).value = cell_data
+                    except IllegalCharacterError:
+                        warn(u'could not export {}'.format(channel))
+                    ncol += 1
+
         warn('Writing file, please wait')
         wb.save(filename)
 
