@@ -284,6 +284,12 @@ cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long 
     if nBytes == 4:
         for i in range(numberOfRecords):
             memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+            # right shift
+            if bitOffset > 0:
+                temp4byte = temp4byte >> bitOffset
+            # mask left part
+            if bitCount < 32:
+                temp4byte &= mask
             buf[i] = temp4byte
         if swap == 0:
             return buf
