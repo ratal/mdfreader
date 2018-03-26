@@ -10,7 +10,7 @@ except ImportError:
     use_cython = False
 
 name = 'mdfreader'
-version = '2.7.5'
+version = '2.7.6'
 
 description = 'A Measured Data Format file parser'
 
@@ -72,7 +72,7 @@ install_requires = ['numpy>=1.14', 'sympy', 'cython>=0.21', 'lxml']
 # You can install these using the following syntax, for example:
 # $ pip install -e .[dev,test]
 extras_require = {
-    'export': ['scipy', 'h5py', 'xlwt', 'xlwt3', 'openpyxl', 'pandas'],
+    'export': ['scipy', 'h5py', 'xlwt', 'xlwt3', 'openpyxl>2.0', 'pandas'],
     'plot': ['matplotlib'],
     'converter': ['PyQt4'],
     'experimental': ['bitarray'],

@@ -16,7 +16,7 @@
 __author__ = 'Aymeric Rateau (aymeric.rateau@gmail.com)'
 __copyright__ = 'Copyright (c) 2017 Aymeric Rateau'
 __license__ = 'GPLV3'
-__version__ = "2.7.5"
+__version__ = "2.7.6"
 
 from .mdfreader import mdf, mdfinfo
 
