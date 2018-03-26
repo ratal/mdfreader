@@ -635,7 +635,7 @@ def read_ce_block(fid, pointer):
              temp['CAN_channel_id'],
              temp['message'],
              temp['sender']) = unpack('2I36s36s', fid.read(80))
-            temp['name'] = temp['name'].rstrip(b'\x00').decode('latin1', 'replace')
+            temp['message'] = temp['message'].rstrip(b'\x00').decode('latin1', 'replace')
             temp['sender'] = temp['sender'].rstrip(b'\x00').decode('latin1', 'replace')
             temp['tail'] = temp['message']
         else:
