@@ -550,7 +550,7 @@ class record(list):
                         previous_index += nrecord_chunk
                     return rec
                 except:
-                    warn('Unexpected error:', exc_info())
+                    warn('Unexpected error: {}'.format(exc_info()))
                     warn('dataRead crashed, back to python data reading')
                     recordLength = self.recordIDnumber + self.CGrecordLength
                     for r in range(self.numberOfRecords):  # for each record,
