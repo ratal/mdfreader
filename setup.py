@@ -1,11 +1,22 @@
-import numpy
 from setuptools import setup, find_packages
+import pkg_resources
 from codecs import open  # To use a consistent encoding
 from os import path
 from distutils.extension import Extension
+from distutils.version import LooseVersion
+
+numpy_incl = pkg_resources.resource_filename('numpy', 'core/include')
+
+# cython installed ?
+min_cython_ver = '0.21'
 try:
+    import Cython
+    ver = Cython.__version__
+    use_cython = ver >= LooseVersion(min_cython_ver)
     from Cython.Build import cythonize
-    use_cython = True
+    ext = '.pyx' if use_cython else '.c'
+    ext_modules = cythonize(Extension('dataRead', ['dataRead' + ext],
+                                      include_dirs=[numpy_incl]))
 except ImportError:
     use_cython = False
 
@@ -47,9 +58,7 @@ classifiers = [
 
     # Specify the Python versions you support here. In particular, ensure
     # that you indicate whether you support Python 2, Python 3 or both.
-    'Programming Language :: Python :: 2',
     'Programming Language :: Python :: 2.7',
-    'Programming Language :: Python :: 3',
     'Programming Language :: Python :: 3.4',
     'Programming Language :: Python :: 3.5',
     'Programming Language :: Python :: 3.6'
@@ -66,7 +75,7 @@ packages = find_packages(exclude=['contrib', 'docs', 'tests*'])
 # project is installed. For an analysis of "install_requires" vs pip's
 # requirements files see:
 # https://packaging.python.org/en/latest/technical.html#install-requires-vs-requirements-files
-install_requires = ['numpy>=1.14', 'sympy', 'cython>=0.21', 'lxml']
+install_requires = ['numpy>=1.14', 'sympy', 'lxml']
 
 # List additional groups of dependencies here (e.g. development dependencies).
 # You can install these using the following syntax, for example:
@@ -78,8 +87,6 @@ extras_require = {
     'experimental': ['bitarray'],
     'compression': ['blosc'],
 }
-
-ext = '.pyx' if use_cython else '.c'
 
 # If there are data files included in your packages that need to be
 # installed, specify them here.  If using Python 2.6 or less, then these
@@ -103,16 +110,13 @@ entry_points = {
     ],
 }
 
-try:
-    ext_modules = cythonize(Extension('dataRead', ['dataRead' + ext],
-                                      include_dirs=[numpy.get_include()]))
+if use_cython:
     setup(name=name, version=version, description=description, long_description=long_description,
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
           entry_points=entry_points, ext_modules=ext_modules)
-except SystemExit:  # in case dataRead compilation failed
+else:
     extras_require.pop('experimental')
-    install_requires.pop(-1)  # removes cython requirement 
     install_requires.append('bitarray')  # replaces cython requirement by bitarray
     setup(name=name, version=version, description=description, long_description=long_description,
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
