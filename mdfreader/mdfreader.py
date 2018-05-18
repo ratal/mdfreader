@@ -468,13 +468,14 @@ class mdf(mdf3, mdf4):
         else:
             return self._convertAllChannel4()
 
-    def plot(self, channels):
+    def plot(self, channel_name_list_of_list):
         """Plot channels with Matplotlib
 
         Parameters
         ----------------
-        channels : str or list of str
-            channel name or list of channel names
+        channel_name_list_of_list : str or list of str or list of list of str
+            channel name or list of channel names or list of list of channel names
+            list of list will create multiplots
 
         Notes
         ---------
@@ -484,40 +485,52 @@ class mdf(mdf3, mdf4):
             import matplotlib.pyplot as plt
         except:
             raise ImportError('matplotlib not found')
-        if isinstance(channels, str):
-            channels = {channels}
-        for channelName in channels:
-            if channelName in self:
-                data = self.getChannelData(channelName)
-                if data.dtype.kind not in ['S', 'U']:  # if channel not a string
-                    self.fig = plt.figure()
-                    # plot using matplotlib the channel versus master channel
-                    if len(list(self.masterChannelList.keys())) == 1:  # Resampled signals
-                        masterName = list(self.masterChannelList.keys())[0]
-                        if not masterName:  # resampled channels, only one time channel most probably called 'master'
-                            masterName = 'master'
-                        if masterName in list(self.keys()):  # time channel properly defined
-                            plt.plot(self.getChannelData(masterName), data)
-                            plt.xlabel(masterName + ' [' + self.getChannelUnit(masterName) + ']')
-                        else:  # no time channel found
-                            plt.plot(data)
-                    else:  # not resampled
-                        master_name = self.getChannelMaster(channelName)
-                        if master_name in list(self.keys()):  # master channel is proper channel name
-                            plt.plot(self.getChannelData(master_name), data)
-                            plt.xlabel(master_name + ' [' + self.getChannelUnit(master_name) + ']')
-                        else:
-                            plt.plot(data)
+        try:
+            from mpldatacursor import datacursor
+        except ImportError:
+            print('no cursor available, please install properly mpldatacursor')
+        if isinstance(channel_name_list_of_list, str):
+            channel_name_list_of_list = [channel_name_list_of_list]  # converts in list
+        for channel_name_list in channel_name_list_of_list:
+            fig = plt.subplot(len(channel_name_list_of_list), 1, channel_name_list_of_list.index(channel_name_list) + 1)
+            if isinstance(channel_name_list, str):
+                channel_name_list = [channel_name_list]  # converts in list
+            for channelName in channel_name_list:
+                if channelName in self:
+                    data = self.getChannelData(channelName)
+                    if data.dtype.kind not in ['S', 'U']:  # if channel not a string
+                        # self.fig = plt.figure()  # could be needed
+                        # plot using matplotlib the channel versus master channel
+                        if len(self.masterChannelList) == 1:  # Resampled signals or only one master
+                            masterName = self.masterChannelList[0]
+                            if not masterName:  # resampled channels, only one time channel probably called 'master'
+                                masterName = 'master'
+                            if masterName in self.masterChannelList:  # time channel properly defined
+                                plt.plot(self.getChannelData(masterName), data)
+                                plt.xlabel('{0} [{1}]'.format(masterName, self.getChannelUnit(masterName)))
+                            else:  # no time channel found
+                                plt.plot(data)
+                        else:  # not resampled
+                            master_name = self.getChannelMaster(channelName)
+                            if master_name in self.masterChannelList:  # master channel is proper channel name
+                                plt.plot(self.getChannelData(master_name), data)
+                                plt.xlabel('{0} [{1}]'.format(master_name, self.getChannelUnit(master_name)))
+                            else:
+                                plt.plot(data)
 
-                    plt.title(self.getChannelDesc(channelName))
-                    if self.getChannelUnit(channelName) == {}:
-                        plt.ylabel(channelName)
-                    else:
-                        plt.ylabel(channelName + ' [' + self.getChannelUnit(channelName) + ']')
-                    plt.grid(True)
-                    plt.show()
-            else:
-                warn('Channel {} not existing'.format(channelName))
+                        plt.title(self.getChannelDesc(channelName))
+                        if self.getChannelUnit(channelName) == {}:
+                            plt.ylabel(channelName)
+                        else:
+                            plt.ylabel('{0} [{1}]'.format(channelName, self.getChannelUnit(channelName)))
+                else:
+                    warn('Channel {} not existing'.format(channelName))
+            plt.grid(True)
+            plt.legend(loc="upper left", frameon=False)
+            plt.title('')
+        datacursor()
+        plt.show()
+        return fig
 
     def allPlot(self):
         # plot all channels in the object, be careful for test purpose only,
