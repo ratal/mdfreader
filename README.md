@@ -101,7 +101,7 @@ Command example in ipython:
     # to list channels names grouped by raster, below dict mdf attribute contains
     # pairs (key=masterChannelName : value=listOfChannelNamesForThisMaster)
     yop.masterChannelList
-    # quick multiplot of channel(s)
+    # quick plot or subplot (with lists) of channel(s)
     yop.plot(['channel1',['channel2','channel3']])
     # file manipulations
     yop.resample(0.1) or yop.resample(masterChannel='master3')

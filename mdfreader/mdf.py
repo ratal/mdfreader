@@ -25,9 +25,8 @@ from itertools import chain
 from random import choice
 from string import ascii_letters
 from sys import version_info
-from warnings import warn
 from collections import OrderedDict,defaultdict
-from warnings import simplefilter, warn
+from warnings import warn
 from numpy import array_repr, set_printoptions, recarray, fromstring
 try:
     from pandas import set_option
