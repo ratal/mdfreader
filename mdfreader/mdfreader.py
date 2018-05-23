@@ -406,7 +406,7 @@ class mdf(mdf3, mdf4):
         if not self.fid.closed:  # close file
             self.fid.close()
 
-    def write(self, fileName=None):
+    def write(self, fileName=None, compression=False):
         """Writes simple mdf file, same format as originally read, default is 4.x
 
         Parameters
@@ -414,6 +414,8 @@ class mdf(mdf3, mdf4):
         fileName : str, optional
             Name of file
             If file name is not input, written file name will be the one read with appended '_new' string before extension
+        compression : bool
+            flag to store data compressed (from mdf version 4.1)
 
         Notes
         --------
@@ -429,7 +431,7 @@ class mdf(mdf3, mdf4):
         if self.MDFVersionNumber < 400:
             self.write3(fileName=fileName)
         else:
-            self.write4(fileName=fileName)
+            self.write4(fileName=fileName, compression=compression)
 
     def getChannelData(self, channelName, raw_data=False):
         """Return channel numpy array
