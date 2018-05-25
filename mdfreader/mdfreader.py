@@ -44,6 +44,7 @@ from datetime import datetime
 from argparse import ArgumentParser
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, zeros, empty, delete
 from numpy import nan, datetime64, array, searchsorted, clip
+from numpy.ma import MaskedArray
 from .mdf3reader import mdf3
 from .mdf4reader import mdf4
 from .mdf import _open_MDF, dataField, descriptionField, unitField, masterField, masterTypeField
@@ -415,7 +416,8 @@ class mdf(mdf3, mdf4):
             Name of file
             If file name is not input, written file name will be the one read with appended '_new' string before extension
         compression : bool
-            flag to store data compressed (from mdf version 4.1)
+            Flag to store data compressed (from mdf version 4.1)
+            If activated, will write in version 4.1 even if original file is in version 3.x
 
         Notes
         --------
@@ -428,7 +430,7 @@ class mdf(mdf3, mdf4):
             fileName = ''.join([splitName[-2], '_New', splitName[-1]])
         # makes sure all channels are converted
         self.convertAllChannel()
-        if self.MDFVersionNumber < 400:
+        if self.MDFVersionNumber < 400 and not compression:
             self.write3(fileName=fileName)
         else:
             self.write4(fileName=fileName, compression=compression)
@@ -647,8 +649,11 @@ class mdf(mdf3, mdf4):
                             warn('{} and master channel {} do not have same length'.
                                  format(Name, self.getChannelMaster(Name)))
                         elif not all(diff(timevect) > 0):
-                            warn('{} has non regularly increasing master channel {}'.
-                                 format(Name, self.getChannelMaster(Name)))
+                            master = self.getChannelMaster(Name)
+                            warn('{} has non regularly increasing master channel {}.\n'
+                                 ' Faulty samples will be dropped in related data group'.
+                                 format(Name, master))
+                            self._clean_uneven_master_data(master)
                 # remove time channels in masterChannelList
                 for ind in list(self.masterChannelList.keys()):
                     if ind != masterChannelName and ind in self:
@@ -669,6 +674,23 @@ class mdf(mdf3, mdf4):
                 warn('Already resampled')
         else:
             warn('no data to be resampled')
+
+    def _clean_uneven_master_data(self, master_channel_name):
+        """ clean data group having non evenly increasing master
+
+            Parameters
+            ----------------
+            master_channel_name : str
+                master channel name referring to data group to be cleaned
+
+        """
+        # create mask
+        mask = diff(self.getChannelData(master_channel_name)) > 0
+        # remove samples from data group defined by mask
+        for channel in self.masterChannelList[master_channel_name]:
+            data = self.getChannelData(channel).view(MaskedArray)
+            data.mask = mask
+            self.setChannelData(channel, data.compressed())
 
     def cut(self, begin=None, end=None):
         """ Cut data

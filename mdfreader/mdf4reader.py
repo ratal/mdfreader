@@ -37,7 +37,6 @@ from os.path import splitext
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
 from sys import version_info, byteorder
-from warnings import warn
 from collections import defaultdict, OrderedDict
 from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer
