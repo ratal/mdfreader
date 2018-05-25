@@ -510,14 +510,14 @@ class mdf(mdf3, mdf4):
                             if not masterName:  # resampled channels, only one time channel probably called 'master'
                                 masterName = 'master'
                             if masterName in self.masterChannelList:  # time channel properly defined
-                                plt.plot(self.getChannelData(masterName), data)
+                                plt.plot(self.getChannelData(masterName), data, label=channelName)
                                 plt.xlabel('{0} [{1}]'.format(masterName, self.getChannelUnit(masterName)))
                             else:  # no time channel found
                                 plt.plot(data)
                         else:  # not resampled
                             master_name = self.getChannelMaster(channelName)
                             if master_name in self.masterChannelList:  # master channel is proper channel name
-                                plt.plot(self.getChannelData(master_name), data)
+                                plt.plot(self.getChannelData(master_name), data, label=channelName)
                                 plt.xlabel('{0} [{1}]'.format(master_name, self.getChannelUnit(master_name)))
                             else:
                                 plt.plot(data)

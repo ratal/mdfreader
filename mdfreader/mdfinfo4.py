@@ -1528,7 +1528,10 @@ class info4(dict):
             if self['CN'][dg][cg][cn]['cn_si_source']:
                 temp = SIBlock()
                 temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                source_name = temp['source_name']['Comment']
+                if temp['si_tx_name'] > 0:
+                    source_name = temp['source_name']['Comment']
+                else:
+                    source_name = cn
             else:
                 source_name = cn
             self['CN'][dg][cg][cn]['name'] = \
@@ -1538,7 +1541,10 @@ class info4(dict):
             if self['CN'][dg][cg][cn]['cn_si_source']:
                 temp = SIBlock()
                 temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                source_name = temp['source_name']['Comment']
+                if temp['si_tx_name'] > 0:
+                    source_name = temp['source_name']['Comment']
+                else:
+                    source_name = dg
             else:
                 source_name = dg
             self['CN'][dg][cg][cn]['name'] = u'{0}_{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], dg, source_name)
@@ -1614,7 +1620,10 @@ class info4(dict):
                         if self['CN'][dg][cg][cn]['cn_si_source']:
                             temp = SIBlock()
                             temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                            source_name = temp['source_name']['Comment']
+                            if temp['si_tx_name'] > 0:
+                                source_name = temp['source_name']['Comment']
+                            else:
+                                source_name = cn
                         else:
                             source_name = cn
                         self['CN'][dg][cg][cn]['name'] = \
@@ -1625,7 +1634,10 @@ class info4(dict):
                         if self['CN'][dg][cg][cn]['cn_si_source']:
                             temp = SIBlock()
                             temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                            source_name = temp['source_name']['Comment']
+                            if temp['si_tx_name'] > 0:
+                                source_name = temp['source_name']['Comment']
+                            else:
+                                source_name = dg
                         else:
                             source_name = dg
                         self['CN'][dg][cg][cn]['name'] = u'{0}_{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], dg,
