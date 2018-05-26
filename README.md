@@ -22,7 +22,7 @@ Mdfreader module methods:
 =========================
 * resample channels to one sampling frequency
 * merge files
-* plot one or a list of channels
+* plot one channel, several channels on one graph (list) or several channels on subplots (list of lists)
 
 It is also possible to export mdf data into:
 * CSV file (excel dialect by default)
@@ -41,13 +41,15 @@ Evaluated for Windows and Linux platforms (x86 and AMD64)
 
 Requirements:
 =============
-Mdfreader is mostly relying on numpy/scipy/matplotlib.
+Mdfreader is mostly relying on numpy/scipy/matplotlib and lxml for parsing the metadata in mdf version 4.x files
 
 Reading channels defined by a formula will require sympy.
 
-Cython is required to compile dataRead module for reading quickly exotic data (not byte aligned or containing hidden bytes) or only a list of channels. However, if cython compilation fails, bitarray becomes required (slower, pure python and maybe not so robust as not so much tested).
+Cython is strongly advised and allows to compile dataRead module for reading quickly exotic data (not byte aligned or containing hidden bytes) or only a list of channels. However, if cython compilation fails, bitarray becomes required (slower, pure python and maybe not so robust as not so much tested).
 
 Export requirements (optional): scipy, csv, h5py, xlwt(3), openpyxl, pandas
+
+Blosc for data compression (optional)
 
 Mdfconverter graphical user interface requires PyQt (versions 4 or 5)
 
@@ -57,8 +59,8 @@ pip package existing:
 ```shell
 pip install mdfreader
 ```
-or with only source from github from instance
-```python
+or from source cloned from github from instance
+```shell
 python setup.py develop
 ```
 
@@ -69,10 +71,10 @@ User interface in PyQt4 or PyQt5 to convert batch of files is part of package. Y
 Others:
 =======
 In the case of big files or lack of memory, you can optionally:
-* Read only a channel list (argument channelList = ['channel', 'list'])
+* Read only a channel list (argument channelList = ['channel', 'list'], you can get the file channel list without loading data with mdfinfo)
 * Keep raw data as stored in mdf without data type conversion (argument convertAfterRead=False). Data will then be converted on the fly by the other functions (plot, exportTo..., getChannelData, etc.) but raw data type will remain as in mdf file along with conversion information.
 * Compress data in memory with blosc or bcolz with argument compression. If integer or boolean is given, it will use by default bcolz with integer compression level. If 'blosc' is given, default compression level is 9.
-* Create a mdf dict with its metadata but without raw data (argument noDataLoading=True). Data will be loaded on demand by mdfreader methods (in general by getChannelData method)
+* Create a mdf dict with its metadata but without data (argument noDataLoading=True). Data will be read from file on demand by mdfreader methods (in general by getChannelData method)
 
 For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
 
@@ -80,11 +82,13 @@ Command example in ipython:
 ===========================
 ```python
     import mdfreader
-    # loads whole mdf file content in yop mdf object
+    # loads whole mdf file content in yop mdf object.
     yop=mdfreader.mdf('NameOfFile')
+    # you can print file content in ipython with a simple:
+    yop
     # alternatively, for max speed and smaller memory footprint, read only few channels
     yop=mdfreader.mdf('NameOfFile',channelList=['channel1', 'channel2'],convertAfterRead=False)
-    # also possible to keep data compressed for small memory footprint
+    # also possible to keep data compressed for small memory footprint, using Blosc module
     yop=mdfreader.mdf('NameOfFile',compression=True)
     # for interactive file exploration, possible to read the file but not its data to save memory
     yop=mdfreader.mdf('NameOfFile',noDataLoading=True) # channel data will be loaded from file if needed
@@ -117,9 +121,10 @@ Command example in ipython:
     # merge 2 files
     yop2=mdfreader.mdf('NameOfFile_2')
     yop=mergeMDF(yop2)
-    # can write mdf file after modifications
-    yop.write()  # write in same version as original file
-    yop.write4()  # write mdf version 4 file
+    # can write mdf file after modifications or creation from scratch
+    # write4 and write3 also allow to convert file versions
+    yop.write('NewNameOfFile')  # write in same version as original file after modifications
+    yop.write4('NameOfFile', compression=True)  # write mdf version 4.1 file, data compressed
     yop.write3()  # write mdf version 3 file
     # to get/show raw data from channel after read
     yop.getChannelData('channelName') # returns channel numpy array
