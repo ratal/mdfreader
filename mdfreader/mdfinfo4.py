@@ -740,7 +740,7 @@ class CNBlock(dict):
         # val range min, val range max, val limit min, val limit max,
         # val limit ext min, val limit ext max)
         dataBytes = (b'##CN', 0, 160, 8,
-                     self['CN'], 0, self['TX'], 0, 0, 0, self['Unit'], self['Comment'],
+                     self['CN'], self['Composition'], self['TX'], 0, 0, 0, self['Unit'], self['Comment'],
                      self['cn_type'], self['cn_sync_type'],
                      self['cn_data_type'], self['cn_bit_offset'],
                      self['cn_byte_offset'], self['cn_bit_count'],
@@ -821,7 +821,7 @@ class CABlock(dict):
     """ reads Channel Array block and saves in class dict
     """
 
-    def __init__(self, fid, pointer):
+    def read(self, fid, pointer):
         # block header
         if pointer != 0 and pointer is not None:
             fid.seek(pointer)
@@ -879,7 +879,16 @@ class CABlock(dict):
                 self['ca_axis'] = _mdfblockread(fid, LINK, self['ca_ndim'] * 3)
             # nested arrays
             if self['ca_composition']:
-                self['CABlock'] = CABlock(fid, self['ca_composition'])
+                self['CABlock'] = CABlock()
+                self['CABlock'].read(fid, self['ca_composition'])
+
+    def write(self, fid):
+        # default CN template
+        dataBytes = (b'##CA', 0, 48 + 8 * self['ndim'], 1,
+                     0,
+                     0, 0, self['ndim'], 0, 0, 0)
+        fid.write(pack('<4sI2Q1Q2BHIiI', *dataBytes))
+        fid.write(pack('<{}Q'.format(self['ndim']), *self['ndim_size']))
 
 
 class ATBlock(dict):
@@ -1574,8 +1583,8 @@ class info4(dict):
                     fid.seek(self['CN'][dg][cg][cn]['cn_composition'])
                     id = fid.read(4)
                     if id in ('##CA', b'##CA'):
-                        self['CN'][dg][cg][cn]['CABlock'] = \
-                            CABlock(fid, self['CN'][dg][cg][cn]['cn_composition'])
+                        self['CN'][dg][cg][cn]['CABlock'] = CABlock()
+                        self['CN'][dg][cg][cn]['CABlock'].read(fid, self['CN'][dg][cg][cn]['cn_composition'])
                     elif id in ('##CN', b'##CN'):
                         self['CN'][dg][cg][cn]['CN'] = {}
                         temp = CNBlock()
@@ -1655,8 +1664,8 @@ class info4(dict):
                         fid.seek(self['CN'][dg][cg][cn]['cn_composition'])
                         id = fid.read(4)
                         if id in ('##CA', b'##CA'):
-                            self['CN'][dg][cg][cn]['CABlock'] = \
-                                CABlock(fid, self['CN'][dg][cg][cn]['cn_composition'])
+                            self['CN'][dg][cg][cn]['CABlock'] = CABlock()
+                            self['CN'][dg][cg][cn]['CABlock'].read(fid, self['CN'][dg][cg][cn]['cn_composition'])
                         elif id in ('##CN', b'##CN'):
                             self['CN'][dg][cg][cn]['CN'] = {}
                             temp = CNBlock()
