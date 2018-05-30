@@ -39,7 +39,7 @@ from multiprocessing import Queue, Process
 from sys import version_info, byteorder
 from collections import defaultdict, OrderedDict
 from numpy.core.records import fromstring, fromarrays
-from numpy import array, recarray, asarray, empty, where, frombuffer
+from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
@@ -48,7 +48,7 @@ from numpy.ma import MaskedArray
 from warnings import simplefilter, warn
 from .mdfinfo4 import info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _loadHeader, DLBlock, \
-    DZBlock, HLBlock, CCBlock, DTBlock
+    DZBlock, HLBlock, CCBlock, DTBlock, CABlock
 from .mdf import mdf_skeleton, _open_MDF, invalidChannel, dataField, \
     conversionField, idField, invalidPosField, compressed_data
 from .channel import channel4
@@ -1571,10 +1571,25 @@ class mdf4(mdf_skeleton):
             last_channel = 0
             for nchannel, channel in enumerate(self.masterChannelList[masterChannel]):
                 data = self.getChannelData(channel)
-                # no interest to write invalid bytes as channel
+                # no interest to write invalid bytes as channel, should be processed if needed before writing
                 if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
                     last_channel = nchannel
-                    dataList = dataList + (data, )
+                    data_ndim = data.ndim - 1
+                    if not data_ndim:
+                        dataList = dataList + (data, )
+                    else:  # data contains arrays
+                        data_dim_size = data.shape
+                        if not cg_cycle_count == data_dim_size[0]:
+                            warn('Array length do not match number of cycled in CG block')
+                        data_dim_size = data_dim_size[1:]
+                        SNd = 0
+                        PNd = 1
+                        for x in data_dim_size:
+                            SNd += x
+                            PNd *= x
+                        flattened = reshape(data, (cg_cycle_count, PNd))
+                        for i in range(PNd):
+                            dataList = dataList + (flattened[:, i],)
                     number_of_channel += 1
                     blocks[nchannel] = CNBlock()
                     if issubdtype(data.dtype, numpy_number):  # is numeric
@@ -1617,6 +1632,18 @@ class mdf4(mdf_skeleton):
                     blocks[nchannel]['cn_bit_count'] = byte_count * 8
                     blocks[nchannel]['block_start'] = pointer
                     pointer = blocks[nchannel]['block_start'] + 160
+
+                    # arrays handling
+                    if not data_ndim:
+                        blocks[nchannel]['Composition'] = 0
+                    else:
+                        blocks[nchannel]['Composition'] = pointer  # pointer to CABlock
+                        # creates CABlock
+                        blocks['CA'] = CABlock()
+                        blocks['CA']['ndim'] = data_ndim
+                        blocks['CA']['ndim_size'] = data_dim_size
+                        blocks['CA']['block_start'] = pointer
+                        pointer = blocks['CA']['block_start'] + 48 + 8 * data_ndim
 
                     if CN_flag:
                         # Next DG
