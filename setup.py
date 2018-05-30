@@ -6,7 +6,10 @@ from distutils.extension import Extension
 from distutils.version import LooseVersion
 from warnings import warn
 
-numpy_incl = pkg_resources.resource_filename('numpy', 'core/include')
+try:
+    numpy_incl = pkg_resources.resource_filename('numpy', 'core/include')
+except:
+    warn('\n You have to install numpy first \n')
 
 # cython installed ?
 min_cython_ver = '0.21'
