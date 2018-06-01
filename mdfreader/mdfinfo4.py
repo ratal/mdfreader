@@ -882,6 +882,9 @@ class CABlock(dict):
                 self['CABlock'] = CABlock()
                 self['CABlock'].read(fid, self['ca_composition'])
 
+    def load(self):
+        self['block_length'] = 48 + 8 * self['ndim']
+
     def write(self, fid):
         # default CN template
         dataBytes = (b'##CA', 0, 48 + 8 * self['ndim'], 1,
