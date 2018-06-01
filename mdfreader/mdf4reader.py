@@ -1646,7 +1646,7 @@ class mdf4(mdf_skeleton):
                         blocks[ca]['block_start'] = pointer
                         blocks[ca]['ndim'] = data_ndim
                         blocks[ca]['ndim_size'] = data_dim_size
-                        blocks[ca].load()
+                        blocks[ca].load(data.itemsize)
                         pointer = blocks[ca]['block_start'] + blocks[ca]['block_length']
 
                     if CN_flag:
@@ -1719,8 +1719,11 @@ class mdf4(mdf_skeleton):
                 fid.write(pack('<Q', pointer))
                 fid.seek(pointer)
 
-        fid.seek(DG['block_start'] + 24)
-        fid.write(pack('Q', 0))  # last DG pointer is null
+        if DG:
+            fid.seek(DG['block_start'] + 24)
+            fid.write(pack('Q', 0))  # last DG pointer is null
+        else:
+            warn('Nothing in .masterChannelList attribute found')
         fid.close()
 
     def apply_invalid_bit(self, channel_name):
