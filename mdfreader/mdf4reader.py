@@ -1556,6 +1556,8 @@ class mdf4(mdf_skeleton):
             master_channel_data = self._getChannelData4(masterChannel)
             if master_channel_data is not None:
                 cg_cycle_count = len(master_channel_data)
+            elif self._getChannelData4(self.masterChannelList[masterChannel][0]).shape[0] == 1:  # classification
+                cg_cycle_count = 1
             else:
                 # no data in datagroup, skip
                 warn('no data in datagroup {0} with master channel {1}'.format(dataGroup, masterChannel))
@@ -1639,11 +1641,13 @@ class mdf4(mdf_skeleton):
                     else:
                         blocks[nchannel]['Composition'] = pointer  # pointer to CABlock
                         # creates CABlock
-                        blocks['CA'] = CABlock()
-                        blocks['CA']['ndim'] = data_ndim
-                        blocks['CA']['ndim_size'] = data_dim_size
-                        blocks['CA']['block_start'] = pointer
-                        pointer = blocks['CA']['block_start'] + 48 + 8 * data_ndim
+                        ca = ''.join([channel, '_CA'])
+                        blocks[ca] = CABlock()
+                        blocks[ca]['block_start'] = pointer
+                        blocks[ca]['ndim'] = data_ndim
+                        blocks[ca]['ndim_size'] = data_dim_size
+                        blocks[ca].load()
+                        pointer = blocks[ca]['block_start'] + blocks[ca]['block_length']
 
                     if CN_flag:
                         # Next DG
