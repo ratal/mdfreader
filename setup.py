@@ -119,7 +119,6 @@ if use_cython:
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
           entry_points=entry_points, ext_modules=ext_modules)
-    warn('It is strongly advised to install Cython for performance and robustness purpose')
 else:
     extras_require.pop('experimental')
     install_requires.append('bitarray')  # replaces cython requirement by bitarray
@@ -127,3 +126,4 @@ else:
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
           entry_points=entry_points)
+    warn('It is strongly advised to install Cython for performance and robustness purpose')
