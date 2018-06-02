@@ -882,14 +882,15 @@ class CABlock(dict):
                 self['CABlock'] = CABlock()
                 self['CABlock'].read(fid, self['ca_composition'])
 
-    def load(self):
+    def load(self, byte_offset_base):
         self['block_length'] = 48 + 8 * self['ndim']
+        self['byte_offset_base'] = byte_offset_base
 
     def write(self, fid):
         # default CN template
         dataBytes = (b'##CA', 0, 48 + 8 * self['ndim'], 1,
                      0,
-                     0, 0, self['ndim'], 0, 0, 0)
+                     0, 0, self['ndim'], 0, self['byte_offset_base'], 0)
         fid.write(pack('<4sI2Q1Q2BHIiI', *dataBytes))
         fid.write(pack('<{}Q'.format(self['ndim']), *self['ndim_size']))
 
@@ -1535,37 +1536,11 @@ class info4(dict):
         if self['CN'][dg][cg][cn]['cn_type'] == 5:
             MLSDChannels.append(cn)
         # check if already existing channel name
-        if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
-            # reads Channel Source Information
-            if self['CN'][dg][cg][cn]['cn_si_source']:
-                temp = SIBlock()
-                temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                if temp['si_tx_name'] > 0:
-                    source_name = temp['source_name']['Comment']
-                else:
-                    source_name = cn
-            else:
-                source_name = cn
-            self['CN'][dg][cg][cn]['name'] = \
-                u'{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, source_name)
-        elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
-            # doublon name or master channel
-            if self['CN'][dg][cg][cn]['cn_si_source']:
-                temp = SIBlock()
-                temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                if temp['si_tx_name'] > 0:
-                    source_name = temp['source_name']['Comment']
-                else:
-                    source_name = dg
-            else:
-                source_name = dg
-            self['CN'][dg][cg][cn]['name'] = u'{0}_{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], dg, source_name)
+        self['CN'][dg][cg][cn]['name'] = self._unique(fid, self['CN'][dg][cg][cn]['name'], dg, cg, cn)
         if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
             # VLSD needs to rename and append records but with python 2.x impossible,
             # convert name to compatible python identifier
             vlsd = True
-        self['ChannelNamesByDG'][dg].add(self['CN'][dg][cg][cn]['name'])
-        self['allChannelList'].add(self['CN'][dg][cg][cn]['name'])
 
         if self['CG'][dg][cg]['cg_cn_first']:  # Can be NIL for VLSD
             # reads Channel Conversion Block
@@ -1627,39 +1602,11 @@ class info4(dict):
                             self['CN'][dg][cg][cn]['SI'].update(temp)
 
                     # check if already existing channel name
-                    if self['CN'][dg][cg][cn]['name'] in self['ChannelNamesByDG'][dg]:  # for unsorted data
-                        # reads Channel Source Information
-                        if self['CN'][dg][cg][cn]['cn_si_source']:
-                            temp = SIBlock()
-                            temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                            if temp['si_tx_name'] > 0:
-                                source_name = temp['source_name']['Comment']
-                            else:
-                                source_name = cn
-                        else:
-                            source_name = cn
-                        self['CN'][dg][cg][cn]['name'] = \
-                            u'{0}_{1}_{2}_{3}'.format(self['CN'][dg][cg][cn]['name'], dg, cg, source_name)
-                    elif self['CN'][dg][cg][cn]['name'] in self['allChannelList']:
-                        # doublon name or master channel
-                        # reads Channel Source Information
-                        if self['CN'][dg][cg][cn]['cn_si_source']:
-                            temp = SIBlock()
-                            temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                            if temp['si_tx_name'] > 0:
-                                source_name = temp['source_name']['Comment']
-                            else:
-                                source_name = dg
-                        else:
-                            source_name = dg
-                        self['CN'][dg][cg][cn]['name'] = u'{0}_{1}_{2}'.format(self['CN'][dg][cg][cn]['name'], dg,
-                                                                               source_name)
+                    self['CN'][dg][cg][cn]['name'] = self._unique(fid, self['CN'][dg][cg][cn]['name'], dg, cg, cn)
                     if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
                         # VLSD needs to rename and append records but with python 2.x impossible,
                         # convert name to compatible python identifier
                         vlsd = True
-                    self['ChannelNamesByDG'][dg].add(self['CN'][dg][cg][cn]['name'])
-                    self['allChannelList'].add(self['CN'][dg][cg][cn]['name'])
 
                     # reads Channel Array Block
                     if self['CN'][dg][cg][cn]['cn_composition']:
@@ -1686,7 +1633,7 @@ class info4(dict):
                             self['CN'][dg][cg][cn]['attachment'][0].update(
                                 self.readATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
 
-        MLSDChannels = self.readComposition(fid, dg, cg, MLSDChannels, channelNameList=False)
+        MLSDChannels = self.readComposition(fid, dg, cg, MLSDChannels)
 
         if MLSDChannels:
             self['MLSD'] = {}
@@ -1724,8 +1671,7 @@ class info4(dict):
         except KeyError:
             pass
 
-    def readComposition(self, fid, dg, cg, MLSDChannels,
-                        channelNameList=False):
+    def readComposition(self, fid, dg, cg, MLSDChannels):
         """check for composition of channels, arrays or structures
 
         Parameters
@@ -1738,8 +1684,6 @@ class info4(dict):
             channel group number in data group
         MLSDChannels : list of int
             channel numbers
-        channelNameList : bool
-            Flag to reads only channel blocks for listChannels4 method
 
         Returns
         -----------
@@ -1754,6 +1698,9 @@ class info4(dict):
                     self['CN'][dg][cg][chan] = CNBlock()
                     self['CN'][dg][cg][chan].read(fid=fid,
                                                   pointer=self['CN'][dg][cg][cn]['cn_composition'])
+                    # make sure channel name is unique
+                    self['CN'][dg][cg][chan]['name'] = self._unique(fid, self['CN'][dg][cg][chan]['name'], dg, cg, cn)
+
                     self['CC'][dg][cg][chan] = CCBlock()
                     self['CC'][dg][cg][chan].read(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
 
@@ -1762,7 +1709,10 @@ class info4(dict):
                     while self['CN'][dg][cg][chan]['cn_cn_next']:
                         chan += 1
                         self['CN'][dg][cg][chan] = CNBlock()
-                        self['CN'][dg][cg][chan].read(fid=fid, pointer=self['CN'][dg][cg][chan - 1]['cn_cn_next'])
+                        self['CN'][dg][cg][chan].read(fid=fid,
+                                                      pointer=self['CN'][dg][cg][chan - 1]['cn_cn_next'])
+                        # make sure channel name is unique
+                        self['CN'][dg][cg][chan]['name'] = self._unique(fid, self['CN'][dg][cg][chan]['name'], dg, cg, cn)
 
                         self['CC'][dg][cg][chan] = CCBlock()
                         self['CC'][dg][cg][chan].read(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
@@ -1858,6 +1808,57 @@ class info4(dict):
         # CLose the file
         fid.close()
         return channelNameList
+
+    def _unique(self, fid, name, dg, cg, cn):
+        """ generate unique channel name
+
+            Parameters
+            ----------------
+            fid
+                file identifier
+
+            name: str
+                channel name to be checked
+
+            dg : int
+                data group number
+
+            cg: int
+                channel group number
+
+            cn : int
+                channel number number
+
+            Returns
+            -----------
+            channel name made unique
+        """
+        # check if already existing channel name
+        if name in self['ChannelNamesByDG'][dg]:  # for unsorted data
+            if self['CN'][dg][cg][cn]['cn_si_source']:
+                temp = SIBlock()
+                temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+                if temp['si_tx_name'] > 0:
+                    source_name = temp['source_name']['Comment']
+                else:
+                    source_name = cn
+            else:
+                source_name = cn
+            name = u'{0}_{1}_{2}_{3}'.format(name, dg, cg, source_name)
+        elif name in self['allChannelList']:  # for sorted data
+            if self['CN'][dg][cg][cn]['cn_si_source']:
+                temp = SIBlock()
+                temp.read(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+                if temp['si_tx_name'] > 0:
+                    source_name = temp['source_name']['Comment']
+                else:
+                    source_name = dg
+            else:
+                source_name = dg
+            name = u'{0}_{1}_{2}'.format(name, dg, source_name)
+        self['ChannelNamesByDG'][dg].add(name)
+        self['allChannelList'].add(name)
+        return name
 
 
 def _generateDummyMDF4(info, channelList):
