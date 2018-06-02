@@ -1558,6 +1558,9 @@ class mdf4(mdf_skeleton):
                     cg_cycle_count = len(master_channel_data)
                 elif self._getChannelData4(self.masterChannelList[masterChannel][0]).shape[0] == 1:  # classification
                     cg_cycle_count = 1
+                elif master_channel_data not in self.masterChannelList[masterChannel]:
+                    cg_cycle_count = len(self._getChannelData4(self.masterChannelList[masterChannel][0]))
+                    warn('no master channel in datagroup {}'.format(dataGroup))
                 else:
                     # no data in datagroup, skip
                     warn('no data in datagroup {0} with master channel {1}'.format(dataGroup, masterChannel))
