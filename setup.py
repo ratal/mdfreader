@@ -126,4 +126,5 @@ else:
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
           entry_points=entry_points)
-    warn('It is strongly advised to install Cython for performance and robustness purpose')
+    warn('It is strongly advised to install Cython along with compilation environment '
+         'for performance and robustness purpose')
