@@ -28,10 +28,10 @@ It is also possible to export mdf data into:
 * CSV file (excel dialect by default)
 * NetCDF file for a compatibility with Uniplot for instance (needs netcdf4, Scientific.IO)
 * HDF5 (needs h5py)
-* Excel 95 to 2003 (needs xlwt, really slooow, be careful about data size)
-* Excel 2007/2010 (needs openpyxl, slow if not resampled data)
+* Excel 95 to 2003 (needs xlwt, extremely slooow, be careful about data size)
+* Excel 2007/2010 (needs openpyxl, can be also slow with big files)
 * Matlab .mat (needs scipy.io)
-* MDF file. It allows you to create or modify data, units, description and save it again.
+* MDF file. It allows you to create, convert or modify data, units, description and save it again.
 * Pandas dataframe(s) (only in command line, not in mdfconverter). One dataframe per raster.
 
 Compatibility:
@@ -73,7 +73,7 @@ Others:
 In the case of big files or lack of memory, you can optionally:
 * Read only a channel list (argument channelList = ['channel', 'list'], you can get the file channel list without loading data with mdfinfo)
 * Keep raw data as stored in mdf without data type conversion (argument convertAfterRead=False). Data will then be converted on the fly by the other functions (plot, exportTo..., getChannelData, etc.) but raw data type will remain as in mdf file along with conversion information.
-* Compress data in memory with blosc or bcolz with argument compression. If integer or boolean is given, it will use by default bcolz with integer compression level. If 'blosc' is given, default compression level is 9.
+* Compress data in memory with blosc with argument compression. Default compression level is 9.
 * Create a mdf dict with its metadata but without data (argument noDataLoading=True). Data will be read from file on demand by mdfreader methods (in general by getChannelData method)
 
 For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
@@ -92,7 +92,10 @@ Command example in ipython:
     yop=mdfreader.mdf('NameOfFile',compression=True)
     # for interactive file exploration, possible to read the file but not its data to save memory
     yop=mdfreader.mdf('NameOfFile',noDataLoading=True) # channel data will be loaded from file if needed
-    yop.getChannel('channelName') # to yield one channel and keep its content in mdf object
+    # to yield one channel and keep its content in mdf object
+    yop.getChannel('channelName')
+    # to yield one channel numpy array
+    yop.getChannelData('channelName')
     # to get file mdf version
     yop.MDFVersionNumber
     # to get file structure or attachments, you can create a mdfinfo instance
@@ -108,12 +111,17 @@ Command example in ipython:
     # quick plot or subplot (with lists) of channel(s)
     yop.plot(['channel1',['channel2','channel3']])
     # file manipulations
-    yop.resample(0.1) or yop.resample(masterChannel='master3')
-    yop.cut(begin=10, end=15)  # keep only data between begin and end
+    yop.resample(0.1)
+    # or
+    yop.resample(masterChannel='master3')
+    # keep only data between begin and end
+    yop.cut(begin=10, end=15)
+    # export to other file formats :
     yop.exporToCSV(sampling=0.01)
-    yop.exportNetCDF()
+    yop.exportToNetCDF()
     yop.exportToHDF5()
     yop.exportToMatlab()
+    yop.exportToXlsx()
     # converts data groups into pandas dataframes
     yop.convertToPandas()
     # drops all the channels except the one in argument
@@ -126,6 +134,4 @@ Command example in ipython:
     yop.write('NewNameOfFile')  # write in same version as original file after modifications
     yop.write4('NameOfFile', compression=True)  # write mdf version 4.1 file, data compressed
     yop.write3()  # write mdf version 3 file
-    # to get/show raw data from channel after read
-    yop.getChannelData('channelName') # returns channel numpy array
 ```
