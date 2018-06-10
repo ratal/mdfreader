@@ -1,28 +1,34 @@
 from setuptools import setup, find_packages
-import pkg_resources
 from codecs import open  # To use a consistent encoding
 from os import path
 from distutils.extension import Extension
-from distutils.version import LooseVersion
 from warnings import warn
 
 try:
-    numpy_incl = pkg_resources.resource_filename('numpy', 'core/include')
+    from Cython.setuptools import build_ext
 except:
-    warn('\n You have to install numpy first \n')
+    # If we couldn't import Cython, use the normal setuptools
+    # and look for a pre-compiled .c file instead of a .pyx file
+    from setuptools.command.build_ext import build_ext
+    ext_modules = [Extension("dataRead", ["dataRead.c"])]
+else:
+    # If we successfully imported Cython, look for a .pyx file
+    ext_modules = [Extension("dataRead", ["dataRead.pyx"])]
 
-# cython installed ?
-min_cython_ver = '0.21'
-try:
-    import Cython
-    ver = Cython.__version__
-    use_cython = ver >= LooseVersion(min_cython_ver)
-    from Cython.Build import cythonize
-    ext = '.pyx' if use_cython else '.c'
-    ext_modules = cythonize(Extension('dataRead', ['dataRead' + ext],
-                                      include_dirs=[numpy_incl]))
-except ImportError:
-    use_cython = False
+
+class CustomBuildExtCommand(build_ext):
+    """build_ext command for use when numpy headers are needed."""
+    def run(self):
+
+        # Import numpy here, only when headers are needed
+        import numpy
+
+        # Add numpy headers to include_dirs
+        self.include_dirs.append(numpy.get_include())
+
+        # Call original build_ext command
+        build_ext.run(self)
+
 
 name = 'mdfreader'
 version = '2.7.6'
@@ -114,12 +120,12 @@ entry_points = {
     ],
 }
 
-if use_cython:
+try:  # with cython installed
     setup(name=name, version=version, description=description, long_description=long_description,
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
           entry_points=entry_points, ext_modules=ext_modules)
-else:
+except:  # without cython
     extras_require.pop('experimental')
     install_requires.append('bitarray')  # replaces cython requirement by bitarray
     setup(name=name, version=version, description=description, long_description=long_description,
