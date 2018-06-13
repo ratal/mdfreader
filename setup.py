@@ -31,7 +31,7 @@ class CustomBuildExtCommand(build_ext):
 
 
 name = 'mdfreader'
-version = '2.7.6'
+version = '2.7.7'
 
 description = 'A Measured Data Format file parser'
 
