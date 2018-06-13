@@ -221,20 +221,32 @@ cdef inline dataReadUShort(const char* bita, str RecordFormat, unsigned long lon
         for i in range(numberOfRecords):
             memcpy(&temp2byte, &bita[posByteBeg + record_byte_size * i], 2)
             buf[i] = temp2byte
+        if swap == 0:
+            return buf
+        else:
+            return buf.byteswap()
     else:
-        for i in range(numberOfRecords):
-            memcpy(&temp2byte, &bita[posByteBeg + record_byte_size * i], 2)
-            # right shift 
-            if bitOffset > 0:
-                temp2byte = temp2byte >> bitOffset
-            # mask left part
-            if bitCount < 16:
-                temp2byte &= mask
-            buf[i] = temp2byte
-    if swap == 0:
-        return buf
-    else:
-        return buf.byteswap()
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp2byte, &bita[posByteBeg + record_byte_size * i], 2)
+                # right shift
+                if bitOffset > 0:
+                    temp2byte = temp2byte >> bitOffset
+                # mask left part
+                if bitCount < 16:
+                    temp2byte &= mask
+                buf[i] = temp2byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp, &bita[posByteBeg + record_byte_size * i], 2)
+                temp2byte = temp[1]<<8 | temp[2]  #  swap bytes
+                # right shift
+                if bitOffset > 0:
+                    temp2byte = temp2byte >> bitOffset
+                # mask left part
+                if bitCount < 16:
+                    temp2byte &= mask
+                buf[i] = temp2byte
 
 cdef inline dataReadShort(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -251,22 +263,36 @@ cdef inline dataReadShort(const char* bita, str RecordFormat, unsigned long long
         for i in range(numberOfRecords):
             memcpy(&temp2byte, &bita[posByteBeg + record_byte_size * i], 2)
             buf[i] = temp2byte
+        if swap == 0:
+            return buf
+        else:
+            return buf.byteswap()
     else:
-        for i in range(numberOfRecords):
-            memcpy(&temp2byte, &bita[posByteBeg + record_byte_size * i], 2)
-            # right shift 
-            if bitOffset > 0:
-                temp2byte = temp2byte >> bitOffset
-            # mask left part
-            temp2byte &= mask
-            signBit = temp2byte & signBitMask
-            if signBit: #  negative value, sign extend
-                temp2byte |= signExtend
-            buf[i] = temp2byte
-    if swap == 0:
-        return buf
-    else:
-        return buf.byteswap()
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp2byte, &bita[posByteBeg + record_byte_size * i], 2)
+                # right shift
+                if bitOffset > 0:
+                    temp2byte = temp2byte >> bitOffset
+                # mask left part
+                temp2byte &= mask
+                signBit = temp2byte & signBitMask
+                if signBit: #  negative value, sign extend
+                    temp2byte |= signExtend
+                buf[i] = temp2byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp, &bita[posByteBeg + record_byte_size * i], 2)
+                temp2byte = temp[1]<<8 | temp[2]  #  swap bytes
+                # right shift
+                if bitOffset > 0:
+                    temp2byte = temp2byte >> bitOffset
+                # mask left part
+                temp2byte &= mask
+                signBit = temp2byte & signBitMask
+                if signBit: #  negative value, sign extend
+                    temp2byte |= signExtend
+                buf[i] = temp2byte
 
 cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -276,30 +302,24 @@ cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long 
     cdef unsigned int mask = ((1 << bitCount) - 1)
     cdef unsigned int temp4byte = 0
     cdef unsigned char nBytes = 0
-    cdef char temp[3]
+    cdef char temp3byte[3]
     if bitCount > 24:
         nBytes = 4
     else:
         nBytes = 3
-    if nBytes == 4:
+    if bitCount == 32:
         for i in range(numberOfRecords):
-            memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)
-            # right shift
-            if bitOffset > 0:
-                temp4byte = temp4byte >> bitOffset
-            # mask left part
-            if bitCount < 32:
-                temp4byte &= mask
+            memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], 2)
             buf[i] = temp4byte
         if swap == 0:
             return buf
         else:
             return buf.byteswap()
-    else:  # on 3 bytes
+    elif nBytes == 4:
         if swap == 0:
             for i in range(numberOfRecords):
                 memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)
-                # right shift 
+                # right shift
                 if bitOffset > 0:
                     temp4byte = temp4byte >> bitOffset
                 # mask left part
@@ -308,13 +328,35 @@ cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long 
                 buf[i] = temp4byte
         else:
             for i in range(numberOfRecords):
-                memcpy(&temp, &bita[posByteBeg + record_byte_size * i], nBytes)
-                temp4byte = temp[0]<<16 | temp[1]<<8 | temp[2]  #  swap bytes
-                # right shift 
+                memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp4byte = temp4byte[0]<<32 | temp4byte[1]<<16 | temp4byte[2]<<8 | temp4byte[3]  #  swap bytes
+                # right shift
                 if bitOffset > 0:
                     temp4byte = temp4byte >> bitOffset
                 # mask left part
                 if bitCount < 32:
+                    temp4byte &= mask
+                buf[i] = temp4byte
+    else:  # on 3 bytes
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                # right shift 
+                if bitOffset > 0:
+                    temp4byte = temp4byte >> bitOffset
+                # mask left part
+                if bitCount < 24:
+                    temp4byte &= mask
+                buf[i] = temp4byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp3byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp4byte = temp3byte[0]<<16 | temp3byte[1]<<8 | temp3byte[2]  #  swap bytes
+                # right shift 
+                if bitOffset > 0:
+                    temp4byte = temp4byte >> bitOffset
+                # mask left part
+                if bitCount < 24:
                     temp4byte &= mask
                 buf[i] = temp4byte
         return buf
@@ -331,33 +373,24 @@ cdef inline dataReadInt(const char* bita, str RecordFormat, unsigned long long n
     cdef int signBit = 0
     cdef int signBitMask = (1 << (bitCount-1))
     cdef int signExtend = ((1 << (32 - bitCount)) - 1) << bitCount
-    cdef char temp[3]
+    cdef char temp3byte[3]
     if bitCount > 24:
         nBytes = 4
     else:
         nBytes = 3
-    if nBytes == 4:
+    if bitCount == 32:
         for i in range(numberOfRecords):
-            memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)
-            # right shift
-            if bitOffset > 0:
-                temp4byte = temp4byte >> bitOffset
-            # mask left part
-            if bitCount < 32:
-                temp4byte &= mask
-            signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed
-            if signBit: #  negative value, sign extend
-                temp4byte |= signExtend
+            memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], 2)
             buf[i] = temp4byte
         if swap == 0:
             return buf
         else:
             return buf.byteswap()
-    else:  # on 3 bytes
+    elif nBytes == 4:
         if swap == 0:
             for i in range(numberOfRecords):
                 memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)
-                # right shift 
+                # right shift
                 if bitOffset > 0:
                     temp4byte = temp4byte >> bitOffset
                 # mask left part
@@ -369,13 +402,41 @@ cdef inline dataReadInt(const char* bita, str RecordFormat, unsigned long long n
                 buf[i] = temp4byte
         else:
             for i in range(numberOfRecords):
-                memcpy(&temp, &bita[posByteBeg + record_byte_size * i], nBytes)
-                temp4byte = temp[0]<<16 | temp[1]<<8 | temp[2]  #  swap bytes
-                # right shift 
+                memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp4byte = temp4byte[0]<<32 | temp4byte[1]<<16 | temp4byte[2]<<8 | temp4byte[3]  #  swap bytes
+                # right shift
                 if bitOffset > 0:
                     temp4byte = temp4byte >> bitOffset
                 # mask left part
                 if bitCount < 32:
+                    temp4byte &= mask
+                signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed
+                if signBit: #  negative value, sign extend
+                    temp4byte |= signExtend
+                buf[i] = temp4byte
+    else:  # on 3 bytes
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                # right shift 
+                if bitOffset > 0:
+                    temp4byte = temp4byte >> bitOffset
+                # mask left part
+                if bitCount < 24:
+                    temp4byte &= mask
+                signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed
+                if signBit: #  negative value, sign extend
+                    temp4byte |= signExtend
+                buf[i] = temp4byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp3byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp4byte = temp3byte[0]<<16 | temp3byte[1]<<8 | temp3byte[2]  #  swap bytes
+                # right shift 
+                if bitOffset > 0:
+                    temp4byte = temp4byte >> bitOffset
+                # mask left part
+                if bitCount < 24:
                     temp4byte &= mask
                 signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed
                 if signBit: #  negative value, sign extend
@@ -391,27 +452,111 @@ cdef inline dataReadULongLong(const char* bita, str RecordFormat, unsigned long 
     cdef unsigned long long mask = ((1 << bitCount) - 1)
     cdef unsigned long long temp8byte = 0
     cdef unsigned char nBytes = bitCount // 8
-    cdef char temp[8]
+    cdef char temp7byte[7]
+    cdef char temp6byte[6]
+    cdef char temp5byte[5]
     if bitCount % 8 > 0:
         nBytes += 1
     if bitCount == 64:
         for i in range(numberOfRecords):
             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
             buf[i] = temp8byte
-    else:
-        for i in range(numberOfRecords):
-            memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
-            # right shift 
-            if bitOffset > 0:
-                temp8byte = temp8byte >> bitOffset
-            # mask left part
-            if bitCount < 64:
-                temp8byte &= mask
-            buf[i] = temp8byte
-    if swap == 0:
-        return buf
-    else:
-        return buf.byteswap()
+        if swap == 0:
+            return buf
+        else:
+            return buf.byteswap()
+    elif nBytes == 8:
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 64:
+                    temp8byte &= mask
+                buf[i] = temp8byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp8byte = temp8byte[0]<<56 | temp8byte[1]<<48 | temp8byte[2]<<40 | temp8byte[3]<<32 | \
+                            temp8byte[4]<<24 | temp8byte[5]<<16 | temp8byte[6]<<8 | temp8byte[7] #  swap bytes
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 64:
+                    temp8byte &= mask
+                buf[i] = temp8byte
+    elif nBytes == 7:
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 56:
+                    temp8byte &= mask
+                buf[i] = temp8byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp7byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp8byte = temp7byte[0]<<48 | temp7byte[1]<<40 | temp7byte[2]<<32 | \
+                            temp7byte[3]<<24 | temp7byte[4]<<16 | temp7byte[5]<<8 | temp7byte[6] #  swap bytes
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 56:
+                    temp8byte &= mask
+                buf[i] = temp8byte
+    elif nBytes == 6:
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 48:
+                    temp8byte &= mask
+                buf[i] = temp8byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp6byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp8byte = temp6byte[0]<<40 | temp6byte[1]<<32 | temp6byte[2]<<24 | \
+                            temp6byte[3]<<16 | temp6byte[4]<<8 | temp6byte[5] #  swap bytes
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 48:
+                    temp8byte &= mask
+                buf[i] = temp8byte
+    elif nBytes == 5:
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 32:
+                    temp8byte &= mask
+                buf[i] = temp8byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp5byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp8byte = temp5byte[0]<<32 | temp5byte[1]<<24 | \
+                            temp5byte[2]<<16 | temp5byte[3]<<8 | temp5byte[4] #  swap bytes
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 32:
+                    temp8byte &= mask
+                buf[i] = temp8byte
 
 cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -424,30 +569,135 @@ cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long l
     cdef long signBit = 0
     cdef long long signBitMask = (1 << (bitCount-1))
     cdef long long signExtend = ((1 << (64 - bitCount)) - 1) << bitCount
-    cdef char temp[8]
+    cdef char temp7byte[7]
+    cdef char temp6byte[6]
+    cdef char temp5byte[5]
     if bitCount % 8 > 0:
         nBytes += 1
     if bitCount == 64:
         for i in range(numberOfRecords):
             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
             buf[i] = temp8byte
-    else:
-        for i in range(numberOfRecords):
-            memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
-            # right shift 
-            if bitOffset > 0:
-                temp8byte = temp8byte >> bitOffset
-            # mask left part
-            if bitCount < 64:
-                temp8byte &= mask
-            signBit = temp8byte & signBitMask
-            if signBit: #  negative value, sign extend
-                temp8byte |= signExtend
-            buf[i] = temp8byte
-    if swap == 0:
-        return buf
-    else:
-        return buf.byteswap()
+        if swap == 0:
+            return buf
+        else:
+            return buf.byteswap()
+    elif nBytes == 8:
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 64:
+                    temp8byte &= mask
+                signBit = temp8byte & signBitMask
+                if signBit: #  negative value, sign extend
+                    temp8byte |= signExtend
+                buf[i] = temp8byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp8byte = temp8byte[0]<<56 | temp8byte[1]<<48 | temp8byte[2]<<40 | temp8byte[3]<<32 | \
+                            temp8byte[4]<<24 | temp8byte[5]<<16 | temp8byte[6]<<8 | temp8byte[7] #  swap bytes
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 64:
+                    temp8byte &= mask
+                signBit = temp8byte & signBitMask
+                if signBit: #  negative value, sign extend
+                    temp8byte |= signExtend
+                buf[i] = temp8byte
+    elif nBytes == 7:
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 56:
+                    temp8byte &= mask
+                signBit = temp8byte & signBitMask
+                if signBit: #  negative value, sign extend
+                    temp8byte |= signExtend
+                buf[i] = temp8byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp7byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp8byte = temp7byte[0]<<48 | temp7byte[1]<<40 | temp7byte[2]<<32 | \
+                            temp7byte[3]<<24 | temp7byte[4]<<16 | temp7byte[5]<<8 | temp7byte[6] #  swap bytes
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 56:
+                    temp8byte &= mask
+                signBit = temp8byte & signBitMask
+                if signBit: #  negative value, sign extend
+                    temp8byte |= signExtend
+                buf[i] = temp8byte
+    elif nBytes == 6:
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 48:
+                    temp8byte &= mask
+                signBit = temp8byte & signBitMask
+                if signBit: #  negative value, sign extend
+                    temp8byte |= signExtend
+                buf[i] = temp8byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp6byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp8byte = temp6byte[0]<<40 | temp6byte[1]<<32 | temp6byte[2]<<24 | \
+                            temp6byte[3]<<16 | temp6byte[4]<<8 | temp6byte[5] #  swap bytes
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 48:
+                    temp8byte &= mask
+                signBit = temp8byte & signBitMask
+                if signBit: #  negative value, sign extend
+                    temp8byte |= signExtend
+                buf[i] = temp8byte
+    elif nBytes == 5:
+        if swap == 0:
+            for i in range(numberOfRecords):
+                memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 40:
+                    temp8byte &= mask
+                signBit = temp8byte & signBitMask
+                if signBit: #  negative value, sign extend
+                    temp8byte |= signExtend
+                buf[i] = temp8byte
+        else:
+            for i in range(numberOfRecords):
+                memcpy(&temp5byte, &bita[posByteBeg + record_byte_size * i], nBytes)
+                temp8byte = temp5byte[0]<<32 | temp5byte[1]<<24 | \
+                            temp5byte[2]<<16 | temp5byte[3]<<8 | temp5byte[4] #  swap bytes
+                # right shift
+                if bitOffset > 0:
+                    temp8byte = temp8byte >> bitOffset
+                # mask left part
+                if bitCount < 40:
+                    temp8byte &= mask
+                signBit = temp8byte & signBitMask
+                if signBit: #  negative value, sign extend
+                    temp8byte |= signExtend
+                buf[i] = temp8byte
 
 cdef inline dataReadByte(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd,
