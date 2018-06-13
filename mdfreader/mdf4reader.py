@@ -40,7 +40,7 @@ from sys import version_info, byteorder
 from collections import defaultdict, OrderedDict
 from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
-from numpy import arange, right_shift, bitwise_and, all, diff, interp
+from numpy import arange, right_shift, bitwise_and, bitwise_or, all, diff, interp
 from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
 from numpy.lib.recfunctions import rec_append_fields, rename_fields
@@ -692,8 +692,8 @@ class record(list):
                         else:
                             embedding_channel_includes_curr_chan = False
                         if Channel.byteOffset(info) >= prev_chan_byteOffset and \
-                                Channel_posBitBeg < 8 * (prev_chan_byteOffset + prev_chan_nBytes) and \
-                                Channel_posBitEnd > 8 * (prev_chan_byteOffset + prev_chan_nBytes):  # not byte aligned
+                                Channel_posBitBeg < 8 * (prev_chan_byteOffset + prev_chan_nBytes) < Channel_posBitEnd:
+                            # not byte aligned
                             self.byte_aligned = False
                         if embedding_channel is not None and \
                                 Channel_posBitEnd > embedding_channel.posByteEnd(info) * 8:
@@ -1266,11 +1266,21 @@ class mdf4(mdf_skeleton):
                                                 and temp is not None\
                                                 and temp.dtype.kind not in ('S', 'U'):
                                             # if channel data do not use complete bytes and Ctypes
-                                            if chan.signalDataType(info) in (0, 1, 2, 3):  # integers
-                                                if chan.bitOffset(info) > 0:
-                                                    temp = right_shift(temp, chan.bitOffset(info))
+                                            signal_data_type = chan.signalDataType(info)
+                                            if signal_data_type in (0, 1, 2, 3):  # integers
+                                                bitOffset = chan.bitOffset(info)
+                                                if bitOffset > 0:
+                                                    temp = right_shift(temp, bitOffset)
                                                 mask = int(pow(2, bitCount) - 1)  # masks isBitUnit8
                                                 temp = bitwise_and(temp, mask)
+                                                if signal_data_type in (2, 3):
+                                                    # signed integer, moving bit sign of two's complement
+                                                    signBitMask = (1 << (bitCount - 1))
+                                                    signExtend = ((1 << (temp.itemsize * 8 - bitCount)) - 1) << bitCount
+                                                    signBit = bitwise_and(temp, signBitMask)
+                                                    for number, sign in enumerate(signBit):  # negative value, sign extend
+                                                        if sign:
+                                                            temp[number] |= signExtend
                                             else:  # should not happen
                                                 warn('bit count and offset not applied to correct '
                                                      'data type {}'.format(chan.name))
