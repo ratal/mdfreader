@@ -688,26 +688,34 @@ def _open_MDF(fileName):
     return (fid, fileName, zipfile)
 
 
-def _bits_to_bytes(nBits):
+def _bits_to_bytes(nBits, numeric=True):
     """ Converts number of bits into number of aligned bytes
 
     Parameters
     -------------
     nBits : int
         number of bits
+    numeric: bool
+        flag to indicate channel is numeric
 
     Returns
     ----------
     number of equivalent bytes
     """
-    if nBits <= 8:
-        nBytes = 1
-    elif nBits <= 16:
-        nBytes = 2
-    elif nBits <= 32:
-        nBytes = 4
-    elif nBits <= 64:
-        nBytes = 8
+    if numeric:
+        if nBits <= 8:
+            nBytes = 1
+        elif nBits <= 16:
+            nBytes = 2
+        elif nBits <= 32:
+            nBytes = 4
+        elif nBits <= 64:
+            nBytes = 8
+        else:
+            warn('error converting bits into bytes for a numeric channel, too many bits')
+            nBytes = nBits // 8
+            if not nBits % 8 == 0:
+                nBytes += 1
     else:
         nBytes = nBits // 8
         if not nBits % 8 == 0:

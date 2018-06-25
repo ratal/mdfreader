@@ -375,6 +375,24 @@ class channel4(object):
         except KeyError:
             return 0  # in case of invaldi bytes channel
 
+    def isnumeric(self, info):
+        """ check this is numeric channel from data type
+
+            Parameters
+            ----------------
+
+            info : mdfinfo4.info4 class
+                info4 class containing all MDF Blocks
+
+            Returns
+            -----------
+            boolean, true if numeric channel, otherwise false
+        """
+        if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'] > 5:
+            return True
+        else:
+            return False
+
     def nBytes(self, info):
         """ calculates channel bytes number
 
@@ -390,7 +408,7 @@ class channel4(object):
         """
         if not self.type == 'Inv':
             nBytes = _bits_to_bytes(info['CN'][self.dataGroup][self.channelGroup]\
-                        [self.channelNumber]['cn_bit_count'])
+                        [self.channelNumber]['cn_bit_count'], self.isnumeric(info))
             if self.type in ('CA', 'NestCA'):
                 nBytes *= self.CABlock(info)['PNd']
                 Block = self.CABlock(info)
@@ -1144,7 +1162,11 @@ class Channel3:
         (self.dataFormat, self.nativedataFormat) = \
             _arrayformat3(self.signalDataType, self.bitCount, ByteOrder)
         self.CFormat = Struct(_datatypeformat3(self.signalDataType, self.bitCount, ByteOrder))
-        self.nBytes = _bits_to_bytes(self.bitCount)
+        if not self.signalDataType in (7, 8):
+            numeric = True
+        else:
+            numeric = False
+        self.nBytes = _bits_to_bytes(self.bitCount, numeric)
         self.posBitBeg = info['CNBlock'][dataGroup][channelGroup][channelNumber]['numberOfTheFirstBits']
         self.posBitEnd = self.posBitBeg + self.bitCount
         self.byteOffset = self.posBitBeg // 8  # + info['CNBlock'][dataGroup][channelGroup][channelNumber]['ByteOffset']
