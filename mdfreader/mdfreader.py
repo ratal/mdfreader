@@ -506,7 +506,7 @@ class mdf(mdf3, mdf4):
                         # self.fig = plt.figure()  # could be needed
                         # plot using matplotlib the channel versus master channel
                         if len(self.masterChannelList) == 1:  # Resampled signals or only one master
-                            masterName = self.masterChannelList[0]
+                            masterName = list(self.masterChannelList)[0]
                             if not masterName:  # resampled channels, only one time channel probably called 'master'
                                 masterName = 'master'
                             if masterName in self.masterChannelList:  # time channel properly defined
