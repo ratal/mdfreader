@@ -388,7 +388,7 @@ class channel4(object):
             -----------
             boolean, true if numeric channel, otherwise false
         """
-        if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'] > 5:
+        if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'] < 6:
             return True
         else:
             return False
