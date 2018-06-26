@@ -247,7 +247,7 @@ cdef inline dataReadUShort(const char* bita, str RecordFormat, unsigned long lon
                 if bitCount < 16:
                     temp2byte &= mask
                 buf[i] = temp2byte
-    return buf
+        return buf
 
 cdef inline dataReadShort(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -294,7 +294,7 @@ cdef inline dataReadShort(const char* bita, str RecordFormat, unsigned long long
                 if signBit: #  negative value, sign extend
                     temp2byte |= signExtend
                 buf[i] = temp2byte
-    return buf
+        return buf
 
 cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -418,6 +418,7 @@ cdef inline dataReadInt(const char* bita, str RecordFormat, unsigned long long n
                 if signBit: #  negative value, sign extend
                     temp4byte |= signExtend
                 buf[i] = temp4byte
+        return buf
     else:  # on 3 bytes
         if swap == 0:
             for i in range(numberOfRecords):
@@ -562,6 +563,7 @@ cdef inline dataReadULongLong(const char* bita, str RecordFormat, unsigned long 
                 if bitCount < 32:
                     temp8byte &= mask
                 buf[i] = temp8byte
+    return buf
 
 cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -704,6 +706,7 @@ cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long l
                 if signBit: #  negative value, sign extend
                     temp8byte |= signExtend
                 buf[i] = temp8byte
+    return buf
 
 cdef inline dataReadByte(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd,

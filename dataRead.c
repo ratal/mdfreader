@@ -4914,7 +4914,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadUShort(char const *__py
  *                 if bitCount < 16:
  *                     temp2byte &= mask             # <<<<<<<<<<<<<<
  *                 buf[i] = temp2byte
- *     return buf
+ *         return buf
  */
           __pyx_v_temp2byte = (__pyx_v_temp2byte & __pyx_v_mask);
 
@@ -4931,7 +4931,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadUShort(char const *__py
  *                 if bitCount < 16:
  *                     temp2byte &= mask
  *                 buf[i] = temp2byte             # <<<<<<<<<<<<<<
- *     return buf
+ *         return buf
  * 
  */
         __pyx_t_13 = __pyx_v_i;
@@ -4945,19 +4945,19 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadUShort(char const *__py
       }
     }
     __pyx_L7:;
-  }
 
-  /* "dataRead.pyx":250
+    /* "dataRead.pyx":250
  *                     temp2byte &= mask
  *                 buf[i] = temp2byte
- *     return buf             # <<<<<<<<<<<<<<
+ *         return buf             # <<<<<<<<<<<<<<
  * 
  * cdef inline dataReadShort(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
  */
-  __Pyx_XDECREF(__pyx_r);
-  __Pyx_INCREF(((PyObject *)__pyx_v_buf));
-  __pyx_r = ((PyObject *)__pyx_v_buf);
-  goto __pyx_L0;
+    __Pyx_XDECREF(__pyx_r);
+    __Pyx_INCREF(((PyObject *)__pyx_v_buf));
+    __pyx_r = ((PyObject *)__pyx_v_buf);
+    goto __pyx_L0;
+  }
 
   /* "dataRead.pyx":212
  *     return buf
@@ -4992,7 +4992,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadUShort(char const *__py
 }
 
 /* "dataRead.pyx":252
- *     return buf
+ *         return buf
  * 
  * cdef inline dataReadShort(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
  *         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -5464,7 +5464,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadShort(char const *__pyx
  *                 if signBit: #  negative value, sign extend
  *                     temp2byte |= signExtend             # <<<<<<<<<<<<<<
  *                 buf[i] = temp2byte
- *     return buf
+ *         return buf
  */
           __pyx_v_temp2byte = (__pyx_v_temp2byte | __pyx_v_signExtend);
 
@@ -5481,7 +5481,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadShort(char const *__pyx
  *                 if signBit: #  negative value, sign extend
  *                     temp2byte |= signExtend
  *                 buf[i] = temp2byte             # <<<<<<<<<<<<<<
- *     return buf
+ *         return buf
  * 
  */
         __pyx_t_13 = __pyx_v_i;
@@ -5495,22 +5495,22 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadShort(char const *__pyx
       }
     }
     __pyx_L7:;
-  }
 
-  /* "dataRead.pyx":297
+    /* "dataRead.pyx":297
  *                     temp2byte |= signExtend
  *                 buf[i] = temp2byte
- *     return buf             # <<<<<<<<<<<<<<
+ *         return buf             # <<<<<<<<<<<<<<
  * 
  * cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
  */
-  __Pyx_XDECREF(__pyx_r);
-  __Pyx_INCREF(((PyObject *)__pyx_v_buf));
-  __pyx_r = ((PyObject *)__pyx_v_buf);
-  goto __pyx_L0;
+    __Pyx_XDECREF(__pyx_r);
+    __Pyx_INCREF(((PyObject *)__pyx_v_buf));
+    __pyx_r = ((PyObject *)__pyx_v_buf);
+    goto __pyx_L0;
+  }
 
   /* "dataRead.pyx":252
- *     return buf
+ *         return buf
  * 
  * cdef inline dataReadShort(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
  *         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -5542,7 +5542,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadShort(char const *__pyx
 }
 
 /* "dataRead.pyx":299
- *     return buf
+ *         return buf
  * 
  * cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
  *         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -6289,7 +6289,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadUInt(char const *__pyx_
   __pyx_L4:;
 
   /* "dataRead.pyx":299
- *     return buf
+ *         return buf
  * 
  * cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
  *         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -6896,7 +6896,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  *                 if signBit: #  negative value, sign extend
  *                     temp4byte |= signExtend             # <<<<<<<<<<<<<<
  *                 buf[i] = temp4byte
- *     else:  # on 3 bytes
+ *         return buf
  */
           __pyx_v_temp4byte = (__pyx_v_temp4byte | __pyx_v_signExtend);
 
@@ -6913,8 +6913,8 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  *                 if signBit: #  negative value, sign extend
  *                     temp4byte |= signExtend
  *                 buf[i] = temp4byte             # <<<<<<<<<<<<<<
+ *         return buf
  *     else:  # on 3 bytes
- *         if swap == 0:
  */
         __pyx_t_13 = __pyx_v_i;
         __pyx_t_11 = -1;
@@ -6928,6 +6928,18 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
     }
     __pyx_L8:;
 
+    /* "dataRead.pyx":421
+ *                     temp4byte |= signExtend
+ *                 buf[i] = temp4byte
+ *         return buf             # <<<<<<<<<<<<<<
+ *     else:  # on 3 bytes
+ *         if swap == 0:
+ */
+    __Pyx_XDECREF(__pyx_r);
+    __Pyx_INCREF(((PyObject *)__pyx_v_buf));
+    __pyx_r = ((PyObject *)__pyx_v_buf);
+    goto __pyx_L0;
+
     /* "dataRead.pyx":393
  *         else:
  *             return buf.byteswap()
@@ -6935,11 +6947,10 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  *         if swap == 0:
  *             for i in range(numberOfRecords):
  */
-    goto __pyx_L4;
   }
 
-  /* "dataRead.pyx":422
- *                 buf[i] = temp4byte
+  /* "dataRead.pyx":423
+ *         return buf
  *     else:  # on 3 bytes
  *         if swap == 0:             # <<<<<<<<<<<<<<
  *             for i in range(numberOfRecords):
@@ -6949,7 +6960,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
     __pyx_t_6 = ((__pyx_v_swap == 0) != 0);
     if (__pyx_t_6) {
 
-      /* "dataRead.pyx":423
+      /* "dataRead.pyx":424
  *     else:  # on 3 bytes
  *         if swap == 0:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -6961,7 +6972,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":424
+        /* "dataRead.pyx":425
  *         if swap == 0:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -6970,7 +6981,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
         (void)(memcpy((&__pyx_v_temp4byte), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":426
+        /* "dataRead.pyx":427
  *                 memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -6980,7 +6991,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":427
+          /* "dataRead.pyx":428
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp4byte = temp4byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -6989,7 +7000,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
           __pyx_v_temp4byte = (__pyx_v_temp4byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":426
+          /* "dataRead.pyx":427
  *                 memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -6998,7 +7009,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
         }
 
-        /* "dataRead.pyx":429
+        /* "dataRead.pyx":430
  *                     temp4byte = temp4byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 24:             # <<<<<<<<<<<<<<
@@ -7008,7 +7019,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
         __pyx_t_6 = ((__pyx_v_bitCount < 24) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":430
+          /* "dataRead.pyx":431
  *                 # mask left part
  *                 if bitCount < 24:
  *                     temp4byte &= mask             # <<<<<<<<<<<<<<
@@ -7017,7 +7028,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
           __pyx_v_temp4byte = (__pyx_v_temp4byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":429
+          /* "dataRead.pyx":430
  *                     temp4byte = temp4byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 24:             # <<<<<<<<<<<<<<
@@ -7026,7 +7037,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
         }
 
-        /* "dataRead.pyx":431
+        /* "dataRead.pyx":432
  *                 if bitCount < 24:
  *                     temp4byte &= mask
  *                 signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed             # <<<<<<<<<<<<<<
@@ -7035,7 +7046,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
         __pyx_v_signBit = (__pyx_v_temp4byte & __pyx_v_signBitMask);
 
-        /* "dataRead.pyx":432
+        /* "dataRead.pyx":433
  *                     temp4byte &= mask
  *                 signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -7045,7 +7056,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
         __pyx_t_6 = (__pyx_v_signBit != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":433
+          /* "dataRead.pyx":434
  *                 signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed
  *                 if signBit: #  negative value, sign extend
  *                     temp4byte |= signExtend             # <<<<<<<<<<<<<<
@@ -7054,7 +7065,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
           __pyx_v_temp4byte = (__pyx_v_temp4byte | __pyx_v_signExtend);
 
-          /* "dataRead.pyx":432
+          /* "dataRead.pyx":433
  *                     temp4byte &= mask
  *                 signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -7063,7 +7074,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
         }
 
-        /* "dataRead.pyx":434
+        /* "dataRead.pyx":435
  *                 if signBit: #  negative value, sign extend
  *                     temp4byte |= signExtend
  *                 buf[i] = temp4byte             # <<<<<<<<<<<<<<
@@ -7075,13 +7086,13 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
         if (unlikely(__pyx_t_14 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 434, __pyx_L1_error)
+          __PYX_ERR(0, 435, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_int32_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_14, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp4byte;
       }
 
-      /* "dataRead.pyx":422
- *                 buf[i] = temp4byte
+      /* "dataRead.pyx":423
+ *         return buf
  *     else:  # on 3 bytes
  *         if swap == 0:             # <<<<<<<<<<<<<<
  *             for i in range(numberOfRecords):
@@ -7090,7 +7101,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
       goto __pyx_L19;
     }
 
-    /* "dataRead.pyx":436
+    /* "dataRead.pyx":437
  *                 buf[i] = temp4byte
  *         else:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -7103,7 +7114,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":437
+        /* "dataRead.pyx":438
  *         else:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp3, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -7112,7 +7123,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
         (void)(memcpy((&__pyx_v_temp3), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":438
+        /* "dataRead.pyx":439
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp3, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 temp4byte = temp3[0]<<16 | temp3[1]<<8 | temp3[2]  #  swap bytes             # <<<<<<<<<<<<<<
@@ -7121,7 +7132,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
         __pyx_v_temp4byte = ((((__pyx_v_temp3[0]) << 16) | ((__pyx_v_temp3[1]) << 8)) | (__pyx_v_temp3[2]));
 
-        /* "dataRead.pyx":440
+        /* "dataRead.pyx":441
  *                 temp4byte = temp3[0]<<16 | temp3[1]<<8 | temp3[2]  #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -7131,7 +7142,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":441
+          /* "dataRead.pyx":442
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp4byte = temp4byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -7140,7 +7151,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
           __pyx_v_temp4byte = (__pyx_v_temp4byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":440
+          /* "dataRead.pyx":441
  *                 temp4byte = temp3[0]<<16 | temp3[1]<<8 | temp3[2]  #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -7149,7 +7160,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
         }
 
-        /* "dataRead.pyx":443
+        /* "dataRead.pyx":444
  *                     temp4byte = temp4byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 24:             # <<<<<<<<<<<<<<
@@ -7159,7 +7170,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
         __pyx_t_6 = ((__pyx_v_bitCount < 24) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":444
+          /* "dataRead.pyx":445
  *                 # mask left part
  *                 if bitCount < 24:
  *                     temp4byte &= mask             # <<<<<<<<<<<<<<
@@ -7168,7 +7179,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
           __pyx_v_temp4byte = (__pyx_v_temp4byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":443
+          /* "dataRead.pyx":444
  *                     temp4byte = temp4byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 24:             # <<<<<<<<<<<<<<
@@ -7177,7 +7188,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
         }
 
-        /* "dataRead.pyx":445
+        /* "dataRead.pyx":446
  *                 if bitCount < 24:
  *                     temp4byte &= mask
  *                 signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed             # <<<<<<<<<<<<<<
@@ -7186,7 +7197,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
         __pyx_v_signBit = (__pyx_v_temp4byte & __pyx_v_signBitMask);
 
-        /* "dataRead.pyx":446
+        /* "dataRead.pyx":447
  *                     temp4byte &= mask
  *                 signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -7196,7 +7207,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
         __pyx_t_6 = (__pyx_v_signBit != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":447
+          /* "dataRead.pyx":448
  *                 signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed
  *                 if signBit: #  negative value, sign extend
  *                     temp4byte |= signExtend             # <<<<<<<<<<<<<<
@@ -7205,7 +7216,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
           __pyx_v_temp4byte = (__pyx_v_temp4byte | __pyx_v_signExtend);
 
-          /* "dataRead.pyx":446
+          /* "dataRead.pyx":447
  *                     temp4byte &= mask
  *                 signBit = temp4byte & signBitMask # assumes return in little endian, to be reviewed
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -7214,7 +7225,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
         }
 
-        /* "dataRead.pyx":448
+        /* "dataRead.pyx":449
  *                 if signBit: #  negative value, sign extend
  *                     temp4byte |= signExtend
  *                 buf[i] = temp4byte             # <<<<<<<<<<<<<<
@@ -7226,14 +7237,14 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
         if (unlikely(__pyx_t_15 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 448, __pyx_L1_error)
+          __PYX_ERR(0, 449, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_int32_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_15, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp4byte;
       }
     }
     __pyx_L19:;
 
-    /* "dataRead.pyx":449
+    /* "dataRead.pyx":450
  *                     temp4byte |= signExtend
  *                 buf[i] = temp4byte
  *         return buf             # <<<<<<<<<<<<<<
@@ -7245,7 +7256,6 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
     __pyx_r = ((PyObject *)__pyx_v_buf);
     goto __pyx_L0;
   }
-  __pyx_L4:;
 
   /* "dataRead.pyx":368
  * 
@@ -7256,8 +7266,6 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
  */
 
   /* function exit code */
-  __pyx_r = Py_None; __Pyx_INCREF(Py_None);
-  goto __pyx_L0;
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
@@ -7281,7 +7289,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadInt(char const *__pyx_v
   return __pyx_r;
 }
 
-/* "dataRead.pyx":451
+/* "dataRead.pyx":452
  *         return buf
  * 
  * cdef inline dataReadULongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
@@ -7328,40 +7336,40 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
   __pyx_pybuffernd_buf.data = NULL;
   __pyx_pybuffernd_buf.rcbuffer = &__pyx_pybuffer_buf;
 
-  /* "dataRead.pyx":454
+  /* "dataRead.pyx":455
  *         unsigned long record_byte_size, unsigned long posByteBeg,
  *         unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
  *     cdef np.ndarray[np.uint64_t] buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array             # <<<<<<<<<<<<<<
  *     cdef unsigned long long i
  *     cdef unsigned long long mask = ((1 << bitCount) - 1)
  */
-  __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 454, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 455, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_empty); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 454, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_empty); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 455, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyInt_From_unsigned_PY_LONG_LONG(__pyx_v_numberOfRecords); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 454, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_unsigned_PY_LONG_LONG(__pyx_v_numberOfRecords); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 455, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = PyTuple_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 454, __pyx_L1_error)
+  __pyx_t_3 = PyTuple_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 455, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_GIVEREF(__pyx_t_1);
   PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_t_1);
   __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 454, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 455, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_dtype, __pyx_v_RecordFormat) < 0) __PYX_ERR(0, 454, __pyx_L1_error)
-  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_3, __pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 454, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_dtype, __pyx_v_RecordFormat) < 0) __PYX_ERR(0, 455, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_3, __pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 455, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 454, __pyx_L1_error)
+  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 455, __pyx_L1_error)
   __pyx_t_5 = ((PyArrayObject *)__pyx_t_4);
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
     if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_buf.rcbuffer->pybuffer, (PyObject*)__pyx_t_5, &__Pyx_TypeInfo_nn___pyx_t_5numpy_uint64_t, PyBUF_FORMAT| PyBUF_STRIDES| PyBUF_WRITABLE, 1, 0, __pyx_stack) == -1)) {
       __pyx_v_buf = ((PyArrayObject *)Py_None); __Pyx_INCREF(Py_None); __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf = NULL;
-      __PYX_ERR(0, 454, __pyx_L1_error)
+      __PYX_ERR(0, 455, __pyx_L1_error)
     } else {__pyx_pybuffernd_buf.diminfo[0].strides = __pyx_pybuffernd_buf.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_buf.diminfo[0].shape = __pyx_pybuffernd_buf.rcbuffer->pybuffer.shape[0];
     }
   }
@@ -7369,7 +7377,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
   __pyx_v_buf = ((PyArrayObject *)__pyx_t_4);
   __pyx_t_4 = 0;
 
-  /* "dataRead.pyx":456
+  /* "dataRead.pyx":457
  *     cdef np.ndarray[np.uint64_t] buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array
  *     cdef unsigned long long i
  *     cdef unsigned long long mask = ((1 << bitCount) - 1)             # <<<<<<<<<<<<<<
@@ -7378,7 +7386,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
   __pyx_v_mask = ((1 << __pyx_v_bitCount) - 1);
 
-  /* "dataRead.pyx":457
+  /* "dataRead.pyx":458
  *     cdef unsigned long long i
  *     cdef unsigned long long mask = ((1 << bitCount) - 1)
  *     cdef unsigned long long temp8byte = 0             # <<<<<<<<<<<<<<
@@ -7387,7 +7395,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
   __pyx_v_temp8byte = 0;
 
-  /* "dataRead.pyx":458
+  /* "dataRead.pyx":459
  *     cdef unsigned long long mask = ((1 << bitCount) - 1)
  *     cdef unsigned long long temp8byte = 0
  *     cdef unsigned char nBytes = bitCount // 8             # <<<<<<<<<<<<<<
@@ -7396,7 +7404,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
   __pyx_v_nBytes = (__pyx_v_bitCount / 8);
 
-  /* "dataRead.pyx":463
+  /* "dataRead.pyx":464
  *     cdef char temp6[6]
  *     cdef char temp5[5]
  *     if bitCount % 8 > 0:             # <<<<<<<<<<<<<<
@@ -7406,7 +7414,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
   __pyx_t_6 = (((__pyx_v_bitCount % 8) > 0) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":464
+    /* "dataRead.pyx":465
  *     cdef char temp5[5]
  *     if bitCount % 8 > 0:
  *         nBytes += 1             # <<<<<<<<<<<<<<
@@ -7415,7 +7423,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
     __pyx_v_nBytes = (__pyx_v_nBytes + 1);
 
-    /* "dataRead.pyx":463
+    /* "dataRead.pyx":464
  *     cdef char temp6[6]
  *     cdef char temp5[5]
  *     if bitCount % 8 > 0:             # <<<<<<<<<<<<<<
@@ -7424,7 +7432,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
   }
 
-  /* "dataRead.pyx":465
+  /* "dataRead.pyx":466
  *     if bitCount % 8 > 0:
  *         nBytes += 1
  *     if bitCount == 64:             # <<<<<<<<<<<<<<
@@ -7434,7 +7442,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
   __pyx_t_6 = ((__pyx_v_bitCount == 64) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":466
+    /* "dataRead.pyx":467
  *         nBytes += 1
  *     if bitCount == 64:
  *         for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -7446,7 +7454,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
     for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
       __pyx_v_i = __pyx_t_9;
 
-      /* "dataRead.pyx":467
+      /* "dataRead.pyx":468
  *     if bitCount == 64:
  *         for i in range(numberOfRecords):
  *             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -7455,7 +7463,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
       (void)(memcpy((&__pyx_v_temp8byte), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-      /* "dataRead.pyx":468
+      /* "dataRead.pyx":469
  *         for i in range(numberOfRecords):
  *             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *             buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -7467,12 +7475,12 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       if (unlikely(__pyx_t_10 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
       if (unlikely(__pyx_t_11 != -1)) {
         __Pyx_RaiseBufferIndexError(__pyx_t_11);
-        __PYX_ERR(0, 468, __pyx_L1_error)
+        __PYX_ERR(0, 469, __pyx_L1_error)
       }
       *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_uint64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_10, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
     }
 
-    /* "dataRead.pyx":469
+    /* "dataRead.pyx":470
  *             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *             buf[i] = temp8byte
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -7482,7 +7490,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
     __pyx_t_6 = ((__pyx_v_swap == 0) != 0);
     if (__pyx_t_6) {
 
-      /* "dataRead.pyx":470
+      /* "dataRead.pyx":471
  *             buf[i] = temp8byte
  *         if swap == 0:
  *             return buf             # <<<<<<<<<<<<<<
@@ -7494,7 +7502,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       __pyx_r = ((PyObject *)__pyx_v_buf);
       goto __pyx_L0;
 
-      /* "dataRead.pyx":469
+      /* "dataRead.pyx":470
  *             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *             buf[i] = temp8byte
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -7503,7 +7511,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
     }
 
-    /* "dataRead.pyx":472
+    /* "dataRead.pyx":473
  *             return buf
  *         else:
  *             return buf.byteswap()             # <<<<<<<<<<<<<<
@@ -7512,7 +7520,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
     /*else*/ {
       __Pyx_XDECREF(__pyx_r);
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_buf), __pyx_n_s_byteswap); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 472, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_buf), __pyx_n_s_byteswap); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 473, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       __pyx_t_3 = NULL;
       if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_1))) {
@@ -7525,10 +7533,10 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         }
       }
       if (__pyx_t_3) {
-        __pyx_t_4 = __Pyx_PyObject_CallOneArg(__pyx_t_1, __pyx_t_3); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 472, __pyx_L1_error)
+        __pyx_t_4 = __Pyx_PyObject_CallOneArg(__pyx_t_1, __pyx_t_3); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 473, __pyx_L1_error)
         __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       } else {
-        __pyx_t_4 = __Pyx_PyObject_CallNoArg(__pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 472, __pyx_L1_error)
+        __pyx_t_4 = __Pyx_PyObject_CallNoArg(__pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 473, __pyx_L1_error)
       }
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
@@ -7537,7 +7545,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       goto __pyx_L0;
     }
 
-    /* "dataRead.pyx":465
+    /* "dataRead.pyx":466
  *     if bitCount % 8 > 0:
  *         nBytes += 1
  *     if bitCount == 64:             # <<<<<<<<<<<<<<
@@ -7546,7 +7554,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
   }
 
-  /* "dataRead.pyx":473
+  /* "dataRead.pyx":474
  *         else:
  *             return buf.byteswap()
  *     elif nBytes == 8:             # <<<<<<<<<<<<<<
@@ -7556,7 +7564,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
   __pyx_t_6 = ((__pyx_v_nBytes == 8) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":474
+    /* "dataRead.pyx":475
  *             return buf.byteswap()
  *     elif nBytes == 8:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -7566,7 +7574,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
     __pyx_t_6 = ((__pyx_v_swap == 0) != 0);
     if (__pyx_t_6) {
 
-      /* "dataRead.pyx":475
+      /* "dataRead.pyx":476
  *     elif nBytes == 8:
  *         if swap == 0:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -7578,7 +7586,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":476
+        /* "dataRead.pyx":477
  *         if swap == 0:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -7587,7 +7595,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         (void)(memcpy((&__pyx_v_temp8byte), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":478
+        /* "dataRead.pyx":479
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -7597,7 +7605,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":479
+          /* "dataRead.pyx":480
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -7606,7 +7614,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":478
+          /* "dataRead.pyx":479
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -7615,7 +7623,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":481
+        /* "dataRead.pyx":482
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 64:             # <<<<<<<<<<<<<<
@@ -7625,7 +7633,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitCount < 64) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":482
+          /* "dataRead.pyx":483
  *                 # mask left part
  *                 if bitCount < 64:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -7634,7 +7642,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":481
+          /* "dataRead.pyx":482
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 64:             # <<<<<<<<<<<<<<
@@ -7643,7 +7651,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":483
+        /* "dataRead.pyx":484
  *                 if bitCount < 64:
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -7655,12 +7663,12 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         if (unlikely(__pyx_t_12 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 483, __pyx_L1_error)
+          __PYX_ERR(0, 484, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_uint64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_12, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
 
-      /* "dataRead.pyx":474
+      /* "dataRead.pyx":475
  *             return buf.byteswap()
  *     elif nBytes == 8:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -7670,7 +7678,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       goto __pyx_L8;
     }
 
-    /* "dataRead.pyx":485
+    /* "dataRead.pyx":486
  *                 buf[i] = temp8byte
  *         else:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -7683,7 +7691,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":486
+        /* "dataRead.pyx":487
  *         else:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp8, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -7692,7 +7700,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         (void)(memcpy((&__pyx_v_temp8), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":488
+        /* "dataRead.pyx":489
  *                 memcpy(&temp8, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 temp8byte = temp8[0]<<56 | temp8[1]<<48 | temp8[2]<<40 | temp8[3]<<32 | \
  *                             temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes             # <<<<<<<<<<<<<<
@@ -7701,7 +7709,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         __pyx_v_temp8byte = (((((((((__pyx_v_temp8[0]) << 56) | ((__pyx_v_temp8[1]) << 48)) | ((__pyx_v_temp8[2]) << 40)) | ((__pyx_v_temp8[3]) << 32)) | ((__pyx_v_temp8[4]) << 24)) | ((__pyx_v_temp8[5]) << 16)) | ((__pyx_v_temp8[6]) << 8)) | (__pyx_v_temp8[7]));
 
-        /* "dataRead.pyx":490
+        /* "dataRead.pyx":491
  *                             temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -7711,7 +7719,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":491
+          /* "dataRead.pyx":492
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -7720,7 +7728,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":490
+          /* "dataRead.pyx":491
  *                             temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -7729,7 +7737,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":493
+        /* "dataRead.pyx":494
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 64:             # <<<<<<<<<<<<<<
@@ -7739,7 +7747,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitCount < 64) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":494
+          /* "dataRead.pyx":495
  *                 # mask left part
  *                 if bitCount < 64:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -7748,7 +7756,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":493
+          /* "dataRead.pyx":494
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 64:             # <<<<<<<<<<<<<<
@@ -7757,7 +7765,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":495
+        /* "dataRead.pyx":496
  *                 if bitCount < 64:
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -7769,14 +7777,14 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         if (unlikely(__pyx_t_13 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 495, __pyx_L1_error)
+          __PYX_ERR(0, 496, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_uint64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_13, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
     }
     __pyx_L8:;
 
-    /* "dataRead.pyx":473
+    /* "dataRead.pyx":474
  *         else:
  *             return buf.byteswap()
  *     elif nBytes == 8:             # <<<<<<<<<<<<<<
@@ -7786,7 +7794,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
     goto __pyx_L4;
   }
 
-  /* "dataRead.pyx":496
+  /* "dataRead.pyx":497
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte
  *     elif nBytes == 7:             # <<<<<<<<<<<<<<
@@ -7796,7 +7804,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
   __pyx_t_6 = ((__pyx_v_nBytes == 7) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":497
+    /* "dataRead.pyx":498
  *                 buf[i] = temp8byte
  *     elif nBytes == 7:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -7806,7 +7814,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
     __pyx_t_6 = ((__pyx_v_swap == 0) != 0);
     if (__pyx_t_6) {
 
-      /* "dataRead.pyx":498
+      /* "dataRead.pyx":499
  *     elif nBytes == 7:
  *         if swap == 0:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -7818,7 +7826,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":499
+        /* "dataRead.pyx":500
  *         if swap == 0:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -7827,7 +7835,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         (void)(memcpy((&__pyx_v_temp8byte), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":501
+        /* "dataRead.pyx":502
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -7837,7 +7845,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":502
+          /* "dataRead.pyx":503
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -7846,7 +7854,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":501
+          /* "dataRead.pyx":502
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -7855,7 +7863,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":504
+        /* "dataRead.pyx":505
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 56:             # <<<<<<<<<<<<<<
@@ -7865,7 +7873,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitCount < 56) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":505
+          /* "dataRead.pyx":506
  *                 # mask left part
  *                 if bitCount < 56:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -7874,7 +7882,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":504
+          /* "dataRead.pyx":505
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 56:             # <<<<<<<<<<<<<<
@@ -7883,7 +7891,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":506
+        /* "dataRead.pyx":507
  *                 if bitCount < 56:
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -7895,12 +7903,12 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         if (unlikely(__pyx_t_14 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 506, __pyx_L1_error)
+          __PYX_ERR(0, 507, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_uint64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_14, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
 
-      /* "dataRead.pyx":497
+      /* "dataRead.pyx":498
  *                 buf[i] = temp8byte
  *     elif nBytes == 7:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -7910,7 +7918,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       goto __pyx_L17;
     }
 
-    /* "dataRead.pyx":508
+    /* "dataRead.pyx":509
  *                 buf[i] = temp8byte
  *         else:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -7923,7 +7931,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":509
+        /* "dataRead.pyx":510
  *         else:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp7, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -7932,7 +7940,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         (void)(memcpy((&__pyx_v_temp7), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":511
+        /* "dataRead.pyx":512
  *                 memcpy(&temp7, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 temp8byte = temp7[0]<<48 | temp7[1]<<40 | temp7[2]<<32 | \
  *                             temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes             # <<<<<<<<<<<<<<
@@ -7941,7 +7949,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         __pyx_v_temp8byte = ((((((((__pyx_v_temp7[0]) << 48) | ((__pyx_v_temp7[1]) << 40)) | ((__pyx_v_temp7[2]) << 32)) | ((__pyx_v_temp7[3]) << 24)) | ((__pyx_v_temp7[4]) << 16)) | ((__pyx_v_temp7[5]) << 8)) | (__pyx_v_temp7[6]));
 
-        /* "dataRead.pyx":513
+        /* "dataRead.pyx":514
  *                             temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -7951,7 +7959,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":514
+          /* "dataRead.pyx":515
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -7960,7 +7968,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":513
+          /* "dataRead.pyx":514
  *                             temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -7969,7 +7977,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":516
+        /* "dataRead.pyx":517
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 56:             # <<<<<<<<<<<<<<
@@ -7979,7 +7987,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitCount < 56) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":517
+          /* "dataRead.pyx":518
  *                 # mask left part
  *                 if bitCount < 56:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -7988,7 +7996,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":516
+          /* "dataRead.pyx":517
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 56:             # <<<<<<<<<<<<<<
@@ -7997,7 +8005,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":518
+        /* "dataRead.pyx":519
  *                 if bitCount < 56:
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -8009,14 +8017,14 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         if (unlikely(__pyx_t_15 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 518, __pyx_L1_error)
+          __PYX_ERR(0, 519, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_uint64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_15, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
     }
     __pyx_L17:;
 
-    /* "dataRead.pyx":496
+    /* "dataRead.pyx":497
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte
  *     elif nBytes == 7:             # <<<<<<<<<<<<<<
@@ -8026,7 +8034,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
     goto __pyx_L4;
   }
 
-  /* "dataRead.pyx":519
+  /* "dataRead.pyx":520
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte
  *     elif nBytes == 6:             # <<<<<<<<<<<<<<
@@ -8036,7 +8044,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
   __pyx_t_6 = ((__pyx_v_nBytes == 6) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":520
+    /* "dataRead.pyx":521
  *                 buf[i] = temp8byte
  *     elif nBytes == 6:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -8046,7 +8054,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
     __pyx_t_6 = ((__pyx_v_swap == 0) != 0);
     if (__pyx_t_6) {
 
-      /* "dataRead.pyx":521
+      /* "dataRead.pyx":522
  *     elif nBytes == 6:
  *         if swap == 0:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -8058,7 +8066,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":522
+        /* "dataRead.pyx":523
  *         if swap == 0:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -8067,7 +8075,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         (void)(memcpy((&__pyx_v_temp8byte), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":524
+        /* "dataRead.pyx":525
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -8077,7 +8085,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":525
+          /* "dataRead.pyx":526
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -8086,7 +8094,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":524
+          /* "dataRead.pyx":525
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -8095,7 +8103,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":527
+        /* "dataRead.pyx":528
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 48:             # <<<<<<<<<<<<<<
@@ -8105,7 +8113,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitCount < 48) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":528
+          /* "dataRead.pyx":529
  *                 # mask left part
  *                 if bitCount < 48:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -8114,7 +8122,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":527
+          /* "dataRead.pyx":528
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 48:             # <<<<<<<<<<<<<<
@@ -8123,7 +8131,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":529
+        /* "dataRead.pyx":530
  *                 if bitCount < 48:
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -8135,12 +8143,12 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         if (unlikely(__pyx_t_16 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 529, __pyx_L1_error)
+          __PYX_ERR(0, 530, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_uint64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_16, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
 
-      /* "dataRead.pyx":520
+      /* "dataRead.pyx":521
  *                 buf[i] = temp8byte
  *     elif nBytes == 6:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -8150,7 +8158,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       goto __pyx_L26;
     }
 
-    /* "dataRead.pyx":531
+    /* "dataRead.pyx":532
  *                 buf[i] = temp8byte
  *         else:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -8163,7 +8171,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":532
+        /* "dataRead.pyx":533
  *         else:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp6, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -8172,7 +8180,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         (void)(memcpy((&__pyx_v_temp6), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":534
+        /* "dataRead.pyx":535
  *                 memcpy(&temp6, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 temp8byte = temp6[0]<<40 | temp6[1]<<32 | temp6[2]<<24 | \
  *                             temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes             # <<<<<<<<<<<<<<
@@ -8181,7 +8189,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         __pyx_v_temp8byte = (((((((__pyx_v_temp6[0]) << 40) | ((__pyx_v_temp6[1]) << 32)) | ((__pyx_v_temp6[2]) << 24)) | ((__pyx_v_temp6[3]) << 16)) | ((__pyx_v_temp6[4]) << 8)) | (__pyx_v_temp6[5]));
 
-        /* "dataRead.pyx":536
+        /* "dataRead.pyx":537
  *                             temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -8191,7 +8199,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":537
+          /* "dataRead.pyx":538
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -8200,7 +8208,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":536
+          /* "dataRead.pyx":537
  *                             temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -8209,7 +8217,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":539
+        /* "dataRead.pyx":540
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 48:             # <<<<<<<<<<<<<<
@@ -8219,7 +8227,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitCount < 48) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":540
+          /* "dataRead.pyx":541
  *                 # mask left part
  *                 if bitCount < 48:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -8228,7 +8236,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":539
+          /* "dataRead.pyx":540
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 48:             # <<<<<<<<<<<<<<
@@ -8237,7 +8245,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":541
+        /* "dataRead.pyx":542
  *                 if bitCount < 48:
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -8249,14 +8257,14 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         if (unlikely(__pyx_t_17 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 541, __pyx_L1_error)
+          __PYX_ERR(0, 542, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_uint64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_17, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
     }
     __pyx_L26:;
 
-    /* "dataRead.pyx":519
+    /* "dataRead.pyx":520
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte
  *     elif nBytes == 6:             # <<<<<<<<<<<<<<
@@ -8266,7 +8274,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
     goto __pyx_L4;
   }
 
-  /* "dataRead.pyx":542
+  /* "dataRead.pyx":543
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte
  *     elif nBytes == 5:             # <<<<<<<<<<<<<<
@@ -8276,7 +8284,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
   __pyx_t_6 = ((__pyx_v_nBytes == 5) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":543
+    /* "dataRead.pyx":544
  *                 buf[i] = temp8byte
  *     elif nBytes == 5:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -8286,7 +8294,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
     __pyx_t_6 = ((__pyx_v_swap == 0) != 0);
     if (__pyx_t_6) {
 
-      /* "dataRead.pyx":544
+      /* "dataRead.pyx":545
  *     elif nBytes == 5:
  *         if swap == 0:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -8298,7 +8306,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":545
+        /* "dataRead.pyx":546
  *         if swap == 0:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -8307,7 +8315,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         (void)(memcpy((&__pyx_v_temp8byte), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":547
+        /* "dataRead.pyx":548
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -8317,7 +8325,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":548
+          /* "dataRead.pyx":549
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -8326,7 +8334,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":547
+          /* "dataRead.pyx":548
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -8335,7 +8343,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":550
+        /* "dataRead.pyx":551
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 32:             # <<<<<<<<<<<<<<
@@ -8345,7 +8353,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitCount < 32) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":551
+          /* "dataRead.pyx":552
  *                 # mask left part
  *                 if bitCount < 32:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -8354,7 +8362,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":550
+          /* "dataRead.pyx":551
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 32:             # <<<<<<<<<<<<<<
@@ -8363,7 +8371,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":552
+        /* "dataRead.pyx":553
  *                 if bitCount < 32:
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -8375,12 +8383,12 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         if (unlikely(__pyx_t_18 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 552, __pyx_L1_error)
+          __PYX_ERR(0, 553, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_uint64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_18, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
 
-      /* "dataRead.pyx":543
+      /* "dataRead.pyx":544
  *                 buf[i] = temp8byte
  *     elif nBytes == 5:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -8390,7 +8398,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       goto __pyx_L35;
     }
 
-    /* "dataRead.pyx":554
+    /* "dataRead.pyx":555
  *                 buf[i] = temp8byte
  *         else:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -8403,7 +8411,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":555
+        /* "dataRead.pyx":556
  *         else:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp5, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -8412,7 +8420,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         (void)(memcpy((&__pyx_v_temp5), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":557
+        /* "dataRead.pyx":558
  *                 memcpy(&temp5, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 temp8byte = temp5[0]<<32 | temp5[1]<<24 | \
  *                             temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes             # <<<<<<<<<<<<<<
@@ -8421,7 +8429,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         __pyx_v_temp8byte = ((((((__pyx_v_temp5[0]) << 32) | ((__pyx_v_temp5[1]) << 24)) | ((__pyx_v_temp5[2]) << 16)) | ((__pyx_v_temp5[3]) << 8)) | (__pyx_v_temp5[4]));
 
-        /* "dataRead.pyx":559
+        /* "dataRead.pyx":560
  *                             temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -8431,7 +8439,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":560
+          /* "dataRead.pyx":561
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -8440,7 +8448,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":559
+          /* "dataRead.pyx":560
  *                             temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -8449,7 +8457,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":562
+        /* "dataRead.pyx":563
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 32:             # <<<<<<<<<<<<<<
@@ -8459,16 +8467,16 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
         __pyx_t_6 = ((__pyx_v_bitCount < 32) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":563
+          /* "dataRead.pyx":564
  *                 # mask left part
  *                 if bitCount < 32:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
  *                 buf[i] = temp8byte
- * 
+ *     return buf
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":562
+          /* "dataRead.pyx":563
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 32:             # <<<<<<<<<<<<<<
@@ -8477,26 +8485,26 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
         }
 
-        /* "dataRead.pyx":564
+        /* "dataRead.pyx":565
  *                 if bitCount < 32:
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
+ *     return buf
  * 
- * cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
  */
         __pyx_t_19 = __pyx_v_i;
         __pyx_t_11 = -1;
         if (unlikely(__pyx_t_19 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 564, __pyx_L1_error)
+          __PYX_ERR(0, 565, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_uint64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_19, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
     }
     __pyx_L35:;
 
-    /* "dataRead.pyx":542
+    /* "dataRead.pyx":543
  *                     temp8byte &= mask
  *                 buf[i] = temp8byte
  *     elif nBytes == 5:             # <<<<<<<<<<<<<<
@@ -8506,7 +8514,19 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
   }
   __pyx_L4:;
 
-  /* "dataRead.pyx":451
+  /* "dataRead.pyx":566
+ *                     temp8byte &= mask
+ *                 buf[i] = temp8byte
+ *     return buf             # <<<<<<<<<<<<<<
+ * 
+ * cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
+ */
+  __Pyx_XDECREF(__pyx_r);
+  __Pyx_INCREF(((PyObject *)__pyx_v_buf));
+  __pyx_r = ((PyObject *)__pyx_v_buf);
+  goto __pyx_L0;
+
+  /* "dataRead.pyx":452
  *         return buf
  * 
  * cdef inline dataReadULongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
@@ -8515,8 +8535,6 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
  */
 
   /* function exit code */
-  __pyx_r = Py_None; __Pyx_INCREF(Py_None);
-  goto __pyx_L0;
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
@@ -8540,8 +8558,8 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadULongLong(char const *_
   return __pyx_r;
 }
 
-/* "dataRead.pyx":566
- *                 buf[i] = temp8byte
+/* "dataRead.pyx":568
+ *     return buf
  * 
  * cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
  *         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -8590,40 +8608,40 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
   __pyx_pybuffernd_buf.data = NULL;
   __pyx_pybuffernd_buf.rcbuffer = &__pyx_pybuffer_buf;
 
-  /* "dataRead.pyx":569
+  /* "dataRead.pyx":571
  *         unsigned long record_byte_size, unsigned long posByteBeg,
  *         unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
  *     cdef np.ndarray[np.int64_t] buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array             # <<<<<<<<<<<<<<
  *     cdef unsigned long long i
  *     cdef long long mask = ((1 << bitCount) - 1)
  */
-  __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 569, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 571, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_empty); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 569, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_empty); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 571, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyInt_From_unsigned_PY_LONG_LONG(__pyx_v_numberOfRecords); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 569, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_unsigned_PY_LONG_LONG(__pyx_v_numberOfRecords); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 571, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = PyTuple_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 569, __pyx_L1_error)
+  __pyx_t_3 = PyTuple_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 571, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_GIVEREF(__pyx_t_1);
   PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_t_1);
   __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 569, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 571, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_dtype, __pyx_v_RecordFormat) < 0) __PYX_ERR(0, 569, __pyx_L1_error)
-  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_3, __pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 569, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_dtype, __pyx_v_RecordFormat) < 0) __PYX_ERR(0, 571, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_3, __pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 571, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 569, __pyx_L1_error)
+  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 571, __pyx_L1_error)
   __pyx_t_5 = ((PyArrayObject *)__pyx_t_4);
   {
     __Pyx_BufFmt_StackElem __pyx_stack[1];
     if (unlikely(__Pyx_GetBufferAndValidate(&__pyx_pybuffernd_buf.rcbuffer->pybuffer, (PyObject*)__pyx_t_5, &__Pyx_TypeInfo_nn___pyx_t_5numpy_int64_t, PyBUF_FORMAT| PyBUF_STRIDES| PyBUF_WRITABLE, 1, 0, __pyx_stack) == -1)) {
       __pyx_v_buf = ((PyArrayObject *)Py_None); __Pyx_INCREF(Py_None); __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf = NULL;
-      __PYX_ERR(0, 569, __pyx_L1_error)
+      __PYX_ERR(0, 571, __pyx_L1_error)
     } else {__pyx_pybuffernd_buf.diminfo[0].strides = __pyx_pybuffernd_buf.rcbuffer->pybuffer.strides[0]; __pyx_pybuffernd_buf.diminfo[0].shape = __pyx_pybuffernd_buf.rcbuffer->pybuffer.shape[0];
     }
   }
@@ -8631,7 +8649,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
   __pyx_v_buf = ((PyArrayObject *)__pyx_t_4);
   __pyx_t_4 = 0;
 
-  /* "dataRead.pyx":571
+  /* "dataRead.pyx":573
  *     cdef np.ndarray[np.int64_t] buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array
  *     cdef unsigned long long i
  *     cdef long long mask = ((1 << bitCount) - 1)             # <<<<<<<<<<<<<<
@@ -8640,7 +8658,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
   __pyx_v_mask = ((1 << __pyx_v_bitCount) - 1);
 
-  /* "dataRead.pyx":572
+  /* "dataRead.pyx":574
  *     cdef unsigned long long i
  *     cdef long long mask = ((1 << bitCount) - 1)
  *     cdef long long temp8byte = 0             # <<<<<<<<<<<<<<
@@ -8649,7 +8667,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
   __pyx_v_temp8byte = 0;
 
-  /* "dataRead.pyx":573
+  /* "dataRead.pyx":575
  *     cdef long long mask = ((1 << bitCount) - 1)
  *     cdef long long temp8byte = 0
  *     cdef unsigned char nBytes = bitCount // 8             # <<<<<<<<<<<<<<
@@ -8658,7 +8676,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
   __pyx_v_nBytes = (__pyx_v_bitCount / 8);
 
-  /* "dataRead.pyx":574
+  /* "dataRead.pyx":576
  *     cdef long long temp8byte = 0
  *     cdef unsigned char nBytes = bitCount // 8
  *     cdef long signBit = 0             # <<<<<<<<<<<<<<
@@ -8667,7 +8685,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
   __pyx_v_signBit = 0;
 
-  /* "dataRead.pyx":575
+  /* "dataRead.pyx":577
  *     cdef unsigned char nBytes = bitCount // 8
  *     cdef long signBit = 0
  *     cdef long long signBitMask = (1 << (bitCount-1))             # <<<<<<<<<<<<<<
@@ -8676,7 +8694,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
   __pyx_v_signBitMask = (1 << (__pyx_v_bitCount - 1));
 
-  /* "dataRead.pyx":576
+  /* "dataRead.pyx":578
  *     cdef long signBit = 0
  *     cdef long long signBitMask = (1 << (bitCount-1))
  *     cdef long long signExtend = ((1 << (64 - bitCount)) - 1) << bitCount             # <<<<<<<<<<<<<<
@@ -8685,7 +8703,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
   __pyx_v_signExtend = (((1 << (64 - __pyx_v_bitCount)) - 1) << __pyx_v_bitCount);
 
-  /* "dataRead.pyx":581
+  /* "dataRead.pyx":583
  *     cdef char temp6[6]
  *     cdef char temp5[5]
  *     if bitCount % 8 > 0:             # <<<<<<<<<<<<<<
@@ -8695,7 +8713,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
   __pyx_t_6 = (((__pyx_v_bitCount % 8) > 0) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":582
+    /* "dataRead.pyx":584
  *     cdef char temp5[5]
  *     if bitCount % 8 > 0:
  *         nBytes += 1             # <<<<<<<<<<<<<<
@@ -8704,7 +8722,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
     __pyx_v_nBytes = (__pyx_v_nBytes + 1);
 
-    /* "dataRead.pyx":581
+    /* "dataRead.pyx":583
  *     cdef char temp6[6]
  *     cdef char temp5[5]
  *     if bitCount % 8 > 0:             # <<<<<<<<<<<<<<
@@ -8713,7 +8731,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
   }
 
-  /* "dataRead.pyx":583
+  /* "dataRead.pyx":585
  *     if bitCount % 8 > 0:
  *         nBytes += 1
  *     if bitCount == 64:             # <<<<<<<<<<<<<<
@@ -8723,7 +8741,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
   __pyx_t_6 = ((__pyx_v_bitCount == 64) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":584
+    /* "dataRead.pyx":586
  *         nBytes += 1
  *     if bitCount == 64:
  *         for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -8735,7 +8753,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
     for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
       __pyx_v_i = __pyx_t_9;
 
-      /* "dataRead.pyx":585
+      /* "dataRead.pyx":587
  *     if bitCount == 64:
  *         for i in range(numberOfRecords):
  *             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -8744,7 +8762,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
       (void)(memcpy((&__pyx_v_temp8byte), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-      /* "dataRead.pyx":586
+      /* "dataRead.pyx":588
  *         for i in range(numberOfRecords):
  *             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *             buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -8756,12 +8774,12 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       if (unlikely(__pyx_t_10 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
       if (unlikely(__pyx_t_11 != -1)) {
         __Pyx_RaiseBufferIndexError(__pyx_t_11);
-        __PYX_ERR(0, 586, __pyx_L1_error)
+        __PYX_ERR(0, 588, __pyx_L1_error)
       }
       *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_int64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_10, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
     }
 
-    /* "dataRead.pyx":587
+    /* "dataRead.pyx":589
  *             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *             buf[i] = temp8byte
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -8771,7 +8789,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
     __pyx_t_6 = ((__pyx_v_swap == 0) != 0);
     if (__pyx_t_6) {
 
-      /* "dataRead.pyx":588
+      /* "dataRead.pyx":590
  *             buf[i] = temp8byte
  *         if swap == 0:
  *             return buf             # <<<<<<<<<<<<<<
@@ -8783,7 +8801,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       __pyx_r = ((PyObject *)__pyx_v_buf);
       goto __pyx_L0;
 
-      /* "dataRead.pyx":587
+      /* "dataRead.pyx":589
  *             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *             buf[i] = temp8byte
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -8792,7 +8810,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
     }
 
-    /* "dataRead.pyx":590
+    /* "dataRead.pyx":592
  *             return buf
  *         else:
  *             return buf.byteswap()             # <<<<<<<<<<<<<<
@@ -8801,7 +8819,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
     /*else*/ {
       __Pyx_XDECREF(__pyx_r);
-      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_buf), __pyx_n_s_byteswap); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 590, __pyx_L1_error)
+      __pyx_t_1 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_buf), __pyx_n_s_byteswap); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 592, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_1);
       __pyx_t_3 = NULL;
       if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_1))) {
@@ -8814,10 +8832,10 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         }
       }
       if (__pyx_t_3) {
-        __pyx_t_4 = __Pyx_PyObject_CallOneArg(__pyx_t_1, __pyx_t_3); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 590, __pyx_L1_error)
+        __pyx_t_4 = __Pyx_PyObject_CallOneArg(__pyx_t_1, __pyx_t_3); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 592, __pyx_L1_error)
         __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
       } else {
-        __pyx_t_4 = __Pyx_PyObject_CallNoArg(__pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 590, __pyx_L1_error)
+        __pyx_t_4 = __Pyx_PyObject_CallNoArg(__pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 592, __pyx_L1_error)
       }
       __Pyx_GOTREF(__pyx_t_4);
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
@@ -8826,7 +8844,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       goto __pyx_L0;
     }
 
-    /* "dataRead.pyx":583
+    /* "dataRead.pyx":585
  *     if bitCount % 8 > 0:
  *         nBytes += 1
  *     if bitCount == 64:             # <<<<<<<<<<<<<<
@@ -8835,7 +8853,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
   }
 
-  /* "dataRead.pyx":591
+  /* "dataRead.pyx":593
  *         else:
  *             return buf.byteswap()
  *     elif nBytes == 8:             # <<<<<<<<<<<<<<
@@ -8845,7 +8863,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
   __pyx_t_6 = ((__pyx_v_nBytes == 8) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":592
+    /* "dataRead.pyx":594
  *             return buf.byteswap()
  *     elif nBytes == 8:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -8855,7 +8873,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
     __pyx_t_6 = ((__pyx_v_swap == 0) != 0);
     if (__pyx_t_6) {
 
-      /* "dataRead.pyx":593
+      /* "dataRead.pyx":595
  *     elif nBytes == 8:
  *         if swap == 0:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -8867,7 +8885,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":594
+        /* "dataRead.pyx":596
  *         if swap == 0:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -8876,7 +8894,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         (void)(memcpy((&__pyx_v_temp8byte), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":596
+        /* "dataRead.pyx":598
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -8886,7 +8904,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":597
+          /* "dataRead.pyx":599
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -8895,7 +8913,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":596
+          /* "dataRead.pyx":598
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -8904,7 +8922,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":599
+        /* "dataRead.pyx":601
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 64:             # <<<<<<<<<<<<<<
@@ -8914,7 +8932,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitCount < 64) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":600
+          /* "dataRead.pyx":602
  *                 # mask left part
  *                 if bitCount < 64:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -8923,7 +8941,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":599
+          /* "dataRead.pyx":601
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 64:             # <<<<<<<<<<<<<<
@@ -8932,7 +8950,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":601
+        /* "dataRead.pyx":603
  *                 if bitCount < 64:
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask             # <<<<<<<<<<<<<<
@@ -8941,7 +8959,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_signBit = (__pyx_v_temp8byte & __pyx_v_signBitMask);
 
-        /* "dataRead.pyx":602
+        /* "dataRead.pyx":604
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -8951,7 +8969,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = (__pyx_v_signBit != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":603
+          /* "dataRead.pyx":605
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend             # <<<<<<<<<<<<<<
@@ -8960,7 +8978,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte | __pyx_v_signExtend);
 
-          /* "dataRead.pyx":602
+          /* "dataRead.pyx":604
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -8969,7 +8987,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":604
+        /* "dataRead.pyx":606
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -8981,12 +8999,12 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         if (unlikely(__pyx_t_12 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 604, __pyx_L1_error)
+          __PYX_ERR(0, 606, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_int64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_12, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
 
-      /* "dataRead.pyx":592
+      /* "dataRead.pyx":594
  *             return buf.byteswap()
  *     elif nBytes == 8:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -8996,7 +9014,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       goto __pyx_L8;
     }
 
-    /* "dataRead.pyx":606
+    /* "dataRead.pyx":608
  *                 buf[i] = temp8byte
  *         else:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -9009,7 +9027,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":607
+        /* "dataRead.pyx":609
  *         else:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp8, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -9018,7 +9036,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         (void)(memcpy((&__pyx_v_temp8), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":609
+        /* "dataRead.pyx":611
  *                 memcpy(&temp8, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 temp8byte = temp8[0]<<56 | temp8[1]<<48 | temp8[2]<<40 | temp8[3]<<32 | \
  *                             temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes             # <<<<<<<<<<<<<<
@@ -9027,7 +9045,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_temp8byte = (((((((((__pyx_v_temp8[0]) << 56) | ((__pyx_v_temp8[1]) << 48)) | ((__pyx_v_temp8[2]) << 40)) | ((__pyx_v_temp8[3]) << 32)) | ((__pyx_v_temp8[4]) << 24)) | ((__pyx_v_temp8[5]) << 16)) | ((__pyx_v_temp8[6]) << 8)) | (__pyx_v_temp8[7]));
 
-        /* "dataRead.pyx":611
+        /* "dataRead.pyx":613
  *                             temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9037,7 +9055,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":612
+          /* "dataRead.pyx":614
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -9046,7 +9064,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":611
+          /* "dataRead.pyx":613
  *                             temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9055,7 +9073,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":614
+        /* "dataRead.pyx":616
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 64:             # <<<<<<<<<<<<<<
@@ -9065,7 +9083,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitCount < 64) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":615
+          /* "dataRead.pyx":617
  *                 # mask left part
  *                 if bitCount < 64:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -9074,7 +9092,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":614
+          /* "dataRead.pyx":616
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 64:             # <<<<<<<<<<<<<<
@@ -9083,7 +9101,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":616
+        /* "dataRead.pyx":618
  *                 if bitCount < 64:
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask             # <<<<<<<<<<<<<<
@@ -9092,7 +9110,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_signBit = (__pyx_v_temp8byte & __pyx_v_signBitMask);
 
-        /* "dataRead.pyx":617
+        /* "dataRead.pyx":619
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9102,7 +9120,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = (__pyx_v_signBit != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":618
+          /* "dataRead.pyx":620
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend             # <<<<<<<<<<<<<<
@@ -9111,7 +9129,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte | __pyx_v_signExtend);
 
-          /* "dataRead.pyx":617
+          /* "dataRead.pyx":619
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9120,7 +9138,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":619
+        /* "dataRead.pyx":621
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -9132,14 +9150,14 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         if (unlikely(__pyx_t_13 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 619, __pyx_L1_error)
+          __PYX_ERR(0, 621, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_int64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_13, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
     }
     __pyx_L8:;
 
-    /* "dataRead.pyx":591
+    /* "dataRead.pyx":593
  *         else:
  *             return buf.byteswap()
  *     elif nBytes == 8:             # <<<<<<<<<<<<<<
@@ -9149,7 +9167,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
     goto __pyx_L4;
   }
 
-  /* "dataRead.pyx":620
+  /* "dataRead.pyx":622
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte
  *     elif nBytes == 7:             # <<<<<<<<<<<<<<
@@ -9159,7 +9177,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
   __pyx_t_6 = ((__pyx_v_nBytes == 7) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":621
+    /* "dataRead.pyx":623
  *                 buf[i] = temp8byte
  *     elif nBytes == 7:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -9169,7 +9187,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
     __pyx_t_6 = ((__pyx_v_swap == 0) != 0);
     if (__pyx_t_6) {
 
-      /* "dataRead.pyx":622
+      /* "dataRead.pyx":624
  *     elif nBytes == 7:
  *         if swap == 0:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -9181,7 +9199,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":623
+        /* "dataRead.pyx":625
  *         if swap == 0:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -9190,7 +9208,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         (void)(memcpy((&__pyx_v_temp8byte), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":625
+        /* "dataRead.pyx":627
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9200,7 +9218,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":626
+          /* "dataRead.pyx":628
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -9209,7 +9227,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":625
+          /* "dataRead.pyx":627
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9218,7 +9236,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":628
+        /* "dataRead.pyx":630
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 56:             # <<<<<<<<<<<<<<
@@ -9228,7 +9246,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitCount < 56) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":629
+          /* "dataRead.pyx":631
  *                 # mask left part
  *                 if bitCount < 56:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -9237,7 +9255,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":628
+          /* "dataRead.pyx":630
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 56:             # <<<<<<<<<<<<<<
@@ -9246,7 +9264,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":630
+        /* "dataRead.pyx":632
  *                 if bitCount < 56:
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask             # <<<<<<<<<<<<<<
@@ -9255,7 +9273,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_signBit = (__pyx_v_temp8byte & __pyx_v_signBitMask);
 
-        /* "dataRead.pyx":631
+        /* "dataRead.pyx":633
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9265,7 +9283,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = (__pyx_v_signBit != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":632
+          /* "dataRead.pyx":634
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend             # <<<<<<<<<<<<<<
@@ -9274,7 +9292,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte | __pyx_v_signExtend);
 
-          /* "dataRead.pyx":631
+          /* "dataRead.pyx":633
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9283,7 +9301,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":633
+        /* "dataRead.pyx":635
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -9295,12 +9313,12 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         if (unlikely(__pyx_t_14 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 633, __pyx_L1_error)
+          __PYX_ERR(0, 635, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_int64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_14, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
 
-      /* "dataRead.pyx":621
+      /* "dataRead.pyx":623
  *                 buf[i] = temp8byte
  *     elif nBytes == 7:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -9310,7 +9328,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       goto __pyx_L19;
     }
 
-    /* "dataRead.pyx":635
+    /* "dataRead.pyx":637
  *                 buf[i] = temp8byte
  *         else:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -9323,7 +9341,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":636
+        /* "dataRead.pyx":638
  *         else:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp7, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -9332,7 +9350,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         (void)(memcpy((&__pyx_v_temp7), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":638
+        /* "dataRead.pyx":640
  *                 memcpy(&temp7, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 temp8byte = temp7[0]<<48 | temp7[1]<<40 | temp7[2]<<32 | \
  *                             temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes             # <<<<<<<<<<<<<<
@@ -9341,7 +9359,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_temp8byte = ((((((((__pyx_v_temp7[0]) << 48) | ((__pyx_v_temp7[1]) << 40)) | ((__pyx_v_temp7[2]) << 32)) | ((__pyx_v_temp7[3]) << 24)) | ((__pyx_v_temp7[4]) << 16)) | ((__pyx_v_temp7[5]) << 8)) | (__pyx_v_temp7[6]));
 
-        /* "dataRead.pyx":640
+        /* "dataRead.pyx":642
  *                             temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9351,7 +9369,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":641
+          /* "dataRead.pyx":643
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -9360,7 +9378,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":640
+          /* "dataRead.pyx":642
  *                             temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9369,7 +9387,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":643
+        /* "dataRead.pyx":645
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 56:             # <<<<<<<<<<<<<<
@@ -9379,7 +9397,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitCount < 56) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":644
+          /* "dataRead.pyx":646
  *                 # mask left part
  *                 if bitCount < 56:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -9388,7 +9406,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":643
+          /* "dataRead.pyx":645
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 56:             # <<<<<<<<<<<<<<
@@ -9397,7 +9415,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":645
+        /* "dataRead.pyx":647
  *                 if bitCount < 56:
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask             # <<<<<<<<<<<<<<
@@ -9406,7 +9424,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_signBit = (__pyx_v_temp8byte & __pyx_v_signBitMask);
 
-        /* "dataRead.pyx":646
+        /* "dataRead.pyx":648
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9416,7 +9434,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = (__pyx_v_signBit != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":647
+          /* "dataRead.pyx":649
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend             # <<<<<<<<<<<<<<
@@ -9425,7 +9443,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte | __pyx_v_signExtend);
 
-          /* "dataRead.pyx":646
+          /* "dataRead.pyx":648
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9434,7 +9452,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":648
+        /* "dataRead.pyx":650
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -9446,14 +9464,14 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         if (unlikely(__pyx_t_15 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 648, __pyx_L1_error)
+          __PYX_ERR(0, 650, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_int64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_15, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
     }
     __pyx_L19:;
 
-    /* "dataRead.pyx":620
+    /* "dataRead.pyx":622
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte
  *     elif nBytes == 7:             # <<<<<<<<<<<<<<
@@ -9463,7 +9481,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
     goto __pyx_L4;
   }
 
-  /* "dataRead.pyx":649
+  /* "dataRead.pyx":651
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte
  *     elif nBytes == 6:             # <<<<<<<<<<<<<<
@@ -9473,7 +9491,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
   __pyx_t_6 = ((__pyx_v_nBytes == 6) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":650
+    /* "dataRead.pyx":652
  *                 buf[i] = temp8byte
  *     elif nBytes == 6:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -9483,7 +9501,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
     __pyx_t_6 = ((__pyx_v_swap == 0) != 0);
     if (__pyx_t_6) {
 
-      /* "dataRead.pyx":651
+      /* "dataRead.pyx":653
  *     elif nBytes == 6:
  *         if swap == 0:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -9495,7 +9513,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":652
+        /* "dataRead.pyx":654
  *         if swap == 0:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -9504,7 +9522,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         (void)(memcpy((&__pyx_v_temp8byte), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":654
+        /* "dataRead.pyx":656
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9514,7 +9532,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":655
+          /* "dataRead.pyx":657
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -9523,7 +9541,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":654
+          /* "dataRead.pyx":656
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9532,7 +9550,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":657
+        /* "dataRead.pyx":659
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 48:             # <<<<<<<<<<<<<<
@@ -9542,7 +9560,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitCount < 48) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":658
+          /* "dataRead.pyx":660
  *                 # mask left part
  *                 if bitCount < 48:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -9551,7 +9569,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":657
+          /* "dataRead.pyx":659
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 48:             # <<<<<<<<<<<<<<
@@ -9560,7 +9578,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":659
+        /* "dataRead.pyx":661
  *                 if bitCount < 48:
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask             # <<<<<<<<<<<<<<
@@ -9569,7 +9587,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_signBit = (__pyx_v_temp8byte & __pyx_v_signBitMask);
 
-        /* "dataRead.pyx":660
+        /* "dataRead.pyx":662
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9579,7 +9597,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = (__pyx_v_signBit != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":661
+          /* "dataRead.pyx":663
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend             # <<<<<<<<<<<<<<
@@ -9588,7 +9606,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte | __pyx_v_signExtend);
 
-          /* "dataRead.pyx":660
+          /* "dataRead.pyx":662
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9597,7 +9615,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":662
+        /* "dataRead.pyx":664
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -9609,12 +9627,12 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         if (unlikely(__pyx_t_16 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 662, __pyx_L1_error)
+          __PYX_ERR(0, 664, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_int64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_16, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
 
-      /* "dataRead.pyx":650
+      /* "dataRead.pyx":652
  *                 buf[i] = temp8byte
  *     elif nBytes == 6:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -9624,7 +9642,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       goto __pyx_L30;
     }
 
-    /* "dataRead.pyx":664
+    /* "dataRead.pyx":666
  *                 buf[i] = temp8byte
  *         else:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -9637,7 +9655,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":665
+        /* "dataRead.pyx":667
  *         else:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp6, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -9646,7 +9664,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         (void)(memcpy((&__pyx_v_temp6), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":667
+        /* "dataRead.pyx":669
  *                 memcpy(&temp6, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 temp8byte = temp6[0]<<40 | temp6[1]<<32 | temp6[2]<<24 | \
  *                             temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes             # <<<<<<<<<<<<<<
@@ -9655,7 +9673,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_temp8byte = (((((((__pyx_v_temp6[0]) << 40) | ((__pyx_v_temp6[1]) << 32)) | ((__pyx_v_temp6[2]) << 24)) | ((__pyx_v_temp6[3]) << 16)) | ((__pyx_v_temp6[4]) << 8)) | (__pyx_v_temp6[5]));
 
-        /* "dataRead.pyx":669
+        /* "dataRead.pyx":671
  *                             temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9665,7 +9683,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":670
+          /* "dataRead.pyx":672
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -9674,7 +9692,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":669
+          /* "dataRead.pyx":671
  *                             temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9683,7 +9701,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":672
+        /* "dataRead.pyx":674
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 48:             # <<<<<<<<<<<<<<
@@ -9693,7 +9711,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitCount < 48) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":673
+          /* "dataRead.pyx":675
  *                 # mask left part
  *                 if bitCount < 48:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -9702,7 +9720,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":672
+          /* "dataRead.pyx":674
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 48:             # <<<<<<<<<<<<<<
@@ -9711,7 +9729,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":674
+        /* "dataRead.pyx":676
  *                 if bitCount < 48:
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask             # <<<<<<<<<<<<<<
@@ -9720,7 +9738,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_signBit = (__pyx_v_temp8byte & __pyx_v_signBitMask);
 
-        /* "dataRead.pyx":675
+        /* "dataRead.pyx":677
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9730,7 +9748,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = (__pyx_v_signBit != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":676
+          /* "dataRead.pyx":678
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend             # <<<<<<<<<<<<<<
@@ -9739,7 +9757,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte | __pyx_v_signExtend);
 
-          /* "dataRead.pyx":675
+          /* "dataRead.pyx":677
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9748,7 +9766,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":677
+        /* "dataRead.pyx":679
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -9760,14 +9778,14 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         if (unlikely(__pyx_t_17 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 677, __pyx_L1_error)
+          __PYX_ERR(0, 679, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_int64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_17, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
     }
     __pyx_L30:;
 
-    /* "dataRead.pyx":649
+    /* "dataRead.pyx":651
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte
  *     elif nBytes == 6:             # <<<<<<<<<<<<<<
@@ -9777,7 +9795,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
     goto __pyx_L4;
   }
 
-  /* "dataRead.pyx":678
+  /* "dataRead.pyx":680
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte
  *     elif nBytes == 5:             # <<<<<<<<<<<<<<
@@ -9787,7 +9805,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
   __pyx_t_6 = ((__pyx_v_nBytes == 5) != 0);
   if (__pyx_t_6) {
 
-    /* "dataRead.pyx":679
+    /* "dataRead.pyx":681
  *                 buf[i] = temp8byte
  *     elif nBytes == 5:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -9797,7 +9815,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
     __pyx_t_6 = ((__pyx_v_swap == 0) != 0);
     if (__pyx_t_6) {
 
-      /* "dataRead.pyx":680
+      /* "dataRead.pyx":682
  *     elif nBytes == 5:
  *         if swap == 0:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -9809,7 +9827,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":681
+        /* "dataRead.pyx":683
  *         if swap == 0:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -9818,7 +9836,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         (void)(memcpy((&__pyx_v_temp8byte), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":683
+        /* "dataRead.pyx":685
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9828,7 +9846,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":684
+          /* "dataRead.pyx":686
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -9837,7 +9855,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":683
+          /* "dataRead.pyx":685
  *                 memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9846,7 +9864,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":686
+        /* "dataRead.pyx":688
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 40:             # <<<<<<<<<<<<<<
@@ -9856,7 +9874,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitCount < 40) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":687
+          /* "dataRead.pyx":689
  *                 # mask left part
  *                 if bitCount < 40:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -9865,7 +9883,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":686
+          /* "dataRead.pyx":688
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 40:             # <<<<<<<<<<<<<<
@@ -9874,7 +9892,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":688
+        /* "dataRead.pyx":690
  *                 if bitCount < 40:
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask             # <<<<<<<<<<<<<<
@@ -9883,7 +9901,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_signBit = (__pyx_v_temp8byte & __pyx_v_signBitMask);
 
-        /* "dataRead.pyx":689
+        /* "dataRead.pyx":691
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9893,7 +9911,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = (__pyx_v_signBit != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":690
+          /* "dataRead.pyx":692
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend             # <<<<<<<<<<<<<<
@@ -9902,7 +9920,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte | __pyx_v_signExtend);
 
-          /* "dataRead.pyx":689
+          /* "dataRead.pyx":691
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -9911,7 +9929,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":691
+        /* "dataRead.pyx":693
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
@@ -9923,12 +9941,12 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         if (unlikely(__pyx_t_18 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 691, __pyx_L1_error)
+          __PYX_ERR(0, 693, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_int64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_18, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
 
-      /* "dataRead.pyx":679
+      /* "dataRead.pyx":681
  *                 buf[i] = temp8byte
  *     elif nBytes == 5:
  *         if swap == 0:             # <<<<<<<<<<<<<<
@@ -9938,7 +9956,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       goto __pyx_L41;
     }
 
-    /* "dataRead.pyx":693
+    /* "dataRead.pyx":695
  *                 buf[i] = temp8byte
  *         else:
  *             for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -9951,7 +9969,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
       for (__pyx_t_9 = 0; __pyx_t_9 < __pyx_t_8; __pyx_t_9+=1) {
         __pyx_v_i = __pyx_t_9;
 
-        /* "dataRead.pyx":694
+        /* "dataRead.pyx":696
  *         else:
  *             for i in range(numberOfRecords):
  *                 memcpy(&temp5, &bita[posByteBeg + record_byte_size * i], nBytes)             # <<<<<<<<<<<<<<
@@ -9960,7 +9978,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         (void)(memcpy((&__pyx_v_temp5), (&(__pyx_v_bita[(__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))])), __pyx_v_nBytes));
 
-        /* "dataRead.pyx":696
+        /* "dataRead.pyx":698
  *                 memcpy(&temp5, &bita[posByteBeg + record_byte_size * i], nBytes)
  *                 temp8byte = temp5[0]<<32 | temp5[1]<<24 | \
  *                             temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes             # <<<<<<<<<<<<<<
@@ -9969,7 +9987,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_temp8byte = ((((((__pyx_v_temp5[0]) << 32) | ((__pyx_v_temp5[1]) << 24)) | ((__pyx_v_temp5[2]) << 16)) | ((__pyx_v_temp5[3]) << 8)) | (__pyx_v_temp5[4]));
 
-        /* "dataRead.pyx":698
+        /* "dataRead.pyx":700
  *                             temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9979,7 +9997,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitOffset > 0) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":699
+          /* "dataRead.pyx":701
  *                 # right shift
  *                 if bitOffset > 0:
  *                     temp8byte = temp8byte >> bitOffset             # <<<<<<<<<<<<<<
@@ -9988,7 +10006,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte >> __pyx_v_bitOffset);
 
-          /* "dataRead.pyx":698
+          /* "dataRead.pyx":700
  *                             temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes
  *                 # right shift
  *                 if bitOffset > 0:             # <<<<<<<<<<<<<<
@@ -9997,7 +10015,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":701
+        /* "dataRead.pyx":703
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 40:             # <<<<<<<<<<<<<<
@@ -10007,7 +10025,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = ((__pyx_v_bitCount < 40) != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":702
+          /* "dataRead.pyx":704
  *                 # mask left part
  *                 if bitCount < 40:
  *                     temp8byte &= mask             # <<<<<<<<<<<<<<
@@ -10016,7 +10034,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte & __pyx_v_mask);
 
-          /* "dataRead.pyx":701
+          /* "dataRead.pyx":703
  *                     temp8byte = temp8byte >> bitOffset
  *                 # mask left part
  *                 if bitCount < 40:             # <<<<<<<<<<<<<<
@@ -10025,7 +10043,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":703
+        /* "dataRead.pyx":705
  *                 if bitCount < 40:
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask             # <<<<<<<<<<<<<<
@@ -10034,7 +10052,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         __pyx_v_signBit = (__pyx_v_temp8byte & __pyx_v_signBitMask);
 
-        /* "dataRead.pyx":704
+        /* "dataRead.pyx":706
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -10044,16 +10062,16 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
         __pyx_t_6 = (__pyx_v_signBit != 0);
         if (__pyx_t_6) {
 
-          /* "dataRead.pyx":705
+          /* "dataRead.pyx":707
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend             # <<<<<<<<<<<<<<
  *                 buf[i] = temp8byte
- * 
+ *     return buf
  */
           __pyx_v_temp8byte = (__pyx_v_temp8byte | __pyx_v_signExtend);
 
-          /* "dataRead.pyx":704
+          /* "dataRead.pyx":706
  *                     temp8byte &= mask
  *                 signBit = temp8byte & signBitMask
  *                 if signBit: #  negative value, sign extend             # <<<<<<<<<<<<<<
@@ -10062,26 +10080,26 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
         }
 
-        /* "dataRead.pyx":706
+        /* "dataRead.pyx":708
  *                 if signBit: #  negative value, sign extend
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte             # <<<<<<<<<<<<<<
+ *     return buf
  * 
- * cdef inline dataReadByte(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
  */
         __pyx_t_19 = __pyx_v_i;
         __pyx_t_11 = -1;
         if (unlikely(__pyx_t_19 >= (size_t)__pyx_pybuffernd_buf.diminfo[0].shape)) __pyx_t_11 = 0;
         if (unlikely(__pyx_t_11 != -1)) {
           __Pyx_RaiseBufferIndexError(__pyx_t_11);
-          __PYX_ERR(0, 706, __pyx_L1_error)
+          __PYX_ERR(0, 708, __pyx_L1_error)
         }
         *__Pyx_BufPtrStrided1d(__pyx_t_5numpy_int64_t *, __pyx_pybuffernd_buf.rcbuffer->pybuffer.buf, __pyx_t_19, __pyx_pybuffernd_buf.diminfo[0].strides) = __pyx_v_temp8byte;
       }
     }
     __pyx_L41:;
 
-    /* "dataRead.pyx":678
+    /* "dataRead.pyx":680
  *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte
  *     elif nBytes == 5:             # <<<<<<<<<<<<<<
@@ -10091,8 +10109,20 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
   }
   __pyx_L4:;
 
-  /* "dataRead.pyx":566
+  /* "dataRead.pyx":709
+ *                     temp8byte |= signExtend
  *                 buf[i] = temp8byte
+ *     return buf             # <<<<<<<<<<<<<<
+ * 
+ * cdef inline dataReadByte(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
+ */
+  __Pyx_XDECREF(__pyx_r);
+  __Pyx_INCREF(((PyObject *)__pyx_v_buf));
+  __pyx_r = ((PyObject *)__pyx_v_buf);
+  goto __pyx_L0;
+
+  /* "dataRead.pyx":568
+ *     return buf
  * 
  * cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
  *         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -10100,8 +10130,6 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
  */
 
   /* function exit code */
-  __pyx_r = Py_None; __Pyx_INCREF(Py_None);
-  goto __pyx_L0;
   __pyx_L1_error:;
   __Pyx_XDECREF(__pyx_t_1);
   __Pyx_XDECREF(__pyx_t_2);
@@ -10125,8 +10153,8 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadLongLong(char const *__
   return __pyx_r;
 }
 
-/* "dataRead.pyx":708
- *                 buf[i] = temp8byte
+/* "dataRead.pyx":711
+ *     return buf
  * 
  * cdef inline dataReadByte(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
  *         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd,
@@ -10147,38 +10175,38 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadByte(char const *__pyx_
   unsigned PY_LONG_LONG __pyx_t_7;
   __Pyx_RefNannySetupContext("dataReadByte", 0);
 
-  /* "dataRead.pyx":711
+  /* "dataRead.pyx":714
  *         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd,
  *         unsigned long bitCount, unsigned char bitOffset):
  *     cdef np.ndarray buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array             # <<<<<<<<<<<<<<
  *     cdef unsigned long long i
  *     for i in range(numberOfRecords):
  */
-  __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 711, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 714, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_empty); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 711, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_empty); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 714, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyInt_From_unsigned_PY_LONG_LONG(__pyx_v_numberOfRecords); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 711, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_unsigned_PY_LONG_LONG(__pyx_v_numberOfRecords); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 714, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = PyTuple_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 711, __pyx_L1_error)
+  __pyx_t_3 = PyTuple_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 714, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_GIVEREF(__pyx_t_1);
   PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_t_1);
   __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 711, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 714, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_dtype, __pyx_v_RecordFormat) < 0) __PYX_ERR(0, 711, __pyx_L1_error)
-  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_3, __pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 711, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_dtype, __pyx_v_RecordFormat) < 0) __PYX_ERR(0, 714, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_3, __pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 714, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 711, __pyx_L1_error)
+  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 714, __pyx_L1_error)
   __pyx_v_buf = ((PyArrayObject *)__pyx_t_4);
   __pyx_t_4 = 0;
 
-  /* "dataRead.pyx":713
+  /* "dataRead.pyx":716
  *     cdef np.ndarray buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array
  *     cdef unsigned long long i
  *     for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -10190,23 +10218,23 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadByte(char const *__pyx_
   for (__pyx_t_7 = 0; __pyx_t_7 < __pyx_t_6; __pyx_t_7+=1) {
     __pyx_v_i = __pyx_t_7;
 
-    /* "dataRead.pyx":714
+    /* "dataRead.pyx":717
  *     cdef unsigned long long i
  *     for i in range(numberOfRecords):
  *             buf[i] = bytes(bita[posByteBeg + record_byte_size * i:\             # <<<<<<<<<<<<<<
  *                     posByteEnd + record_byte_size * i])
  *     return buf
  */
-    __pyx_t_4 = __Pyx_PyBytes_FromStringAndSize(__pyx_v_bita + (__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i)), (__pyx_v_posByteEnd + (__pyx_v_record_byte_size * __pyx_v_i)) - (__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 714, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyBytes_FromStringAndSize(__pyx_v_bita + (__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i)), (__pyx_v_posByteEnd + (__pyx_v_record_byte_size * __pyx_v_i)) - (__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 717, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_1 = __Pyx_PyObject_CallOneArg(((PyObject *)(&PyBytes_Type)), __pyx_t_4); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 714, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_CallOneArg(((PyObject *)(&PyBytes_Type)), __pyx_t_4); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 717, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(__Pyx_SetItemInt(((PyObject *)__pyx_v_buf), __pyx_v_i, __pyx_t_1, unsigned PY_LONG_LONG, 0, __Pyx_PyInt_From_unsigned_PY_LONG_LONG, 0, 0, 1) < 0)) __PYX_ERR(0, 714, __pyx_L1_error)
+    if (unlikely(__Pyx_SetItemInt(((PyObject *)__pyx_v_buf), __pyx_v_i, __pyx_t_1, unsigned PY_LONG_LONG, 0, __Pyx_PyInt_From_unsigned_PY_LONG_LONG, 0, 0, 1) < 0)) __PYX_ERR(0, 717, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
   }
 
-  /* "dataRead.pyx":716
+  /* "dataRead.pyx":719
  *             buf[i] = bytes(bita[posByteBeg + record_byte_size * i:\
  *                     posByteEnd + record_byte_size * i])
  *     return buf             # <<<<<<<<<<<<<<
@@ -10218,8 +10246,8 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadByte(char const *__pyx_
   __pyx_r = ((PyObject *)__pyx_v_buf);
   goto __pyx_L0;
 
-  /* "dataRead.pyx":708
- *                 buf[i] = temp8byte
+  /* "dataRead.pyx":711
+ *     return buf
  * 
  * cdef inline dataReadByte(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
  *         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd,
@@ -10241,7 +10269,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadByte(char const *__pyx_
   return __pyx_r;
 }
 
-/* "dataRead.pyx":718
+/* "dataRead.pyx":721
  *     return buf
  * 
  * cdef inline dataReadArray(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
@@ -10264,38 +10292,38 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadArray(char const *__pyx
   int __pyx_t_8;
   __Pyx_RefNannySetupContext("dataReadArray", 0);
 
-  /* "dataRead.pyx":721
+  /* "dataRead.pyx":724
  *         unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd,
  *         unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
  *     cdef np.ndarray buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array             # <<<<<<<<<<<<<<
  *     cdef unsigned long long i
  *     for i in range(numberOfRecords):
  */
-  __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 721, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 724, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_empty); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 721, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_1, __pyx_n_s_empty); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 724, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyInt_From_unsigned_PY_LONG_LONG(__pyx_v_numberOfRecords); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 721, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyInt_From_unsigned_PY_LONG_LONG(__pyx_v_numberOfRecords); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 724, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  __pyx_t_3 = PyTuple_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 721, __pyx_L1_error)
+  __pyx_t_3 = PyTuple_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 724, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_GIVEREF(__pyx_t_1);
   PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_t_1);
   __pyx_t_1 = 0;
-  __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 721, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 724, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_1);
-  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_dtype, __pyx_v_RecordFormat) < 0) __PYX_ERR(0, 721, __pyx_L1_error)
-  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_3, __pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 721, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_1, __pyx_n_s_dtype, __pyx_v_RecordFormat) < 0) __PYX_ERR(0, 724, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_3, __pyx_t_1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 724, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
-  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 721, __pyx_L1_error)
+  if (!(likely(((__pyx_t_4) == Py_None) || likely(__Pyx_TypeTest(__pyx_t_4, __pyx_ptype_5numpy_ndarray))))) __PYX_ERR(0, 724, __pyx_L1_error)
   __pyx_v_buf = ((PyArrayObject *)__pyx_t_4);
   __pyx_t_4 = 0;
 
-  /* "dataRead.pyx":723
+  /* "dataRead.pyx":726
  *     cdef np.ndarray buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array
  *     cdef unsigned long long i
  *     for i in range(numberOfRecords):             # <<<<<<<<<<<<<<
@@ -10307,70 +10335,70 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadArray(char const *__pyx
   for (__pyx_t_7 = 0; __pyx_t_7 < __pyx_t_6; __pyx_t_7+=1) {
     __pyx_v_i = __pyx_t_7;
 
-    /* "dataRead.pyx":724
+    /* "dataRead.pyx":727
  *     cdef unsigned long long i
  *     for i in range(numberOfRecords):
  *         buf[i] = np.fromstring(bita[posByteBeg + record_byte_size * i:\             # <<<<<<<<<<<<<<
  *             posByteEnd + record_byte_size * i], dtype=RecordFormat)
  *     if swap == 0:
  */
-    __pyx_t_4 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 724, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_GetModuleGlobalName(__pyx_n_s_np); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 727, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_fromstring); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 724, __pyx_L1_error)
+    __pyx_t_1 = __Pyx_PyObject_GetAttrStr(__pyx_t_4, __pyx_n_s_fromstring); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 727, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
-    /* "dataRead.pyx":725
+    /* "dataRead.pyx":728
  *     for i in range(numberOfRecords):
  *         buf[i] = np.fromstring(bita[posByteBeg + record_byte_size * i:\
  *             posByteEnd + record_byte_size * i], dtype=RecordFormat)             # <<<<<<<<<<<<<<
  *     if swap == 0:
  *         return buf
  */
-    __pyx_t_4 = __Pyx_PyBytes_FromStringAndSize(__pyx_v_bita + (__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i)), (__pyx_v_posByteEnd + (__pyx_v_record_byte_size * __pyx_v_i)) - (__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 724, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyBytes_FromStringAndSize(__pyx_v_bita + (__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i)), (__pyx_v_posByteEnd + (__pyx_v_record_byte_size * __pyx_v_i)) - (__pyx_v_posByteBeg + (__pyx_v_record_byte_size * __pyx_v_i))); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 727, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
 
-    /* "dataRead.pyx":724
+    /* "dataRead.pyx":727
  *     cdef unsigned long long i
  *     for i in range(numberOfRecords):
  *         buf[i] = np.fromstring(bita[posByteBeg + record_byte_size * i:\             # <<<<<<<<<<<<<<
  *             posByteEnd + record_byte_size * i], dtype=RecordFormat)
  *     if swap == 0:
  */
-    __pyx_t_3 = PyTuple_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 724, __pyx_L1_error)
+    __pyx_t_3 = PyTuple_New(1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 727, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
     __Pyx_GIVEREF(__pyx_t_4);
     PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_t_4);
     __pyx_t_4 = 0;
 
-    /* "dataRead.pyx":725
+    /* "dataRead.pyx":728
  *     for i in range(numberOfRecords):
  *         buf[i] = np.fromstring(bita[posByteBeg + record_byte_size * i:\
  *             posByteEnd + record_byte_size * i], dtype=RecordFormat)             # <<<<<<<<<<<<<<
  *     if swap == 0:
  *         return buf
  */
-    __pyx_t_4 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 725, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyDict_NewPresized(1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 728, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
-    if (PyDict_SetItem(__pyx_t_4, __pyx_n_s_dtype, __pyx_v_RecordFormat) < 0) __PYX_ERR(0, 725, __pyx_L1_error)
+    if (PyDict_SetItem(__pyx_t_4, __pyx_n_s_dtype, __pyx_v_RecordFormat) < 0) __PYX_ERR(0, 728, __pyx_L1_error)
 
-    /* "dataRead.pyx":724
+    /* "dataRead.pyx":727
  *     cdef unsigned long long i
  *     for i in range(numberOfRecords):
  *         buf[i] = np.fromstring(bita[posByteBeg + record_byte_size * i:\             # <<<<<<<<<<<<<<
  *             posByteEnd + record_byte_size * i], dtype=RecordFormat)
  *     if swap == 0:
  */
-    __pyx_t_2 = __Pyx_PyObject_Call(__pyx_t_1, __pyx_t_3, __pyx_t_4); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 724, __pyx_L1_error)
+    __pyx_t_2 = __Pyx_PyObject_Call(__pyx_t_1, __pyx_t_3, __pyx_t_4); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 727, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_2);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
-    if (unlikely(__Pyx_SetItemInt(((PyObject *)__pyx_v_buf), __pyx_v_i, __pyx_t_2, unsigned PY_LONG_LONG, 0, __Pyx_PyInt_From_unsigned_PY_LONG_LONG, 0, 0, 1) < 0)) __PYX_ERR(0, 724, __pyx_L1_error)
+    if (unlikely(__Pyx_SetItemInt(((PyObject *)__pyx_v_buf), __pyx_v_i, __pyx_t_2, unsigned PY_LONG_LONG, 0, __Pyx_PyInt_From_unsigned_PY_LONG_LONG, 0, 0, 1) < 0)) __PYX_ERR(0, 727, __pyx_L1_error)
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   }
 
-  /* "dataRead.pyx":726
+  /* "dataRead.pyx":729
  *         buf[i] = np.fromstring(bita[posByteBeg + record_byte_size * i:\
  *             posByteEnd + record_byte_size * i], dtype=RecordFormat)
  *     if swap == 0:             # <<<<<<<<<<<<<<
@@ -10380,7 +10408,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadArray(char const *__pyx
   __pyx_t_8 = ((__pyx_v_swap == 0) != 0);
   if (__pyx_t_8) {
 
-    /* "dataRead.pyx":727
+    /* "dataRead.pyx":730
  *             posByteEnd + record_byte_size * i], dtype=RecordFormat)
  *     if swap == 0:
  *         return buf             # <<<<<<<<<<<<<<
@@ -10392,7 +10420,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadArray(char const *__pyx
     __pyx_r = ((PyObject *)__pyx_v_buf);
     goto __pyx_L0;
 
-    /* "dataRead.pyx":726
+    /* "dataRead.pyx":729
  *         buf[i] = np.fromstring(bita[posByteBeg + record_byte_size * i:\
  *             posByteEnd + record_byte_size * i], dtype=RecordFormat)
  *     if swap == 0:             # <<<<<<<<<<<<<<
@@ -10401,14 +10429,14 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadArray(char const *__pyx
  */
   }
 
-  /* "dataRead.pyx":729
+  /* "dataRead.pyx":732
  *         return buf
  *     else:
  *         return buf.byteswap()             # <<<<<<<<<<<<<<
  */
   /*else*/ {
     __Pyx_XDECREF(__pyx_r);
-    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_buf), __pyx_n_s_byteswap); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 729, __pyx_L1_error)
+    __pyx_t_4 = __Pyx_PyObject_GetAttrStr(((PyObject *)__pyx_v_buf), __pyx_n_s_byteswap); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 732, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_4);
     __pyx_t_3 = NULL;
     if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_4))) {
@@ -10421,10 +10449,10 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadArray(char const *__pyx
       }
     }
     if (__pyx_t_3) {
-      __pyx_t_2 = __Pyx_PyObject_CallOneArg(__pyx_t_4, __pyx_t_3); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 729, __pyx_L1_error)
+      __pyx_t_2 = __Pyx_PyObject_CallOneArg(__pyx_t_4, __pyx_t_3); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 732, __pyx_L1_error)
       __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
     } else {
-      __pyx_t_2 = __Pyx_PyObject_CallNoArg(__pyx_t_4); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 729, __pyx_L1_error)
+      __pyx_t_2 = __Pyx_PyObject_CallNoArg(__pyx_t_4); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 732, __pyx_L1_error)
     }
     __Pyx_GOTREF(__pyx_t_2);
     __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
@@ -10433,7 +10461,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_dataReadArray(char const *__pyx
     goto __pyx_L0;
   }
 
-  /* "dataRead.pyx":718
+  /* "dataRead.pyx":721
  *     return buf
  * 
  * cdef inline dataReadArray(const char* bita, str RecordFormat, unsigned long long numberOfRecords,             # <<<<<<<<<<<<<<
