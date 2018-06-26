@@ -247,6 +247,7 @@ cdef inline dataReadUShort(const char* bita, str RecordFormat, unsigned long lon
                 if bitCount < 16:
                     temp2byte &= mask
                 buf[i] = temp2byte
+    return buf
 
 cdef inline dataReadShort(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
@@ -293,6 +294,7 @@ cdef inline dataReadShort(const char* bita, str RecordFormat, unsigned long long
                 if signBit: #  negative value, sign extend
                     temp2byte |= signExtend
                 buf[i] = temp2byte
+    return buf
 
 cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
