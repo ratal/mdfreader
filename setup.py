@@ -31,7 +31,7 @@ class CustomBuildExtCommand(build_ext):
 
 
 name = 'mdfreader'
-version = '2.7.7'
+version = '2.7.8'
 
 description = 'A Measured Data Format file parser'
 
@@ -120,7 +120,7 @@ entry_points = {
     ],
 }
 
-try:  # with cython installed
+try:  # try compiling module with cython or c code
     setup(name=name, version=version, description=description, long_description=long_description,
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
