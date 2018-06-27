@@ -1701,6 +1701,10 @@ class mdf4(mdf_skeleton):
                         else:
                             blocks[nchannel]['Comment'] = 0
 
+                if nRecords == 0 and masterChannel is not self.masterChannelList[masterChannel]:
+                    # No master channel in channel group
+                    nRecords = len(dataList[0])
+
                 if last_channel in blocks:
                     blocks[last_channel]['CN'] = 0  # last CN link is null
                 # writes size of record in CG
