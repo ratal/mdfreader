@@ -340,6 +340,7 @@ cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long 
                 if bitCount < 32:
                     temp4byte &= mask
                 buf[i] = temp4byte
+        return buf
     else:  # on 3 bytes
         if swap == 0:
             for i in range(numberOfRecords):
