@@ -31,7 +31,6 @@ from numpy import max as npmax, min as npmin
 from numpy import asarray, recarray, array, searchsorted, vectorize
 from numpy import issubdtype, number as numpy_number
 from numpy.core.records import fromstring, fromarrays
-from numpy.core.defchararray import encode as ncode
 from collections import defaultdict
 from math import log, exp
 from time import strftime, time, gmtime
@@ -1128,21 +1127,33 @@ class mdf3(mdf_skeleton):
         pointers['HD']['PR'] = 76
         ndataGroup = len(self.masterChannelList)
         if self.file_metadata['author'] is not None:  # Author
-            author = '{:\x00<32.31}'.format(self.file_metadata['author']).encode('latin-1')
+            try:
+                author = '{:\x00<32.31}'.format(self.file_metadata['author']).encode('latin-1', 'ignore')
+            except UnicodeEncodeError:
+                author = b'\x00' * 32
         elif os.name == 'posix':
             author = '{:\x00<32.31}'.format(getlogin()).encode('latin-1')
         else:
             author = b'\x00' * 32
         if self.file_metadata['organisation'] is not None:  # Organization
-            organization = '{:\x00<32.31}'.format(self.file_metadata['organisation']).encode('latin-1')
+            try:
+                organization = '{:\x00<32.31}'.format(self.file_metadata['organisation']).encode('latin-1', 'ignore')
+            except UnicodeEncodeError:
+                organization = b'\x00' * 32
         else:
             organization = b'\x00' * 32
         if self.file_metadata['project'] is not None:  # Project
-            project = '{:\x00<32.31}'.format(self.file_metadata['project']).encode('latin-1')
+            try:
+                project = '{:\x00<32.31}'.format(self.file_metadata['project']).encode('latin-1', 'ignore')
+            except UnicodeEncodeError:
+                project = b'\x00' * 32
         else:
             project = b'\x00' * 32
         if self.file_metadata['subject'] is not None:  # Subject
-            subject = '{:\x00<32.31}'.format(self.file_metadata['subject']).encode('latin-1')
+            try:
+                subject = '{:\x00<32.31}'.format(self.file_metadata['subject']).encode('latin-1', 'ignore')
+            except UnicodeEncodeError:
+                subject = b'\x00' * 32
         else:
             subject = b'\x00' * 32
         # Header Block, block size
@@ -1235,11 +1246,6 @@ class mdf3(mdf_skeleton):
                     byteOffset += 8192
                 data = self.getChannelData(channel)  # channel data
                 temp = data
-                if PythonVersion >= 3:
-                    if data.dtype.kind == 'S':
-                        temp = ncode(temp, encoding='latin1', errors='replace')
-                    elif data.dtype.kind == 'U':
-                        temp = ncode(temp, encoding='utf-8', errors='replace')
                 dataList = dataList + (temp, )
                 cn_numpy_kind = data.dtype.kind
                 cn_numpy_itemsize = data.dtype.itemsize
