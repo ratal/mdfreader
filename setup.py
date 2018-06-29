@@ -5,7 +5,7 @@ from distutils.extension import Extension
 from warnings import warn
 
 try:
-    from Cython.setuptools import build_ext
+    from Cython.Distutils import build_ext
 except:
     # If we couldn't import Cython, use the normal setuptools
     # and look for a pre-compiled .c file instead of a .pyx file
@@ -103,7 +103,7 @@ extras_require = {
 # have to be included in MANIFEST.in as well.
 # package_data={
 #    'sample': ['package_data.dat'],
-#},
+# },
 
 # Although 'package_data' is the preferred approach, in some case you may
 # need to place data files outside of your packages.
@@ -115,9 +115,7 @@ extras_require = {
 # "scripts" keyword. Entry points provide cross-platform support and allow
 # pip to create the appropriate form of executable for the target platform.
 entry_points = {
-    'console_scripts': [
-    'mdfconverter=mdfconverter.mdfconverter:main',
-    ],
+    'console_scripts': ['mdfconverter=mdfconverter.mdfconverter:main', ],
 }
 
 try:  # try compiling module with cython or c code
@@ -125,7 +123,7 @@ try:  # try compiling module with cython or c code
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
           entry_points=entry_points, ext_modules=ext_modules)
-except:  # without cython
+except:  # without Cython
     extras_require.pop('experimental')
     install_requires.append('bitarray')  # replaces cython requirement by bitarray
     setup(name=name, version=version, description=description, long_description=long_description,
