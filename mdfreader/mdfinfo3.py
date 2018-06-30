@@ -237,7 +237,11 @@ class info3(dict):
                     else:
                         temp = dict()
                         temp['tail'] = dg
-                    self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}_{2}'.format(signalname, dg, temp['tail'])
+                    if '{0}_{1}'.format(signalname, temp['tail']) not in self['allChannelList']:
+                        self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signalname, temp['tail'])
+                    else:
+                        self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}_{2}'.format(signalname,
+                                                                                              dg, temp['tail'])
                 else:
                     self['CNBlock'][dg][cg][channel]['signalName'] = signalname
                 self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][channel]['signalName'])
