@@ -237,7 +237,7 @@ class info3(dict):
                     else:
                         temp = dict()
                         temp['tail'] = dg
-                    self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signalname, temp['tail'])
+                    self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}_{2}'.format(signalname, dg, temp['tail'])
                 else:
                     self['CNBlock'][dg][cg][channel]['signalName'] = signalname
                 self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][channel]['signalName'])
