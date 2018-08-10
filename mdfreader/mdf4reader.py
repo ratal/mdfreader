@@ -439,7 +439,7 @@ class DATA(dict):
             temp.read(self.fid)
             temps.update(temp)
             self.pointerTodata = temps['hl_dl_first']
-            temps['data'] = self.load(record, info, nameList=nameList, sortedFlag=sortedFlag)
+            temps['data'] = self.load(record, info, nameList=nameList, sortedFlag=sortedFlag, vlsd=vlsd)
         elif temps['id'] in ('##DT', '##RD', b'##DT', b'##RD'):  # normal sorted data block, direct read
             temps['data'] = record.readSortedRecord(self.fid, info, channelSet=nameList)
         elif temps['id'] in ('##SD', b'##SD'):  # VLSD
