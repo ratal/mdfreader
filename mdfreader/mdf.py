@@ -703,7 +703,9 @@ def _bits_to_bytes(nBits, numeric=True):
     number of equivalent bytes
     """
     if numeric:
-        if nBits <= 8:
+        if nBits == 0:
+            nBytes = 0
+        elif nBits <= 8:
             nBytes = 1
         elif nBits <= 16:
             nBytes = 2
