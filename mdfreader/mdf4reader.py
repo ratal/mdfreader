@@ -888,8 +888,7 @@ class record(list):
         for Channel in self:  # list of channel classes from channelSet
             if Channel.name in channelSet and not Channel.VLSD_CG_Flag:
                 temp[Channel.name] = \
-                    Channel.CFormat(info).unpack(buf[Channel.posByteBeg(info):\
-                                                     Channel.posByteEnd(info)])[0]
+                    Channel.CFormat(info).unpack(buf[Channel.posByteBeg(info):Channel.posByteEnd(info)])[0]
         return temp  # returns dictionary of channel with its corresponding values
 
     def initialise_recarray(self, info, channelSet, nrecords, dtype=None, channels_indexes=None):
@@ -1030,27 +1029,32 @@ class record(list):
             B.frombytes(bytes(bita))
             record_bit_size = self.CGrecordLength * 8
             for chan in channels_indexes:
-                temp = [B[self[chan].posBitBeg(info) + record_bit_size * i:
-                        self[chan].posBitEnd(info) + record_bit_size * i]
-                        for i in range(nrecords)]
-                nbytes = len(temp[0].tobytes())
                 signalDataType = self[chan].signalDataType(info)
                 nBytes = self[chan].nBytes(info)
-                if not nbytes == nBytes and \
-                        signalDataType not in (6, 7, 8, 9, 10, 11, 12):  # not Ctype byte length
-                    byte = bitarray(8 * (nBytes - nbytes), endian='little')
-                    byte.setall(False)
-                    if signalDataType not in (2, 3):  # not signed integer
-                        for i in range(nrecords):  # extend data of bytes to match numpy requirement
-                            temp[i].extend(byte)
-                    else:  # signed integer (two's complement), keep sign bit and extend with bytes
-                        temp = signedInt(temp, byte)
-                nTrailBits = nBytes*8 - self[chan].bitCount(info)
-                if signalDataType in (2, 3) and \
-                        nbytes == nBytes and \
-                        nTrailBits > 0:  # Ctype byte length but signed integer
-                    trailBits = bitarray(nTrailBits, endian='little')
-                    temp = signedInt(temp, trailBits)
+                if not self[chan].type in ('CA', 'NestCA'):
+                    temp = [B[self[chan].posBitBeg(info) + record_bit_size * i:
+                            self[chan].posBitEnd(info) + record_bit_size * i]
+                            for i in range(nrecords)]
+                    nbytes = len(temp[0].tobytes())
+                    if not nbytes == nBytes and \
+                            signalDataType not in (6, 7, 8, 9, 10, 11, 12):  # not Ctype byte length
+                        byte = bitarray(8 * (nBytes - nbytes), endian='little')
+                        byte.setall(False)
+                        if signalDataType not in (2, 3):  # not signed integer
+                            for i in range(nrecords):  # extend data of bytes to match numpy requirement
+                                temp[i].extend(byte)
+                        else:  # signed integer (two's complement), keep sign bit and extend with bytes
+                            temp = signedInt(temp, byte)
+                    nTrailBits = nBytes*8 - self[chan].bitCount(info)
+                    if signalDataType in (2, 3) and \
+                            nbytes == nBytes and \
+                            nTrailBits > 0:  # Ctype byte length but signed integer
+                        trailBits = bitarray(nTrailBits, endian='little')
+                        temp = signedInt(temp, trailBits)
+                else:  # Channel Array
+                    temp = [B[self[chan].posBitBeg(info) + record_bit_size * i:
+                              self[chan].posBitBeg(info) + 8 * nBytes + record_bit_size * i]
+                            for i in range(nrecords)]
                 if 's' not in self[chan].Format(info):
                     CFormat = self[chan].CFormat(info)
                     if ('>' in self[chan].dataFormat(info) and byteorder == 'little') or \
