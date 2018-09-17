@@ -551,16 +551,24 @@ class channel4(object):
         -----------
         string data C format
         """
-        if self.type in ('std', 'CA', 'NestCA'):
-            signalDataType = self.signalDataType(info)
+        signalDataType = self.signalDataType(info)
+        if self.type == 'std':
             if signalDataType not in (13, 14):
                 if not self.channelType(info) == 1:  # if not VSLD
-                    return datatypeformat4(signalDataType, self.nBytes(info))
+                    endian, dataType = datatypeformat4(signalDataType, self.nBytes(info))
                 else:  # VLSD
-                    return datatypeformat4(0, self.nBytes(info))
+                    endian, dataType = datatypeformat4(0, self.nBytes(info))
+                return '{}{}'.format(endian, dataType)
+        elif self.type in ('CA', 'NestCA'):
+            CA = self.CABlock(info)
+            nBytes = _bits_to_bytes(info['CN'][self.dataGroup][self.channelGroup]
+                                    [self.channelNumber]['cn_bit_count'] + info['CN'][self.dataGroup][self.channelGroup]
+                                    [self.channelNumber]['cn_bit_offset'], self.isnumeric(info))
+            endian, dataType = datatypeformat4(signalDataType, nBytes)
+            return '{}{}{}'.format(endian, CA['PNd'], dataType)
         elif self.type == 'CAN':
             if self.name == 'ms':
-                if self.signalDataType == 13:
+                if signalDataType == 13:
                     return 'H'
                 else:
                     return 'I'
@@ -571,7 +579,7 @@ class channel4(object):
         elif self.type == 'Inv':
             return '{}s'.format(self.nBytes(info))
         else:
-            print('Not found channel type')
+            warn('Not found channel type')
 
     def CFormat(self, info):
         """ channel data C format struct object
@@ -1060,7 +1068,7 @@ def datatypeformat4(signalDataType, numberOfBytes):
         C format used by fread to read channel raw data
     """
 
-    if signalDataType in (0, 1):  # unsigned int
+    if signalDataType == 0:  # unsigned int
         if numberOfBytes == 1:
             dataType = 'B'
         elif numberOfBytes == 2:
@@ -1071,8 +1079,22 @@ def datatypeformat4(signalDataType, numberOfBytes):
             dataType = 'Q'
         else:
             dataType = '{}s'.format(numberOfBytes)
+        endian = '<'
 
-    elif signalDataType in (2, 3):  # signed int
+    elif signalDataType == 1:  # unsigned int
+        if numberOfBytes == 1:
+            dataType = 'B'
+        elif numberOfBytes == 2:
+            dataType = 'H'
+        elif numberOfBytes <= 4:
+            dataType = 'I'
+        elif numberOfBytes <= 8:
+            dataType = 'Q'
+        else:
+            dataType = '{}s'.format(numberOfBytes)
+        endian = '>'
+
+    elif signalDataType == 2:  # signed int
         if numberOfBytes == 1:
             dataType = 'b'
         elif numberOfBytes == 2:
@@ -1083,26 +1105,55 @@ def datatypeformat4(signalDataType, numberOfBytes):
             dataType = 'q'
         else:
             warn('Unsupported number of bytes for signed int {}'.format(signalDataType))
+        endian = '<'
 
-    elif signalDataType in (4, 5):  # floating point
+    elif signalDataType == 3:  # signed int
+        if numberOfBytes == 1:
+            dataType = 'b'
+        elif numberOfBytes == 2:
+            dataType = 'h'
+        elif numberOfBytes <= 4:
+            dataType = 'i'
+        elif numberOfBytes <= 8:
+            dataType = 'q'
+        else:
+            warn('Unsupported number of bytes for signed int {}'.format(signalDataType))
+        endian = '>'
+
+    elif signalDataType == 4:  # floating point
         if numberOfBytes == 4:
             dataType = 'f'
         elif numberOfBytes == 8:
             dataType = 'd'
         else:
             warn('Unsupported number of bytes for floating point {}'.format(signalDataType))
+        endian = '<'
 
-    elif signalDataType in (6, 7, 8, 9, 10, 11, 12):  # string/bytes
+    elif signalDataType == 5:  # floating point
+        if numberOfBytes == 4:
+            dataType = 'f'
+        elif numberOfBytes == 8:
+            dataType = 'd'
+        else:
+            warn('Unsupported number of bytes for floating point {}'.format(signalDataType))
+        endian = '>'
+
+    elif signalDataType in (6, 7, 10, 11, 12):  # string/bytes
         dataType = '{}s'.format(numberOfBytes)
+        endian = ''
+
+    elif signalDataType == 8:  # UTF16 string/bytes
+        dataType = '{}s'.format(numberOfBytes)
+        endian = '<'
+
+    elif signalDataType == 9:  # UTF16 string/bytes
+        dataType = '{}s'.format(numberOfBytes)
+        endian = '>'
+
     else:
         warn('Unsupported Signal Data Type {} {}'.format(signalDataType, numberOfBytes))
-    # deal with byte order
-    if signalDataType in (0, 2, 4, 8):  # low endian
-        dataType = '<{}'.format(dataType)
-    elif signalDataType in (1, 3, 5, 9):  # big endian
-        dataType = '>{}'.format(dataType)
 
-    return dataType
+    return endian, dataType
 
 
 class Channel3:
