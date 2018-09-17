@@ -53,6 +53,7 @@ PythonVersion = PythonVersion[0]
 
 chunk_size_reading = 100000000  # reads by chunk of 100Mb, can be tuned for best performance
 
+
 def linearConv(data, conv):  # 0 Parametric, Linear: Physical =Integer*P2 + P1
     """ apply linear conversion to data
 
@@ -454,7 +455,7 @@ class record(list):
         # check for hidden bytes
         if self.CGrecordLength > self.recordLength:
             self.hiddenBytes = True
-        # check record length consitency
+        # check record length consistency
         elif self.CGrecordLength < self.recordLength:
             # forces to use dataRead instead of numpy records.
             self.byte_aligned = False
@@ -535,7 +536,7 @@ class record(list):
                                            13: 0, 14: 2, 15: 4, 16: 4}
                     for nrecord_chunk, chunk_size in chunks:
                         bita = fid.read(chunk_size)
-                        for chan in recChan:
+                        for id, chan in enumerate(recChan):
                             rec[chan.name][previous_index: previous_index + nrecord_chunk] = \
                                 dataRead(bytes(bita),
                                          chan.bitCount,
@@ -546,6 +547,7 @@ class record(list):
                                          chan.bitOffset,
                                          chan.posByteBeg,
                                          chan.posByteEnd, 0)
+                            self[id].bit_masking_needed = False  # masking already considered in dataRead
                         previous_index += nrecord_chunk
                     return rec
                 except:
@@ -760,13 +762,19 @@ class DATA(dict):
         for recordID in self:
             for channelName in self[recordID]['record'].dataRecordName:
                 buf[channelName] = []
+            if self[recordID]['record'].hiddenBytes or not self[recordID]['record'].byte_aligned:
+                for ind, chan in enumerate(self[recordID]['record']):
+                    # will already extract bits, no need of masking later
+                    self[recordID]['record'][ind].bit_masking_needed = False
         # read data
         while position < len(stream):
             recordID = recordIdCFormat.unpack(stream[position:position + 1])[0]
             if not self[recordID]['record'].hiddenBytes and self[recordID]['record'].byte_aligned:
-                temp = self[recordID]['record'].readRecordBuf(stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
-            else:  # do read bytes but bits in record
-                temp = self[recordID]['record'].readRecordBits(stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
+                temp = self[recordID]['record'].readRecordBuf(
+                    stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
+            else:  # do not read bytes but bits in record
+                temp = self[recordID]['record'].readRecordBits(
+                    stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
             # recordId is only unit8
             position += self[recordID]['record'].CGrecordLength + 1
             for channelName in temp:
@@ -948,18 +956,14 @@ class mdf3(mdf_skeleton):
 
                             if len(temp) != 0:
                                 # Process concatenated bits inside uint8
-                                if not chan.bitCount // 8.0 == chan.bitCount / 8.0 \
-                                        and not buf[recordID]['record'].hiddenBytes \
-                                        and buf[recordID]['record'].byte_aligned \
-                                        and channelSet is None:
+                                if chan.bit_masking_needed:
                                     # if channel data do not use complete bytes
                                     if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
                                         temp = right_shift(temp, chan.embedding_channel_bitOffset)
                                         mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
-                                        warn('bit count and offset not applied '
-                                             'to correct data type')
+                                        warn('bit count and offset not applied to correct data type')
                                 self.add_channel(dataGroup, chan.name, temp,
                                                  master_channel,
                                                  master_type=1,

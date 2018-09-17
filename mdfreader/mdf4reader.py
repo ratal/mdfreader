@@ -439,7 +439,7 @@ class DATA(dict):
             temp.read(self.fid)
             temps.update(temp)
             self.pointerTodata = temps['hl_dl_first']
-            temps['data'] = self.load(record, info, nameList=nameList, sortedFlag=sortedFlag)
+            temps['data'] = self.load(record, info, nameList=nameList, sortedFlag=sortedFlag, vlsd=vlsd)
         elif temps['id'] in ('##DT', '##RD', b'##DT', b'##RD'):  # normal sorted data block, direct read
             temps['data'] = record.readSortedRecord(self.fid, info, channelSet=nameList)
         elif temps['id'] in ('##SD', b'##SD'):  # VLSD
@@ -919,7 +919,8 @@ class record(list):
             names = []
             channels_indexes = []
             for chan in range(len(self)):
-                if self[chan].name in channelSet:
+                if self[chan].name in channelSet and self[chan].channelType(info) not in (3, 6):
+                    # not virtual channel and part of channelSet
                     channels_indexes.append(chan)
                     formats.append(self[chan].nativedataFormat(info))
                     names.append(self[chan].name)
@@ -1278,7 +1279,8 @@ class mdf4(mdf_skeleton):
                                                     signBitMask = (1 << (bitCount - 1))
                                                     signExtend = ((1 << (temp.itemsize * 8 - bitCount)) - 1) << bitCount
                                                     signBit = bitwise_and(temp, signBitMask)
-                                                    for number, sign in enumerate(signBit):  # negative value, sign extend
+                                                    for number, sign in enumerate(signBit):
+                                                        # negative value, sign extend
                                                         if sign:
                                                             temp[number] |= signExtend
                                             else:  # should not happen
