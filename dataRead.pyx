@@ -64,13 +64,13 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadDouble(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, 1)
-        elif signalDataType in (0, 1, 13) and bitCount <= 8:  # unsigned char
+        elif signalDataType in (0, 1, 13) and bitCount + bitOffset <= 8:  # unsigned char
             return dataReadUChar(bita, RecordFormat, numberOfRecords,
                 record_byte_size, posByteBeg, bitCount, bitOffset)
-        elif signalDataType in (2, 3) and bitCount <= 8:  # signed char
+        elif signalDataType in (2, 3) and bitCount + bitOffset <= 8:  # signed char
             return dataReadChar(bita, RecordFormat, numberOfRecords,
                 record_byte_size, posByteBeg, bitCount, bitOffset)
-        elif signalDataType in (0, 1, 13, 14) and bitCount <=16:  # unsigned short
+        elif signalDataType in (0, 1, 13, 14) and bitCount + bitOffset <=16:  # unsigned short
             if (byteorder == 'little' and signalDataType == 0) or \
                     (byteorder == 'big' and signalDataType == 1):
                 return dataReadUShort(bita, RecordFormat, numberOfRecords,
@@ -78,7 +78,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadUShort(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
-        elif signalDataType in (2, 3) and bitCount <= 16:  # signed short
+        elif signalDataType in (2, 3) and bitCount + bitOffset <= 16:  # signed short
             if (byteorder == 'little' and signalDataType == 2) or \
                     (byteorder == 'big' and signalDataType == 3):
                 return dataReadShort(bita, RecordFormat, numberOfRecords,
@@ -86,7 +86,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadShort(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
-        elif signalDataType in (0, 1, 14) and bitCount <=32:  # unsigned int
+        elif signalDataType in (0, 1, 14) and bitCount + bitOffset <=32:  # unsigned int
             if (byteorder == 'little' and signalDataType == 0) or \
                     (byteorder == 'big' and signalDataType == 1):
                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
@@ -94,7 +94,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
-        elif signalDataType in (2, 3) and bitCount <= 32:  # signed int
+        elif signalDataType in (2, 3) and bitCount + bitOffset <= 32:  # signed int
             if (byteorder == 'little' and signalDataType == 2) or \
                     (byteorder == 'big' and signalDataType == 3):
                 return dataReadInt(bita, RecordFormat, numberOfRecords,
@@ -102,7 +102,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadInt(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
-        elif signalDataType in (0, 1) and bitCount <=64:  # unsigned long long
+        elif signalDataType in (0, 1) and bitCount + bitOffset <=64:  # unsigned long long
             if (byteorder == 'little' and signalDataType == 0) or \
                     (byteorder == 'big' and signalDataType == 1):
                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
@@ -110,7 +110,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
-        elif signalDataType in (2, 3) and bitCount <= 64:  # signed long long
+        elif signalDataType in (2, 3) and bitCount + bitOffset <= 64:  # signed long long
             if (byteorder == 'little' and signalDataType == 0) or \
                     (byteorder == 'big' and signalDataType == 1):
                 return dataReadLongLong(bita, RecordFormat, numberOfRecords,
@@ -306,7 +306,7 @@ cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long 
     cdef unsigned char nBytes = 0
     cdef char temp4[4]
     cdef char temp3[3]
-    if bitCount > 24:
+    if bitCount + bitOffset > 24:
         nBytes = 4
     else:
         nBytes = 3
@@ -379,7 +379,7 @@ cdef inline dataReadInt(const char* bita, str RecordFormat, unsigned long long n
     cdef int signExtend = ((1 << (32 - bitCount)) - 1) << bitCount
     cdef char temp4[4]
     cdef char temp3[3]
-    if bitCount > 24:
+    if bitCount + bitOffset > 24:
         nBytes = 4
     else:
         nBytes = 3
@@ -457,12 +457,12 @@ cdef inline dataReadULongLong(const char* bita, str RecordFormat, unsigned long 
     cdef unsigned long long i
     cdef unsigned long long mask = ((1 << bitCount) - 1)
     cdef unsigned long long temp8byte = 0
-    cdef unsigned char nBytes = bitCount // 8
+    cdef unsigned char nBytes = bitCount + bitOffset // 8
     cdef char temp8[8]
     cdef char temp7[7]
     cdef char temp6[6]
     cdef char temp5[5]
-    if bitCount % 8 > 0:
+    if bitCount + bitOffset % 8 > 0:
         nBytes += 1
     if bitCount == 64:
         for i in range(numberOfRecords):
@@ -573,7 +573,7 @@ cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long l
     cdef unsigned long long i
     cdef long long mask = ((1 << bitCount) - 1)
     cdef long long temp8byte = 0
-    cdef unsigned char nBytes = bitCount // 8
+    cdef unsigned char nBytes = bitCount + bitOffset // 8
     cdef long signBit = 0
     cdef long long signBitMask = (1 << (bitCount-1))
     cdef long long signExtend = ((1 << (64 - bitCount)) - 1) << bitCount
@@ -581,7 +581,7 @@ cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long l
     cdef char temp7[7]
     cdef char temp6[6]
     cdef char temp5[5]
-    if bitCount % 8 > 0:
+    if bitCount + bitOffset % 8 > 0:
         nBytes += 1
     if bitCount == 64:
         for i in range(numberOfRecords):
