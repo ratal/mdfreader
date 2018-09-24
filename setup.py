@@ -6,16 +6,14 @@ from warnings import warn
 
 try:
     from Cython.Build import cythonize
+    # If we successfully imported Cython, look for a .pyx file
     import numpy
-    ext_modules = cythonize('dataRead', include_path=[numpy.get_include()])
+    ext_modules = cythonize('dataRead.pyx', include_path=[numpy.get_include()], gdb_debug=True)
 except:
     # If we couldn't import Cython, use the normal setuptools
     # and look for a pre-compiled .c file instead of a .pyx file
     from setuptools.command.build_ext import build_ext
     ext_modules = [Extension("dataRead", ["dataRead.c"])]
-else:
-    # If we successfully imported Cython, look for a .pyx file
-    ext_modules = [Extension("dataRead", ["dataRead.pyx"])]
 
 
 name = 'mdfreader'
