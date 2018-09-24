@@ -11,7 +11,7 @@ from libc.string cimport memcpy
 def dataRead(bytes tmp, unsigned short bitCount,
         unsigned short signalDataType, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned char bitOffset,
-        unsigned long posByteBeg, unsigned long posByteEnd, array):
+        unsigned long posByteBeg, unsigned long nBytes, array):
     """dataRead function to read in cython a channel from a byte stream
 
     Parameters
@@ -33,8 +33,8 @@ def dataRead(bytes tmp, unsigned short bitCount,
         bit offset of data in C aligned bytes
     posByteBeg : unsigned long
         beginning byte position of channel in record
-    posByteEnd : unsigned long
-        ending byte position of channel in record
+    nBytes : unsigned long
+        bytes length of channel in record
     array : boolean
         reads an array, not a vector
 
@@ -47,7 +47,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
     if not array:
         if 'V' in RecordFormat or 'S' in RecordFormat or RecordFormat is None:
             return dataReadByte(bita, RecordFormat, numberOfRecords,
-                record_byte_size, posByteBeg, posByteEnd, bitCount, bitOffset)
+                record_byte_size, posByteBeg, nBytes, bitCount, bitOffset)
         elif signalDataType in (4, 5) and bitCount == 32:  # float
             if (byteorder == 'little' and signalDataType == 4) or \
                     (byteorder == 'big' and signalDataType == 5):
@@ -90,45 +90,45 @@ def dataRead(bytes tmp, unsigned short bitCount,
             if (byteorder == 'little' and signalDataType == 0) or \
                     (byteorder == 'big' and signalDataType == 1):
                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
-                    record_byte_size, posByteBeg, bitCount, bitOffset, 0)
+                    record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 0)
             else: #  swap bytes
                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
-                    record_byte_size, posByteBeg, bitCount, bitOffset, 1)
+                    record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
         elif signalDataType in (2, 3) and bitCount + bitOffset <= 32:  # signed int
             if (byteorder == 'little' and signalDataType == 2) or \
                     (byteorder == 'big' and signalDataType == 3):
                 return dataReadInt(bita, RecordFormat, numberOfRecords,
-                    record_byte_size, posByteBeg, bitCount, bitOffset, 0)
+                    record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 0)
             else: #  swap bytes
                 return dataReadInt(bita, RecordFormat, numberOfRecords,
-                    record_byte_size, posByteBeg, bitCount, bitOffset, 1)
+                    record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
         elif signalDataType in (0, 1) and bitCount + bitOffset <=64:  # unsigned long long
             if (byteorder == 'little' and signalDataType == 0) or \
                     (byteorder == 'big' and signalDataType == 1):
                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
-                    record_byte_size, posByteBeg, bitCount, bitOffset, 0)
+                    record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 0)
             else: #  swap bytes
                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
-                    record_byte_size, posByteBeg, bitCount, bitOffset, 1)
+                    record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
         elif signalDataType in (2, 3) and bitCount + bitOffset <= 64:  # signed long long
             if (byteorder == 'little' and signalDataType == 0) or \
                     (byteorder == 'big' and signalDataType == 1):
                 return dataReadLongLong(bita, RecordFormat, numberOfRecords,
-                    record_byte_size, posByteBeg, bitCount, bitOffset, 0)
+                    record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 0)
             else: #  swap bytes
                 return dataReadLongLong(bita, RecordFormat, numberOfRecords,
-                    record_byte_size, posByteBeg, bitCount, bitOffset, 1)
+                    record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
         else:
             return dataReadByte(bita, RecordFormat, numberOfRecords,
-                record_byte_size, posByteBeg, posByteEnd, bitCount, bitOffset)
+                record_byte_size, posByteBeg, nBytes, bitCount, bitOffset)
     else: # array
         if (byteorder == 'little' and signalDataType in (0, 2, 4)) or \
                     (byteorder == 'big' and signalDataType in (1, 3, 5)):
             return dataReadArray(bita, RecordFormat, numberOfRecords,
-                    record_byte_size, posByteBeg, posByteEnd, bitCount, bitOffset, 0)
+                    record_byte_size, posByteBeg, nBytes, bitCount, bitOffset, 0)
         else: #  swap bytes
             return dataReadArray(bita, RecordFormat, numberOfRecords,
-                    record_byte_size, posByteBeg, posByteEnd, bitCount, bitOffset, 1)
+                    record_byte_size, posByteBeg, nBytes, bitCount, bitOffset, 1)
 
 
 cdef inline dataReadFloat(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
@@ -298,18 +298,13 @@ cdef inline dataReadShort(const char* bita, str RecordFormat, unsigned long long
 
 cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
-        unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
+        unsigned long bitCount, unsigned char bitOffset, unsigned long nBytes, unsigned char swap):
     cdef np.ndarray[np.uint32_t] buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef unsigned int mask = ((1 << bitCount) - 1)
     cdef unsigned int temp4byte = 0
-    cdef unsigned char nBytes = 0
     cdef char temp4[4]
     cdef char temp3[3]
-    if bitCount + bitOffset > 24:
-        nBytes = 4
-    else:
-        nBytes = 3
     if bitCount == 32:
         for i in range(numberOfRecords):
             memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], 2)
@@ -368,21 +363,16 @@ cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long 
 
 cdef inline dataReadInt(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
-        unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
+        unsigned long bitCount, unsigned char bitOffset, unsigned long nBytes, unsigned char swap):
     cdef np.ndarray[np.int32_t] buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef int mask = ((1 << bitCount) - 1)
     cdef int temp4byte = 0
-    cdef unsigned char nBytes = 0
     cdef int signBit = 0
     cdef int signBitMask = (1 << (bitCount-1))
     cdef int signExtend = ((1 << (32 - bitCount)) - 1) << bitCount
     cdef char temp4[4]
     cdef char temp3[3]
-    if bitCount + bitOffset > 24:
-        nBytes = 4
-    else:
-        nBytes = 3
     if bitCount == 32:
         for i in range(numberOfRecords):
             memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], 2)
@@ -452,18 +442,15 @@ cdef inline dataReadInt(const char* bita, str RecordFormat, unsigned long long n
 
 cdef inline dataReadULongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
-        unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
+        unsigned long bitCount, unsigned char bitOffset, unsigned long nBytes, unsigned char swap):
     cdef np.ndarray[np.uint64_t] buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef unsigned long long mask = ((1 << bitCount) - 1)
     cdef unsigned long long temp8byte = 0
-    cdef unsigned char nBytes = bitCount + bitOffset // 8
     cdef char temp8[8]
     cdef char temp7[7]
     cdef char temp6[6]
     cdef char temp5[5]
-    if bitCount + bitOffset % 8 > 0:
-        nBytes += 1
     if bitCount == 64:
         for i in range(numberOfRecords):
             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
@@ -568,12 +555,11 @@ cdef inline dataReadULongLong(const char* bita, str RecordFormat, unsigned long 
 
 cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
         unsigned long record_byte_size, unsigned long posByteBeg,
-        unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
+        unsigned long bitCount, unsigned char bitOffset, unsigned long nBytes, unsigned char swap):
     cdef np.ndarray[np.int64_t] buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
     cdef long long mask = ((1 << bitCount) - 1)
     cdef long long temp8byte = 0
-    cdef unsigned char nBytes = bitCount + bitOffset // 8
     cdef long signBit = 0
     cdef long long signBitMask = (1 << (bitCount-1))
     cdef long long signExtend = ((1 << (64 - bitCount)) - 1) << bitCount
@@ -581,8 +567,6 @@ cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long l
     cdef char temp7[7]
     cdef char temp6[6]
     cdef char temp5[5]
-    if bitCount + bitOffset % 8 > 0:
-        nBytes += 1
     if bitCount == 64:
         for i in range(numberOfRecords):
             memcpy(&temp8byte, &bita[posByteBeg + record_byte_size * i], nBytes)
@@ -710,20 +694,22 @@ cdef inline dataReadLongLong(const char* bita, str RecordFormat, unsigned long l
     return buf
 
 cdef inline dataReadByte(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
-        unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd,
+        unsigned long record_byte_size, unsigned long posByteBeg, unsigned long nBytes,
         unsigned long bitCount, unsigned char bitOffset):
     cdef np.ndarray buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
+    cdef unsigned long posByteEnd = posByteBeg + nBytes
     for i in range(numberOfRecords):
             buf[i] = bytes(bita[posByteBeg + record_byte_size * i:\
                     posByteEnd + record_byte_size * i])
     return buf
 
 cdef inline dataReadArray(const char* bita, str RecordFormat, unsigned long long numberOfRecords,
-        unsigned long record_byte_size, unsigned long posByteBeg, unsigned long posByteEnd,
+        unsigned long record_byte_size, unsigned long posByteBeg, unsigned long nBytes,
         unsigned long bitCount, unsigned char bitOffset, unsigned char swap):
     cdef np.ndarray buf = np.empty(numberOfRecords, dtype=RecordFormat)  # return numpy array
     cdef unsigned long long i
+    cdef unsigned long posByteEnd = posByteBeg + nBytes
     for i in range(numberOfRecords):
         buf[i] = np.fromstring(bita[posByteBeg + record_byte_size * i:\
             posByteEnd + record_byte_size * i], dtype=RecordFormat)

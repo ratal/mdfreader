@@ -972,7 +972,7 @@ class record(list):
                                  self[chan].nativedataFormat(info),
                                  nrecords, self.CGrecordLength,
                                  self[chan].bitOffset(info), self[chan].posByteBeg(info),
-                                 self[chan].posByteEnd(info), array_flag)
+                                 self[chan].nBytes(info), array_flag)
                 return buf
             else:
                 return self.read_channels_from_bytes_fallback(bita, info, channelSet, nrecords, dtype)

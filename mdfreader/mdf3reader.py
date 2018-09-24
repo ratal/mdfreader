@@ -546,7 +546,7 @@ class record(list):
                                          self.CGrecordLength,
                                          chan.bitOffset,
                                          chan.posByteBeg,
-                                         chan.posByteEnd, 0)
+                                         chan.nBytes, 0)
                             self[id].bit_masking_needed = False  # masking already considered in dataRead
                         previous_index += nrecord_chunk
                     return rec
