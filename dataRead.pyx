@@ -48,7 +48,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
         if 'V' in RecordFormat or 'S' in RecordFormat or RecordFormat is None:
             return dataReadByte(bita, RecordFormat, numberOfRecords,
                 record_byte_size, posByteBeg, nBytes, bitCount, bitOffset)
-        elif signalDataType in (4, 5) and bitCount == 32:  # float
+        elif signalDataType in (4, 5) and nBytes == 4:  # float
             if (byteorder == 'little' and signalDataType == 4) or \
                     (byteorder == 'big' and signalDataType == 5):
                 return dataReadFloat(bita, RecordFormat, numberOfRecords,
@@ -56,7 +56,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadFloat(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, 1)
-        elif signalDataType in (4, 5) and bitCount == 64:  # double
+        elif signalDataType in (4, 5) and nBytes == 8:  # double
             if (byteorder == 'little' and signalDataType == 4) or \
                     (byteorder == 'big' and signalDataType == 5):
                 return dataReadDouble(bita, RecordFormat, numberOfRecords,
@@ -64,13 +64,13 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadDouble(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, 1)
-        elif signalDataType in (0, 1, 13) and bitCount + bitOffset <= 8:  # unsigned char
+        elif signalDataType in (0, 1, 13) and nBytes == 1:  # unsigned char
             return dataReadUChar(bita, RecordFormat, numberOfRecords,
                 record_byte_size, posByteBeg, bitCount, bitOffset)
-        elif signalDataType in (2, 3) and bitCount + bitOffset <= 8:  # signed char
+        elif signalDataType in (2, 3) and nBytes == 1:  # signed char
             return dataReadChar(bita, RecordFormat, numberOfRecords,
                 record_byte_size, posByteBeg, bitCount, bitOffset)
-        elif signalDataType in (0, 1, 13, 14) and bitCount + bitOffset <=16:  # unsigned short
+        elif signalDataType in (0, 1, 13, 14) and nBytes <= 2:  # unsigned short
             if (byteorder == 'little' and signalDataType == 0) or \
                     (byteorder == 'big' and signalDataType == 1):
                 return dataReadUShort(bita, RecordFormat, numberOfRecords,
@@ -78,7 +78,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadUShort(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
-        elif signalDataType in (2, 3) and bitCount + bitOffset <= 16:  # signed short
+        elif signalDataType in (2, 3) and nBytes <= 2:  # signed short
             if (byteorder == 'little' and signalDataType == 2) or \
                     (byteorder == 'big' and signalDataType == 3):
                 return dataReadShort(bita, RecordFormat, numberOfRecords,
@@ -86,7 +86,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadShort(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
-        elif signalDataType in (0, 1, 14) and bitCount + bitOffset <=32:  # unsigned int
+        elif signalDataType in (0, 1, 14) and nBytes <= 4:  # unsigned int
             if (byteorder == 'little' and signalDataType == 0) or \
                     (byteorder == 'big' and signalDataType == 1):
                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
@@ -94,7 +94,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
-        elif signalDataType in (2, 3) and bitCount + bitOffset <= 32:  # signed int
+        elif signalDataType in (2, 3) and nBytes <= 4:  # signed int
             if (byteorder == 'little' and signalDataType == 2) or \
                     (byteorder == 'big' and signalDataType == 3):
                 return dataReadInt(bita, RecordFormat, numberOfRecords,
@@ -102,7 +102,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadInt(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
-        elif signalDataType in (0, 1) and bitCount + bitOffset <=64:  # unsigned long long
+        elif signalDataType in (0, 1) and nBytes <= 8:  # unsigned long long
             if (byteorder == 'little' and signalDataType == 0) or \
                     (byteorder == 'big' and signalDataType == 1):
                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
@@ -110,7 +110,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
             else: #  swap bytes
                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
-        elif signalDataType in (2, 3) and bitCount + bitOffset <= 64:  # signed long long
+        elif signalDataType in (2, 3) and nBytes <= 8:  # signed long long
             if (byteorder == 'little' and signalDataType == 0) or \
                     (byteorder == 'big' and signalDataType == 1):
                 return dataReadLongLong(bita, RecordFormat, numberOfRecords,
