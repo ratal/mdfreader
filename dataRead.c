@@ -1985,7 +1985,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *         if 'V' in RecordFormat or 'S' in RecordFormat or RecordFormat is None:
  *             return dataReadByte(bita, RecordFormat, numberOfRecords,             # <<<<<<<<<<<<<<
  *                 record_byte_size, posByteBeg, nBytes, bitCount, bitOffset)
- *         elif signalDataType in (4, 5) and bitCount == 32:  # float
+ *         elif signalDataType in (4, 5) and nBytes == 4:  # float
  */
       __Pyx_XDECREF(__pyx_r);
 
@@ -1993,7 +1993,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *         if 'V' in RecordFormat or 'S' in RecordFormat or RecordFormat is None:
  *             return dataReadByte(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, nBytes, bitCount, bitOffset)             # <<<<<<<<<<<<<<
- *         elif signalDataType in (4, 5) and bitCount == 32:  # float
+ *         elif signalDataType in (4, 5) and nBytes == 4:  # float
  *             if (byteorder == 'little' and signalDataType == 4) or \
  */
       __pyx_t_5 = __pyx_f_8dataRead_dataReadByte(__pyx_v_bita, __pyx_v_RecordFormat, __pyx_v_numberOfRecords, __pyx_v_record_byte_size, __pyx_v_posByteBeg, __pyx_v_nBytes, __pyx_v_bitCount, __pyx_v_bitOffset); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 49, __pyx_L1_error)
@@ -2014,7 +2014,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
     /* "dataRead.pyx":51
  *             return dataReadByte(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, nBytes, bitCount, bitOffset)
- *         elif signalDataType in (4, 5) and bitCount == 32:  # float             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (4, 5) and nBytes == 4:  # float             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 4) or \
  *                     (byteorder == 'big' and signalDataType == 5):
  */
@@ -2033,14 +2033,14 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_t_3 = __pyx_t_2;
       goto __pyx_L8_bool_binop_done;
     }
-    __pyx_t_2 = ((__pyx_v_bitCount == 32) != 0);
+    __pyx_t_2 = ((__pyx_v_nBytes == 4) != 0);
     __pyx_t_3 = __pyx_t_2;
     __pyx_L8_bool_binop_done:;
     if (__pyx_t_3) {
 
       /* "dataRead.pyx":52
  *                 record_byte_size, posByteBeg, nBytes, bitCount, bitOffset)
- *         elif signalDataType in (4, 5) and bitCount == 32:  # float
+ *         elif signalDataType in (4, 5) and nBytes == 4:  # float
  *             if (byteorder == 'little' and signalDataType == 4) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 5):
  *                 return dataReadFloat(bita, RecordFormat, numberOfRecords,
@@ -2062,7 +2062,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_L12_next_or:;
 
       /* "dataRead.pyx":53
- *         elif signalDataType in (4, 5) and bitCount == 32:  # float
+ *         elif signalDataType in (4, 5) and nBytes == 4:  # float
  *             if (byteorder == 'little' and signalDataType == 4) or \
  *                     (byteorder == 'big' and signalDataType == 5):             # <<<<<<<<<<<<<<
  *                 return dataReadFloat(bita, RecordFormat, numberOfRecords,
@@ -2083,7 +2083,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
       /* "dataRead.pyx":52
  *                 record_byte_size, posByteBeg, nBytes, bitCount, bitOffset)
- *         elif signalDataType in (4, 5) and bitCount == 32:  # float
+ *         elif signalDataType in (4, 5) and nBytes == 4:  # float
  *             if (byteorder == 'little' and signalDataType == 4) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 5):
  *                 return dataReadFloat(bita, RecordFormat, numberOfRecords,
@@ -2114,7 +2114,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
         /* "dataRead.pyx":52
  *                 record_byte_size, posByteBeg, nBytes, bitCount, bitOffset)
- *         elif signalDataType in (4, 5) and bitCount == 32:  # float
+ *         elif signalDataType in (4, 5) and nBytes == 4:  # float
  *             if (byteorder == 'little' and signalDataType == 4) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 5):
  *                 return dataReadFloat(bita, RecordFormat, numberOfRecords,
@@ -2126,7 +2126,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadFloat(bita, RecordFormat, numberOfRecords,             # <<<<<<<<<<<<<<
  *                     record_byte_size, posByteBeg, 1)
- *         elif signalDataType in (4, 5) and bitCount == 64:  # double
+ *         elif signalDataType in (4, 5) and nBytes == 8:  # double
  */
       /*else*/ {
         __Pyx_XDECREF(__pyx_r);
@@ -2135,7 +2135,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadFloat(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, 1)             # <<<<<<<<<<<<<<
- *         elif signalDataType in (4, 5) and bitCount == 64:  # double
+ *         elif signalDataType in (4, 5) and nBytes == 8:  # double
  *             if (byteorder == 'little' and signalDataType == 4) or \
  */
         __pyx_t_5 = __pyx_f_8dataRead_dataReadFloat(__pyx_v_bita, __pyx_v_RecordFormat, __pyx_v_numberOfRecords, __pyx_v_record_byte_size, __pyx_v_posByteBeg, 1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 57, __pyx_L1_error)
@@ -2148,7 +2148,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       /* "dataRead.pyx":51
  *             return dataReadByte(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, nBytes, bitCount, bitOffset)
- *         elif signalDataType in (4, 5) and bitCount == 32:  # float             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (4, 5) and nBytes == 4:  # float             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 4) or \
  *                     (byteorder == 'big' and signalDataType == 5):
  */
@@ -2157,7 +2157,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
     /* "dataRead.pyx":59
  *                 return dataReadFloat(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, 1)
- *         elif signalDataType in (4, 5) and bitCount == 64:  # double             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (4, 5) and nBytes == 8:  # double             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 4) or \
  *                     (byteorder == 'big' and signalDataType == 5):
  */
@@ -2176,14 +2176,14 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_t_3 = __pyx_t_4;
       goto __pyx_L15_bool_binop_done;
     }
-    __pyx_t_4 = ((__pyx_v_bitCount == 64) != 0);
+    __pyx_t_4 = ((__pyx_v_nBytes == 8) != 0);
     __pyx_t_3 = __pyx_t_4;
     __pyx_L15_bool_binop_done:;
     if (__pyx_t_3) {
 
       /* "dataRead.pyx":60
  *                     record_byte_size, posByteBeg, 1)
- *         elif signalDataType in (4, 5) and bitCount == 64:  # double
+ *         elif signalDataType in (4, 5) and nBytes == 8:  # double
  *             if (byteorder == 'little' and signalDataType == 4) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 5):
  *                 return dataReadDouble(bita, RecordFormat, numberOfRecords,
@@ -2205,7 +2205,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_L19_next_or:;
 
       /* "dataRead.pyx":61
- *         elif signalDataType in (4, 5) and bitCount == 64:  # double
+ *         elif signalDataType in (4, 5) and nBytes == 8:  # double
  *             if (byteorder == 'little' and signalDataType == 4) or \
  *                     (byteorder == 'big' and signalDataType == 5):             # <<<<<<<<<<<<<<
  *                 return dataReadDouble(bita, RecordFormat, numberOfRecords,
@@ -2226,7 +2226,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
       /* "dataRead.pyx":60
  *                     record_byte_size, posByteBeg, 1)
- *         elif signalDataType in (4, 5) and bitCount == 64:  # double
+ *         elif signalDataType in (4, 5) and nBytes == 8:  # double
  *             if (byteorder == 'little' and signalDataType == 4) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 5):
  *                 return dataReadDouble(bita, RecordFormat, numberOfRecords,
@@ -2257,7 +2257,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
         /* "dataRead.pyx":60
  *                     record_byte_size, posByteBeg, 1)
- *         elif signalDataType in (4, 5) and bitCount == 64:  # double
+ *         elif signalDataType in (4, 5) and nBytes == 8:  # double
  *             if (byteorder == 'little' and signalDataType == 4) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 5):
  *                 return dataReadDouble(bita, RecordFormat, numberOfRecords,
@@ -2269,7 +2269,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadDouble(bita, RecordFormat, numberOfRecords,             # <<<<<<<<<<<<<<
  *                     record_byte_size, posByteBeg, 1)
- *         elif signalDataType in (0, 1, 13) and bitCount + bitOffset <= 8:  # unsigned char
+ *         elif signalDataType in (0, 1, 13) and nBytes == 1:  # unsigned char
  */
       /*else*/ {
         __Pyx_XDECREF(__pyx_r);
@@ -2278,7 +2278,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadDouble(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, 1)             # <<<<<<<<<<<<<<
- *         elif signalDataType in (0, 1, 13) and bitCount + bitOffset <= 8:  # unsigned char
+ *         elif signalDataType in (0, 1, 13) and nBytes == 1:  # unsigned char
  *             return dataReadUChar(bita, RecordFormat, numberOfRecords,
  */
         __pyx_t_5 = __pyx_f_8dataRead_dataReadDouble(__pyx_v_bita, __pyx_v_RecordFormat, __pyx_v_numberOfRecords, __pyx_v_record_byte_size, __pyx_v_posByteBeg, 1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 65, __pyx_L1_error)
@@ -2291,7 +2291,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       /* "dataRead.pyx":59
  *                 return dataReadFloat(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, 1)
- *         elif signalDataType in (4, 5) and bitCount == 64:  # double             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (4, 5) and nBytes == 8:  # double             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 4) or \
  *                     (byteorder == 'big' and signalDataType == 5):
  */
@@ -2300,7 +2300,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
     /* "dataRead.pyx":67
  *                 return dataReadDouble(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, 1)
- *         elif signalDataType in (0, 1, 13) and bitCount + bitOffset <= 8:  # unsigned char             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (0, 1, 13) and nBytes == 1:  # unsigned char             # <<<<<<<<<<<<<<
  *             return dataReadUChar(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
  */
@@ -2320,25 +2320,25 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_t_3 = __pyx_t_2;
       goto __pyx_L22_bool_binop_done;
     }
-    __pyx_t_2 = (((__pyx_v_bitCount + __pyx_v_bitOffset) <= 8) != 0);
+    __pyx_t_2 = ((__pyx_v_nBytes == 1) != 0);
     __pyx_t_3 = __pyx_t_2;
     __pyx_L22_bool_binop_done:;
     if (__pyx_t_3) {
 
       /* "dataRead.pyx":68
  *                     record_byte_size, posByteBeg, 1)
- *         elif signalDataType in (0, 1, 13) and bitCount + bitOffset <= 8:  # unsigned char
+ *         elif signalDataType in (0, 1, 13) and nBytes == 1:  # unsigned char
  *             return dataReadUChar(bita, RecordFormat, numberOfRecords,             # <<<<<<<<<<<<<<
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 8:  # signed char
+ *         elif signalDataType in (2, 3) and nBytes == 1:  # signed char
  */
       __Pyx_XDECREF(__pyx_r);
 
       /* "dataRead.pyx":69
- *         elif signalDataType in (0, 1, 13) and bitCount + bitOffset <= 8:  # unsigned char
+ *         elif signalDataType in (0, 1, 13) and nBytes == 1:  # unsigned char
  *             return dataReadUChar(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)             # <<<<<<<<<<<<<<
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 8:  # signed char
+ *         elif signalDataType in (2, 3) and nBytes == 1:  # signed char
  *             return dataReadChar(bita, RecordFormat, numberOfRecords,
  */
       __pyx_t_5 = __pyx_f_8dataRead_dataReadUChar(__pyx_v_bita, __pyx_v_RecordFormat, __pyx_v_numberOfRecords, __pyx_v_record_byte_size, __pyx_v_posByteBeg, __pyx_v_bitCount, __pyx_v_bitOffset); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 68, __pyx_L1_error)
@@ -2350,7 +2350,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       /* "dataRead.pyx":67
  *                 return dataReadDouble(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, 1)
- *         elif signalDataType in (0, 1, 13) and bitCount + bitOffset <= 8:  # unsigned char             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (0, 1, 13) and nBytes == 1:  # unsigned char             # <<<<<<<<<<<<<<
  *             return dataReadUChar(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
  */
@@ -2359,7 +2359,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
     /* "dataRead.pyx":70
  *             return dataReadUChar(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 8:  # signed char             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (2, 3) and nBytes == 1:  # signed char             # <<<<<<<<<<<<<<
  *             return dataReadChar(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
  */
@@ -2378,25 +2378,25 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_t_3 = __pyx_t_4;
       goto __pyx_L24_bool_binop_done;
     }
-    __pyx_t_4 = (((__pyx_v_bitCount + __pyx_v_bitOffset) <= 8) != 0);
+    __pyx_t_4 = ((__pyx_v_nBytes == 1) != 0);
     __pyx_t_3 = __pyx_t_4;
     __pyx_L24_bool_binop_done:;
     if (__pyx_t_3) {
 
       /* "dataRead.pyx":71
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 8:  # signed char
+ *         elif signalDataType in (2, 3) and nBytes == 1:  # signed char
  *             return dataReadChar(bita, RecordFormat, numberOfRecords,             # <<<<<<<<<<<<<<
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
- *         elif signalDataType in (0, 1, 13, 14) and bitCount + bitOffset <=16:  # unsigned short
+ *         elif signalDataType in (0, 1, 13, 14) and nBytes <= 2:  # unsigned short
  */
       __Pyx_XDECREF(__pyx_r);
 
       /* "dataRead.pyx":72
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 8:  # signed char
+ *         elif signalDataType in (2, 3) and nBytes == 1:  # signed char
  *             return dataReadChar(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)             # <<<<<<<<<<<<<<
- *         elif signalDataType in (0, 1, 13, 14) and bitCount + bitOffset <=16:  # unsigned short
+ *         elif signalDataType in (0, 1, 13, 14) and nBytes <= 2:  # unsigned short
  *             if (byteorder == 'little' and signalDataType == 0) or \
  */
       __pyx_t_5 = __pyx_f_8dataRead_dataReadChar(__pyx_v_bita, __pyx_v_RecordFormat, __pyx_v_numberOfRecords, __pyx_v_record_byte_size, __pyx_v_posByteBeg, __pyx_v_bitCount, __pyx_v_bitOffset); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 71, __pyx_L1_error)
@@ -2408,7 +2408,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       /* "dataRead.pyx":70
  *             return dataReadUChar(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 8:  # signed char             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (2, 3) and nBytes == 1:  # signed char             # <<<<<<<<<<<<<<
  *             return dataReadChar(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
  */
@@ -2417,7 +2417,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
     /* "dataRead.pyx":73
  *             return dataReadChar(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
- *         elif signalDataType in (0, 1, 13, 14) and bitCount + bitOffset <=16:  # unsigned short             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (0, 1, 13, 14) and nBytes <= 2:  # unsigned short             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):
  */
@@ -2438,14 +2438,14 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_t_3 = __pyx_t_2;
       goto __pyx_L26_bool_binop_done;
     }
-    __pyx_t_2 = (((__pyx_v_bitCount + __pyx_v_bitOffset) <= 16) != 0);
+    __pyx_t_2 = ((__pyx_v_nBytes <= 2) != 0);
     __pyx_t_3 = __pyx_t_2;
     __pyx_L26_bool_binop_done:;
     if (__pyx_t_3) {
 
       /* "dataRead.pyx":74
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
- *         elif signalDataType in (0, 1, 13, 14) and bitCount + bitOffset <=16:  # unsigned short
+ *         elif signalDataType in (0, 1, 13, 14) and nBytes <= 2:  # unsigned short
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadUShort(bita, RecordFormat, numberOfRecords,
@@ -2467,7 +2467,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_L30_next_or:;
 
       /* "dataRead.pyx":75
- *         elif signalDataType in (0, 1, 13, 14) and bitCount + bitOffset <=16:  # unsigned short
+ *         elif signalDataType in (0, 1, 13, 14) and nBytes <= 2:  # unsigned short
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):             # <<<<<<<<<<<<<<
  *                 return dataReadUShort(bita, RecordFormat, numberOfRecords,
@@ -2488,7 +2488,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
       /* "dataRead.pyx":74
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
- *         elif signalDataType in (0, 1, 13, 14) and bitCount + bitOffset <=16:  # unsigned short
+ *         elif signalDataType in (0, 1, 13, 14) and nBytes <= 2:  # unsigned short
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadUShort(bita, RecordFormat, numberOfRecords,
@@ -2519,7 +2519,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
         /* "dataRead.pyx":74
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
- *         elif signalDataType in (0, 1, 13, 14) and bitCount + bitOffset <=16:  # unsigned short
+ *         elif signalDataType in (0, 1, 13, 14) and nBytes <= 2:  # unsigned short
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadUShort(bita, RecordFormat, numberOfRecords,
@@ -2531,7 +2531,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadUShort(bita, RecordFormat, numberOfRecords,             # <<<<<<<<<<<<<<
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 16:  # signed short
+ *         elif signalDataType in (2, 3) and nBytes <= 2:  # signed short
  */
       /*else*/ {
         __Pyx_XDECREF(__pyx_r);
@@ -2540,7 +2540,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadUShort(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)             # <<<<<<<<<<<<<<
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 16:  # signed short
+ *         elif signalDataType in (2, 3) and nBytes <= 2:  # signed short
  *             if (byteorder == 'little' and signalDataType == 2) or \
  */
         __pyx_t_5 = __pyx_f_8dataRead_dataReadUShort(__pyx_v_bita, __pyx_v_RecordFormat, __pyx_v_numberOfRecords, __pyx_v_record_byte_size, __pyx_v_posByteBeg, __pyx_v_bitCount, __pyx_v_bitOffset, 1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 79, __pyx_L1_error)
@@ -2553,7 +2553,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       /* "dataRead.pyx":73
  *             return dataReadChar(bita, RecordFormat, numberOfRecords,
  *                 record_byte_size, posByteBeg, bitCount, bitOffset)
- *         elif signalDataType in (0, 1, 13, 14) and bitCount + bitOffset <=16:  # unsigned short             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (0, 1, 13, 14) and nBytes <= 2:  # unsigned short             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):
  */
@@ -2562,7 +2562,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
     /* "dataRead.pyx":81
  *                 return dataReadUShort(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 16:  # signed short             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (2, 3) and nBytes <= 2:  # signed short             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 2) or \
  *                     (byteorder == 'big' and signalDataType == 3):
  */
@@ -2581,14 +2581,14 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_t_3 = __pyx_t_4;
       goto __pyx_L33_bool_binop_done;
     }
-    __pyx_t_4 = (((__pyx_v_bitCount + __pyx_v_bitOffset) <= 16) != 0);
+    __pyx_t_4 = ((__pyx_v_nBytes <= 2) != 0);
     __pyx_t_3 = __pyx_t_4;
     __pyx_L33_bool_binop_done:;
     if (__pyx_t_3) {
 
       /* "dataRead.pyx":82
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 16:  # signed short
+ *         elif signalDataType in (2, 3) and nBytes <= 2:  # signed short
  *             if (byteorder == 'little' and signalDataType == 2) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 3):
  *                 return dataReadShort(bita, RecordFormat, numberOfRecords,
@@ -2610,7 +2610,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_L37_next_or:;
 
       /* "dataRead.pyx":83
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 16:  # signed short
+ *         elif signalDataType in (2, 3) and nBytes <= 2:  # signed short
  *             if (byteorder == 'little' and signalDataType == 2) or \
  *                     (byteorder == 'big' and signalDataType == 3):             # <<<<<<<<<<<<<<
  *                 return dataReadShort(bita, RecordFormat, numberOfRecords,
@@ -2631,7 +2631,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
       /* "dataRead.pyx":82
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 16:  # signed short
+ *         elif signalDataType in (2, 3) and nBytes <= 2:  # signed short
  *             if (byteorder == 'little' and signalDataType == 2) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 3):
  *                 return dataReadShort(bita, RecordFormat, numberOfRecords,
@@ -2662,7 +2662,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
         /* "dataRead.pyx":82
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 16:  # signed short
+ *         elif signalDataType in (2, 3) and nBytes <= 2:  # signed short
  *             if (byteorder == 'little' and signalDataType == 2) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 3):
  *                 return dataReadShort(bita, RecordFormat, numberOfRecords,
@@ -2674,7 +2674,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadShort(bita, RecordFormat, numberOfRecords,             # <<<<<<<<<<<<<<
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (0, 1, 14) and bitCount + bitOffset <=32:  # unsigned int
+ *         elif signalDataType in (0, 1, 14) and nBytes <= 4:  # unsigned int
  */
       /*else*/ {
         __Pyx_XDECREF(__pyx_r);
@@ -2683,7 +2683,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadShort(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)             # <<<<<<<<<<<<<<
- *         elif signalDataType in (0, 1, 14) and bitCount + bitOffset <=32:  # unsigned int
+ *         elif signalDataType in (0, 1, 14) and nBytes <= 4:  # unsigned int
  *             if (byteorder == 'little' and signalDataType == 0) or \
  */
         __pyx_t_5 = __pyx_f_8dataRead_dataReadShort(__pyx_v_bita, __pyx_v_RecordFormat, __pyx_v_numberOfRecords, __pyx_v_record_byte_size, __pyx_v_posByteBeg, __pyx_v_bitCount, __pyx_v_bitOffset, 1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 87, __pyx_L1_error)
@@ -2696,7 +2696,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       /* "dataRead.pyx":81
  *                 return dataReadUShort(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 16:  # signed short             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (2, 3) and nBytes <= 2:  # signed short             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 2) or \
  *                     (byteorder == 'big' and signalDataType == 3):
  */
@@ -2705,7 +2705,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
     /* "dataRead.pyx":89
  *                 return dataReadShort(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (0, 1, 14) and bitCount + bitOffset <=32:  # unsigned int             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (0, 1, 14) and nBytes <= 4:  # unsigned int             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):
  */
@@ -2725,14 +2725,14 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_t_3 = __pyx_t_2;
       goto __pyx_L40_bool_binop_done;
     }
-    __pyx_t_2 = (((__pyx_v_bitCount + __pyx_v_bitOffset) <= 32) != 0);
+    __pyx_t_2 = ((__pyx_v_nBytes <= 4) != 0);
     __pyx_t_3 = __pyx_t_2;
     __pyx_L40_bool_binop_done:;
     if (__pyx_t_3) {
 
       /* "dataRead.pyx":90
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (0, 1, 14) and bitCount + bitOffset <=32:  # unsigned int
+ *         elif signalDataType in (0, 1, 14) and nBytes <= 4:  # unsigned int
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
@@ -2754,7 +2754,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_L44_next_or:;
 
       /* "dataRead.pyx":91
- *         elif signalDataType in (0, 1, 14) and bitCount + bitOffset <=32:  # unsigned int
+ *         elif signalDataType in (0, 1, 14) and nBytes <= 4:  # unsigned int
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):             # <<<<<<<<<<<<<<
  *                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
@@ -2775,7 +2775,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
       /* "dataRead.pyx":90
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (0, 1, 14) and bitCount + bitOffset <=32:  # unsigned int
+ *         elif signalDataType in (0, 1, 14) and nBytes <= 4:  # unsigned int
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
@@ -2806,7 +2806,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
         /* "dataRead.pyx":90
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (0, 1, 14) and bitCount + bitOffset <=32:  # unsigned int
+ *         elif signalDataType in (0, 1, 14) and nBytes <= 4:  # unsigned int
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
@@ -2818,7 +2818,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadUInt(bita, RecordFormat, numberOfRecords,             # <<<<<<<<<<<<<<
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 32:  # signed int
+ *         elif signalDataType in (2, 3) and nBytes <= 4:  # signed int
  */
       /*else*/ {
         __Pyx_XDECREF(__pyx_r);
@@ -2827,7 +2827,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)             # <<<<<<<<<<<<<<
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 32:  # signed int
+ *         elif signalDataType in (2, 3) and nBytes <= 4:  # signed int
  *             if (byteorder == 'little' and signalDataType == 2) or \
  */
         __pyx_t_5 = __pyx_f_8dataRead_dataReadUInt(__pyx_v_bita, __pyx_v_RecordFormat, __pyx_v_numberOfRecords, __pyx_v_record_byte_size, __pyx_v_posByteBeg, __pyx_v_bitCount, __pyx_v_bitOffset, __pyx_v_nBytes, 1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 95, __pyx_L1_error)
@@ -2840,7 +2840,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       /* "dataRead.pyx":89
  *                 return dataReadShort(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, 1)
- *         elif signalDataType in (0, 1, 14) and bitCount + bitOffset <=32:  # unsigned int             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (0, 1, 14) and nBytes <= 4:  # unsigned int             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):
  */
@@ -2849,7 +2849,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
     /* "dataRead.pyx":97
  *                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 32:  # signed int             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (2, 3) and nBytes <= 4:  # signed int             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 2) or \
  *                     (byteorder == 'big' and signalDataType == 3):
  */
@@ -2868,14 +2868,14 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_t_3 = __pyx_t_4;
       goto __pyx_L47_bool_binop_done;
     }
-    __pyx_t_4 = (((__pyx_v_bitCount + __pyx_v_bitOffset) <= 32) != 0);
+    __pyx_t_4 = ((__pyx_v_nBytes <= 4) != 0);
     __pyx_t_3 = __pyx_t_4;
     __pyx_L47_bool_binop_done:;
     if (__pyx_t_3) {
 
       /* "dataRead.pyx":98
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 32:  # signed int
+ *         elif signalDataType in (2, 3) and nBytes <= 4:  # signed int
  *             if (byteorder == 'little' and signalDataType == 2) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 3):
  *                 return dataReadInt(bita, RecordFormat, numberOfRecords,
@@ -2897,7 +2897,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_L51_next_or:;
 
       /* "dataRead.pyx":99
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 32:  # signed int
+ *         elif signalDataType in (2, 3) and nBytes <= 4:  # signed int
  *             if (byteorder == 'little' and signalDataType == 2) or \
  *                     (byteorder == 'big' and signalDataType == 3):             # <<<<<<<<<<<<<<
  *                 return dataReadInt(bita, RecordFormat, numberOfRecords,
@@ -2918,7 +2918,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
       /* "dataRead.pyx":98
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 32:  # signed int
+ *         elif signalDataType in (2, 3) and nBytes <= 4:  # signed int
  *             if (byteorder == 'little' and signalDataType == 2) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 3):
  *                 return dataReadInt(bita, RecordFormat, numberOfRecords,
@@ -2949,7 +2949,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
         /* "dataRead.pyx":98
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 32:  # signed int
+ *         elif signalDataType in (2, 3) and nBytes <= 4:  # signed int
  *             if (byteorder == 'little' and signalDataType == 2) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 3):
  *                 return dataReadInt(bita, RecordFormat, numberOfRecords,
@@ -2961,7 +2961,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadInt(bita, RecordFormat, numberOfRecords,             # <<<<<<<<<<<<<<
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (0, 1) and bitCount + bitOffset <=64:  # unsigned long long
+ *         elif signalDataType in (0, 1) and nBytes <= 8:  # unsigned long long
  */
       /*else*/ {
         __Pyx_XDECREF(__pyx_r);
@@ -2970,7 +2970,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadInt(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)             # <<<<<<<<<<<<<<
- *         elif signalDataType in (0, 1) and bitCount + bitOffset <=64:  # unsigned long long
+ *         elif signalDataType in (0, 1) and nBytes <= 8:  # unsigned long long
  *             if (byteorder == 'little' and signalDataType == 0) or \
  */
         __pyx_t_5 = __pyx_f_8dataRead_dataReadInt(__pyx_v_bita, __pyx_v_RecordFormat, __pyx_v_numberOfRecords, __pyx_v_record_byte_size, __pyx_v_posByteBeg, __pyx_v_bitCount, __pyx_v_bitOffset, __pyx_v_nBytes, 1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 103, __pyx_L1_error)
@@ -2983,7 +2983,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       /* "dataRead.pyx":97
  *                 return dataReadUInt(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 32:  # signed int             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (2, 3) and nBytes <= 4:  # signed int             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 2) or \
  *                     (byteorder == 'big' and signalDataType == 3):
  */
@@ -2992,7 +2992,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
     /* "dataRead.pyx":105
  *                 return dataReadInt(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (0, 1) and bitCount + bitOffset <=64:  # unsigned long long             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (0, 1) and nBytes <= 8:  # unsigned long long             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):
  */
@@ -3011,14 +3011,14 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_t_3 = __pyx_t_2;
       goto __pyx_L54_bool_binop_done;
     }
-    __pyx_t_2 = (((__pyx_v_bitCount + __pyx_v_bitOffset) <= 64) != 0);
+    __pyx_t_2 = ((__pyx_v_nBytes <= 8) != 0);
     __pyx_t_3 = __pyx_t_2;
     __pyx_L54_bool_binop_done:;
     if (__pyx_t_3) {
 
       /* "dataRead.pyx":106
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (0, 1) and bitCount + bitOffset <=64:  # unsigned long long
+ *         elif signalDataType in (0, 1) and nBytes <= 8:  # unsigned long long
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
@@ -3040,7 +3040,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_L58_next_or:;
 
       /* "dataRead.pyx":107
- *         elif signalDataType in (0, 1) and bitCount + bitOffset <=64:  # unsigned long long
+ *         elif signalDataType in (0, 1) and nBytes <= 8:  # unsigned long long
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):             # <<<<<<<<<<<<<<
  *                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
@@ -3061,7 +3061,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
       /* "dataRead.pyx":106
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (0, 1) and bitCount + bitOffset <=64:  # unsigned long long
+ *         elif signalDataType in (0, 1) and nBytes <= 8:  # unsigned long long
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
@@ -3092,7 +3092,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
         /* "dataRead.pyx":106
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (0, 1) and bitCount + bitOffset <=64:  # unsigned long long
+ *         elif signalDataType in (0, 1) and nBytes <= 8:  # unsigned long long
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
@@ -3104,7 +3104,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,             # <<<<<<<<<<<<<<
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 64:  # signed long long
+ *         elif signalDataType in (2, 3) and nBytes <= 8:  # signed long long
  */
       /*else*/ {
         __Pyx_XDECREF(__pyx_r);
@@ -3113,7 +3113,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
  *             else: #  swap bytes
  *                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)             # <<<<<<<<<<<<<<
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 64:  # signed long long
+ *         elif signalDataType in (2, 3) and nBytes <= 8:  # signed long long
  *             if (byteorder == 'little' and signalDataType == 0) or \
  */
         __pyx_t_5 = __pyx_f_8dataRead_dataReadULongLong(__pyx_v_bita, __pyx_v_RecordFormat, __pyx_v_numberOfRecords, __pyx_v_record_byte_size, __pyx_v_posByteBeg, __pyx_v_bitCount, __pyx_v_bitOffset, __pyx_v_nBytes, 1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 111, __pyx_L1_error)
@@ -3126,7 +3126,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       /* "dataRead.pyx":105
  *                 return dataReadInt(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (0, 1) and bitCount + bitOffset <=64:  # unsigned long long             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (0, 1) and nBytes <= 8:  # unsigned long long             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):
  */
@@ -3135,7 +3135,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
     /* "dataRead.pyx":113
  *                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 64:  # signed long long             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (2, 3) and nBytes <= 8:  # signed long long             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):
  */
@@ -3154,14 +3154,14 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_t_3 = __pyx_t_4;
       goto __pyx_L61_bool_binop_done;
     }
-    __pyx_t_4 = (((__pyx_v_bitCount + __pyx_v_bitOffset) <= 64) != 0);
+    __pyx_t_4 = ((__pyx_v_nBytes <= 8) != 0);
     __pyx_t_3 = __pyx_t_4;
     __pyx_L61_bool_binop_done:;
     if (__pyx_t_3) {
 
       /* "dataRead.pyx":114
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 64:  # signed long long
+ *         elif signalDataType in (2, 3) and nBytes <= 8:  # signed long long
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadLongLong(bita, RecordFormat, numberOfRecords,
@@ -3183,7 +3183,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       __pyx_L65_next_or:;
 
       /* "dataRead.pyx":115
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 64:  # signed long long
+ *         elif signalDataType in (2, 3) and nBytes <= 8:  # signed long long
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):             # <<<<<<<<<<<<<<
  *                 return dataReadLongLong(bita, RecordFormat, numberOfRecords,
@@ -3204,7 +3204,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
       /* "dataRead.pyx":114
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 64:  # signed long long
+ *         elif signalDataType in (2, 3) and nBytes <= 8:  # signed long long
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadLongLong(bita, RecordFormat, numberOfRecords,
@@ -3235,7 +3235,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
 
         /* "dataRead.pyx":114
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 64:  # signed long long
+ *         elif signalDataType in (2, 3) and nBytes <= 8:  # signed long long
  *             if (byteorder == 'little' and signalDataType == 0) or \             # <<<<<<<<<<<<<<
  *                     (byteorder == 'big' and signalDataType == 1):
  *                 return dataReadLongLong(bita, RecordFormat, numberOfRecords,
@@ -3269,7 +3269,7 @@ static PyObject *__pyx_pf_8dataRead_dataRead(CYTHON_UNUSED PyObject *__pyx_self,
       /* "dataRead.pyx":113
  *                 return dataReadULongLong(bita, RecordFormat, numberOfRecords,
  *                     record_byte_size, posByteBeg, bitCount, bitOffset, nBytes, 1)
- *         elif signalDataType in (2, 3) and bitCount + bitOffset <= 64:  # signed long long             # <<<<<<<<<<<<<<
+ *         elif signalDataType in (2, 3) and nBytes <= 8:  # signed long long             # <<<<<<<<<<<<<<
  *             if (byteorder == 'little' and signalDataType == 0) or \
  *                     (byteorder == 'big' and signalDataType == 1):
  */
