@@ -1687,7 +1687,7 @@ class mdf4(mdf_skeleton):
                         unit = self.getChannelUnit(channel)
                         if unit is not None and len(unit) > 0:
                             blocks[nchannel]['Unit'] = pointer
-                            unit_name = ''.join([channel, '_U'])
+                            unit_name = '{}{}{}'.format(channel, '_U_', nchannel)
                             blocks[unit_name] = CommentBlock()
                             blocks[unit_name]['block_start'] = pointer
                             blocks[unit_name].load(unit, 'TX')
@@ -1699,7 +1699,7 @@ class mdf4(mdf_skeleton):
                         desc = self.getChannelDesc(channel)
                         if desc is not None and len(desc) > 0:
                             blocks[nchannel]['Comment'] = pointer
-                            desc_name = ''.join([channel, '_C'])
+                            desc_name = '{}{}{}'.format(channel, '_C_', nchannel)
                             blocks[desc_name] = CommentBlock()
                             blocks[desc_name]['block_start'] = pointer
                             blocks[desc_name].load(desc, 'TX')
