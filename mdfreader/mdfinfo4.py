@@ -541,7 +541,7 @@ class CommentBlock(dict):
                 tool_vendor = SubElement(root, 'tool_vendor')
                 tool_vendor.text = 'mdfreader is under GPL V3'
                 tool_version = SubElement(root, 'tool_version')
-                tool_version.text = '2.6'
+                tool_version.text = '2.8'
             data = b''.join([tostring(root), b'\0'])
             block_id = b'##MD'
         # make sure block is multiple of 8
