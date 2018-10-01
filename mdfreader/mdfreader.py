@@ -492,7 +492,7 @@ class mdf(mdf3, mdf4):
         try:
             from mpldatacursor import datacursor
         except ImportError:
-            print('no cursor available, please install properly mpldatacursor')
+            warn('no cursor available, please install properly mpldatacursor')
         if isinstance(channel_name_list_of_list, str):
             channel_name_list_of_list = [channel_name_list_of_list]  # converts in list
         for channel_name_list in channel_name_list_of_list:
@@ -509,15 +509,21 @@ class mdf(mdf3, mdf4):
                             masterName = list(self.masterChannelList)[0]
                             if not masterName:  # resampled channels, only one time channel probably called 'master'
                                 masterName = 'master'
+                            master_data = self.getChannelData(master_name)
+                            if master_data is None:  # no master channel
+                                master_data = arange(0, len(data), 1)
                             if masterName in self.masterChannelList:  # time channel properly defined
-                                plt.plot(self.getChannelData(masterName), data, label=channelName)
+                                plt.plot(master_data, data, label=channelName)
                                 plt.xlabel('{0} [{1}]'.format(masterName, self.getChannelUnit(masterName)))
                             else:  # no time channel found
                                 plt.plot(data)
                         else:  # not resampled
                             master_name = self.getChannelMaster(channelName)
+                            master_data = self.getChannelData(master_name)
+                            if master_data is None:  # no master channel
+                                master_data = arange(0, len(data), 1)
                             if master_name in self.masterChannelList:  # master channel is proper channel name
-                                plt.plot(self.getChannelData(master_name), data, label=channelName)
+                                plt.plot(master_data, data, label=channelName)
                                 plt.xlabel('{0} [{1}]'.format(master_name, self.getChannelUnit(master_name)))
                             else:
                                 plt.plot(data)
@@ -532,7 +538,10 @@ class mdf(mdf3, mdf4):
             plt.grid(True)
             plt.legend(loc="upper left", frameon=False)
             plt.title('')
-        datacursor()
+        try:
+            datacursor()
+        except:
+            warn('No cursor , mpldatacursor not installed')
         plt.show()
         return fig
 
