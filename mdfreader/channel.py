@@ -30,19 +30,21 @@ from warnings import warn
 from .mdfinfo4 import ATBlock
 from .mdf import _bits_to_bytes, _convertName
 
+CAN_open_offset = {'ms': 0, 'days': 4, 'minute': 2, 'hour': 3, 'day': 4, 'month': 5, 'year': 6}
+
 
 class channel4(object):
     __slots__ = ['channelNumber', 'channelGroup', 'dataGroup',
-                 'type', 'name', 'VLSD_CG_Flag']
+                 'type', 'name', 'VLSD_CG_Flag', 'nBytes', 'byteOffset']
     """ channel class gathers all about channel structure in a record
 
     Attributes
     --------------
     name : str
         Name of channel
-    type : str
-        channel type. Can be 'std', 'NestCA',
-        'CAN' or 'Inv'
+    type : int
+        channel type. Can be 'standard' : 0, 'Channel Array' : 1, 'Nested Channel Array' : 2,
+        'CAN' : 3 or 'Invalid' : 4
     channelNumber : int
         channel number corresponding to mdfinfo4.info4 class
     channelGroup : int
@@ -51,6 +53,8 @@ class channel4(object):
         data group number corresponding to mdfinfo4.info4 class
     VLSD_CG_Flag : bool
         flag when Channel Group VLSD is used
+    nBytes : int
+        number of bytes taken by channel at each sampling
 
     Methods
     ------------
@@ -81,7 +85,7 @@ class channel4(object):
         signal type according to specification
     bitCount : int
         number of bits used to store channel record
-    nBytes : int
+    calc_bytes : int
         number of bytes (1 byte = 8 bits) taken by channel record
     little_endian : Bool
         flag to inform of channel data endian
@@ -137,9 +141,9 @@ class channel4(object):
 
         name : str
             Name of channel
-        type : str, default 'std'
-            channel type. Can be 'std', 'NestCA',
-            'CAN' or 'Inv'
+        type : int, default 0
+            Can be 'standard' : 0, 'Channel Array' : 1, 'Nested Channel Array' : 2,
+            'CAN' : 3 or 'Invalid' : 4
         channelNumber : int, default 0
             channel number corresponding to mdfinfo4.info4 class
         channelGroup : int, default 0
@@ -150,11 +154,13 @@ class channel4(object):
             flag when Channel Group VLSD is used
         """
         self.name = ''
-        self.type = 'std'
+        self.type = 0
         self.channelNumber = 0
         self.dataGroup = 0
         self.channelGroup = 0
         self.VLSD_CG_Flag = False
+        self.nBytes = 0
+        self.byteOffset = 0
 
     def __str__(self):
         """ channel object attributes print
@@ -243,7 +249,7 @@ class channel4(object):
         13 CANopen date
         14 CANopen time
         """
-        if not self.type == 'Inv':
+        if not self.type == 4:  # Invalid bit channel
             return info['CN'][self.dataGroup][self.channelGroup]\
                         [self.channelNumber]['cn_data_type']
         else:
@@ -265,9 +271,9 @@ class channel4(object):
         -----------
         integer corresponding to channel number of bits
         """
-        if self.type in ('std', 'CA', 'NestCA'):
+        if self.type in (0, 1, 2):  # standard or array channel
             return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count']
-        elif self.type == 'CAN':
+        elif self.type == 3:  # CAN channel
             if self.name == 'ms':
                 if self.signalDataType(info) == 13:
                     return 16
@@ -277,8 +283,8 @@ class channel4(object):
                 return 16
             else:
                 return 8
-        elif self.type == 'Inv':
-            return self.nBytes(info) * 8
+        elif self.type == 4:  # Invalid bit channel
+            return self.nBytes * 8
         else:
             warn('Not found channel type')
 
@@ -394,7 +400,7 @@ class channel4(object):
         else:
             return False
 
-    def nBytes(self, info):
+    def calc_bytes(self, info):
         """ calculates channel bytes number
 
         Parameters
@@ -407,17 +413,17 @@ class channel4(object):
         -----------
         number of bytes integer
         """
-        if not self.type == 'Inv':  # not channel containing invalid bits
-            nBytes = _bits_to_bytes(info['CN'][self.dataGroup][self.channelGroup]
-                                    [self.channelNumber]['cn_bit_count'] + info['CN'][self.dataGroup][self.channelGroup]
-                                    [self.channelNumber]['cn_bit_offset'], self.isnumeric(info))
-            if self.type in ('CA', 'NestCA'):
+        if not self.type == 4:  # not channel containing invalid bit
+            nBytes = _bits_to_bytes(info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count']
+                                    + info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
+                                    ['cn_bit_offset'], self.isnumeric(info))
+            if self.type in (1, 2):  # array channel
                 nBytes *= self.CABlock(info)['PNd']
                 Block = self.CABlock(info)
                 while 'CABlock' in Block:  # nested array
                     Block = Block['CABlock']
                     nBytes *= Block['PNd']
-            if self.type == 'CAN':
+            if self.type == 3:  # CAN channel
                 if self.name == 'ms':
                     if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'] == 13:
                         nBytes = 2
@@ -479,8 +485,8 @@ class channel4(object):
         endian, dataType : string data format
         """
         endian = ''
-        if self.type == 'Inv':
-            dataformat = '{}V'.format(self.nBytes(info))
+        if self.type == 4:  # Invalid bit channel
+            dataformat = '{}V'.format(self.nBytes)
         elif info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_composition'] and \
                 'CABlock' in info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]:  # channel array
             CABlock = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
@@ -501,7 +507,7 @@ class channel4(object):
             else:
                 array_desc = str(array_desc)
             dataformat = array_desc + dataformat
-        elif self.type == 'CAN':
+        elif self.type == 3:  # CAN channel
             if self.name == 'ms':
                 if self.signalDataType(info) == 13:
                     dataformat = 'u2'
@@ -515,7 +521,7 @@ class channel4(object):
         else:  # not channel array
             endian, dataformat = arrayformat4(
                 info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'],
-                self.nBytes(info))
+                self.nBytes)
         return endian, dataformat
 
     def dataFormat(self, info):
@@ -552,21 +558,21 @@ class channel4(object):
         string data C format
         """
         signalDataType = self.signalDataType(info)
-        if self.type == 'std':
+        if self.type == 0:  # standard channel
             if signalDataType not in (13, 14):
                 if not self.channelType(info) == 1:  # if not VSLD
-                    endian, dataType = datatypeformat4(signalDataType, self.nBytes(info))
+                    endian, dataType = datatypeformat4(signalDataType, self.nBytes)
                 else:  # VLSD
-                    endian, dataType = datatypeformat4(0, self.nBytes(info))
+                    endian, dataType = datatypeformat4(0, self.nBytes)
                 return '{}{}'.format(endian, dataType)
-        elif self.type in ('CA', 'NestCA'):
+        elif self.type in (1, 2):  # array channel
             CA = self.CABlock(info)
             nBytes = _bits_to_bytes(info['CN'][self.dataGroup][self.channelGroup]
                                     [self.channelNumber]['cn_bit_count'] + info['CN'][self.dataGroup][self.channelGroup]
                                     [self.channelNumber]['cn_bit_offset'], self.isnumeric(info))
             endian, dataType = datatypeformat4(signalDataType, nBytes)
             return '{}{}{}'.format(endian, CA['PNd'], dataType)
-        elif self.type == 'CAN':
+        elif self.type == 3:  # CAN channel
             if self.name == 'ms':
                 if signalDataType == 13:
                     return 'H'
@@ -576,8 +582,8 @@ class channel4(object):
                 return 'H'
             else:
                 return 'B'
-        elif self.type == 'Inv':
-            return '{}s'.format(self.nBytes(info))
+        elif self.type == 4:  # Invalid bit channel
+            return '{}s'.format(self.nBytes)
         else:
             warn('Not found channel type')
 
@@ -596,35 +602,18 @@ class channel4(object):
         """
         return Struct(self.Format(info))
 
-    def CANOpenOffset(self, info):
+    def CANOpenOffset(self):
         """ CANopen channel bytes offset
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
 
         Returns
         -----------
         integer, channel bytes offset
         """
-        if self.name == 'ms':
-            return 0
-        elif self.name == 'days':
-            return 4
-        elif self.name == 'minute':
-            return 2
-        elif self.name == 'hour':
-            return 3
-        elif self.name == 'day':
-            return 4
-        elif self.name == 'month':
-            return 5
-        elif self.name == 'year':
-            return 6
-        else:
+        try:
+            return CAN_open_offset[self.name]
+        except KeyError:
             warn('CANopen type not understood')
+            return None
 
     def bitOffset(self, info):
         """ channel data bit offset in record
@@ -639,17 +628,17 @@ class channel4(object):
         -----------
         integer, channel bit offset
         """
-        if self.type in ('std', 'CA', 'NestCA'):
+        if self.type in (0, 1, 2):  # standard or channel array
             return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset']
-        elif self.type == 'CAN':
+        elif self.type == 3:  # CAN channel
             return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset'] \
-                   + self.CANOpenOffset(info) * 8
-        elif self.type == 'Inv':
+                   + self.CANOpenOffset() * 8
+        elif self.type == 4:  # Invalid bit channel
             return 0
         else:
             warn('Not found channel type')
 
-    def byteOffset(self, info):
+    def calc_byteOffset(self, info):
         """ channel data bytes offset in record (without record id)
 
         Parameters
@@ -662,13 +651,12 @@ class channel4(object):
         -----------
         integer, channel bytes offset
         """
-        if self.type in ('std', 'CA', 'NestCA'):
-            return info['CN'][self.dataGroup][self.channelGroup]\
-                        [self.channelNumber]['cn_byte_offset']
-        elif self.type == 'CAN':
-            return info['CN'][self.dataGroup][self.channelGroup]\
-                        [self.channelNumber]['cn_byte_offset'] + self.CANOpenOffset(info)
-        elif self.type == 'Inv':
+        if self.type in (0, 1, 2):  # standard or channel array
+            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_byte_offset']
+        elif self.type == 3:  # CAN channel
+            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_byte_offset'] \
+                   + self.CANOpenOffset()
+        elif self.type == 4:  # Invalid bit channel
             return info['CG'][self.dataGroup][self.channelGroup]['cg_data_bytes']
         else:
             warn('Not found channel type')
@@ -686,7 +674,7 @@ class channel4(object):
         -----------
         integer, channel bytes starting position
         """
-        return self.recordIDsize(info) + self.byteOffset(info)
+        return self.recordIDsize(info) + self.byteOffset
 
     def posByteEnd(self, info):
         """ channel data bytes ending position in record
@@ -701,7 +689,7 @@ class channel4(object):
         -----------
         integer, channel bytes ending position
         """
-        return self.posByteBeg(info) + self.nBytes(info)
+        return self.posByteBeg(info) + self.nBytes
 
     def posBitBeg(self, info):
         """ channel data bit starting position in record
@@ -771,7 +759,7 @@ class channel4(object):
         -----------
         channel description string
         """
-        if not self.type == 'CAN':
+        if not self.type == 3:  # CAN channel
             if self.channelNumber in info['CN'][self.dataGroup][self.channelGroup]:
                 if 'Comment' in info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]:
                     desc = info['CN'][self.dataGroup][self.channelGroup]\
@@ -821,21 +809,21 @@ class channel4(object):
             channel group number in mdfinfo4.info4 class
         channelNumber : int
             channel number in mdfinfo4.info4 class
-        recordIDsize : int
-            size of record ID in Bytes
         """
         self.name = info['CN'][dataGroup][channelGroup][channelNumber]['name']
         self.channelNumber = channelNumber
         self.dataGroup = dataGroup
         self.channelGroup = channelGroup
-        self.type = 'std'
+        self.type = 0
         if info['CN'][dataGroup][channelGroup][channelNumber]['cn_composition'] and \
                 'CABlock' in info['CN'][dataGroup][channelGroup][channelNumber]:
             # channel array
-            self.type = 'CA'
+            self.type = 1
             Block = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
             if 'CABlock' in Block:  # nested array
-                self.type = 'NestCA'
+                self.type = 2
+        self.nBytes = self.calc_bytes(info)
+        self.byteOffset = self.calc_byteOffset(info)
 
     def setCANOpen(self, info, dataGroup, channelGroup, channelNumber, name):
         """ CANOpen channel intialisation
@@ -850,17 +838,17 @@ class channel4(object):
             channel group number in mdfinfo4.info4 class
         channelNumber : int
             channel number in mdfinfo4.info4 class
-        recordIDsize : int
-            size of record ID in Bytes
         name : str
             name of channel. Should be in ('ms', 'day', 'days', 'hour',
             'month', 'minute', 'year')
         """
-        self.type = 'CAN'
+        self.type = 3
         self.name = name
         self.channelNumber = channelNumber
         self.dataGroup = dataGroup
         self.channelGroup = channelGroup
+        self.nBytes = self.calc_bytes(info)
+        self.byteOffset = self.calc_byteOffset(info)
 
     def setInvalidBytes(self, info, dataGroup, channelGroup, channelNumber):
         """ invalid_bytes channel initialisation
@@ -875,16 +863,14 @@ class channel4(object):
             channel group number in mdfinfo4.info4 class
         channelNumber : int
             channel number in mdfinfo4.info4 class
-        recordIDsize : int
-            size of record ID in Bytes
-        byte_aligned : Bool
-            Flag for byte alignement
         """
-        self.type = 'Inv'
+        self.type = 4
         self.name = 'invalid_bytes{}'.format(dataGroup)
         self.channelNumber = channelNumber
         self.dataGroup = dataGroup
         self.channelGroup = channelGroup
+        self.nBytes = self.calc_bytes(info)
+        self.byteOffset = self.calc_byteOffset(info)
 
     def invalid_bit(self, info):
         """ extracts from info4 the channels valid bits positions
@@ -933,7 +919,7 @@ class channel4(object):
         boolean True if channel needs bit masking, otherwise False
 
         """
-        if not self.nBytes(info) == self.bitCount(info) / 8:
+        if not self.nBytes == self.bitCount(info) / 8:
             self.bit_masking_needed = True
         else:
             self.bit_masking_needed = False

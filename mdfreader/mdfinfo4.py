@@ -66,6 +66,14 @@ CCStruct1 = Struct('<4sI6Q')
 CCStruct2 = Struct('<2B3H2d')
 SRStruct = Struct('<4sI5Qd2B6s')
 
+# SI Types
+si_type = {0: 'OTHER', 1: 'ECU', 2: 'BUS',
+           3: 'I/O', 4: 'TOOL', 5: 'USER'}
+si_bus_type = {0: 'NONE', 1: 'OTHER', 2: 'CAN', 3: 'LIN',
+               4: 'MOST', 5: 'FLEXRAY', 6: 'K_LINE', 7: 'ETHERNET', 8: 'USB'}
+# EV cause
+ev_cause = {0: 'OTHER',1: 'ERROR', 2: 'TOOL', 3: 'SCRIPT', 4: 'USER'}
+
 chunk_size_writing = 4194304  # write by chunk of 4Mb, can be tuned for best performance
 
 
@@ -635,6 +643,11 @@ class CGBlock(dict):
             comment = CommentBlock()
             comment.read(fid=fid, pointer=self['cg_tx_acq_name'])
             self['acq_name'].update(comment)
+        if self['cg_si_acq_source']:  # comments exist
+            self['acq_source'] = {}
+            SI = SIBlock()
+            SI.read(fid=fid, pointer=self['cg_si_acq_source'])
+            self['acq_source'].update(SI)
 
     def write(self, fid):
         # write block header
@@ -962,16 +975,10 @@ class EVBlock(dict):
              self['ev_md_comment']) = unpack('<5Q', fid.read(40))
             self['ev_scope'] = _mdfblockread(fid, LINK, self['ev_scope_count'])
             # post treatment
-            if self['ev_cause'] == 0:
-                self['ev_cause'] = 'OTHER'
-            elif self['ev_cause'] == 1:
-                self['ev_cause'] == 'ERROR'
-            elif self['ev_cause'] == 2:
-                self['ev_cause'] == 'TOOL'
-            elif self['ev_cause'] == 3:
-                self['ev_cause'] == 'SCRIPT'
-            elif self['ev_cause'] == 4:
-                self['ev_cause'] == 'USER'
+            try:
+                self['ev_cause'] = ev_cause[self['ev_cause']]
+            except KeyError:
+                warn('unexpected ev cause')
             if self['ev_attachment_count'] > 0:
                 self['ev_at_reference'] = \
                     _mdfblockread(fid, LINK, self['ev_attachment_count'])
@@ -1028,36 +1035,14 @@ class SIBlock(dict):
              self['si_bus_type'],
              self['si_flags'],
              si_reserved) = SIStruct.unpack(fid.read(56))
-            if self['si_type'] == 0:
-                self['si_type'] = 'OTHER'  # unknown
-            elif self['si_type'] == 1:
-                self['si_type'] = 'ECU'
-            elif self['si_type'] == 2:
-                self['si_type'] = 'BUS'
-            elif self['si_type'] == 3:
-                self['si_type'] = 'I/O'
-            elif self['si_type'] == 4:
-                self['si_type'] = 'TOOL'
-            elif self['si_type'] == 5:
-                self['si_type'] = 'USER'
-            if self['si_bus_type'] == 0:
-                self['si_bus_type'] = 'NONE'
-            elif self['si_bus_type'] == 1:
-                self['si_bus_type'] = 'OTHER'
-            elif self['si_bus_type'] == 2:
-                self['si_bus_type'] = 'CAN'
-            elif self['si_bus_type'] == 3:
-                self['si_bus_type'] = 'LIN'
-            elif self['si_bus_type'] == 4:
-                self['si_bus_type'] = 'MOST'
-            elif self['si_bus_type'] == 5:
-                self['si_bus_type'] = 'FLEXRAY'
-            elif self['si_bus_type'] == 6:
-                self['si_bus_type'] = 'K_LINE'
-            elif self['si_bus_type'] == 7:
-                self['si_bus_type'] = 'ETHERNET'
-            elif self['si_bus_type'] == 8:
-                self['si_bus_type'] = 'USB'
+            try:
+                self['si_type'] = si_type[self['si_type']]
+            except KeyError:
+                warn('unexpected SI type')
+            try:
+                self['si_bus_type'] = si_bus_type[self['si_bus_type']]
+            except KeyError:
+                warn('unexpected SI bus type')
             # post treatment
             self['source_name'] = CommentBlock()
             self['source_name'].read(fid=fid, pointer=self['si_tx_name'])
@@ -1535,6 +1520,8 @@ class info4(dict):
         # check for MLSD
         if self['CN'][dg][cg][cn]['cn_type'] == 5:
             MLSDChannels.append(cn)
+        # keep original non unique channel name
+        self['CN'][dg][cg][cn]['orig_name'] = self['CN'][dg][cg][cn]['name']
         # check if already existing channel name
         self['CN'][dg][cg][cn]['name'] = self._unique(fid, self['CN'][dg][cg][cn]['name'], dg, cg, cn)
         if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
@@ -1601,6 +1588,8 @@ class info4(dict):
                             self['CN'][dg][cg][cn]['SI'] = dict()
                             self['CN'][dg][cg][cn]['SI'].update(temp)
 
+                    # keep original non unique channel name
+                    self['CN'][dg][cg][cn]['orig_name'] = self['CN'][dg][cg][cn]['name']
                     # check if already existing channel name
                     self['CN'][dg][cg][cn]['name'] = self._unique(fid, self['CN'][dg][cg][cn]['name'], dg, cg, cn)
                     if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
@@ -1698,6 +1687,8 @@ class info4(dict):
                     self['CN'][dg][cg][chan] = CNBlock()
                     self['CN'][dg][cg][chan].read(fid=fid,
                                                   pointer=self['CN'][dg][cg][cn]['cn_composition'])
+                    # keep original non unique channel name
+                    self['CN'][dg][cg][chan]['orig_name'] = self['CN'][dg][cg][chan]['name']
                     # make sure channel name is unique
                     self['CN'][dg][cg][chan]['name'] = self._unique(fid, self['CN'][dg][cg][chan]['name'], dg, cg, cn)
 
@@ -1711,6 +1702,8 @@ class info4(dict):
                         self['CN'][dg][cg][chan] = CNBlock()
                         self['CN'][dg][cg][chan].read(fid=fid,
                                                       pointer=self['CN'][dg][cg][chan - 1]['cn_cn_next'])
+                        # keep original non unique channel name
+                        self['CN'][dg][cg][chan]['orig_name'] = self['CN'][dg][cg][chan]['name']
                         # make sure channel name is unique
                         self['CN'][dg][cg][chan]['name'] = self._unique(fid, self['CN'][dg][cg][chan]['name'], dg, cg, cn)
 
@@ -1859,6 +1852,47 @@ class info4(dict):
         self['ChannelNamesByDG'][dg].add(name)
         self['allChannelList'].add(name)
         return name
+
+    def unique_id(self, ndg, ncg, ncn):
+        """ generate unique id tuples
+
+            Parameters
+            ----------------
+            ndg : int
+                data group number
+
+            ncg: int
+                channel group number
+
+            ncn : int
+                channel number
+
+            Returns
+            -----------
+            tuples: (data group number, channel group number, channel number),
+                    (channel name, channel source, channel path),
+                    (group name, group source, group path)
+        """
+        cn = self['CN'][ndg][ncg][ncn]['orig_name']
+        try:  # SI block not always existing
+            cs = self['CN'][ndg][ncg][ncn]['SI']['source_name']
+            cp = self['CN'][ndg][ncg][ncn]['SI']['source_path']
+        except KeyError:
+            cs = None
+            cp = None
+        try:
+            gn = self['CG'][ndg][ncg]['acq_name']['Comment']
+        except KeyError:
+            gn = None
+        try:
+            gs = self['CG'][ndg][ncg]['acq_source']['source_name']['Comment']
+        except KeyError:
+            gs = None
+        try:
+            gp = self['CG'][ndg][ncg]['acq_source']['source_path']['Comment']
+        except KeyError:
+            gp = None
+        return (ndg, ncg, ncn), (cn, cs, cp), (gn, gs, gp)
 
 
 def _generateDummyMDF4(info, channelList):

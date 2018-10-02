@@ -682,8 +682,8 @@ class record(list):
                         Channel_posBitEnd = Channel.posBitEnd(info)
                         Channel_posBitBeg = Channel.posBitBeg(info)
                         prev_chan = self[-2]
-                        prev_chan_byteOffset = prev_chan.byteOffset(info)
-                        prev_chan_nBytes = prev_chan.nBytes(info)
+                        prev_chan_byteOffset = prev_chan.byteOffset
+                        prev_chan_nBytes = prev_chan.nBytes
                         prev_chan_includes_curr_chan = Channel_posBitBeg >= 8 * prev_chan_byteOffset \
                                 and Channel_posBitEnd <= 8 * (prev_chan_byteOffset + prev_chan_nBytes)
                         if embedding_channel is not None:
@@ -691,7 +691,7 @@ class record(list):
                                 Channel_posBitEnd <= embedding_channel.posByteEnd(info) * 8
                         else:
                             embedding_channel_includes_curr_chan = False
-                        if Channel.byteOffset(info) >= prev_chan_byteOffset and \
+                        if Channel.byteOffset >= prev_chan_byteOffset and \
                                 Channel_posBitBeg < 8 * (prev_chan_byteOffset + prev_chan_nBytes) < Channel_posBitEnd:
                             # not byte aligned
                             self.byte_aligned = False
@@ -709,12 +709,12 @@ class record(list):
                                 self.recordToChannelMatching[Channel.name] = Channel.name
                                 self.numpyDataRecordFormat.append(dataFormat)
                                 self.dataRecordName.append(Channel.name)
-                                self.recordLength += Channel.nBytes(info)
+                                self.recordLength += Channel.nBytes
                     if embedding_channel is None:  # adding bytes
                         self.recordToChannelMatching[Channel.name] = Channel.name
                         self.numpyDataRecordFormat.append(dataFormat)
                         self.dataRecordName.append(Channel.name)
-                        self.recordLength += Channel.nBytes(info)
+                        self.recordLength += Channel.nBytes
                     if 'VLSD_CG' in info:  # is there VLSD CG
                         for recordID in info['VLSD_CG']:  # look for VLSD CG Channel
                             if info['VLSD_CG'][recordID]['cg_cn'] == (self.channelGroup, channelNumber):
@@ -972,7 +972,7 @@ class record(list):
                                  self[chan].nativedataFormat(info),
                                  nrecords, self.CGrecordLength,
                                  self[chan].bitOffset(info), self[chan].posByteBeg(info),
-                                 self[chan].nBytes(info), array_flag)
+                                 self[chan].nBytes, array_flag)
                 return buf
             else:
                 return self.read_channels_from_bytes_fallback(bita, info, channelSet, nrecords, dtype)
@@ -1030,8 +1030,8 @@ class record(list):
             record_bit_size = self.CGrecordLength * 8
             for chan in channels_indexes:
                 signalDataType = self[chan].signalDataType(info)
-                nBytes = self[chan].nBytes(info)
-                if not self[chan].type in ('CA', 'NestCA'):
+                nBytes = self[chan].nBytes
+                if not self[chan].type in (1, 2):
                     temp = [B[self[chan].posBitBeg(info) + record_bit_size * i:
                             self[chan].posBitEnd(info) + record_bit_size * i]
                             for i in range(nrecords)]
@@ -1128,11 +1128,13 @@ class mdf4(mdf_skeleton):
 
         channelList : list of str, optional
             list of channel names to be read
-            If you use channelList, reading might be much slower but it will save you memory. Can be used to read big files
+            If you use channelList, reading might be much slower but it will save you memory.
+            Can be used to read big files
 
         convertAfterRead : bool, optional
             flag to convert channel after read, True by default
-            If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
+            If you use convertAfterRead by setting it to false,
+            all data from channels will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
 
@@ -1246,7 +1248,7 @@ class mdf4(mdf_skeleton):
                                 channels = [channels[self[channel][idField][2]] for channel in channelList]
                             for chan in channels:  # for each channel class
                                 if channelSet is None or chan.name in channelSet:
-                                    if not chan.type == 'Inv':  # normal channel
+                                    if not chan.type == 4:  # normal channel
                                         if chan.channelType(info) not in (3, 6):  # not virtual channel
                                             # in case record is used for several channels
                                             if channelSet is None and not buf[recordID]['record'].hiddenBytes \
@@ -1325,7 +1327,10 @@ class mdf4(mdf_skeleton):
                                                              description=chan.desc(info),
                                                              conversion=chan.conversion(info),
                                                              info=chan.CNBlock(info),
-                                                             compression=compression)
+                                                             compression=compression,
+                                                             id=info.unique_id(chan.dataGroup,
+                                                                               chan.channelGroup,
+                                                                               chan.channelNumber))
                                             if chan.channelType(info) == 4:  # sync channel
                                                 # attach stream to be synchronised
                                                 self.setChannelAttachment(chan.name, chan.attachment(info.fid, info))
@@ -1344,7 +1349,8 @@ class mdf4(mdf_skeleton):
                                                          unit='',
                                                          description='',
                                                          info=None,
-                                                         compression=compression)
+                                                         compression=compression,
+                                                         id=None)
                             buf[recordID].pop('data', None)
                     del buf
                 if minimal > 1:

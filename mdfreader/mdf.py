@@ -160,7 +160,7 @@ class mdf_skeleton(dict):
 
     def add_channel(self, dataGroup, channel_name, data, master_channel,
                     master_type=1, unit='', description='', conversion=None,
-                    info=None, compression=False):
+                    info=None, compression=False, id=None):
         """ adds channel to mdf dict.
 
         Parameters
@@ -186,6 +186,11 @@ class mdf_skeleton(dict):
             used for CABlock axis creation and channel conversion
         compression : bool
             flag to ask for channel data compression
+        id : tuple
+            tuple of int and str following below structure:
+            (data group number, channel group number, channel number),
+            (channel name, channel source, channel path),
+            (group name, group source, group path)
         """
         if not self._noDataLoading:
             self[channel_name] = {}
@@ -234,6 +239,8 @@ class mdf_skeleton(dict):
                     else:
                         axis = CABlock['ca_axis_value']
             self[channel_name]['axis'] = axis
+        if id is not None:
+            self[channel_name]['id'] = id
 
     def remove_channel(self, channel_name):
         """ removes channel from mdf dict.
