@@ -1149,7 +1149,7 @@ class mdf4(mdf_skeleton):
         elif fileName is not None and self.fileName is None:
             self.fileName = fileName
 
-        minimal = 2  # always read minimum info
+        minimal = 2  # always read minimum info (2), full info (0)
 
         # set is more efficient for large number of channels (n^2 vs n*log(n)):
         if channelList is not None:
@@ -1775,6 +1775,30 @@ class mdf4(mdf_skeleton):
         except KeyError:
             pass
             # warn('no invalid data found for channel ')
+
+    def getChannelName4(self, name, path):
+        """finds mdf channel name from name and path
+
+        Parameters
+        ----------------
+        name : str
+            channel name
+        path: str
+            source path or name, or channel group name, source name or path
+
+        Returns:
+        -----------
+        channel name
+
+        """
+        for channel_name in self:
+            try:
+                (ndg, ncg, ncn), (cn, cs, cp), (gn, gs, gp) = self[channel_name]['id']
+                if name == cn and path in (cs, cp) or path in (gn, gs, gp):
+                    return channel_name, (ndg, ncg, ncn)
+            except KeyError:  # most probably a invalid bit channel
+                pass
+        return None
 
 
 def linearConv(vect, cc_val):
