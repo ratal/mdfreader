@@ -97,7 +97,7 @@ class mdf_skeleton(dict):
 
     def __init__(self, fileName=None, channelList=None, convertAfterRead=True,
                  filterChannelNames=False, noDataLoading=False,
-                 compression=False, convertTables=False):
+                 compression=False, convertTables=False, metadata=2):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -156,7 +156,8 @@ class mdf_skeleton(dict):
                       convertAfterRead=convertAfterRead,
                       filterChannelNames=filterChannelNames,
                       noDataLoading=noDataLoading,
-                      compression=compression)
+                      compression=compression,
+                      metadata=metadata)
 
     def add_channel(self, dataGroup, channel_name, data, master_channel,
                     master_type=1, unit='', description='', conversion=None,

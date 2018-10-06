@@ -824,7 +824,8 @@ class mdf3(mdf_skeleton):
     """
 
     def read3(self, fileName=None, info=None, multiProc=False, channelList=None,
-              convertAfterRead=True, filterChannelNames=False, compression=False):
+              convertAfterRead=True, filterChannelNames=False, compression=False
+              , metadata=2):
         """ Reads mdf 3.x file data and stores it in dict
 
         Parameters
@@ -850,8 +851,18 @@ class mdf3(mdf_skeleton):
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
 
+        filterChannelNames : bool, optional
+            flag to filter long channel names from its module names separated by '.'
+
         compression : bool, optional
-            falg to activate data compression with blosc
+            flag to activate data compression with blosc
+
+        metadata: int, optional, default = 2
+            Reading metadata has impact on performance, especially for mdf 4.x using xml.
+            2: minimal metadata reading (mostly channel blocks)
+            1: used for noDataLoading
+            0: all metadata reading
+
         """
         self.multiProc = multiProc
         if platform == 'win32':
@@ -862,7 +873,7 @@ class mdf3(mdf_skeleton):
         elif fileName is not None and self.fileName is None:
             self.fileName = fileName
 
-        minimal = 2  # always reads minimum info by default
+        minimal = metadata  # always reads minimum info by default
 
         if channelList is None:
             channelSetFile = None

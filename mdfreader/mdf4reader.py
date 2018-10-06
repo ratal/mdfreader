@@ -1112,7 +1112,7 @@ class mdf4(mdf_skeleton):
     """
 
     def read4(self, fileName=None, info=None, multiProc=False, channelList=None,
-              convertAfterRead=True, filterChannelNames=False, compression=False):
+              convertAfterRead=True, compression=False, metadata=2):
         """ Reads mdf 4.x file data and stores it in dict
 
         Parameters
@@ -1139,7 +1139,14 @@ class mdf4(mdf_skeleton):
             To calculate value from channel, you can then use method .getChannelData()
 
         compression : bool, optional
-            falg to activate data compression with blosc
+            flag to activate data compression with blosc
+
+        metadata: int, optional, default = 2
+            Reading metadata has impact on performance, especially for mdf 4.x using xml.
+            2: minimal metadata reading (mostly channel blocks)
+            1: used for noDataLoading
+            0: all metadata reading, including Source Information, Attachment, etc..
+
         """
 
         self.multiProc = multiProc
@@ -1149,7 +1156,7 @@ class mdf4(mdf_skeleton):
         elif fileName is not None and self.fileName is None:
             self.fileName = fileName
 
-        minimal = 2  # always read minimum info (2), full info (0)
+        minimal = metadata  # always read minimum info (2), full info (0)
 
         # set is more efficient for large number of channels (n^2 vs n*log(n)):
         if channelList is not None:
@@ -1791,14 +1798,15 @@ class mdf4(mdf_skeleton):
         channel name
 
         """
+        output = []
         for channel_name in self:
             try:
                 (ndg, ncg, ncn), (cn, cs, cp), (gn, gs, gp) = self[channel_name]['id']
                 if name == cn and path in (cs, cp) or path in (gn, gs, gp):
-                    return channel_name, (ndg, ncg, ncn)
+                    output.append(channel_name, (ndg, ncg, ncn))
             except KeyError:  # most probably a invalid bit channel
                 pass
-        return None
+        return output
 
 
 def linearConv(vect, cc_val):

@@ -262,7 +262,8 @@ class mdf(mdf3, mdf4):
 
     Methods
     ------------
-    read( fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False, noDataLoading=False, compression=False)
+    read( fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False,
+            noDataLoading=False, compression=False)
         reads mdf file version 3.x and 4.x
     write( fileName=None )
         writes simple mdf file
@@ -331,7 +332,7 @@ class mdf(mdf3, mdf4):
 
     def read(self, fileName=None, multiProc=False, channelList=None,
              convertAfterRead=True, filterChannelNames=False,
-             noDataLoading=False, compression=False):
+             noDataLoading=False, compression=False, metadata=2):
         """ reads mdf file version 3.x and 4.x
 
         Parameters
@@ -344,12 +345,13 @@ class mdf(mdf3, mdf4):
 
         channelList : list of str, optional
             list of channel names to be read
-            If you use channelList, reading might be much slower but it will save you memory. Can be used to read big files
+            If you use channelList, reading might be much slower but it will save you memory.
+            Can be used to read big files
 
         convertAfterRead : bool, optional
             flag to convert channel after read, True by default
-            If you use convertAfterRead by setting it to false, all data from channels will be kept raw, no conversion applied.
-            If many float are stored in file, you can gain from 3 to 4 times memory footprint
+            If you use convertAfterRead by setting it to false, all data from channels will be kept raw,
+            no conversion applied. If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
 
         filterChannelNames : bool, optional
@@ -364,15 +366,22 @@ class mdf(mdf3, mdf4):
             if compression = 'blosc', uses blosc for compression
             Choice given, efficiency depends of data
 
+        metadata: int, optional, default = 2
+            Reading metadata has impact on performance, especially for mdf 4.x using xml.
+            2: minimal metadata reading (mostly channel blocks)
+            1: used for noDataLoading
+            0: all metadata reading, including Source Information, Attachment, etc..
+
         Notes
         --------
-        If you keep convertAfterRead to true, you can set attribute mdf.multiProc to activate channel conversion in multiprocessing.
-        Gain in reading time can be around 30% if file is big and using a lot of float channels
+        If you keep convertAfterRead to true, you can set attribute mdf.multiProc to activate channel conversion
+         in multiprocessing. Gain in reading time can be around 30% if file is big and using a lot of float channels
 
         Warning:
         ------------
         MultiProc use should be avoided when reading several files in a batch, it is not thread safe.
-        You should better multi process instances of mdf rather than using multiproc in mdf class (see implementation of mdfconverter)
+        You should better multi process instances of mdf rather than using multiproc in mdf class
+        (see implementation of mdfconverter)
         """
         if self.fileName is None or fileName is not None:
             self.fileName = fileName
@@ -397,7 +406,7 @@ class mdf(mdf3, mdf4):
         else:  # MDF version 4.x
             if not noDataLoading:
                 self.read4(self.fileName, None, multiProc, channelList,
-                           convertAfterRead, filterChannelNames, compression)
+                           convertAfterRead, compression, metadata)
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
                 self.info = info4(None, fid=self.fid, minimal=1)
