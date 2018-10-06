@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
 """ Measured Data Format file reader module for version 4.x.
 
-Platform and python version
-----------------------------------------
-With Unix and Windows for python 2.6+ and 3.2+
-
 :Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
 
 Created on Thu Dec 10 12:57:28 2013
+
 
 Dependencies
 -------------------
@@ -17,13 +14,15 @@ Dependencies
 - Sympy to convert channels with formula if needed
 - zlib to uncompress data block if needed
 
+
 Attributes
 --------------
 PythonVersion : float
     Python version currently running, needed for compatibility of both
     python 2.6+ and 3.2+
 
-mdf4reader module
+
+mdf4reader
 --------------------------
 
 """
@@ -279,7 +278,7 @@ class DATA(dict):
 
         Parameters
         ----------------
-        record class
+        record: class
             channel group definition listing record channel classes
         """
         self[record.recordID] = {}

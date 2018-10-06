@@ -1,18 +1,9 @@
 # -*- coding: utf-8 -*-
 """ Measured Data Format blocks paser for version 4.x
 
-Platform and python version
-----------------------------------------
-With Unix and Windows for python 2.6+ and 3.2+
-
 Created on Sun Dec 15 12:57:28 2013
 
 :Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
-
-Dependencies
--------------------
-- Python >2.6, >3.2 <http://www.python.org>
-- Numpy >1.6 <http://numpy.scipy.org>
 
 Attributes
 --------------
@@ -20,7 +11,8 @@ PythonVersion : float
     Python version currently running, needed for compatibility of both
     python 2.6+ and 3.2+
 
-mdfinfo4 module
+
+mdfinfo4
 --------------------------
 """
 from __future__ import absolute_import  # for consistency between python 2 and 3
@@ -362,9 +354,11 @@ class CommentBlock(dict):
 
     def readCM(self, **kargs):
         """ reads Comment block and saves in class dict
+
         Parameters
         ----------
-        fid: file identifier
+        fid:
+            file identifier
         pointer: int
             position in file
         MDType: str

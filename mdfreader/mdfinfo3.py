@@ -3,23 +3,22 @@
 
 Created on Thu Dec 9 12:57:28 2014
 
-Platform and python version
-----------------------------------------
-With Unix and Windows for python 2.6+ and 3.2+
-
 :Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
+
 
 Dependencies
 -------------------
 - Python >2.6, >3.2 <http://www.python.org>
 - Numpy >1.6 <http://numpy.scipy.org>
 
+
 Attributes
 --------------
 PythonVersion : float
     Python version currently running, needed for compatibility of both python 2.6+ and 3.2+
 
-mdfinfo3 module
+
+mdfinfo3
 --------------------------
 """
 from __future__ import absolute_import  # for consistency between python 2 and 3

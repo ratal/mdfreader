@@ -1,19 +1,10 @@
 # -*- coding: utf-8 -*-
 """ Measured Data Format file reader module for version 3.x
 
-Platform and python version
-----------------------------------------
-With Unix and Windows for python 2.6+ and 3.2+
-
 :Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
 
 Created on Sun Oct 10 12:57:28 2010
 
-Dependencies
--------------------
-- Python >2.6, >3.2 <http://www.python.org>
-- Numpy >1.6 <http://numpy.scipy.org>
-- Sympy to convert channels with formula
 
 Attributes
 --------------
@@ -21,7 +12,8 @@ PythonVersion : float
     Python version currently running, needed for compatibility of both
     python 2.6+ and 3.2+
 
-mdf3reader module
+
+mdf3reader
 --------------------------
 """
 from __future__ import absolute_import  # for consistency between python 2 and 3
@@ -689,7 +681,7 @@ class DATA(dict):
 
         Parameters
         ----------------
-        record class
+        record: class
             channel group definition listing record channel classes
         """
         self[record.recordID] = {}
@@ -727,7 +719,7 @@ class DATA(dict):
 
         Parameters
         ----------------
-        record class
+        record: class
             channel group definition listing record channel classes
         channelSet : set of str, optional
             list of channel names
@@ -743,7 +735,7 @@ class DATA(dict):
 
         Parameters
         ----------------
-        record class
+        record: class
             channel group definition listing record channel classes
         channelSet : set of str, optional
             list of channel names

@@ -1,18 +1,9 @@
 # -*- coding: utf-8 -*-
 """ Measured Data Format file reader module.
 
-Platform and python version
-----------------------------------------
-With Unix and Windows for python 2.7 and 3.4+
-
 :Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
 
 Created on Wed Oct 04 21:13:28 2017
-
-Dependencies
--------------------
-- Python >2.6, >3.4 <http://www.python.org>
-- Numpy >1.6 <http://numpy.scipy.org>
 
 Attributes
 --------------
@@ -20,7 +11,7 @@ PythonVersion : float
     Python version currently running, needed for compatibility of both
     python 2.6+ and 3.4+
 
-channel module
+channel
 --------------------------
 
 """

@@ -3,18 +3,16 @@
 
 Created on Thu Sept 24 2015
 
-Platform and python version
-----------------------------------------
-With Unix and Windows for python 2.6+ and 3.2+
-
 :Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
+
 
 Dependencies
 -------------------
 - Python >2.6, >3.2 <http://www.python.org>
 - Numpy >1.6 <http://numpy.scipy.org>
 
-mdf module
+
+mdf
 --------------------------
 """
 from __future__ import absolute_import  # for consistency between python 2 and 3
@@ -25,7 +23,7 @@ from itertools import chain
 from random import choice
 from string import ascii_letters
 from sys import version_info
-from collections import OrderedDict,defaultdict
+from collections import OrderedDict, defaultdict
 from warnings import warn
 from numpy import array_repr, set_printoptions, recarray, fromstring
 try:
@@ -644,7 +642,7 @@ class mdf_skeleton(dict):
 
         Returns:
         ------------
-        mdf_skeleton class instance
+        mdf_skeleton: class instance
             copy of a mdf_skeleton class
         """
         yop = mdf_skeleton()
@@ -666,12 +664,12 @@ def _open_MDF(fileName):
     Parameters
     -----------
     filename : str
-    filename string
+        filename string
 
     Returns:
     --------
     fid
-    file identifier
+        file identifier
     """
 
     try:

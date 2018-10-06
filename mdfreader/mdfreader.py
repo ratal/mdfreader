@@ -28,7 +28,8 @@ Attributes
 PythonVersion : float
     Python version currently running, needed for compatibility of both python 2.6+ and 3.2+
 
-mdfreader module
+
+mdfreader
 --------------------------
 """
 from __future__ import absolute_import  # for consistency between python 2 and 3
@@ -263,7 +264,7 @@ class mdf(mdf3, mdf4):
     Methods
     ------------
     read( fileName = None, multiProc = False, channelList=None, convertAfterRead=True, filterChannelNames=False,
-            noDataLoading=False, compression=False)
+     noDataLoading=False, compression=False)
         reads mdf file version 3.x and 4.x
     write( fileName=None )
         writes simple mdf file
@@ -844,9 +845,9 @@ class mdf(mdf3, mdf4):
         sampling : float, optional
             sampling interval.
 
-        Dependency
-        -----------------
-        scipy
+        Notes
+        --------
+        Dependency: scipy
         """
         try:
             from scipy.io import netcdf
@@ -945,14 +946,11 @@ class mdf(mdf3, mdf4):
             HDF5 gzip compression level, 0-9. Only valid if gzip compression is used.
             Level 4 (default) recommended for best balance between compression and time.
 
-        Dependency
-        ------------------
-        h5py
-
         Notes
         --------
         The maximum attributes will be stored
         Data structure will be similar has it is in masterChannelList attribute
+        Dependency: h5py
         """
         #
         try:
@@ -1055,16 +1053,13 @@ class mdf(mdf3, mdf4):
         filename : str, optional
             file name. If no name defined, it will use original mdf name and path
 
-        Dependency
-        ------------------
-        scipy
-
         Notes
         --------
         This method will dump all data into Matlab file but you will loose below information:
         - unit and descriptions of channel
         - data structure, what is corresponding master channel to a channel.
-            Channels might have then different lengths
+        Channels might have then different lengths
+        Dependency: scipy
         """
         # export class data struture into .mat file
         try:
@@ -1097,16 +1092,12 @@ class mdf(mdf3, mdf4):
         filename : str, optional
             file name. If no name defined, it will use original mdf name and path
 
-        Dependencies
-        --------------------
-        xlwt for python 2.6+
-        xlwt3 for python 3.2+
-
         Notes
         --------
         xlwt is not fast even for small files, consider other binary formats like HDF5 or Matlab
         If there are more than 256 channels, data will be saved over different worksheets
         Also Excel 2003 is becoming rare these days, prefer using exportToXlsx
+        Dependencies: xlwt for python 2.6+, xlwt3 for python 3.2+
         """
         try:
             if PythonVersion < 3:
@@ -1174,13 +1165,10 @@ class mdf(mdf3, mdf4):
         filename : str, optional
             file name. If no name defined, it will use original mdf name and path
 
-        Dependency
-        -----------------
-        openpyxl
-
         Notes
         --------
         It is recommended to export resampled data for performances
+        Dependency: openpyxl
         """
         try:
             import openpyxl
