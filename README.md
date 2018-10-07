@@ -87,11 +87,16 @@ Command example in ipython:
     # you can print file content in ipython with a simple:
     yop
     # alternatively, for max speed and smaller memory footprint, read only few channels
-    yop=mdfreader.mdf('NameOfFile',channelList=['channel1', 'channel2'],convertAfterRead=False)
+    yop=mdfreader.mdf('NameOfFile', channelList=['channel1', 'channel2'], convertAfterRead=False)
     # also possible to keep data compressed for small memory footprint, using Blosc module
-    yop=mdfreader.mdf('NameOfFile',compression=True)
+    yop=mdfreader.mdf('NameOfFile', compression=True)
     # for interactive file exploration, possible to read the file but not its data to save memory
-    yop=mdfreader.mdf('NameOfFile',noDataLoading=True) # channel data will be loaded from file if needed
+    yop=mdfreader.mdf('NameOfFile', noDataLoading=True) # channel data will be loaded from file if needed
+    # parsing xml metadata from mdf4.x for many channels can take more than just reading data.
+    # By using metadata argument, you can reduce to minimum metadata reading (no source information, attachment, etc.) 
+    yop=mdfreader.mdf('NameOfFile', metadata=0)  # 0: full, 2: minimal
+    # only for mdf4.x, you can look for a channel name and its corresponding mdf key that can can have been recorded by different sources
+    yop.getChannelName4('channelName', 'source path or name')  
     # to yield one channel and keep its content in mdf object
     yop.getChannel('channelName')
     # to yield one channel numpy array
@@ -128,7 +133,7 @@ Command example in ipython:
     yop.keepChannels({'channel1','channel2','channel3'})
     # merge 2 files
     yop2=mdfreader.mdf('NameOfFile_2')
-    yop=mergeMDF(yop2)
+    yop.mergeMDF(yop2)
     # can write mdf file after modifications or creation from scratch
     # write4 and write3 also allow to convert file versions
     yop.write('NewNameOfFile')  # write in same version as original file after modifications
