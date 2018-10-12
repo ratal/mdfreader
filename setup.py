@@ -108,7 +108,7 @@ try:  # try compiling module with cython or c code
     setup(name=name, version=version, description=description, long_description=long_description,
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
-          entry_points=entry_points, ext_modules=ext_modules)
+          entry_points=entry_points, ext_modules=ext_modules, include_dirs=[numpy.get_include()])
 except:  # without Cython
     import sys
     print("Unexpected error:", sys.exc_info())
@@ -117,6 +117,6 @@ except:  # without Cython
     setup(name=name, version=version, description=description, long_description=long_description,
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
-          entry_points=entry_points)
+          entry_points=entry_points, include_dirs=[numpy.get_include()])
     warn('It is strongly advised to install Cython along with compilation environment '
          'for performance and robustness purpose')
