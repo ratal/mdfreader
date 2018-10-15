@@ -604,14 +604,14 @@ class mdf_skeleton(dict):
             output.append('')
         for m in self.file_metadata.keys():
             if self.file_metadata[m] is not None:
-                output.append([m, ' : {}\n'.format(self.file_metadata[m])])
+                output.append('{} : {}\n'.format(m, self.file_metadata[m]))
         if not self._pandasframe:
             output.append('\nchannels listed by data groups:\n')
             for d in self.masterChannelList.keys():
                 if d is not None:
-                    output.append([d, '\n'])
+                    output.append('{}\n'.format(d))
                 for c in self.masterChannelList[d]:
-                    output.append(['  ', c, ' : '])
+                    output.append('  {} : '.format(c))
                     desc = self.getChannelDesc(c)
                     if desc is not None:
                         try:
@@ -626,8 +626,8 @@ class mdf_skeleton(dict):
                                       precision=3, suppress_small=True))
                     unit = self.getChannelUnit(c)
                     if unit is not None:
-                        output.append([' ', unit, '\n'])
-            return output
+                        output.append(' {}\n'.format(unit))
+            return ''.join(output)
         else:
             set_option('max_rows', 3)
             set_option('expand_frame_repr', True)
@@ -635,7 +635,7 @@ class mdf_skeleton(dict):
             for master in self.masterGroups:
                 output.append(master)
                 output.append(str(self[master]))
-            return output
+            return ''.join(output)
 
     def copy(self):
         """copy a mdf class
