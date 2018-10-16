@@ -519,7 +519,7 @@ class mdf(mdf3, mdf4):
                             masterName = list(self.masterChannelList)[0]
                             if not masterName:  # resampled channels, only one time channel probably called 'master'
                                 masterName = 'master'
-                            master_data = self.getChannelData(master_name)
+                            master_data = self.getChannelData(masterName)
                             if master_data is None:  # no master channel
                                 master_data = arange(0, len(data), 1)
                             if masterName in self.masterChannelList:  # time channel properly defined

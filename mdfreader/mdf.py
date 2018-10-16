@@ -588,7 +588,7 @@ class mdf_skeleton(dict):
         self.file_metadata['time'] = time
 
     def __str__(self):
-        """representation a mdf_skeleton class data strucutre
+        """representation a mdf_skeleton class data structure
 
         Returns:
         ------------
