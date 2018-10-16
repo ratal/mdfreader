@@ -307,7 +307,7 @@ cdef inline dataReadUInt(const char* bita, str RecordFormat, unsigned long long 
     cdef char temp3[3]
     if bitCount == 32:
         for i in range(numberOfRecords):
-            memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], 2)
+            memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], 4)
             buf[i] = temp4byte
         if swap == 0:
             return buf
@@ -375,7 +375,7 @@ cdef inline dataReadInt(const char* bita, str RecordFormat, unsigned long long n
     cdef char temp3[3]
     if bitCount == 32:
         for i in range(numberOfRecords):
-            memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], 2)
+            memcpy(&temp4byte, &bita[posByteBeg + record_byte_size * i], 4)
             buf[i] = temp4byte
         if swap == 0:
             return buf
