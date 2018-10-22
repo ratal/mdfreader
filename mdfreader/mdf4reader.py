@@ -1802,7 +1802,7 @@ class mdf4(mdf_skeleton):
             try:
                 (ndg, ncg, ncn), (cn, cs, cp), (gn, gs, gp) = self[channel_name]['id']
                 if name == cn and path in (cs, cp) or path in (gn, gs, gp):
-                    output.append(channel_name, (ndg, ncg, ncn))
+                    output.append((channel_name, (ndg, ncg, ncn)))
             except KeyError:  # most probably a invalid bit channel
                 pass
         return output
