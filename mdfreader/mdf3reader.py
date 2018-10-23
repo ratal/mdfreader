@@ -32,8 +32,8 @@ from sys import platform, exc_info, version_info
 from warnings import warn
 import os
 from warnings import simplefilter
-from .mdf import mdf_skeleton, _open_MDF, \
-    dataField, conversionField, idField, compressed_data
+from .mdf import MdfSkeleton, _open_mdf, \
+    dataField, conversionField, idField, CompressedData
 from .mdfinfo3 import info3
 from .channel import Channel3
 if os.name == 'posix':
@@ -777,7 +777,7 @@ class DATA(dict):
         return buf
 
 
-class mdf3(mdf_skeleton):
+class mdf3(MdfSkeleton):
 
     """ mdf file version 3.0 to 3.3 class
 
@@ -967,13 +967,8 @@ class mdf3(mdf_skeleton):
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
                                         warn('bit count and offset not applied to correct data type')
-                                self.add_channel(dataGroup, chan.name, temp,
-                                                 master_channel,
-                                                 master_type=1,
-                                                 unit=chan.unit,
-                                                 description=chan.desc,
-                                                 conversion=chan.conversion,
-                                                 info=None,
+                                self.add_channel(chan.name, temp, master_channel, master_type=1, unit=chan.unit,
+                                                 description=chan.desc, conversion=chan.conversion, info=None,
                                                  compression=compression)
                         buf[recordID].pop('data', None)
                 del buf
@@ -1005,15 +1000,15 @@ class mdf3(mdf_skeleton):
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if channelName in self:
-            vect = self.getChannel(channelName)[dataField]
+            vect = self.get_channel(channelName)[dataField]
             if vect is None:  # noDataLoading reading argument flag activated
                 if self.info.fid is None or (self.info.fid is not None and self.info.fid.closed):
-                    (self.info.fid, self.info.fileName, zipfile) = _open_MDF(self.fileName)
+                    (self.info.fid, self.info.fileName, zipfile) = _open_mdf(self.fileName)
                 self.read3(fileName=None, info=self.info, channelList=[channelName], convertAfterRead=False)
             if not raw_data:
                 return self._convert3(channelName, self.convert_tables)
             else:
-                return self.getChannel(channelName)[dataField]
+                return self.get_channel(channelName)[dataField]
         else:
             return None
 
@@ -1036,7 +1031,7 @@ class mdf3(mdf_skeleton):
         if self[channelName][dataField] is None:
             vect = self[channelName][dataField]
         else:
-            if isinstance(self[channelName][dataField], compressed_data):
+            if isinstance(self[channelName][dataField], CompressedData):
                 vect = self[channelName][dataField].decompression()  # uncompress blosc
             else:
                 vect = self[channelName][dataField][:]  # to have bcolz uncompressed data
@@ -1075,7 +1070,7 @@ class mdf3(mdf_skeleton):
         channelName : str
             Name of channel
         """
-        self.setChannelData(channelName, self._convert3(channelName, self.convert_tables))
+        self.set_channel_data(channelName, self._convert3(channelName, self.convert_tables))
         self.remove_channel_conversion(channelName)
 
     def _convertAllChannel3(self):
@@ -1246,7 +1241,7 @@ class mdf3(mdf_skeleton):
                     masterFlag = 0  # data channel
                 else:
                     masterFlag = 1  # master channel
-                desc = self.getChannelDesc(channel)
+                desc = self.get_channel_desc(channel)
                 #if bitOffset exceeds two byte limit, we start using the byte offset field
                 if bitOffset > 0xFFFF:
                     bitOffset -= 0x10000
@@ -1325,7 +1320,7 @@ class mdf3(mdf_skeleton):
                 # conversion already done during reading
                 # additional size information, not necessary for 65535 conversion type ?
                 try:
-                    unit = '{:\x00<20.19}'.format(self.getChannelUnit(channel)
+                    unit = '{:\x00<20.19}'.format(self.get_channel_unit(channel)
                                                   .encode('latin-1', 'replace'))
                 except:
                     unit = b'\x00' * 20

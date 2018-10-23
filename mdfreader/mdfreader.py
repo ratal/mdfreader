@@ -47,10 +47,10 @@ from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, flo
 from numpy import nan, datetime64, array, searchsorted, clip
 from numpy.ma import MaskedArray
 from .mdf3reader import mdf3
-from .mdf4reader import mdf4
-from .mdf import _open_MDF, dataField, descriptionField, unitField, masterField, masterTypeField
+from .mdf4reader import Mdf4
+from .mdf import _open_mdf, dataField, descriptionField, unitField, masterField, masterTypeField
 from .mdfinfo3 import info3, _generateDummyMDF3
-from .mdfinfo4 import info4, _generateDummyMDF4
+from .mdfinfo4 import Info4, _generate_dummy_mdf4
 
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
@@ -182,7 +182,7 @@ class mdfinfo(dict):
 
         # Open file
         if self.fid is None or (self.fid is not None and self.fid.closed):
-            (self.fid, self.fileName, self.zipfile) = _open_MDF(self.fileName)
+            (self.fid, self.fileName, self.zipfile) = _open_mdf(self.fileName)
 
         # read Identifier block
         self.fid.seek(28)
@@ -191,7 +191,7 @@ class mdfinfo(dict):
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
             self.update(info3(None, self.fid, self.filterChannelNames))
         else:  # MDF version 4.x
-            self.update(info4(None, self.fid, minimal))
+            self.update(Info4(None, self.fid, minimal))
             if self.zipfile and fid is None: # not from mdfreader.read()
                 remove(self.fileName)
 
@@ -213,7 +213,7 @@ class mdfinfo(dict):
         if self.fileName is None or fileName is not None:
             self.fileName = fileName
         # Open file
-        (self.fid, self.fileName, zipfile) = _open_MDF(self.fileName)
+        (self.fid, self.fileName, zipfile) = _open_mdf(self.fileName)
         # read Identifier block
         self.fid.seek(28)
         MDFVersionNumber = unpack('<H', self.fid.read(2))
@@ -222,8 +222,8 @@ class mdfinfo(dict):
             channelNameList = info3()
             nameList = channelNameList.listChannels3(self.fileName, self.fid)
         else:
-            channelNameList = info4()
-            nameList = channelNameList.listChannels4(self.fileName, self.fid)
+            channelNameList = Info4()
+            nameList = channelNameList.list_channels_4(self.fileName, self.fid)
             if zipfile: # not from mdfreader.read()
                 remove(self.fileName)
         return nameList
@@ -239,10 +239,10 @@ class mdfinfo(dict):
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
             return _generateDummyMDF3(self, channelList)
         else:  # MDF version 4.x
-            return _generateDummyMDF4(self, channelList)
+            return _generate_dummy_mdf4(self, channelList)
 
 
-class mdf(mdf3, mdf4):
+class mdf(mdf3, Mdf4):
 
     """ mdf class
 
@@ -388,7 +388,7 @@ class mdf(mdf3, mdf4):
             self.fileName = fileName
 
         # Open file
-        (self.fid, self.fileName, self.zipfile) = _open_MDF(self.fileName)
+        (self.fid, self.fileName, self.zipfile) = _open_mdf(self.fileName)
 
         # read Identifier block
         self.fid.seek(28)
@@ -406,12 +406,11 @@ class mdf(mdf3, mdf4):
                 self.update(mdfdict)
         else:  # MDF version 4.x
             if not noDataLoading:
-                self.read4(self.fileName, None, multiProc, channelList,
-                           convertAfterRead, compression, metadata)
+                self.read4(self.fileName, None, multiProc, channelList, convertAfterRead, compression, metadata)
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
-                self.info = info4(None, fid=self.fid, minimal=1)
-                (self.masterChannelList, mdfdict) = _generateDummyMDF4(self.info, channelList)
+                self.info = Info4(None, fid=self.fid, minimal=1)
+                (self.masterChannelList, mdfdict) = _generate_dummy_mdf4(self.info, channelList)
                 self.update(mdfdict)
 
         if not self.fid.closed:  # close file
@@ -443,7 +442,7 @@ class mdf(mdf3, mdf4):
         if self.MDFVersionNumber < 400 and not compression:
             self.write3(fileName=fileName)
         else:
-            self.write4(fileName=fileName, compression=compression)
+            self.write4(file_name=fileName, compression=compression)
 
     def getChannelData(self, channelName, raw_data=False):
         """Return channel numpy array
@@ -467,10 +466,10 @@ class mdf(mdf3, mdf4):
         if self.MDFVersionNumber < 400:
             vect = self._getChannelData3(channelName, raw_data)
         else:
-            vect = self._getChannelData4(channelName, raw_data)
+            vect = self._get_channel_data_4(channelName, raw_data)
         if self._noDataLoading:
             # remove data loaded in object to save memory
-            self.setChannelData(channelName, None)
+            self.set_channel_data(channelName, None)
         return vect
 
     def convertAllChannel(self):
@@ -480,7 +479,7 @@ class mdf(mdf3, mdf4):
         if self.MDFVersionNumber < 400:
             return self._convertAllChannel3()
         else:
-            return self._convertAllChannel4()
+            return self._convert_all_channel_4()
 
     def plot(self, channel_name_list_of_list):
         """Plot channels with Matplotlib
@@ -524,25 +523,25 @@ class mdf(mdf3, mdf4):
                                 master_data = arange(0, len(data), 1)
                             if masterName in self.masterChannelList:  # time channel properly defined
                                 plt.plot(master_data, data, label=channelName)
-                                plt.xlabel('{0} [{1}]'.format(masterName, self.getChannelUnit(masterName)))
+                                plt.xlabel('{0} [{1}]'.format(masterName, self.get_channel_unit(masterName)))
                             else:  # no time channel found
                                 plt.plot(data)
                         else:  # not resampled
-                            master_name = self.getChannelMaster(channelName)
+                            master_name = self.get_channel_master(channelName)
                             master_data = self.getChannelData(master_name)
                             if master_data is None:  # no master channel
                                 master_data = arange(0, len(data), 1)
                             if master_name in self.masterChannelList:  # master channel is proper channel name
                                 plt.plot(master_data, data, label=channelName)
-                                plt.xlabel('{0} [{1}]'.format(master_name, self.getChannelUnit(master_name)))
+                                plt.xlabel('{0} [{1}]'.format(master_name, self.get_channel_unit(master_name)))
                             else:
                                 plt.plot(data)
 
-                        plt.title(self.getChannelDesc(channelName))
-                        if self.getChannelUnit(channelName) == {}:
+                        plt.title(self.get_channel_desc(channelName))
+                        if self.get_channel_unit(channelName) == {}:
                             plt.ylabel(channelName)
                         else:
-                            plt.ylabel('{0} [{1}]'.format(channelName, self.getChannelUnit(channelName)))
+                            plt.ylabel('{0} [{1}]'.format(channelName, self.get_channel_unit(channelName)))
                 else:
                     warn('Channel {} not existing'.format(channelName))
             plt.grid(True)
@@ -615,18 +614,14 @@ class mdf(mdf3, mdf4):
                             minTime.append(masterData[0])
                             maxTime.append(masterData[-1])
                             length.append(len(masterData))
-                if minTime: # at least 1 datagroup has a master channel to be resampled
+                if minTime:  # at least 1 datagroup has a master channel to be resampled
                     if samplingTime is None:
                         masterData = linspace(min(minTime), max(maxTime), num=max(length))
                     else:
                         masterData = arange(min(minTime), max(maxTime), samplingTime)
-                    self.add_channel(0, masterChannelName,
-                                     masterData,
-                                     masterChannelName,
-                                     master_type=self.getChannelMasterType(master),
-                                     unit=self.getChannelUnit(master),
-                                     description=self.getChannelDesc(master),
-                                     conversion=None)
+                    self.add_channel(masterChannelName, masterData, masterChannelName,
+                                     master_type=self.get_channel_master_type(master), unit=self.get_channel_unit(master),
+                                     description=self.get_channel_desc(master), conversion=None)
             else:
                 masterChannelName = masterChannel # master channel defined in argument
                 if masterChannel not in list(self.masterChannelList.keys()):
@@ -637,13 +632,9 @@ class mdf(mdf3, mdf4):
             if len(list(self.masterChannelList.keys())) > 1:  # Not yet resampled or only 1 datagroup
                 # create master channel if not proposed
                 if masterChannel is None and masterData is not None:
-                    self.add_channel(0, masterChannelName,
-                                     masterData,
-                                     masterChannelName,
-                                     master_type=self.getChannelMasterType(master),
-                                     unit=self.getChannelUnit(master),
-                                     description=self.getChannelDesc(master),
-                                     conversion=None)
+                    self.add_channel(masterChannelName, masterData, masterChannelName,
+                                     master_type=self.get_channel_master_type(master), unit=self.get_channel_unit(master),
+                                     description=self.get_channel_desc(master), conversion=None)
 
                 # Interpolate channels
                 timevect = []
@@ -654,21 +645,22 @@ class mdf(mdf3, mdf4):
                 for Name in list(self.keys()):
                     try:
                         if Name not in list(self.masterChannelList.keys()):  # not a master channel
-                            timevect = self.getChannelData(self.getChannelMaster(Name))
+                            timevect = self.getChannelData(self.get_channel_master(Name))
                             if not self.getChannelData(Name).dtype.kind in ('S', 'U', 'V'):
                                 # if channel not array of string
-                                self.setChannelData(Name, interpolate(masterData, timevect, self.getChannelData(Name)))
-                                self.setChannelMaster(Name, masterChannelName)
-                                self.setChannelMasterType(Name, self.getChannelMasterType(master))
+                                self.set_channel_data(Name,
+                                                      interpolate(masterData, timevect, self.getChannelData(Name)))
+                                self.set_channel_master(Name, masterChannelName)
+                                self.set_channel_master_type(Name, self.get_channel_master_type(master))
                                 self.remove_channel_conversion(Name)
                             else:  # can not interpolate strings, remove channel containing string
                                 self.remove_channel(Name)
                     except:
                         if timevect is not None and len(timevect) != len(self.getChannelData(Name)):
                             warn('{} and master channel {} do not have same length'.
-                                 format(Name, self.getChannelMaster(Name)))
+                                 format(Name, self.get_channel_master(Name)))
                         elif not all(diff(timevect) > 0):
-                            master = self.getChannelMaster(Name)
+                            master = self.get_channel_master(Name)
                             warn('{} has non regularly increasing master channel {}.\n'
                                  ' Faulty samples will be dropped in related data group'.
                                  format(Name, master))
@@ -684,10 +676,10 @@ class mdf(mdf3, mdf4):
                 masterData = self.getChannelData(list(self.masterChannelList.keys())[0])
                 masterData = arange(masterData[0], masterData[-1], samplingTime)
                 for Name in list(self.keys()):
-                    timevect = self.getChannelData(self.getChannelMaster(Name))
-                    self.setChannelData(Name, interpolate(masterData, timevect, self.getChannelData(Name)))
-                    self.setChannelMaster(Name, masterChannelName)
-                    self.setChannelMasterType(Name, self.getChannelMasterType(master))
+                    timevect = self.getChannelData(self.get_channel_master(Name))
+                    self.set_channel_data(Name, interpolate(masterData, timevect, self.getChannelData(Name)))
+                    self.set_channel_master(Name, masterChannelName)
+                    self.set_channel_master_type(Name, self.get_channel_master_type(master))
                     self.remove_channel_conversion(Name)
             elif samplingTime is None:
                 warn('Already resampled')
@@ -709,7 +701,7 @@ class mdf(mdf3, mdf4):
         for channel in self.masterChannelList[master_channel_name]:
             data = self.getChannelData(channel).view(MaskedArray)
             data.mask = mask
-            self.setChannelData(channel, data.compressed())
+            self.set_channel_data(channel, data.compressed())
 
     def cut(self, begin=None, end=None):
         """ Cut data
@@ -746,11 +738,11 @@ class mdf(mdf3, mdf4):
                 if startIndex == endIndex:
                     # empty array
                     for channel in self.masterChannelList[master]:
-                        self.setChannelData(channel, array([]))
+                        self.set_channel_data(channel, array([]))
                 else:
                     for channel in self.masterChannelList[master]:
                         data = self.getChannelData(channel)
-                        self.setChannelData(channel, data[startIndex: endIndex])
+                        self.set_channel_data(channel, data[startIndex: endIndex])
 
     def exportToCSV(self, filename=None, sampling=None):
         """Exports mdf data into CSV file
@@ -787,7 +779,7 @@ class mdf(mdf3, mdf4):
                 writer = csv.writer(f, dialect=csv.excel)
                 for name in list(self.keys()):
                     data = self.getChannelData(name)
-                    unit = self.getChannelUnit(name)
+                    unit = self.get_channel_unit(name)
                     if data.dtype.kind not in ('S', 'U', 'V') \
                             and data.ndim <= 1:
                         if name is bytes:
@@ -797,7 +789,7 @@ class mdf(mdf3, mdf4):
                                 names.append(name.encode(encoding, 'replace'))
                             except:
                                 names.append(name)
-                        if self.getChannelUnit(name) is bytes:
+                        if self.get_channel_unit(name) is bytes:
                             units.append(unit.encode(encoding, 'ignore'))
                         else:
                             try:
@@ -813,7 +805,7 @@ class mdf(mdf3, mdf4):
                                  if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V')
                                  and self.getChannelData(name).ndim <= 1])  # writes channel names
                 # writes units
-                writer.writerow([self.getChannelUnit(name)
+                writer.writerow([self.get_channel_unit(name)
                                  for name in list(self.keys())
                                  if self.getChannelData(name).dtype.kind not in ('S', 'U', 'V')
                                  and self.getChannelData(name).ndim <= 1])  # writes units
@@ -911,11 +903,11 @@ class mdf(mdf3, mdf4):
                 if len(list(self.masterChannelList.keys())) == 1:  # mdf resampled
                     var[name] = f.createVariable(CleanedName, dataType, (list(self.masterChannelList.keys())[0], ))
                 else:  # not resampled
-                    var[name] = f.createVariable(CleanedName, dataType, (self.getChannelMaster(name), ))
+                    var[name] = f.createVariable(CleanedName, dataType, (self.get_channel_master(name),))
                 # Create attributes
                 setAttribute(var[name], 'title', CleanedName)
-                setAttribute(var[name], 'units', self.getChannelUnit(name))
-                setAttribute(var[name], 'Description', self.getChannelDesc(name))
+                setAttribute(var[name], 'units', self.get_channel_unit(name))
+                setAttribute(var[name], 'Description', self.get_channel_desc(name))
                 if name in set(self.masterChannelList.keys()):
                     setAttribute(var[name], 'Type', 'Master Channel')
                     setAttribute(var[name], 'datatype', 'master')
@@ -1005,7 +997,7 @@ class mdf(mdf3, mdf4):
             grp = {}
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
-                masterName = self.getChannelMaster(channel)
+                masterName = self.get_channel_master(channel)
                 if masterField in self[channel] and masterName not in list(groups.keys()):
                     # create new data group
                     ngroups += 1
@@ -1018,7 +1010,7 @@ class mdf(mdf3, mdf4):
                     grp[ngroups] = filegroup.create_group(group_name)
                     setAttribute(grp[ngroups], masterField, masterName)
                     setAttribute(grp[ngroups], masterTypeField,
-                            masterTypeDict[self.getChannelMasterType(channel)])
+                                 masterTypeDict[self.get_channel_master_type(channel)])
                 elif masterField in self[channel] and masterName in list(groups.keys()):
                     group_name = masterName
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
@@ -1026,23 +1018,23 @@ class mdf(mdf3, mdf4):
                                                                   data=channelData,
                                                                   compression=compression,
                                                                   compression_opts=compression_opts)
-                    setAttribute(dset, unitField, self.getChannelUnit(channel))
+                    setAttribute(dset, unitField, self.get_channel_unit(channel))
                     if descriptionField in self[channel]:
-                        setAttribute(dset, descriptionField, self.getChannelDesc(channel))
+                        setAttribute(dset, descriptionField, self.get_channel_desc(channel))
         else:  # resampled or only one time for all channels : no groups
             masterName = list(self.masterChannelList.keys())[0]
             setAttribute(filegroup, masterField, masterName)
             setAttribute(filegroup, masterTypeField,
-                    masterTypeDict[self.getChannelMasterType(masterName)])
+                         masterTypeDict[self.get_channel_master_type(masterName)])
             for channel in list(self.keys()):
                 channelData = self.getChannelData(channel)
                 if channelData.dtype.kind not in ('U', 'O'):  # not supported type
                     dset = filegroup.create_dataset(channel, data=channelData,
                                                     compression=compression,
                                                     compression_opts=compression_opts)
-                    setAttribute(dset, unitField, self.getChannelUnit(channel))
+                    setAttribute(dset, unitField, self.get_channel_unit(channel))
                     if descriptionField in self[channel]:
-                        setAttribute(dset, descriptionField, self.getChannelDesc(channel))
+                        setAttribute(dset, descriptionField, self.get_channel_desc(channel))
         f.close()
 
     def exportToMatlab(self, filename=None):
@@ -1114,9 +1106,9 @@ class mdf(mdf3, mdf4):
         wb = xlwt.Workbook(encoding=coding)
         channelList = list(self.keys())
         if PythonVersion < 3:
-            Units = [self.getChannelUnit(channel).decode(coding, 'replace') for channel in list(self.keys())]
+            Units = [self.get_channel_unit(channel).decode(coding, 'replace') for channel in list(self.keys())]
         else:
-            Units = [self.getChannelUnit(channel) for channel in list(self.keys())]
+            Units = [self.get_channel_unit(channel) for channel in list(self.keys())]
         # Excel 2003 limits
         maxCols = 255
         maxLines = 65535
@@ -1190,7 +1182,7 @@ class mdf(mdf3, mdf4):
                 data = self.getChannelData(channel)
                 if data.ndim <= 1:  # not an array channel
                     ws.cell(row=1, column=ncol).value = channel
-                    ws.cell(row=2, column=ncol).value = self.getChannelUnit(channel)
+                    ws.cell(row=2, column=ncol).value = self.get_channel_unit(channel)
                     try:
                         if data.ndim <= 1:  # not an array channel
                             if data.dtype.kind in ('i', 'u') or 'f4' in data.dtype.str:
@@ -1222,7 +1214,7 @@ class mdf(mdf3, mdf4):
                 # avoid to remove master channels otherwise problems with resample
                 removeChannels.append(channel)
         if not len(removeChannels) == 0:
-            [self.masterChannelList[self.getChannelMaster(channel)].remove(channel) for channel in removeChannels]
+            [self.masterChannelList[self.get_channel_master(channel)].remove(channel) for channel in removeChannels]
             [self.pop(channel) for channel in removeChannels]
 
     def mergeMdf(self, mdfClass):
@@ -1248,22 +1240,22 @@ class mdf(mdf3, mdf4):
                 data = self.getChannelData(channel)
                 mdfData = mdfClass.getChannelData(channel)
                 if not channel == 'master':
-                    self.setChannelData(channel, hstack((data, mdfData)))
+                    self.set_channel_data(channel, hstack((data, mdfData)))
                 else:
                     offset = mean(diff(mdfData))  # sampling
                     offset = data[-1] + offset  # time offset
-                    self.setChannelData(channel, hstack((data, mdfData + offset)))
+                    self.set_channel_data(channel, hstack((data, mdfData + offset)))
             elif channel in mdfClass:  # new channel for self from mdfClass
                 mdfData = mdfClass.getChannelData(channel)
                 self[channel] = mdfClass[channel]  # initialise all fields, units, descriptions, etc.
                 refill = empty(initialTimeSize)
                 refill.fil(nan)  # fill with NANs
-                self.setChannelData(channel, hstack((refill, mdfData)))  # readjust against time
+                self.set_channel_data(channel, hstack((refill, mdfData)))  # readjust against time
             else:  # channel missing in mdfClass
                 data = self.getChannelData(channel)
                 refill = empty(len(mdfClass.getChannelData('master')))
                 refill.fill(nan)  # fill with NANs
-                self.setChannelData(channel, hstack((data, refill)))
+                self.set_channel_data(channel, hstack((data, refill)))
 
     def copy(self):
         """make a shallow copy a mdf class
@@ -1315,7 +1307,7 @@ class mdf(mdf3, mdf4):
         for group in self.masterChannelList:
             if group not in self.masterChannelList[group]:
                 warn('no master channel in group {}'.format(group))
-            elif self.getChannelMasterType(group) != 1:
+            elif self.get_channel_master_type(group) != 1:
                 warn('Warning: master channel is not time, '
                      'not appropriate conversion for pandas')
             temp = {}
@@ -1343,6 +1335,7 @@ class mdf(mdf3, mdf4):
         [self.masterGroups.append(group + '_group') for group in list(self.masterChannelList.keys())]
         self.masterChannelList = {}
         self._pandasframe = True
+
 
 if __name__ == "__main__":
     try:

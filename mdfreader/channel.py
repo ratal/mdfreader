@@ -19,12 +19,12 @@ from __future__ import absolute_import  # for consistency between python 2 and 3
 from struct import Struct
 from warnings import warn
 from .mdfinfo4 import ATBlock
-from .mdf import _bits_to_bytes, _convertName
+from .mdf import _bits_to_bytes, _convert_name
 
 CAN_open_offset = {'ms': 0, 'days': 4, 'minute': 2, 'hour': 3, 'day': 4, 'month': 5, 'year': 6}
 
 
-class channel4(object):
+class Channel4(object):
     __slots__ = ['channelNumber', 'channelGroup', 'dataGroup',
                  'type', 'name', 'VLSD_CG_Flag', 'nBytes', 'byteOffset']
     """ channel class gathers all about channel structure in a record
@@ -447,20 +447,14 @@ class channel4(object):
         else:
             return True
 
-    def recAttributeName(self, info):
+    def recAttributeName(self):
         """ clean up channel name from unauthorised characters
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
 
         Returns
         -----------
         channel name compliant to python attributes names (for recarray)
         """
-        return _convertName(self.name)
+        return _convert_name(self.name)
 
     def numpy_format(self, info):
         """ channel numpy.core.records data format
@@ -1254,7 +1248,7 @@ class Channel3:
             channelGroup bumber
         """
         self.name = '{0}_{1}'.format(self.name, channelGroup)
-        self.recAttributeName = _convertName(self.name)
+        self.recAttributeName = _convert_name(self.name)
         self.RecordFormat = (('{}_title'.format(self.recAttributeName), self.recAttributeName), self.dataFormat)
 
 
