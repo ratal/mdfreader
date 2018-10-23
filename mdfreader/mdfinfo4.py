@@ -757,6 +757,14 @@ class CNBlock(dict):
             if self['cn_md_unit']:  # comments exist
                 self['unit'] = CommentBlock()
                 self['unit'].readCM(fid=kargs['fid'], pointer=self['cn_md_unit'], MDType=1)
+                if self['cn_sync_type'] and (self['unit'] is None or not self['unit']):
+                    # no units but already known by spec
+                    if self['cn_sync_type'] == 1:
+                        self['unit'] = 's'
+                    elif self['cn_sync_type'] == 2:
+                        self['unit'] = 'rad'
+                    elif self['cn_sync_type'] == 3:
+                        self['unit'] = 'm'
             if self['cn_tx_name']:  # comments exist
                 comment = CommentBlock()
                 comment.readCM(fid=kargs['fid'], pointer=self['cn_tx_name'], MDType=0)
