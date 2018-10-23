@@ -758,8 +758,8 @@ class Record(list):
         ----------------
         fid :
             file identifier
-        pointer
-            position in file of data block beginning
+        info
+            info class
         channelSet : set of str, optional
             set of channel to read
 

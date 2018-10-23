@@ -1255,7 +1255,7 @@ class HLBlock(dict):
 
 
 class Info4(dict):
-    __slots__ = ['file_name', 'fid', 'zipfile']
+    __slots__ = ['fileName', 'fid', 'zipfile']
     """ information block parser fo MDF file version 4.x
 
     Attributes
