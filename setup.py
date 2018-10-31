@@ -17,7 +17,7 @@ except:
 
 
 name = 'mdfreader'
-version = '2.8'
+version = '3.0'
 
 description = 'A Measured Data Format file parser'
 
