@@ -962,7 +962,7 @@ class Record(list):
                 bytesdata = bytes(bit_stream)
                 for chan in channels_indexes:
                     if self[chan].is_ca_block(info):
-                        ca = self[chan].CABlock(info)
+                        ca = self[chan].ca_block(info)
                         array_flag = ca['ca_ndim']
                     else:
                         array_flag = 0

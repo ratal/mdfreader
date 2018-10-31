@@ -530,7 +530,7 @@ class Record(list):
                             rec[chan.name][previous_index: previous_index + n_record_chunk] = \
                                 dataRead(bytes(bit_stream),
                                          chan.bitCount,
-                                         convertDataType3to4[chan.signal_data_type],
+                                         convertDataType3to4[chan.signalDataType],
                                          chan.nativedataFormat,
                                          n_record_chunk,
                                          self.CGrecordLength,
