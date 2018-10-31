@@ -83,30 +83,30 @@ Command example in ipython:
 ```python
     import mdfreader
     # loads whole mdf file content in yop mdf object.
-    yop=mdfreader.mdf('NameOfFile')
+    yop=mdfreader.Mdf('NameOfFile')
     # you can print file content in ipython with a simple:
     yop
     # alternatively, for max speed and smaller memory footprint, read only few channels
-    yop=mdfreader.mdf('NameOfFile', channelList=['channel1', 'channel2'], convertAfterRead=False)
+    yop=mdfreader.Mdf('NameOfFile', channelList=['channel1', 'channel2'], convertAfterRead=False)
     # also possible to keep data compressed for small memory footprint, using Blosc module
-    yop=mdfreader.mdf('NameOfFile', compression=True)
+    yop=mdfreader.Mdf('NameOfFile', compression=True)
     # for interactive file exploration, possible to read the file but not its data to save memory
-    yop=mdfreader.mdf('NameOfFile', noDataLoading=True) # channel data will be loaded from file if needed
+    yop=mdfreader.Mdf('NameOfFile', noDataLoading=True) # channel data will be loaded from file if needed
     # parsing xml metadata from mdf4.x for many channels can take more than just reading data.
     # You can reduce to minimum metadata reading with below argument (no source information, attachment, etc.) 
-    yop=mdfreader.mdf('NameOfFile', metadata=0)  # 0: full, 2: minimal
+    yop=mdfreader.Mdf('NameOfFile', metadata=0)  # 0: full, 2: minimal
     # only for mdf4.x, you can search for the mdf key of a channel name that can have been recorded by different sources
-    yop.getChannelName4('channelName', 'source path or name')  # returns list of mdf keys
+    yop.get_channel_name_4('channelName', 'source path or name')  # returns list of mdf keys
     # to yield one channel and keep its content in mdf object
-    yop.getChannel('channelName')
+    yop.get_channel('channelName')
     # to yield one channel numpy array
-    yop.getChannelData('channelName')
+    yop.get_channel_data('channelName')
     # to get file mdf version
     yop.MDFVersionNumber
     # to get file structure or attachments, you can create a mdfinfo instance
-    info=mdfreader.mdfinfo()
-    info.listChannels('NameOfFile') # returns only the list of channels
-    info.readinfo('NameOfFile') # complete file structure object
+    info=mdfreader.MdfInfo()
+    info.list_channels('NameOfFile') # returns only the list of channels
+    info.read_info('NameOfFile') # complete file structure object
     yop.info # same class is stored in mdfreader class
     # to list channels names after reading
     yop.keys()
@@ -118,22 +118,22 @@ Command example in ipython:
     # file manipulations
     yop.resample(0.1)
     # or
-    yop.resample(masterChannel='master3')
+    yop.resample(master_channel='master3')
     # keep only data between begin and end
     yop.cut(begin=10, end=15)
     # export to other file formats :
-    yop.exporToCSV(sampling=0.01)
-    yop.exportToNetCDF()
-    yop.exportToHDF5()
-    yop.exportToMatlab()
-    yop.exportToXlsx()
+    yop.export_to_csv(sampling=0.01)
+    yop.export_to_NetCDF()
+    yop.export_to_hdf5()
+    yop.export_to_matlab()
+    yop.export_to_xlsx()
     # converts data groups into pandas dataframes
-    yop.convertToPandas()
+    yop.convert_to_pandas()
     # drops all the channels except the one in argument
-    yop.keepChannels({'channel1','channel2','channel3'})
+    yop.keep_channels({'channel1','channel2','channel3'})
     # merge 2 files
-    yop2=mdfreader.mdf('NameOfFile_2')
-    yop.mergeMDF(yop2)
+    yop2=mdfreader.Mdf('NameOfFile_2')
+    yop.merge_mdf(yop2)
     # can write mdf file after modifications or creation from scratch
     # write4 and write3 also allow to convert file versions
     yop.write('NewNameOfFile')  # write in same version as original file after modifications

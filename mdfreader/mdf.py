@@ -588,7 +588,7 @@ class MdfSkeleton(dict):
     def __str__(self):
         """representation a mdf_skeleton class data structure
 
-        Returns:
+        Returns
         ------------
         string of mdf class ordered as below
         master_channel_name
@@ -638,7 +638,7 @@ class MdfSkeleton(dict):
     def copy(self):
         """copy a mdf class
 
-        Returns:
+        Returns
         ------------
         mdf_skeleton: class instance
             copy of a mdf_skeleton class

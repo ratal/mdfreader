@@ -987,7 +987,7 @@ class Mdf3(MdfSkeleton):
         raw_data: bool
             flag to return non converted data
 
-        Returns:
+        Returns
         -----------
         numpy array
             converted, if not already done, data corresponding to channel name

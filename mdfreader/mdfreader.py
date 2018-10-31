@@ -377,7 +377,7 @@ class Mdf(Mdf3, Mdf4):
         If you keep convertAfterRead to true, you can set attribute mdf.multiProc to activate channel conversion
          in multiprocessing. Gain in reading time can be around 30% if file is big and using a lot of float channels
 
-        Warning:
+        Warning
         ------------
         MultiProc use should be avoided when reading several files in a batch, it is not thread safe.
         You should better multi process instances of mdf rather than using multiproc in mdf class
@@ -453,7 +453,7 @@ class Mdf(Mdf3, Mdf4):
         raw_data: bool
             flag to return non converted data
 
-        Returns:
+        Returns
         -----------
         numpy array
             converted, if not already done, data corresponding to channel name
@@ -1261,26 +1261,6 @@ class Mdf(Mdf3, Mdf4):
                 refill = empty(len(mdf_class.get_channel_data('master')))
                 refill.fill(nan)  # fill with NANs
                 self.set_channel_data(channel, hstack((data, refill)))
-
-    def copy(self):
-        """make a shallow copy a mdf class
-
-        Returns:
-        ------------
-        mdf class instance
-            copy of a mdf class
-        """
-        yop = Mdf()
-        yop.multiProc = self.multiProc
-        yop.fileName = self.fileName
-        yop.masterChannelList = self.masterChannelList
-        yop.file_metadata = self.file_metadata
-        yop.MDFVersionNumber = self.MDFVersionNumber
-        yop.filterChannelNames = self.filterChannelNames
-        yop.convert_tables = self.convert_tables
-        for channel in self:
-            yop[channel] = self[channel]
-        return yop
 
     def convert_to_pandas(self, sampling=None):
         """converts mdf data structure into pandas dataframe(s)

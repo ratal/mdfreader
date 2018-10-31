@@ -38,7 +38,7 @@ def dataRead(bytes tmp, unsigned short bitCount,
     array : boolean
         reads an array, not a vector
 
-    Return
+    Returns
     -------
     ndarray of type RecordFormat with numberOfRecords records.
     Byte order is swapped if necessary to match machine byte order before bits offset and masking

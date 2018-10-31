@@ -1379,7 +1379,7 @@ class Mdf4(MdfSkeleton):
         raw_data: bool
             flag to return non converted data
 
-        Returns:
+        Returns
         -----------
         numpy array
             converted, if not already done, data corresponding to channel name
@@ -1389,13 +1389,14 @@ class Mdf4(MdfSkeleton):
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
         if channel_name in self:
-            vect = self.get_channel(channel_name)[dataField]
-            if vect is None:  # noDataLoading reading argument flag activated
+            vector = self.get_channel(channel_name)[dataField]
+            if vector is None:  # noDataLoading reading argument flag activated
                 if self.info.fid is None or (self.info.fid is not None and self.info.fid.closed):
                     (self.info.fid, self.info.fileName, self.info.zipfile) = _open_mdf(self.fileName)
                 self.read4(file_name=None, info=None, channel_list=[channel_name], convert_after_read=False)
             if not raw_data:
-                return self._convert_channel_data_4(self.get_channel(channel_name), channel_name, self.convert_tables)[channel_name]
+                return self._convert_channel_data_4(self.get_channel(channel_name),
+                                                    channel_name, self.convert_tables)[channel_name]
             else:
                 return self.get_channel(channel_name)[dataField]
         else:
