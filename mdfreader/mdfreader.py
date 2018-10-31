@@ -437,7 +437,7 @@ class Mdf(Mdf3, Mdf4):
                 split_name[-1] = '.mfx'  # do not resave in compressed file
             file_name = ''.join([split_name[-2], '_New', split_name[-1]])
         # makes sure all channels are converted
-        self.convert_all_channel()
+        self.convert_all_channels()
         if self.MDFVersionNumber < 400 and not compression:
             self.write3(file_name=file_name)
         else:
@@ -471,7 +471,7 @@ class Mdf(Mdf3, Mdf4):
             self.set_channel_data(channel_name, None)
         return vector
 
-    def convert_all_channel(self):
+    def convert_all_channels(self):
         """Converts all channels from raw data to converted data according to CCBlock information
         Converted data will take more memory.
         """
@@ -597,7 +597,7 @@ class Mdf(Mdf3, Mdf4):
 
         if self:  # mdf contains data
             # must make sure all channels are converted
-            self.convert_all_channel()
+            self.convert_all_channels()
             master_data = None
             if master_channel is None:  # create master channel if not proposed
                 min_time = []
@@ -1235,7 +1235,7 @@ class Mdf(Mdf3, Mdf4):
         both classes must have been resampled, otherwise, impossible to know master channel to match
         create union of both channel lists and fill with Nan for unknown sections in channels
         """
-        self.convert_all_channel()  # make sure all channels are converted
+        self.convert_all_channels()  # make sure all channels are converted
         if not len(list(self.masterChannelList.keys())) == 1:
             raise Exception('Data not resampled')
         unioned_list = list(mdf_class.keys()) and list(self.keys())
