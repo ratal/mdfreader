@@ -619,9 +619,9 @@ class Record(list):
         for Channel in self:  # list of channel classes from channelSet
             if Channel.name in channel_set:
                 temp[Channel.name] = B[Channel.posBitBeg: Channel.posBitEnd]
-                nbytes = len(temp[Channel.name].tobytes())
-                if not nbytes == Channel.nBytes:
-                    byte = bitarray(8 * (Channel.nBytes - nbytes), endian='little')
+                n_bytes = len(temp[Channel.name].tobytes())
+                if not n_bytes == Channel.nBytes:
+                    byte = bitarray(8 * (Channel.nBytes - n_bytes), endian='little')
                     byte.setall(False)
                     if Channel.signalDataType not in (1, 10, 14):  # not signed integer
                         temp[Channel.name].extend(byte)
@@ -629,7 +629,7 @@ class Record(list):
                         temp[Channel.name] = signed_int(temp[Channel.name], byte)
                 n_trail_bits = Channel.nBytes*8 - Channel.bitCount
                 if Channel.signalDataType in (1, 10, 14) and \
-                        nbytes == Channel.nBytes and \
+                        n_bytes == Channel.nBytes and \
                         n_trail_bits > 0:  # Ctype byte length but signed integer
                     trail_bits = bitarray(n_trail_bits, endian='little')
                     temp[Channel.name] = signed_int(temp[Channel.name], trail_bits)

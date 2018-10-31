@@ -93,22 +93,22 @@ class MdfSkeleton(dict):
         adds basic metadata from file
     """
 
-    def __init__(self, fileName=None, channelList=None, convertAfterRead=True,
-                 filterChannelNames=False, noDataLoading=False,
-                 compression=False, convertTables=False, metadata=2):
+    def __init__(self, file_name=None, channel_list=None, convert_after_read=True,
+                 filter_channel_names=False, no_data_loading=False,
+                 compression=False, convert_tables=False, metadata=2):
         """ mdf_skeleton class constructor.
 
         Parameters
         ----------------
-        fileName : str, optional
+        file_name : str, optional
             file name
 
-        channelList : list of str, optional
+        channel_list : list of str, optional
             list of channel names to be read
             If you use channelList, reading might be much slower but it will
             save you memory. Can be used to read big files.
 
-        convertAfterRead : bool, optional
+        convert_after_read : bool, optional
             flag to convert channel after read, True by default
             If you use convertAfterRead by setting it to false, all data from
             channels will be kept raw, no conversion applied.
@@ -117,12 +117,12 @@ class MdfSkeleton(dict):
             To calculate value from channel, you can then use
             method .get_channel_data()
 
-        filterChannelNames : bool, optional
+        filter_channel_names : bool, optional
             flag to filter long channel names from its module names
             separated by '.'
         compression : bool optional
             flag to compress data in memory
-        convertTables : bool, optional, default False
+        convert_tables : bool, optional, default False
             flag to convert or not only conversions with tables.
             These conversions types take generally long time and memory
         """
@@ -139,21 +139,21 @@ class MdfSkeleton(dict):
         self.file_metadata['time'] = ''
         self.file_metadata['date'] = ''
         self.MDFVersionNumber = 300
-        self.filterChannelNames = filterChannelNames
+        self.filterChannelNames = filter_channel_names
         # by default, do not convert table conversion types, taking lot of time and memory
-        self.convert_tables = convertTables
+        self.convert_tables = convert_tables
         self._pandasframe = False
         self.info = None
         self._compression_level = 9  # default compression level
         self._noDataLoading = False  # in case reading with this argument activated
         # clears class from previous reading and avoid to mess up
         self.clear()
-        self.fileName = fileName
-        if fileName is not None:
-            self.read(fileName, channel_list=channelList,
-                      convert_after_read=convertAfterRead,
-                      filter_channel_names=filterChannelNames,
-                      no_data_loading=noDataLoading,
+        self.fileName = file_name
+        if file_name is not None:
+            self.read(file_name, channel_list=channel_list,
+                      convert_after_read=convert_after_read,
+                      filter_channel_names=filter_channel_names,
+                      no_data_loading=no_data_loading,
                       compression=compression,
                       metadata=metadata)
 
