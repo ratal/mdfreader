@@ -153,7 +153,7 @@ def _read_unsorted(record, info, parent_block, channel_set=None):
         record_id = record_id_c_format.unpack(parent_block['data'][position:position + record_id_size])[0]
         if not record[record_id]['record'].Flags & 0b1:  # not VLSD CG)
             temp = record.read_record(record_id, info, parent_block['data'][position:position + record[record_id][
-                'record'].CGrecordLength + 1], channel_set)
+                'record'].CGrecordLength + 1])
             position += record[record_id]['record'].CGrecordLength
             for channelName in temp:
                 buf[channelName].append(temp[channelName])
