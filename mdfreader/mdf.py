@@ -115,7 +115,7 @@ class MdfSkeleton(dict):
             If many float are stored in file, you can gain from 3 to 4 times
             memory footprint
             To calculate value from channel, you can then use
-            method .getChannelData()
+            method .get_channel_data()
 
         filterChannelNames : bool, optional
             flag to filter long channel names from its module names
@@ -221,18 +221,18 @@ class MdfSkeleton(dict):
                     self[channel_name]['conversion']['parameters']['cc_ref'] = \
                         conversion['cc_ref']
         if info is not None:  # axis from CABlock
-            CABlock = info
+            ca_block = info
             axis = []
-            while 'CABlock' in CABlock:
-                CABlock = CABlock['CABlock']
-                if 'ca_axis_value' in CABlock:
-                    if type(CABlock['ca_dim_size']) is list:
+            while 'CABlock' in ca_block:
+                ca_block = ca_block['CABlock']
+                if 'ca_axis_value' in ca_block:
+                    if type(ca_block['ca_dim_size']) is list:
                         index = 0
-                        for ndim in CABlock['ca_dim_size']:
-                            axis.append(tuple(CABlock['ca_axis_value'][index:index+ndim]))
+                        for ndim in ca_block['ca_dim_size']:
+                            axis.append(tuple(ca_block['ca_axis_value'][index:index+ndim]))
                             index += ndim
                     else:
-                        axis = CABlock['ca_axis_value']
+                        axis = ca_block['ca_axis_value']
             self[channel_name]['axis'] = axis
         if identifier is not None:
             self[channel_name]['id'] = identifier
@@ -322,7 +322,10 @@ class MdfSkeleton(dict):
         """
         temp = self._get_channel_field(channel_name, field=unitField)
         if isinstance(temp, (dict, defaultdict)):
-            temp = temp['Comment']
+            try:
+                return temp['Comment']
+            except KeyError:
+                return ''
         return temp
 
     def get_channel_desc(self, channel_name):
@@ -552,8 +555,7 @@ class MdfSkeleton(dict):
         -------
         bool
         """
-        return channel_name in self.masterChannelList[masterField] \
-               or channel_name in self.masterChannelList
+        return channel_name in self.masterChannelList[masterField] or channel_name in self.masterChannelList
 
     def add_metadata(self, author='', organisation='', project='',
                      subject='', comment='', date='', time=''):
@@ -615,7 +617,7 @@ class MdfSkeleton(dict):
                         except:
                             pass
                     output.append('\n    ')
-                    data = self.getChannelData(c)
+                    data = self.get_channel_data(c)
                     # not byte, impossible to represent
                     if data.dtype.kind != 'V':
                         output.append(array_repr(data[:],

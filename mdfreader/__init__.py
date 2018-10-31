@@ -18,9 +18,9 @@ __copyright__ = 'Copyright (c) 2017 Aymeric Rateau'
 __license__ = 'GPLV3'
 __version__ = "2.8"
 
-from .mdfreader import mdf, mdfinfo
+from .mdfreader import Mdf, MdfInfo
 
 __all__ = [
-            'mdf',
-            'mdfinfo'
+    'Mdf',
+    'MdfInfo'
             ]

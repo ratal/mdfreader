@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-""" Measured Data Format blocks paser for version 4.x
+""" Measured Data Format blocks parser for version 4.x
 
 Created on Sun Dec 15 12:57:28 2013
 
@@ -209,7 +209,8 @@ class IDBlock(dict):
                 warn('Update of offset values for VLSD channel required '
                      'in case a VLSD CG block is used')
 
-    def write(self, fid):
+    @staticmethod
+    def write(fid):
         """ Writes IDBlock
         """
         # MDF versionTxt tool reserved version_int
@@ -251,7 +252,7 @@ class HDBlock(dict):
         if self['hd_md_comment']:  # if comments exist
             self['Comment'] = {}
             comment = CommentBlock()
-            comment.readCM(fid=fid, pointer=self['hd_md_comment'], MDType=3)
+            comment.read_cm(fid=fid, pointer=self['hd_md_comment'], MDType=3)
             self['Comment'].update(comment)
 
     def write(self, fid):
@@ -298,7 +299,7 @@ class FHBlock(dict):
         if self['fh_md_comment']:  # comments exist
             self['Comment'] = {}
             comment = CommentBlock()
-            comment.readCM(fid=fid, pointer=self['fh_md_comment'], MDType=4)
+            comment.read_cm(fid=fid, pointer=self['fh_md_comment'], MDType=4)
             self['Comment'].update(comment)
 
     def write(self, fid):
@@ -339,12 +340,12 @@ class CHBlock(dict):
         if self['ch_md_comment']:  # comments exist
             self['Comment'] = {}
             comment = CommentBlock()
-            comment.readCM(fid=fid, pointer=self['ch_md_comment'])
+            comment.read_cm(fid=fid, pointer=self['ch_md_comment'])
             self['Comment'].update(comment)
         if self['ch_tx_name']:  # text block containing name of hierarchy level
             self['ch_name_level'] = {}
             comment = CommentBlock()
-            comment.readCM(fid=fid, pointer=self['ch_tx_name'])
+            comment.read_cm(fid=fid, pointer=self['ch_tx_name'])
             self['ch_name_level'].update(comment)
 
 
@@ -352,7 +353,7 @@ class CommentBlock(dict):
     """ reads or writes Comment block and saves in class dict
     """
 
-    def readCM(self, **kargs):
+    def read_cm(self, **kargs):
         """ reads Comment block and saves in class dict
 
         Parameters
@@ -616,7 +617,7 @@ class DGBlock(dict):
         if self['dg_md_comment']:  # comments exist
             self['Comment'] = {}
             comment = CommentBlock()
-            comment.readCM(fid=fid, pointer=self['dg_md_comment'])
+            comment.read_cm(fid=fid, pointer=self['dg_md_comment'])
             self['Comment'].update(comment)
 
     def write(self, fid):
@@ -663,16 +664,16 @@ class CGBlock(dict):
          self['cg_invalid_bytes']) = _CGStruct.unpack(fid.read(104))
         if self['cg_md_comment']:  # comments exist
             self['Comment'] = CommentBlock()
-            self['Comment'].readCM(fid=fid, pointer=self['cg_md_comment'])
+            self['Comment'].read_cm(fid=fid, pointer=self['cg_md_comment'])
         if self['cg_tx_acq_name']:  # comments exist
             self['acq_name'] = {}
             comment = CommentBlock()
-            comment.readCM(fid=fid, pointer=self['cg_tx_acq_name'])
+            comment.read_cm(fid=fid, pointer=self['cg_tx_acq_name'])
             self['acq_name'].update(comment)
         if self['cg_si_acq_source']:  # comments exist
             self['acq_source'] = {}
             si = SIBlock()
-            si.readSI(fid=fid, pointer=self['cg_si_acq_source'])
+            si.read_si(fid=fid, pointer=self['cg_si_acq_source'])
             self['acq_source'].update(si)
 
     def write(self, fid):
@@ -699,7 +700,7 @@ class CNBlock(dict):
     """ reads Channel block and saves in class dict
     """
 
-    def read_CN(self, **kargs):
+    def read_cn(self, **kargs):
         if kargs['pointer'] != 0 and kargs['pointer'] is not None:
             kargs['fid'].seek(kargs['pointer'])
             (self['id'],
@@ -753,10 +754,10 @@ class CNBlock(dict):
                 self['cn_default_x'] = None
             if self['cn_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock()
-                self['Comment'].readCM(fid=kargs['fid'], pointer=self['cn_md_comment'], MDType=0, minimal=True)
+                self['Comment'].read_cm(fid=kargs['fid'], pointer=self['cn_md_comment'], MDType=0, minimal=True)
             if self['cn_md_unit']:  # comments exist
                 self['unit'] = CommentBlock()
-                self['unit'].readCM(fid=kargs['fid'], pointer=self['cn_md_unit'], MDType=1)
+                self['unit'].read_cm(fid=kargs['fid'], pointer=self['cn_md_unit'], MDType=1)
                 if self['cn_sync_type'] and (self['unit'] is None or not self['unit']):
                     # no units but already known by spec
                     if self['cn_sync_type'] == 1:
@@ -767,7 +768,7 @@ class CNBlock(dict):
                         self['unit'] = 'm'
             if self['cn_tx_name']:  # comments exist
                 comment = CommentBlock()
-                comment.readCM(fid=kargs['fid'], pointer=self['cn_tx_name'], MDType=0)
+                comment.read_cm(fid=kargs['fid'], pointer=self['cn_tx_name'], MDType=0)
                 self['name'] = comment['name']
 
     def write(self, fid):
@@ -802,7 +803,7 @@ class CCBlock(dict):
     """ reads Channel Conversion block and saves in class dict
     """
 
-    def readCC(self, fid, pointer):
+    def read_cc(self, fid, pointer):
         # block header
         if pointer != 0 and pointer is not None:
             fid.seek(pointer)
@@ -831,7 +832,7 @@ class CCBlock(dict):
                 pointer = self['cc_ref']
                 self['cc_ref'] = {}
                 cc = CommentBlock()
-                cc.readCM(fid=fid, pointer=pointer)
+                cc.read_cm(fid=fid, pointer=pointer)
                 self['cc_ref'].update(cc)
             elif self['cc_type']in (7, 8, 9, 10):  # text list
                 self['cc_ref'] = list(self['cc_ref'])
@@ -842,22 +843,22 @@ class CCBlock(dict):
                     # for algebraic formulae
                     if identifier in ('##TX', '##MD', b'##TX', b'##MD'):
                         temp = CommentBlock()
-                        temp.readCM(fid=fid, pointer=self['cc_ref'][i])
+                        temp.read_cm(fid=fid, pointer=self['cc_ref'][i])
                         self['cc_ref'][i] = temp['Comment']
                     elif identifier in ('##CC', b'##CC'):  # for table conversion
                         # much more complicated nesting conversions !!!
                         cc = CCBlock()
-                        cc.readCC(fid, self['cc_ref'][i])
+                        cc.read_cc(fid, self['cc_ref'][i])
                         self['cc_ref'][i] = cc
             if self['cc_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock()
-                self['Comment'].readCM(fid=fid, pointer=self['cc_md_comment'], MDType=6)
+                self['Comment'].read_cm(fid=fid, pointer=self['cc_md_comment'], MDType=6)
             if self['cc_md_unit']:  # comments exist
                 self['unit'] = CommentBlock()
-                self['unit'].readCM(fid=fid, pointer=self['cc_md_unit'], MDType=2)
+                self['unit'].read_cm(fid=fid, pointer=self['cc_md_unit'], MDType=2)
             if self['cc_tx_name']:  # comments exist
                 self['name'] = CommentBlock()
-                self['name'].readCM(fid=fid, pointer=self['cc_tx_name'])
+                self['name'].read_cm(fid=fid, pointer=self['cc_tx_name'])
         else:  # no conversion
             self['cc_type'] = 0
 
@@ -969,7 +970,7 @@ class ATBlock(dict):
             if self['at_md_comment']:  # comments exist
                 self['Comment'] = {}
                 comment = CommentBlock()
-                comment.readCM(fid=fid, pointer=self['at_md_comment'])
+                comment.read_cm(fid=fid, pointer=self['at_md_comment'])
                 self['Comment'].update(comment)
 
 
@@ -1020,10 +1021,10 @@ class EVBlock(dict):
                         ATBlock(fid, self['ev_at_reference'][at])
             if self['ev_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock()
-                self['Comment'].readCM(fid=fid, pointer=self['ev_md_comment'], MDType=7)
+                self['Comment'].read_cm(fid=fid, pointer=self['ev_md_comment'], MDType=7)
             if self['ev_tx_name']:  # comments exist
                 self['name'] = CommentBlock()
-                self['name'].readCM(fid=fid, pointer=self['ev_tx_name'])
+                self['name'].read_cm(fid=fid, pointer=self['ev_tx_name'])
 
 
 class SRBlock(dict):
@@ -1053,7 +1054,7 @@ class SIBlock(dict):
     """ reads Source Information block and saves in class dict
     """
 
-    def readSI(self, fid, pointer):
+    def read_si(self, fid, pointer):
         # block header
         if pointer != 0 and pointer is not None:
             fid.seek(pointer)
@@ -1078,11 +1079,11 @@ class SIBlock(dict):
                 warn('unexpected SI bus type')
             # post treatment
             self['source_name'] = CommentBlock()
-            self['source_name'].readCM(fid=fid, pointer=self['si_tx_name'])
+            self['source_name'].read_cm(fid=fid, pointer=self['si_tx_name'])
             self['source_path'] = CommentBlock()
-            self['source_path'].readCM(fid=fid, pointer=self['si_tx_path'])
+            self['source_path'].read_cm(fid=fid, pointer=self['si_tx_path'])
             self['comment'] = CommentBlock()
-            self['comment'].readCM(fid=fid, pointer=self['si_md_comment'], MDType=5)
+            self['comment'].read_cm(fid=fid, pointer=self['si_md_comment'], MDType=5)
 
 
 class DTBlock(dict):
@@ -1112,26 +1113,26 @@ class DLBlock(dict):
         (self['dl_flags'],
          dl_reserved,
          self['dl_count']) = unpack('<B3sI', fid.read(8))
-        if self['dl_flags']:  # equal length datalist
+        if self['dl_flags']:  # equal length data list
             self['dl_equal_length'] = unpack('<Q', fid.read(8))[0]
-        else:  # datalist defined by byte offset
+        else:  # data list defined by byte offset
             self['dl_offset'] = unpack('<{}Q'.format(self['dl_count']),
                                        fid.read(8 * self['dl_count']))
 
     def write(self, fid, chunks, position):
         self['block_start'] = position
-        number_DL = len(chunks)
-        self['block_length'] = 40 + 16 * number_DL
-        dl_offset = zeros(shape=number_DL, dtype='<u8')
-        if number_DL > 1:
-            for counter in range(1, number_DL):
-                (nrecord_chunk, chunk_size) = chunks[counter]
+        number_dl = len(chunks)
+        self['block_length'] = 40 + 16 * number_dl
+        dl_offset = zeros(shape=number_dl, dtype='<u8')
+        if number_dl > 1:
+            for counter in range(1, number_dl):
+                (n_record_chunk, chunk_size) = chunks[counter]
                 dl_offset[counter] = dl_offset[counter - 1] + chunk_size
-        data_bytes = (b'##DL', 0, self['block_length'], number_DL + 1, 0)
-        fid.write(pack('<4sI3Q'.format(number_DL, number_DL), *data_bytes))
-        fid.write(pack('{0}Q'.format(number_DL), *zeros(shape=number_DL, dtype='<u8')))
-        fid.write(pack('<2I', 0, number_DL))
-        fid.write(pack('{0}Q'.format(number_DL), *dl_offset))
+        data_bytes = (b'##DL', 0, self['block_length'], number_dl + 1, 0)
+        fid.write(pack('<4sI3Q'.format(number_dl, number_dl), *data_bytes))
+        fid.write(pack('{0}Q'.format(number_dl), *zeros(shape=number_dl, dtype='<u8')))
+        fid.write(pack('<2I', 0, number_dl))
+        fid.write(pack('{0}Q'.format(number_dl), *dl_offset))
 
 
 class DZBlock(dict):
@@ -1149,7 +1150,7 @@ class DZBlock(dict):
          self['dz_data_length']) = _DZStruct.unpack(fid.read(24))
 
     @staticmethod
-    def decompress_datablock(block, zip_type, zip_parameter, org_data_length):
+    def decompress_data_block(block, zip_type, zip_parameter, org_data_length):
         """ decompress datablock.
 
         Parameters
@@ -1217,18 +1218,18 @@ class HLBlock(dict):
          self['hl_zip_type'],
          hl_reserved) = _HLStruct.unpack(fid.read(16))
 
-    def load(self, record_byte_offset, nRecords, position):
+    def load(self, record_byte_offset, n_records, position):
         self['record_length'] = record_byte_offset
         self['block_start'] = position
         self['block_length'] = 40
         # calculate data chunks
-        nchunks = (record_byte_offset * nRecords) // chunk_size_writing + 1
-        chunk_length = (record_byte_offset * nRecords) // nchunks
-        nrecord_chunk = chunk_length // record_byte_offset
-        self['chunks'] = [(nrecord_chunk, record_byte_offset * nrecord_chunk)] * nchunks
-        nrecord_chunk = nRecords - nrecord_chunk * nchunks
-        if nrecord_chunk > 0:
-            self['chunks'].append((nrecord_chunk, record_byte_offset * nrecord_chunk))
+        n_chunks = (record_byte_offset * n_records) // chunk_size_writing + 1
+        chunk_length = (record_byte_offset * n_records) // n_chunks
+        n_record_chunk = chunk_length // record_byte_offset
+        self['chunks'] = [(n_record_chunk, record_byte_offset * n_record_chunk)] * n_chunks
+        n_record_chunk = n_records - n_record_chunk * n_chunks
+        if n_record_chunk > 0:
+            self['chunks'].append((n_record_chunk, record_byte_offset * n_record_chunk))
 
     def write(self, fid, data):
         fid.write(_HeaderStruct.pack(b'##HL', 0, self['block_length'], 1))
@@ -1240,7 +1241,7 @@ class HLBlock(dict):
         pointer += DL['block_length']
         dl_data = zeros(shape=len(self['chunks']), dtype='<u8')
         data_pointer = 0
-        for counter, (nrecord_chunk, chunk_size) in enumerate(self['chunks']):
+        for counter, (n_record_chunk, chunk_size) in enumerate(self['chunks']):
             DZ = DZBlock()
             DZ['block_start'] = _calculate_block_start(pointer)
             dl_data[counter] = DZ['block_start']
@@ -1363,7 +1364,7 @@ class Info4(dict):
 
         # reads Attachment block
         if not minimal:
-            self['AT'] = self.read_ATBlock(fid, self['HD']['hd_at_first'])
+            self['AT'] = self.read_at_block(fid, self['HD']['hd_at_first'])
 
         # reads Event Block
         if self['HD']['hd_ev_first'] and not minimal:
@@ -1375,9 +1376,9 @@ class Info4(dict):
                 self['EV'][ev] = EVBlock(fid, self['EV'][ev - 1]['ev_ev_next'])
 
         # reads Data Group Blocks and recursively the other related blocks
-        self.read_DGBlock(fid, None, minimal)
+        self.read_dg_block(fid, None, minimal)
 
-    def read_DGBlock(self, fid, channel_name_list=False, minimal=0):
+    def read_dg_block(self, fid, channel_name_list=False, minimal=0):
         """reads Data Group Blocks
 
         Parameters
@@ -1397,7 +1398,7 @@ class Info4(dict):
             self['ChannelNamesByDG'][dg] = set()
             if minimal < 2:
                 # reads Channel Group blocks
-                self.read_CGBlock(fid, dg, channel_name_list, minimal)
+                self.read_cg_block(fid, dg, channel_name_list, minimal)
             while self['DG'][dg]['dg_dg_next']:
                 dg += 1
                 self['DG'][dg] = {}
@@ -1405,9 +1406,9 @@ class Info4(dict):
                 self['ChannelNamesByDG'][dg] = set()
                 if minimal < 2:
                     # reads Channel Group blocks
-                    self.read_CGBlock(fid, dg, channel_name_list, minimal)
+                    self.read_cg_block(fid, dg, channel_name_list, minimal)
 
-    def read_CGBlock(self, fid, dg, channel_name_list=False, minimal=0):
+    def read_cg_block(self, fid, dg, channel_name_list=False, minimal=0):
         """reads Channel Group blocks
 
         Parameters
@@ -1430,23 +1431,23 @@ class Info4(dict):
             self['CG'][dg] = {}
             self['CG'][dg][cg] = {}
             self['CG'][dg][cg].update(CGBlock(fid, self['DG'][dg]['dg_cg_first']))
-            VLSDCGBlock = []
+            vlsd_cg_block = []
             vlsd = False  # flag for at least one VLSD channel in CG
 
             if not channel_name_list and minimal:
                 # reads Source Information Block
                 temp = SIBlock()
-                temp.readSI(fid, self['CG'][dg][cg]['cg_si_acq_source'])
+                temp.read_si(fid, self['CG'][dg][cg]['cg_si_acq_source'])
                 if temp is not None:
                     self['CG'][dg][cg]['SI'] = dict()
                     self['CG'][dg][cg]['SI'].update(temp)
 
                 # reads Sample Reduction Block
-                self['CG'][dg][cg]['SR'] = self.read_SRBlock(fid, self['CG'][dg][cg]['cg_sr_first'])
+                self['CG'][dg][cg]['SR'] = self.read_sr_block(fid, self['CG'][dg][cg]['cg_sr_first'])
 
             if not self['CG'][dg][cg]['cg_flags'] & 0b1:  # if not a VLSD channel group
                 # reads Channel Block
-                vlsd = self.read_CNBlock(fid, dg, cg, channel_name_list, minimal)
+                vlsd = self.read_cn_block(fid, dg, cg, channel_name_list, minimal)
                 if vlsd:
                     # VLSD needs to rename and append records but with python 2.x impossible,
                     # convert name to compatible python identifier
@@ -1454,7 +1455,7 @@ class Info4(dict):
                         self['CN'][dg][cg][cn]['name'] = _convert_name(
                             self['CN'][dg][cg][cn]['name'].encode('latin-1', ' ignore'))
             else:
-                VLSDCGBlock.append(cg)
+                vlsd_cg_block.append(cg)
 
             while self['CG'][dg][cg]['cg_cg_next']:
                 cg += 1
@@ -1466,17 +1467,17 @@ class Info4(dict):
                 if not channel_name_list and not minimal:
                     # reads Source Information Block
                     temp = SIBlock()
-                    temp.readSI(fid, self['CG'][dg][cg]['cg_si_acq_source'])
+                    temp.read_si(fid, self['CG'][dg][cg]['cg_si_acq_source'])
                     if temp is not None:
                         self['CG'][dg][cg]['SI'] = dict()
                         self['CG'][dg][cg]['SI'].update(temp)
 
                     # reads Sample Reduction Block
-                    self['CG'][dg][cg]['SR'] = self.read_SRBlock(fid, self['CG'][dg][cg]['cg_sr_first'])
+                    self['CG'][dg][cg]['SR'] = self.read_sr_block(fid, self['CG'][dg][cg]['cg_sr_first'])
 
                 if not self['CG'][dg][cg]['cg_flags'] & 0b1:  # if not a VLSD channel group
                     # reads Channel Block
-                    vlsd = self.read_CNBlock(fid, dg, cg, channel_name_list, minimal)
+                    vlsd = self.read_cn_block(fid, dg, cg, channel_name_list, minimal)
                     if vlsd:
                         # VLSD needs to rename and append records but with python 2.x impossible,
                         # convert name to compatible python identifier
@@ -1484,18 +1485,18 @@ class Info4(dict):
                             self['CN'][dg][cg][cn]['name'] = _convert_name(
                                 self['CN'][dg][cg][cn]['name'].encode('latin-1', ' ignore'))
                 else:
-                    VLSDCGBlock.append(cg)
+                    vlsd_cg_block.append(cg)
 
-            if VLSDCGBlock:  # VLSD CG Block exiting
+            if vlsd_cg_block:  # VLSD CG Block exiting
                 self['VLSD_CG'] = {}
 
             # Matching VLSD CGBlock with corresponding channel
-            for VLSDcg in VLSDCGBlock:
-                VLSDCGBlockAdress = self['CG'][dg][VLSDcg]['pointer']
+            for VLSDcg in vlsd_cg_block:
+                vlsd_cg_block_address = self['CG'][dg][VLSDcg]['pointer']
                 for cg in self['CG'][dg]:
-                    if cg not in VLSDCGBlock:
+                    if cg not in vlsd_cg_block:
                         for cn in self['CN'][dg][cg]:
-                            if VLSDCGBlockAdress == self['CN'][dg][cg][cn]['cn_data']:
+                            if vlsd_cg_block_address == self['CN'][dg][cg][cn]['cn_data']:
                                 # found matching channel with VLSD CGBlock
                                 temp = {}
                                 temp['cg_cn'] = (cg, cn)
@@ -1506,25 +1507,25 @@ class Info4(dict):
             # this reorder is meant to improve performance while parsing records using core.records.fromfile
             # as it will not use cn_byte_offset
             # first, calculate new mapping/order
-            nChannel = len(self['CN'][dg][cg])
-            Map = zeros(shape=nChannel, dtype=[('index', 'u4'), ('bit_offset', 'u4')])
-            for cn in range(nChannel):
+            n_channel = len(self['CN'][dg][cg])
+            Map = zeros(shape=n_channel, dtype=[('index', 'u4'), ('bit_offset', 'u4')])
+            for cn in range(n_channel):
                 Map[cn] = (cn, self['CN'][dg][cg][cn]['cn_byte_offset'] * 8 + self['CN'][dg][cg][cn]['cn_bit_offset'])
-            orderedMap = sort(Map, order='bit_offset')
+            ordered_map = sort(Map, order='bit_offset')
 
-            toChangeIndex = Map == orderedMap
-            for cn in range(nChannel):
-                if not toChangeIndex[cn]:
+            to_change_index = Map == ordered_map
+            for cn in range(n_channel):
+                if not to_change_index[cn]:
                     # offset all indexes of indexes to be moved
-                    self['CN'][dg][cg][cn + nChannel] = self['CN'][dg][cg].pop(cn)
-                    self['CC'][dg][cg][cn + nChannel] = self['CC'][dg][cg].pop(cn)
-            for cn in range(nChannel):
-                if not toChangeIndex[cn]:
+                    self['CN'][dg][cg][cn + n_channel] = self['CN'][dg][cg].pop(cn)
+                    self['CC'][dg][cg][cn + n_channel] = self['CC'][dg][cg].pop(cn)
+            for cn in range(n_channel):
+                if not to_change_index[cn]:
                     # change to ordered index
-                    self['CN'][dg][cg][cn] = self['CN'][dg][cg].pop(orderedMap[cn][0] + nChannel)
-                    self['CC'][dg][cg][cn] = self['CC'][dg][cg].pop(orderedMap[cn][0] + nChannel)
+                    self['CN'][dg][cg][cn] = self['CN'][dg][cg].pop(ordered_map[cn][0] + n_channel)
+                    self['CC'][dg][cg][cn] = self['CC'][dg][cg].pop(ordered_map[cn][0] + n_channel)
 
-    def read_CNBlock(self, fid, dg, cg, channel_name_list=False, minimal=0):
+    def read_cn_block(self, fid, dg, cg, channel_name_list=False, minimal=0):
         """reads Channel blocks
 
         Parameters
@@ -1546,13 +1547,13 @@ class Info4(dict):
         self['CC'][dg][cg][cn] = {}
         self['CN'][dg][cg][cn] = {}
         temp = CNBlock()
-        temp.read_CN(fid=fid, pointer=self['CG'][dg][cg]['cg_cn_first'])
+        temp.read_cn(fid=fid, pointer=self['CG'][dg][cg]['cg_cn_first'])
         if temp is not None:
             self['CN'][dg][cg][cn].update(temp)
-        MLSDChannels = []
+        mlsd_channels = []
         # check for MLSD
         if self['CN'][dg][cg][cn]['cn_type'] == 5:
-            MLSDChannels.append(cn)
+            mlsd_channels.append(cn)
         # keep original non unique channel name
         self['CN'][dg][cg][cn]['orig_name'] = self['CN'][dg][cg][cn]['name']
         # check if already existing channel name
@@ -1565,12 +1566,12 @@ class Info4(dict):
         if self['CG'][dg][cg]['cg_cn_first']:  # Can be NIL for VLSD
             # reads Channel Conversion Block
             self['CC'][dg][cg][cn] = CCBlock()
-            self['CC'][dg][cg][cn].readCC(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
+            self['CC'][dg][cg][cn].read_cc(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
             if not channel_name_list:
                 if not minimal:
                     # reads Channel Source Information
                     temp = SIBlock()
-                    temp.readSI(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+                    temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
                     if temp is not None:
                         self['CN'][dg][cg][cn]['SI'] = dict()
                         self['CN'][dg][cg][cn]['SI'].update(temp)
@@ -1586,7 +1587,7 @@ class Info4(dict):
                     elif id in ('##CN', b'##CN'):
                         self['CN'][dg][cg][cn]['CN'] = {}
                         temp = CNBlock()
-                        temp.read_CN(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
+                        temp.read_cn(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
                         self['CN'][dg][cg][cn]['CN'].update(temp)
                     else:
                         raise('unknown channel composition')
@@ -1596,28 +1597,28 @@ class Info4(dict):
                     if self['CN'][dg][cg][cn]['cn_attachment_count'] > 1:
                         for at in range(self['CN'][dg][cg][cn]['cn_attachment_count']):
                             self['CN'][dg][cg][cn]['attachment'][at].update(
-                                self.read_ATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
+                                self.read_at_block(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
                     elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
                         self['CN'][dg][cg][cn]['attachment'][0].update(
-                            self.read_ATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
+                            self.read_at_block(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
 
             while self['CN'][dg][cg][cn]['cn_cn_next']:
                 cn = cn + 1
                 self['CN'][dg][cg][cn] = {}
                 temp = CNBlock()
-                temp.read_CN(fid=fid, pointer=self['CN'][dg][cg][cn - 1]['cn_cn_next'])
+                temp.read_cn(fid=fid, pointer=self['CN'][dg][cg][cn - 1]['cn_cn_next'])
                 self['CN'][dg][cg][cn].update(temp)
                 # check for MLSD
                 if self['CN'][dg][cg][cn]['cn_type'] == 5:
-                    MLSDChannels.append(cn)
+                    mlsd_channels.append(cn)
                 # reads Channel Conversion Block
                 self['CC'][dg][cg][cn] = CCBlock()
-                self['CC'][dg][cg][cn].readCC(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
+                self['CC'][dg][cg][cn].read_cc(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
                 if not channel_name_list:
                     if not minimal:
                         # reads Channel Source Information
                         temp = SIBlock()
-                        temp.readSI(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+                        temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
                         if temp is not None:
                             self['CN'][dg][cg][cn]['SI'] = dict()
                             self['CN'][dg][cg][cn]['SI'].update(temp)
@@ -1643,7 +1644,7 @@ class Info4(dict):
                         elif id in ('##CN', b'##CN'):
                             self['CN'][dg][cg][cn]['CN'] = {}
                             temp = CNBlock()
-                            temp.read_CN(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
+                            temp.read_cn(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
                             self['CN'][dg][cg][cn]['CN'].update(temp)
                         else:
                             raise('unknown channel composition')
@@ -1653,25 +1654,25 @@ class Info4(dict):
                         if self['CN'][dg][cg][cn]['cn_attachment_count'] > 1:
                             for at in range(self['CN'][dg][cg][cn]['cn_attachment_count']):
                                 self['CN'][dg][cg][cn]['attachment'][at].update(
-                                    self.read_ATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
+                                    self.read_at_block(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
                         elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
                             self['CN'][dg][cg][cn]['attachment'][0].update(
-                                self.read_ATBlock(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
+                                self.read_at_block(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
 
-        MLSDChannels = self.read_composition(fid, dg, cg, MLSDChannels)
+        mlsd_channels = self.read_composition(fid, dg, cg, mlsd_channels)
 
-        if MLSDChannels:
+        if mlsd_channels:
             self['MLSD'] = {}
             self['MLSD'][dg] = {}
             self['MLSD'][dg][cg] = {}
-        for MLSDcn in MLSDChannels:
+        for MLSDcn in mlsd_channels:
             for cn in self['CN'][dg][cg]:
                 if self['CN'][dg][cg][cn]['pointer'] == self['CN'][dg][cg][MLSDcn]['cn_data']:
                     self['MLSD'][dg][cg][MLSDcn] = cn
                     break
         return vlsd
 
-    def cleanDGinfo(self, dg):
+    def clean_dg_info(self, dg):
         """ delete CN,CC and CG blocks related to data group
 
         Parameters
@@ -1696,7 +1697,7 @@ class Info4(dict):
         except KeyError:
             pass
 
-    def read_composition(self, fid, dg, cg, MLSD_channels):
+    def read_composition(self, fid, dg, cg, mlsd_channels):
         """check for composition of channels, arrays or structures
 
         Parameters
@@ -1707,7 +1708,7 @@ class Info4(dict):
             data group number
         cg : int
             channel group number in data group
-        MLSD_channels : list of int
+        mlsd_channels : list of int
             channel numbers
 
         Returns
@@ -1721,7 +1722,7 @@ class Info4(dict):
                 ID = unpack('4s', fid.read(4))[0]
                 if ID in ('##CN', b'##CN'):  # Structures
                     self['CN'][dg][cg][chan] = CNBlock()
-                    self['CN'][dg][cg][chan].read_CN(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
+                    self['CN'][dg][cg][chan].read_cn(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
                     # keep original non unique channel name
                     self['CN'][dg][cg][chan]['orig_name'] = self['CN'][dg][cg][chan]['name']
                     # make sure channel name is unique
@@ -1729,14 +1730,14 @@ class Info4(dict):
                         self._unique_channel_name(fid, self['CN'][dg][cg][chan]['name'], dg, cg, cn)
 
                     self['CC'][dg][cg][chan] = CCBlock()
-                    self['CC'][dg][cg][chan].readCC(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
+                    self['CC'][dg][cg][chan].read_cc(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
 
                     if self['CN'][dg][cg][chan]['cn_type'] == 5:
-                        MLSD_channels.append(chan)
+                        mlsd_channels.append(chan)
                     while self['CN'][dg][cg][chan]['cn_cn_next']:
                         chan += 1
                         self['CN'][dg][cg][chan] = CNBlock()
-                        self['CN'][dg][cg][chan].read_CN(fid=fid, pointer=self['CN'][dg][cg][chan - 1]['cn_cn_next'])
+                        self['CN'][dg][cg][chan].read_cn(fid=fid, pointer=self['CN'][dg][cg][chan - 1]['cn_cn_next'])
                         # keep original non unique channel name
                         self['CN'][dg][cg][chan]['orig_name'] = self['CN'][dg][cg][chan]['name']
                         # make sure channel name is unique
@@ -1744,18 +1745,19 @@ class Info4(dict):
                             self._unique_channel_name(fid, self['CN'][dg][cg][chan]['name'], dg, cg, cn)
 
                         self['CC'][dg][cg][chan] = CCBlock()
-                        self['CC'][dg][cg][chan].readCC(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
+                        self['CC'][dg][cg][chan].read_cc(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
                         if self['CN'][dg][cg][chan]['cn_type'] == 5:
-                            MLSD_channels.append(chan)
+                            mlsd_channels.append(chan)
                     # makes the channel virtual
                     self['CN'][dg][cg][cn]['cn_type'] = 6
                 elif ID in ('##CA', b'##CA'):  # arrays
                     pass
                 else:
                     warn('unknown channel composition')
-        return MLSD_channels
+        return mlsd_channels
 
-    def read_SRBlock(self, fid, pointer):
+    @staticmethod
+    def read_sr_block(fid, pointer):
         """reads Sample Reduction Blocks
 
         Parameters
@@ -1778,7 +1780,8 @@ class Info4(dict):
                 sr_blocks[sr] = SRBlock(fid, sr_blocks[sr - 1]['sr_sr_next'])
             return sr_blocks
 
-    def read_ATBlock(self, fid, pointer):
+    @staticmethod
+    def read_at_block(fid, pointer):
         """reads Attachment blocks
 
         Parameters
@@ -1828,7 +1831,7 @@ class Info4(dict):
 
         # reads Data Group, channel groups and channel Blocks
         # recursively but not the other metadata block
-        self.read_DGBlock(fid, True)
+        self.read_dg_block(fid, True)
 
         for dg in self['DG']:
             for cg in self['CG'][dg]:
@@ -1867,7 +1870,7 @@ class Info4(dict):
         if name in self['ChannelNamesByDG'][dg]:  # for unsorted data
             if self['CN'][dg][cg][cn]['cn_si_source']:
                 temp = SIBlock()
-                temp.readSI(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+                temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
                 if temp['si_tx_name'] > 0:
                     source_name = temp['source_name']['Comment']
                 else:
@@ -1878,7 +1881,7 @@ class Info4(dict):
         elif name in self['allChannelList']:  # for sorted data
             if self['CN'][dg][cg][cn]['cn_si_source']:
                 temp = SIBlock()
-                temp.readSI(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+                temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
                 if temp['si_tx_name'] > 0:
                     source_name = temp['source_name']['Comment']
                 else:

@@ -34,7 +34,7 @@ import os
 from warnings import simplefilter
 from .mdf import MdfSkeleton, _open_mdf, \
     dataField, conversionField, idField, CompressedData
-from .mdfinfo3 import info3
+from .mdfinfo3 import Info3
 from .channel import Channel3
 if os.name == 'posix':
     from os import getlogin
@@ -46,150 +46,150 @@ PythonVersion = PythonVersion[0]
 chunk_size_reading = 100000000  # reads by chunk of 100Mb, can be tuned for best performance
 
 
-def linearConv(data, conv):  # 0 Parametric, Linear: Physical =Integer*P2 + P1
+def _linear_conversion(data, conversion):  # 0 Parametric, Linear: Physical =Integer*P2 + P1
     """ apply linear conversion to data
 
     Parameters
     ----------------
     data : numpy 1D array
         raw data to be converted to physical value
-    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    conversion : mdfinfo3.info3 conversion block ('CCBlock') dict
 
     Returns
     -----------
     converted data to physical value
     """
-    if conv['P2'] == 1.0 and conv['P1'] in (0.0, -0.0):
+    if conversion['P2'] == 1.0 and conversion['P1'] in (0.0, -0.0):
         return data  # keeps dtype probably more compact than float64
     else:
-        return data * conv['P2'] + conv['P1']
+        return data * conversion['P2'] + conversion['P1']
 
 
-def tabInterpConv(data, conv):  # 1 Tabular with interpolation
+def _tab_interp_conversion(data, conversion):  # 1 Tabular with interpolation
     """ apply Tabular interpolation conversion to data
 
     Parameters
     ----------------
     data : numpy 1D array
         raw data to be converted to physical value
-    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    conversion : mdfinfo3.info3 conversion block ('CCBlock') dict
 
     Returns
     -----------
     converted data to physical value
     """
     tmp = array([(key, val['int'], val['phys'])
-                for (key, val) in conv.items()])
+                 for (key, val) in conversion.items()])
     return interp(data, tmp[:, 1], tmp[:, 2])
 
 
-def tabConv(data, conv):  # 2 Tabular
+def _tab_conversion(data, conversion):  # 2 Tabular
     """ apply Tabular conversion to data
 
     Parameters
     ----------------
     data : numpy 1D array
         raw data to be converted to physical value
-    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    conversion : mdfinfo3.info3 conversion block ('CCBlock') dict
 
     Returns
     -----------
     converted data to physical value
     """
     tmp = array([(key, val['int'], val['phys'])
-                for (key, val) in conv.items()])
+                 for (key, val) in conversion.items()])
     indexes = searchsorted(tmp[:, 1], data)
     return tmp[indexes, 2]
 
 
-def polyConv(data, conv):  # 6 Polynomial
+def _polynomial_conversion(data, conversion):  # 6 Polynomial
     """ apply polynomial conversion to data
 
     Parameters
     ----------------
     data : numpy 1D array
         raw data to be converted to physical value
-    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    conversion : mdfinfo3.info3 conversion block ('CCBlock') dict
 
     Returns
     -----------
     converted data to physical value
     """
-    return (conv['P2'] - conv['P4'] * (data - conv['P5'] - conv['P6'])) \
-        / (conv['P3'] * (data - conv['P5'] - conv['P6']) - conv['P1'])
+    return (conversion['P2'] - conversion['P4'] * (data - conversion['P5'] - conversion['P6'])) \
+        / (conversion['P3'] * (data - conversion['P5'] - conversion['P6']) - conversion['P1'])
 
 
-def expConv(data, conv):  # 7 Exponential
+def _exponential_conversion(data, conversion):  # 7 Exponential
     """ apply exponential conversion to data
 
     Parameters
     ----------------
     data : numpy 1D array
         raw data to be converted to physical value
-    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    conversion : mdfinfo3.info3 conversion block ('CCBlock') dict
 
     Returns
     -----------
     converted data to physical value
     """
-    if conv['P4'] == 0 and conv['P1'] != 0 and conv['P2'] != 0:
-        return exp(((data - conv['P7']) * conv['P6'] - conv['P3'])
-                   / conv['P1']) / conv['P2']
-    elif conv['P1'] == 0 and conv['P4'] != 0 and conv['P5'] != 0:
-        return exp((conv['P3'] / (data - conv['P7']) - conv['P6'])
-                   / conv['P4']) / conv['P5']
+    if conversion['P4'] == 0 and conversion['P1'] != 0 and conversion['P2'] != 0:
+        return exp(((data - conversion['P7']) * conversion['P6'] - conversion['P3'])
+                   / conversion['P1']) / conversion['P2']
+    elif conversion['P1'] == 0 and conversion['P4'] != 0 and conversion['P5'] != 0:
+        return exp((conversion['P3'] / (data - conversion['P7']) - conversion['P6'])
+                   / conversion['P4']) / conversion['P5']
     else:
         warn('Non possible exponential parameters for channel')
 
 
-def logConv(data, conv):  # 8 Logarithmic
+def _log_conversion(data, conversion):  # 8 Logarithmic
     """ apply logarithmic conversion to data
 
     Parameters
     ----------------
     data : numpy 1D array
         raw data to be converted to physical value
-    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    conversion : mdfinfo3.info3 conversion block ('CCBlock') dict
 
     Returns
     -----------
     converted data to physical value
     """
-    if conv['P4'] == 0 and conv['P1'] != 0 and conv['P2'] != 0:
-        return log(((data - conv['P7']) * conv['P6'] - conv['P3'])
-                   / conv['P1']) / conv['P2']
-    elif conv['P1'] == 0 and conv['P4'] != 0 and conv['P5'] != 0:
-        return log((conv['P3'] / (data - conv['P7']) - conv['P6'])
-                   / conv['P4']) / conv['P5']
+    if conversion['P4'] == 0 and conversion['P1'] != 0 and conversion['P2'] != 0:
+        return log(((data - conversion['P7']) * conversion['P6'] - conversion['P3'])
+                   / conversion['P1']) / conversion['P2']
+    elif conversion['P1'] == 0 and conversion['P4'] != 0 and conversion['P5'] != 0:
+        return log((conversion['P3'] / (data - conversion['P7']) - conversion['P6'])
+                   / conversion['P4']) / conversion['P5']
     else:
         warn('Non possible logarithmic conversion parameters for channel')
 
 
-def rationalConv(data, conv):  # 9 rational
+def _rational_conversion(data, conversion):  # 9 rational
     """ apply rational conversion to data
 
     Parameters
     ----------------
     data : numpy 1D array
         raw data to be converted to physical value
-    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    conversion : mdfinfo3.info3 conversion block ('CCBlock') dict
 
     Returns
     -----------
     converted data to physical value
     """
-    return (conv['P1'] * data * data + conv['P2'] * data + conv['P3'])\
-        / (conv['P4'] * data * data + conv['P5'] * data + conv['P6'])
+    return (conversion['P1'] * data * data + conversion['P2'] * data + conversion['P3'])\
+        / (conversion['P4'] * data * data + conversion['P5'] * data + conversion['P6'])
 
 
-def formulaConv(data, conv):  # 10 Text Formula
+def _formula_conversion(data, conversion):  # 10 Text Formula
     """ apply formula conversion to data
 
     Parameters
     ----------------
     data : numpy 1D array
         raw data to be converted to physical value
-    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    conversion : mdfinfo3.info3 conversion block ('CCBlock') dict
 
     Returns
     -----------
@@ -202,7 +202,7 @@ def formulaConv(data, conv):  # 10 Text Formula
     try:
         from sympy import lambdify, symbols
         X = symbols('X')  # variable is X
-        formula = conv['textFormula']
+        formula = conversion['textFormula']
         # remove trailing text after 0
         formula = formula[:formula.find('\x00')]
         # adapt ASAM-MCD2 syntax to sympy
@@ -211,49 +211,49 @@ def formulaConv(data, conv):  # 10 Text Formula
         expr = lambdify(X, formula, modules='numpy', dummify=False)
         return expr(data)
     except:
-        warn('Failed to convert formulae ' + conv['textFormula'] +
+        warn('Failed to convert formulae ' + conversion['textFormula'] +
              ' Sympy is correctly installed ?')
 
 
-def textTableConv(data, conv):  # 11 Text table
+def _text_table_conversion(data, conversion):  # 11 Text table
     """ apply text table conversion to data
 
     Parameters
     ----------------
     data : numpy 1D array
         raw data to be converted to physical value
-    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    conversion : mdfinfo3.info3 conversion block ('CCBlock') dict
 
     Returns
     -----------
     converted data to physical value
     """
     conversion_table = dict()
-    for pair in conv:
-        conversion_table[conv[pair]['int']] = conv[pair]['text']
+    for pair in conversion:
+        conversion_table[conversion[pair]['int']] = conversion[pair]['text']
     return vectorize(conversion_table.__getitem__)(data)
 
 
-def textRangeTableConv(data, conv):  # 12 Text range table
+def _text_range_table_conversion(data, conversion):  # 12 Text range table
     """ apply text range table conversion to data
 
     Parameters
     ----------------
     data : numpy 1D array
         raw data to be converted to physical value
-    conv : mdfinfo3.info3 conversion block ('CCBlock') dict
+    conversion : mdfinfo3.info3 conversion block ('CCBlock') dict
 
     Returns
     -----------
     converted data to physical value
     """
     try:
-        npair = len(conv)
-        lower = [conv[pair]['lowerRange'] for pair in range(npair)]
-        upper = [conv[pair]['upperRange'] for pair in range(npair)]
+        n_pair = len(conversion)
+        lower = [conversion[pair]['lowerRange'] for pair in range(n_pair)]
+        upper = [conversion[pair]['upperRange'] for pair in range(n_pair)]
         text = {}
-        for pair in range(npair):
-            text[pair] = conv[pair]['Textrange']
+        for pair in range(n_pair):
+            text[pair] = conversion[pair]['Textrange']
             if text[pair] is None:
                 continue
             if 'LINEAR_CONV' in text[pair]:  # linear conversion from CANape
@@ -264,14 +264,14 @@ def textRangeTableConv(data, conv):  # 12 Text range table
                 text[pair] = text[pair][left + 1: right].replace('{', '').replace('}', '')
                 text[pair] = lambdify(X, text[pair], modules='numpy', dummify=False)
         temp = []
-        for Lindex in range(len(data)):
+        for l_index in range(len(data)):
             value = text[0]  # default value
-            for pair in range(1, npair):
-                if lower[pair] <= data[Lindex] <= upper[pair]:
+            for pair in range(1, n_pair):
+                if lower[pair] <= data[l_index] <= upper[pair]:
                     value = text[pair]
                     break
             if callable(value):
-                value = value(data[Lindex])
+                value = value(data[l_index])
             temp.append(value)
         try:
             temp = asarray(temp)  # try to convert to numpy
@@ -282,7 +282,7 @@ def textRangeTableConv(data, conv):  # 12 Text range table
         warn('Failed to convert text to range table')
 
 
-class record(list):
+class Record(list):
 
     """ record class lists Channel classes,
         it is representing a channel group
@@ -327,19 +327,19 @@ class record(list):
     readRecordBits(bita, channelSet=None)
     """
 
-    def __init__(self, dataGroup, channelGroup):
+    def __init__(self, data_group, channel_group):
         self.CGrecordLength = 0
         self.recordLength = 0
         self.dataBlockLength = 0
         self.numberOfRecords = 0
         self.recordID = 0
         self.recordIDnumber = 0
-        self.dataGroup = dataGroup
-        self.channelGroup = channelGroup
+        self.dataGroup = data_group
+        self.channelGroup = channel_group
         self.numpyDataRecordFormat = []
         self.dataRecordName = []
         self.master = {}
-        self.master['name'] = 'master_{}'.format(dataGroup)
+        self.master['name'] = 'master_{}'.format(data_group)
         self.master['number'] = None
         self.recordToChannelMatching = {}
         self.channelNames = set()
@@ -351,7 +351,7 @@ class record(list):
         output.append('Channels :\n')
         for chan in self.channelNames:
             output.append(''.join([chan, '\n']))
-        output.append('Datagroup number : {}\n'.format(self.dataGroup))
+        output.append('Data group number : {}\n'.format(self.dataGroup))
         if self.master['name'] is not None:
             output.append(''.join(['Master channel : ', self.master['name'], '\n']))
         output.append('Numpy records format : \n')
@@ -359,21 +359,20 @@ class record(list):
             output.append('{}\n'.format(record))
         return ''.join(output)
 
-    def addChannel(self, info, channelNumber):
+    def add_channel(self, info, channel_number):
         """ add a channel in class
 
         Parameters
         ----------------
         info : mdfinfo3.info3 class
-        channelNumber : int
+        channel_number : int
             channel number in mdfinfo3.info3 class
 
         """
-        self.append(Channel3(info, self.dataGroup, self.channelGroup,
-                    channelNumber, self.recordIDnumber))
+        self.append(Channel3(info, self.dataGroup, self.channelGroup, channel_number, self.recordIDnumber))
         self.channelNames.add(self[-1].name)
 
-    def loadInfo(self, info):
+    def load_info(self, info):
         """ gathers records related from info class
 
         Parameters
@@ -392,8 +391,7 @@ class record(list):
             self.dataBlockLength = (self.CGrecordLength + 1) * self.numberOfRecords
         embedding_channel = None
         for channelNumber in range(info['CGBlock'][self.dataGroup][self.channelGroup]['numberOfChannels']):
-            channel = Channel3(info, self.dataGroup, self.channelGroup,
-                              channelNumber, self.recordIDnumber)
+            channel = Channel3(info, self.dataGroup, self.channelGroup, channelNumber, self.recordIDnumber)
             if self.master['number'] is None or channel.channelType == 1:  # master channel found
                 self.master['name'] = channel.name
                 self.master['number'] = channelNumber
@@ -452,8 +450,8 @@ class record(list):
             # forces to use dataRead instead of numpy records.
             self.byte_aligned = False
 
-    def readSortedRecord(self, fid, pointer, channelSet=None):
-        """ reads record, only one channel group per datagroup
+    def read_sorted_record(self, fid, pointer, channel_set=None):
+        """ reads record, only one channel group per data group
 
         Parameters
         ----------------
@@ -461,7 +459,7 @@ class record(list):
             file identifier
         pointer
             position in file of data block beginning
-        channelSet : Set of str, optional
+        channel_set : Set of str, optional
             list of channel to read
 
         Returns
@@ -479,46 +477,46 @@ class record(list):
 
         """
         fid.seek(pointer)
-        nchunks = self.dataBlockLength // chunk_size_reading + 1
-        chunk_length = self.dataBlockLength // nchunks
-        nrecord_chunk = chunk_length // self.CGrecordLength
-        chunks = [(nrecord_chunk, self.CGrecordLength * nrecord_chunk)] * nchunks
-        nrecord_chunk = self.numberOfRecords - nrecord_chunk * nchunks
-        if nrecord_chunk > 0:
-            chunks.append((nrecord_chunk, self.CGrecordLength * nrecord_chunk))
+        n_chunks = self.dataBlockLength // chunk_size_reading + 1
+        chunk_length = self.dataBlockLength // n_chunks
+        n_record_chunk = chunk_length // self.CGrecordLength
+        chunks = [(n_record_chunk, self.CGrecordLength * n_record_chunk)] * n_chunks
+        n_record_chunk = self.numberOfRecords - n_record_chunk * n_chunks
+        if n_record_chunk > 0:
+            chunks.append((n_record_chunk, self.CGrecordLength * n_record_chunk))
         previous_index = 0
-        if channelSet is None and not self.hiddenBytes and self.byte_aligned:
+        if channel_set is None and not self.hiddenBytes and self.byte_aligned:
             # reads all, quickest but memory consuming
             buf = recarray(self.numberOfRecords, dtype={'names': self.dataRecordName,
                                                         'formats': self.numpyDataRecordFormat})  # initialise array
             simplefilter('ignore', FutureWarning)
-            for nrecord_chunk, chunk_size in chunks:
-                buf[previous_index: previous_index + nrecord_chunk] = \
+            for n_record_chunk, chunk_size in chunks:
+                buf[previous_index: previous_index + n_record_chunk] = \
                     fromstring(fid.read(chunk_size),
                                dtype={'names': self.dataRecordName,
                                       'formats': self.numpyDataRecordFormat},
-                               shape=nrecord_chunk)
-                previous_index += nrecord_chunk
+                               shape=n_record_chunk)
+                previous_index += n_record_chunk
             return buf
         else:  # reads only some channels from a sorted data block
-            if channelSet is None:
-                channelSet = self.channelNames
+            if channel_set is None:
+                channel_set = self.channelNames
             # memory efficient but takes time
             # are channelSet in this dataGroup
-            if len(channelSet & self.channelNames) > 0:
+            if len(channel_set & self.channelNames) > 0:
                 # check if master channel is in the list
-                if not self.master['name'] in channelSet:
-                    channelSet.add(self.master['name'])  # adds master channel
-                recChan = []
-                numpyDataRecordFormat = []
-                dataRecordName = []
+                if not self.master['name'] in channel_set:
+                    channel_set.add(self.master['name'])  # adds master channel
+                rec_chan = []
+                numpy_data_record_format = []
+                data_record_name = []
                 for channel in self:  # list of Channels from channelSet
-                    if channel.name in channelSet:
-                        recChan.append(channel)
-                        dataRecordName.append(channel.name)
-                        numpyDataRecordFormat.append(channel.nativedataFormat)
-                rec = recarray(self.numberOfRecords, dtype={'names': dataRecordName,
-                                                            'formats': numpyDataRecordFormat})
+                    if channel.name in channel_set:
+                        rec_chan.append(channel)
+                        data_record_name.append(channel.name)
+                        numpy_data_record_format.append(channel.nativedataFormat)
+                rec = recarray(self.numberOfRecords, dtype={'names': data_record_name,
+                                                            'formats': numpy_data_record_format})
                 try:  # use rather cython compiled code for performance
                     from dataRead import dataRead
                     # converts data type from mdf 3.x to 4.x
@@ -526,42 +524,42 @@ class record(list):
                                            7: 6, 8: 10,
                                            9: 1, 10: 3, 11: 5, 12: 5,
                                            13: 0, 14: 2, 15: 4, 16: 4}
-                    for nrecord_chunk, chunk_size in chunks:
-                        bita = fid.read(chunk_size)
-                        for id, chan in enumerate(recChan):
-                            rec[chan.name][previous_index: previous_index + nrecord_chunk] = \
-                                dataRead(bytes(bita),
+                    for n_record_chunk, chunk_size in chunks:
+                        bit_stream = fid.read(chunk_size)
+                        for id, chan in enumerate(rec_chan):
+                            rec[chan.name][previous_index: previous_index + n_record_chunk] = \
+                                dataRead(bytes(bit_stream),
                                          chan.bitCount,
-                                         convertDataType3to4[chan.signalDataType],
+                                         convertDataType3to4[chan.signal_data_type],
                                          chan.nativedataFormat,
-                                         nrecord_chunk,
+                                         n_record_chunk,
                                          self.CGrecordLength,
                                          chan.bitOffset,
                                          chan.posByteBeg,
                                          chan.nBytes, 0)
                             self[id].bit_masking_needed = False  # masking already considered in dataRead
-                        previous_index += nrecord_chunk
+                        previous_index += n_record_chunk
                     return rec
                 except:
                     warn('Unexpected error: {}'.format(exc_info()))
                     warn('dataRead crashed, back to python data reading')
-                    recordLength = self.recordIDnumber + self.CGrecordLength
+                    record_length = self.recordIDnumber + self.CGrecordLength
                     for r in range(self.numberOfRecords):  # for each record,
-                        buf = fid.read(recordLength)
-                        for channel in recChan:
+                        buf = fid.read(record_length)
+                        for channel in rec_chan:
                             rec[channel.name][r] = \
                                 channel.CFormat.unpack(buf[channel.posByteBeg:
                                                            channel.posByteEnd])[0]
                     return rec.view(recarray)
 
-    def readRecordBuf(self, buf, channelSet=None):
+    def read_record_buf(self, buf, channel_set=None):
         """ read stream of record bytes
 
         Parameters
         ----------------
         buf : stream
             stream of bytes read in file
-        channelSet : Set of str, optional
+        channel_set : Set of str, optional
             list of channel to read
 
         Returns
@@ -571,23 +569,23 @@ class record(list):
 
         """
         temp = {}
-        if channelSet is None:
-            channelSet = self.channelNames
+        if channel_set is None:
+            channel_set = self.channelNames
         for Channel in self:  # list of channel classes from channelSet
-            if Channel.name in channelSet:
+            if Channel.name in channel_set:
                 temp[self.recordToChannelMatching[Channel.name]] = \
                     Channel.CFormat.unpack(buf[Channel.posByteBeg:
                                                Channel.posByteEnd])[0]
         return temp  # returns dictionary of channel with its corresponding values
 
-    def readRecordBits(self, bita, channelSet=None):
+    def read_record_bits(self, bit_stream, channel_set=None):
         """ read stream of record bits by bits in case of not aligned or hidden bytes
 
         Parameters
         ----------------
-        buf : stream
+        bit_stream : stream
             stream of bytes read in file
-        channelSet : Set of str, optional
+        channel_set : Set of str, optional
             list of channel to read
 
         Returns
@@ -598,43 +596,43 @@ class record(list):
         """
         from bitarray import bitarray
         B = bitarray(endian="little")  # little endian by default
-        B.frombytes(bytes(bita))
+        B.frombytes(bytes(bit_stream))
 
-        def signedInt(temp, extension):
+        def signed_int(temp, extension):
             """ extend bits of signed data managing two's complement
             """
             extension.setall(False)
-            extensionInv = bitarray(extension, endian='little')
-            extensionInv.setall(True)
-            signBit = temp[-1]
-            if not signBit:  # positive value, extend with 0
+            extension_inv = bitarray(extension, endian='little')
+            extension_inv.setall(True)
+            sign_bit = temp[-1]
+            if not sign_bit:  # positive value, extend with 0
                 temp.extend(extension)
             else:  # negative value, extend with 1
-                signBit = temp.pop(-1)
-                temp.extend(extensionInv)
-                temp.append(signBit)
+                sign_bit = temp.pop(-1)
+                temp.extend(extension_inv)
+                temp.append(sign_bit)
             return temp
         # read data
         temp = {}
-        if channelSet is None:
-            channelSet = self.channelNames
+        if channel_set is None:
+            channel_set = self.channelNames
         for Channel in self:  # list of channel classes from channelSet
-            if Channel.name in channelSet:
+            if Channel.name in channel_set:
                 temp[Channel.name] = B[Channel.posBitBeg: Channel.posBitEnd]
                 nbytes = len(temp[Channel.name].tobytes())
                 if not nbytes == Channel.nBytes:
                     byte = bitarray(8 * (Channel.nBytes - nbytes), endian='little')
                     byte.setall(False)
-                    if Channel.signalDataType not in (1, 10, 14):  # not signed integer
+                    if Channel.signal_data_type not in (1, 10, 14):  # not signed integer
                         temp[Channel.name].extend(byte)
                     else:  # signed integer (two's complement), keep sign bit and extend with bytes
-                        temp[Channel.name] = signedInt(temp[Channel.name], byte)
-                nTrailBits = Channel.nBytes*8 - Channel.bitCount
-                if Channel.signalDataType in (1, 10, 14) and \
+                        temp[Channel.name] = signed_int(temp[Channel.name], byte)
+                n_trail_bits = Channel.nBytes*8 - Channel.bitCount
+                if Channel.signal_data_type in (1, 10, 14) and \
                         nbytes == Channel.nBytes and \
-                        nTrailBits > 0:  # Ctype byte length but signed integer
-                    trailBits = bitarray(nTrailBits, endian='little')
-                    temp[Channel.name] = signedInt(temp[Channel.name], trailBits)
+                        n_trail_bits > 0:  # Ctype byte length but signed integer
+                    trail_bits = bitarray(n_trail_bits, endian='little')
+                    temp[Channel.name] = signed_int(temp[Channel.name], trail_bits)
                 if 's' not in Channel.dataFormat:
                     temp[Channel.name] = Channel.CFormat.unpack(temp[Channel.name].tobytes())[0]
                 else:
@@ -676,7 +674,7 @@ class DATA(dict):
         self.pointerToData = pointer
         self.BlockLength = 0
 
-    def addRecord(self, record):
+    def add_record(self, record):
         """Adds a new record in DATA class dict
 
         Parameters
@@ -688,56 +686,56 @@ class DATA(dict):
         self[record.recordID]['record'] = record
         self.BlockLength += record.dataBlockLength
 
-    def read(self, channelSet, filename):
+    def read(self, channel_set, file_name):
         """Reads data block
 
         Parameters
         ----------------
-        channelSet : set of str, optional
+        channel_set : set of str, optional
             list of channel names
-        filename : str
+        file_name : str
             name of file
         """
         # checks if file is closed
         if self.fid is None or self.fid.closed:
-            self.fid = open(filename, 'rb')
+            self.fid = open(file_name, 'rb')
         if len(self) == 1:  # sorted dataGroup
-            recordID = list(self.keys())[0]
-            self[recordID]['data'] = \
-                self.loadSorted(self[recordID]['record'], nameList=channelSet)
+            record_id = list(self.keys())[0]
+            self[record_id]['data'] = \
+                self.load_sorted(self[record_id]['record'], name_list=channel_set)
         elif len(self) >= 2:  # unsorted DataGroup
-            data = self.loadUnSorted(nameList=channelSet)
-            for recordID in list(self.keys()):
-                self[recordID]['data'] = {}
-                for channel in self[recordID]['record']:
-                    self[recordID]['data'][channel.name] = \
-                        data[self[recordID]['record'].
+            data = self.load_unsorted(name_list=channel_set)
+            for record_id in list(self.keys()):
+                self[record_id]['data'] = {}
+                for channel in self[record_id]['record']:
+                    self[record_id]['data'][channel.name] = \
+                        data[self[record_id]['record'].
                              recordToChannelMatching[channel.name]]
 
-    def loadSorted(self, record, nameList=None):  # reads sorted data
+    def load_sorted(self, record, name_list=None):  # reads sorted data
         """Reads sorted data block from record definition
 
         Parameters
         ----------------
         record: class
             channel group definition listing record channel classes
-        channelSet : set of str, optional
+        name_list : set of str, optional
             list of channel names
 
         Returns
         -----------
         numpy recarray of data
         """
-        return record.readSortedRecord(self.fid, self.pointerToData, nameList)
+        return record.read_sorted_record(self.fid, self.pointerToData, name_list)
 
-    def loadUnSorted(self, nameList=None):
+    def load_unsorted(self, name_list=None):
         """Reads unsorted data block from record definition
 
         Parameters
         ----------------
         record: class
             channel group definition listing record channel classes
-        channelSet : set of str, optional
+        name_list : set of str, optional
             list of channel names
 
         Returns
@@ -749,26 +747,26 @@ class DATA(dict):
         # reads only the channels using offset functions, channel by channel.
         buf = defaultdict(list)
         position = 0
-        recordIdCFormat = Struct('B')
+        record_id_c_format = Struct('B')
         # initialise data structure
-        for recordID in self:
-            for channelName in self[recordID]['record'].dataRecordName:
+        for record_id in self:
+            for channelName in self[record_id]['record'].dataRecordName:
                 buf[channelName] = []
-            if self[recordID]['record'].hiddenBytes or not self[recordID]['record'].byte_aligned:
-                for ind, chan in enumerate(self[recordID]['record']):
+            if self[record_id]['record'].hiddenBytes or not self[record_id]['record'].byte_aligned:
+                for ind, chan in enumerate(self[record_id]['record']):
                     # will already extract bits, no need of masking later
-                    self[recordID]['record'][ind].bit_masking_needed = False
+                    self[record_id]['record'][ind].bit_masking_needed = False
         # read data
         while position < len(stream):
-            recordID = recordIdCFormat.unpack(stream[position:position + 1])[0]
-            if not self[recordID]['record'].hiddenBytes and self[recordID]['record'].byte_aligned:
-                temp = self[recordID]['record'].readRecordBuf(
-                    stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
+            record_id = record_id_c_format.unpack(stream[position:position + 1])[0]
+            if not self[record_id]['record'].hiddenBytes and self[record_id]['record'].byte_aligned:
+                temp = self[record_id]['record'].read_record_buf(
+                    stream[position:position + self[record_id]['record'].CGrecordLength + 1], name_list)
             else:  # do not read bytes but bits in record
-                temp = self[recordID]['record'].readRecordBits(
-                    stream[position:position + self[recordID]['record'].CGrecordLength + 1], nameList)
+                temp = self[record_id]['record'].read_record_bits(
+                    stream[position:position + self[record_id]['record'].CGrecordLength + 1], name_list)
             # recordId is only unit8
-            position += self[recordID]['record'].CGrecordLength + 1
+            position += self[record_id]['record'].CGrecordLength + 1
             for channelName in temp:
                 buf[channelName].append(temp[channelName])  # to remove append
         # convert list to array
@@ -777,7 +775,7 @@ class DATA(dict):
         return buf
 
 
-class mdf3(MdfSkeleton):
+class Mdf3(MdfSkeleton):
 
     """ mdf file version 3.0 to 3.3 class
 
@@ -805,45 +803,44 @@ class mdf3(MdfSkeleton):
     ------------
     read3( fileName=None, info=None, multiProc=False, channelList=None, convertAfterRead=True)
         Reads mdf 3.x file data and stores it in dict
-    _getChannelData3(channelName)
+    _get_channel_data3(channelName)
         Returns channel numpy array
-    _convertChannel3(channelName)
+    _convert_channel3(channelName)
         converts specific channel from raw to physical data according to CCBlock information
-    _convertAllChannel3()
+    _convert_all_channel3()
         Converts all channels from raw data to converted data according to CCBlock information
     write3(fileName=None)
         Writes simple mdf 3.3 file
     """
 
-    def read3(self, fileName=None, info=None, multiProc=False, channelList=None,
-              convertAfterRead=True, filterChannelNames=False, compression=False
-              , metadata=2):
+    def read3(self, file_name=None, info=None, multi_processed=False, channel_list=None, convert_after_read=True,
+              filter_channel_names=False, compression=False, metadata=2):
         """ Reads mdf 3.x file data and stores it in dict
 
         Parameters
         ----------------
-        fileName : str, optional
+        file_name : str, optional
             file name
 
         info : mdfinfo3.info3 class
             info3 class containing all MDF Blocks
 
-        multiProc : bool
+        multi_processed : bool
             flag to activate multiprocessing of channel data conversion
 
-        channelList : list of str, optional
+        channel_list : list of str, optional
             list of channel names to be read
             If you use channelList, reading might be much slower but it will save you memory.
             Can be used to read big files
 
-        convertAfterRead : bool, optional
+        convert_after_read : bool, optional
             flag to convert channel after read, True by default
             If you use convertAfterRead by setting it to false, all data from channels
             will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .getChannelData()
 
-        filterChannelNames : bool, optional
+        filter_channel_names : bool, optional
             flag to filter long channel names from its module names separated by '.'
 
         compression : bool, optional
@@ -856,27 +853,27 @@ class mdf3(MdfSkeleton):
             0: all metadata reading
 
         """
-        self.multiProc = multiProc
+        self.multiProc = multi_processed
         if platform == 'win32':
             self.multiProc = False  # no multiprocessing for windows platform
 
         if self.fileName is None and info is not None:
             self.fileName = info.fileName
-        elif fileName is not None and self.fileName is None:
-            self.fileName = fileName
+        elif file_name is not None and self.fileName is None:
+            self.fileName = file_name
 
         minimal = metadata  # always reads minimum info by default
 
-        if channelList is None:
-            channelSetFile = None
+        if channel_list is None:
+            channel_set_file = None
         else:
-            channelSetFile = set(channelList)
+            channel_set_file = set(channel_list)
             minimal = 1  # reads at least CN to populate ChannelNamesByDG
 
         # Read information block from file
         if info is None:
             if self.info is None:
-                info = info3(self.fileName, fid=None, filterChannelNames=False, minimal=minimal)
+                info = Info3(self.fileName, fid=None, filterChannelNames=False, minimal=minimal)
             else:
                 info = self.info
 
@@ -896,72 +893,72 @@ class mdf3(MdfSkeleton):
             day, month, year = info['HDBlock']['Date'].split(':')
             ddate = '-'.join([year, month, day])
             self.add_metadata(author=info['HDBlock']['Author'],
-                    organisation=info['HDBlock']['Organization'],
-                    project=info['HDBlock']['ProjectName'],
-                    subject=info['HDBlock']['Subject'], comment=comment,
-                        date=ddate, time=info['HDBlock']['Time'])
+                              organisation=info['HDBlock']['Organization'],
+                              project=info['HDBlock']['ProjectName'],
+                              subject=info['HDBlock']['Subject'], comment=comment,
+                              date=ddate, time=info['HDBlock']['Time'])
 
         data_groups = info['DGBlock']  # parse all data groups
-        if self._noDataLoading and channelList is not None:
-            data_groups = [self[channel][idField][0] for channel in channelList]
+        if self._noDataLoading and channel_list is not None:
+            data_groups = [self[channel][idField][0] for channel in channel_list]
 
         # Read data from file
         for dataGroup in data_groups:
-            channelSet = channelSetFile
+            channel_set = channel_set_file
             if info['DGBlock'][dataGroup]['numberOfChannelGroups'] > 0 and \
-                    (channelSet is None or
-                     len(channelSet & info['ChannelNamesByDG'][dataGroup]) > 0):  # data exists
+                    (channel_set is None or
+                     len(channel_set & info['ChannelNamesByDG'][dataGroup]) > 0):  # data exists
                 if minimal > 1 and not self._noDataLoading:  # load CG, CN and CC block info
-                    info.readCGBlock(info.fid, dataGroup, minimal=minimal)
+                    info.read_cg_block(info.fid, dataGroup, minimal=minimal)
                 # Pointer to data block
-                pointerToData = info['DGBlock'][dataGroup]['pointerToDataRecords']
+                pointer_to_data = info['DGBlock'][dataGroup]['pointerToDataRecords']
 
                 if 'dataClass' not in info['DGBlock'][dataGroup]:
-                    buf = DATA(info.fid, pointerToData)
+                    buf = DATA(info.fid, pointer_to_data)
                     for channelGroup in range(info['DGBlock'][dataGroup]['numberOfChannelGroups']):
-                        temp = record(dataGroup, channelGroup)  # create record class
-                        temp.loadInfo(info)  # load all info related to record
+                        temp = Record(dataGroup, channelGroup)  # create record class
+                        temp.load_info(info)  # load all info related to record
 
                         if temp.numberOfRecords != 0:  # continue if there are at least some records
-                            buf.addRecord(temp)
+                            buf.add_record(temp)
                     if self._noDataLoading:
                         self.info['DGBlock'][dataGroup]['dataClass'] = buf
                 else:
                     buf = self.info['DGBlock'][dataGroup]['dataClass']
 
-                buf.read(channelSet, self.fileName)  # reads datablock potentially containing several channel groups
+                buf.read(channel_set, self.fileName)  # reads datablock potentially containing several channel groups
 
                 channel_groups = buf
-                if self._noDataLoading and channelList is not None:
+                if self._noDataLoading and channel_list is not None:
                     channel_groups = [info['CGBlock'][dataGroup][self[channel][idField][1]]['recordID']
-                                      for channel in channelList]
+                                      for channel in channel_list]
 
                 for recordID in channel_groups:
                     if recordID in buf and 'record' in buf[recordID]:
                         master_channel = buf[recordID]['record'].master['name']
 
-                        if channelList is None or not self._noDataLoading:
+                        if channel_list is None or not self._noDataLoading:
                             channels = (c for c in buf[recordID]['record']
-                                        if channelSet is None or c.name in channelSet)
+                                        if channel_set is None or c.name in channel_set)
                         else:
                             channels = buf[recordID]['record']
-                            channels = [channels[self[channel][idField][2]] for channel in channelList]
+                            channels = [channels[self[channel][idField][2]] for channel in channel_list]
 
                         for chan in channels:  # for each channel
                             # in case record is used for several channels
-                            if channelSet is None and not buf[recordID]['record'].hiddenBytes \
+                            if channel_set is None and not buf[recordID]['record'].hiddenBytes \
                                     and buf[recordID]['record'].byte_aligned:
-                                recordName = buf[recordID]['record'].\
+                                record_name = buf[recordID]['record'].\
                                     recordToChannelMatching[chan.name]
                             else:
-                                recordName = chan.name
-                            temp = buf[recordID]['data'][recordName]
+                                record_name = chan.name
+                            temp = buf[recordID]['data'][record_name]
 
                             if len(temp) != 0:
                                 # Process concatenated bits inside uint8
                                 if chan.bit_masking_needed:
                                     # if channel data do not use complete bytes
-                                    if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
+                                    if chan.signal_data_type in (0, 1, 9, 10, 13, 14):  # integers
                                         temp = right_shift(temp, chan.embedding_channel_bitOffset)
                                         mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
                                         temp = bitwise_and(temp, mask)
@@ -974,18 +971,18 @@ class mdf3(MdfSkeleton):
                 del buf
                 if minimal > 1:
                     # clean CN, CC and CG info to free memory
-                    info.cleanDGinfo(dataGroup)
+                    info.clean_dg_info(dataGroup)
         info.fid.close()  # close file
-        if convertAfterRead and not compression:
+        if convert_after_read and not compression:
             self._noDataLoading = False
-            self._convertAllChannel3()
+            self._convert_all_channel3()
 
-    def _getChannelData3(self, channelName, raw_data=False):
+    def _get_channel_data3(self, channel_name, raw_data=False):
         """Returns channel numpy array
 
         Parameters
         ----------------
-        channelName : str
+        channel_name : str
             channel name
         raw_data: bool
             flag to return non converted data
@@ -999,25 +996,25 @@ class mdf3(MdfSkeleton):
         ------
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
-        if channelName in self:
-            vect = self.get_channel(channelName)[dataField]
-            if vect is None:  # noDataLoading reading argument flag activated
+        if channel_name in self:
+            vector = self.get_channel(channel_name)[dataField]
+            if vector is None:  # noDataLoading reading argument flag activated
                 if self.info.fid is None or (self.info.fid is not None and self.info.fid.closed):
                     (self.info.fid, self.info.fileName, zipfile) = _open_mdf(self.fileName)
-                self.read3(fileName=None, info=self.info, channelList=[channelName], convertAfterRead=False)
+                self.read3(file_name=None, info=self.info, channel_list=[channel_name], convert_after_read=False)
             if not raw_data:
-                return self._convert3(channelName, self.convert_tables)
+                return self._convert3(channel_name, self.convert_tables)
             else:
-                return self.get_channel(channelName)[dataField]
+                return self.get_channel(channel_name)[dataField]
         else:
             return None
 
-    def _convert3(self, channelName, convert_tables=False):
+    def _convert3(self, channel_name, convert_tables=False):
         """converts specific channel from raw to physical data according to CCBlock information
 
         Parameters
         ----------------
-        channelName : str
+        channel_name : str
             Name of channel
         convert_tables : bool
             activates computation intensive loops for conversion with tables. Default is False
@@ -1028,67 +1025,67 @@ class mdf3(MdfSkeleton):
             returns numpy array converted to physical values according to conversion type
         """
 
-        if self[channelName][dataField] is None:
-            vect = self[channelName][dataField]
+        if self[channel_name][dataField] is None:
+            vector = self[channel_name][dataField]
         else:
-            if isinstance(self[channelName][dataField], CompressedData):
-                vect = self[channelName][dataField].decompression()  # uncompress blosc
+            if isinstance(self[channel_name][dataField], CompressedData):
+                vector = self[channel_name][dataField].decompression()  # uncompress blosc
             else:
-                vect = self[channelName][dataField][:]  # to have bcolz uncompressed data
-        if conversionField in self[channelName]:  # there is conversion property
-            conversion = self[channelName][conversionField]
+                vector = self[channel_name][dataField][:]  # to have bcolz uncompressed data
+        if conversionField in self[channel_name]:  # there is conversion property
+            conversion = self[channel_name][conversionField]
             if conversion['type'] == 0:
-                return linearConv(vect, conversion['parameters'])
+                return _linear_conversion(vector, conversion['parameters'])
             elif conversion['type'] == 1:
-                return tabInterpConv(vect, conversion['parameters'])
+                return _tab_interp_conversion(vector, conversion['parameters'])
             elif conversion['type'] == 2:
-                return tabConv(vect, conversion['parameters'])
+                return _tab_conversion(vector, conversion['parameters'])
             elif conversion['type'] == 6:
-                return polyConv(vect, conversion['parameters'])
+                return _polynomial_conversion(vector, conversion['parameters'])
             elif conversion['type'] == 7:
-                return expConv(vect, conversion['parameters'])
+                return _exponential_conversion(vector, conversion['parameters'])
             elif conversion['type'] == 8:
-                return logConv(vect, conversion['parameters'])
+                return _log_conversion(vector, conversion['parameters'])
             elif conversion['type'] == 9:
-                return rationalConv(vect, conversion['parameters'])
+                return _rational_conversion(vector, conversion['parameters'])
             elif conversion['type'] == 10:
-                return formulaConv(vect, conversion['parameters'])
+                return _formula_conversion(vector, conversion['parameters'])
             elif conversion['type'] == 11 and convert_tables:
-                return textTableConv(vect, conversion['parameters'])
+                return _text_table_conversion(vector, conversion['parameters'])
             elif conversion['type'] == 12 and convert_tables:
-                return textRangeTableConv(vect, conversion['parameters'])
+                return _text_range_table_conversion(vector, conversion['parameters'])
             else:
-                return vect
+                return vector
         else:
-            return vect
+            return vector
 
-    def _convertChannel3(self, channelName):
+    def _convert_channel3(self, channel_name):
         """converts specific channel from raw to physical data according to CCBlock information
 
         Parameters
         ----------------
-        channelName : str
+        channel_name : str
             Name of channel
         """
-        self.set_channel_data(channelName, self._convert3(channelName, self.convert_tables))
-        self.remove_channel_conversion(channelName)
+        self.set_channel_data(channel_name, self._convert3(channel_name, self.convert_tables))
+        self.remove_channel_conversion(channel_name)
 
-    def _convertAllChannel3(self):
+    def _convert_all_channel3(self):
         """Converts all channels from raw data to converted data according to CCBlock information
         Converted data will take more memory.
         """
         if self._noDataLoading:  # no data loaded, load everything
-            self.read3(self.fileName, convertAfterRead=True)
+            self.read3(self.fileName, convert_after_read=True)
         else:
             for channel in self:
-                self._convertChannel3(channel)
+                self._convert_channel3(channel)
 
-    def write3(self, fileName=None):
+    def write3(self, file_name=None):
         """Writes simple mdf 3.3 file
 
         Parameters
         ----------------
-        fileName : str, optional
+        file_name : str, optional
             Name of file
             If file name is not input, written file name will be the one read with
             appended '_new' string before extension
@@ -1100,22 +1097,22 @@ class mdf3(MdfSkeleton):
 
         # put master channel in first position for each datagroup if not already the case
         for master in self.masterChannelList:
-            masterList = sorted(self.masterChannelList[master])
-            masterPosition = masterList.index(master)
-            masterList.pop(masterPosition)  # remove  master channel
-            masterList.insert(0, master)  # insert at first position master channel
-            self.masterChannelList[master] = masterList
+            master_list = sorted(self.masterChannelList[master])
+            master_position = master_list.index(master)
+            master_list.pop(master_position)  # remove  master channel
+            master_list.insert(0, master)  # insert at first position master channel
+            self.masterChannelList[master] = master_list
 
         pointers = {}  # records pointers of blocks when writing
 
         # write pointer of block and come back to current stream position
-        def writePointer(f, pointer, value):
-            currentPosition = f.tell()
+        def write_pointer(f, pointer, value):
+            current_position = f.tell()
             f.seek(pointer)
             f.write(pack('I', value))
-            f.seek(currentPosition)
+            f.seek(current_position)
 
-        fid = open(fileName, 'wb')  # buffering should automatically be set
+        fid = open(file_name, 'wb')  # buffering should automatically be set
         # Starts first to write ID and header
         head = (b'MDF     ', b'3.30    ', b'MDFreadr', 0, 0, 330,
                 28591, b'\0' * 32)
@@ -1127,7 +1124,7 @@ class mdf3(MdfSkeleton):
         pointers['HD']['DG'] = 68
         pointers['HD']['TX'] = 72
         pointers['HD']['PR'] = 76
-        ndataGroup = len(self.masterChannelList)
+        n_data_group = len(self.masterChannelList)
         if self.file_metadata['author'] is not None:  # Author
             try:
                 author = '{:\x00<32.31}'.format(self.file_metadata['author']).encode('latin-1', 'ignore')
@@ -1162,10 +1159,10 @@ class mdf3(MdfSkeleton):
         # first Data block pointer, pointer to TX Block file comment, pointer to PR Block
         # number of data groups, date, time
         # Time Stamp, UTC time offset, Time quality, Timer identification
-        timeOffset = gmtime()
-        head = (b'HD', 208, 272, 0, 0, ndataGroup,
-                '{:\x00<10}'.format(strftime("%d:%m:%Y", timeOffset)).encode('latin-1'),
-                '{:\x00<8}'.format(strftime("%H:%M:%S", timeOffset)).encode('latin-1'),
+        time_offset = gmtime()
+        head = (b'HD', 208, 272, 0, 0, n_data_group,
+                '{:\x00<10}'.format(strftime("%d:%m:%Y", time_offset)).encode('latin-1'),
+                '{:\x00<8}'.format(strftime("%H:%M:%S", time_offset)).encode('latin-1'),
                 author, organization, project, subject,
                 int(time() * 1000000000), 1, 0,
                 b'Local PC Reference Time         ')
@@ -1175,21 +1172,21 @@ class mdf3(MdfSkeleton):
         pointers['DG'] = {}
         pointers['CG'] = {}
         pointers['CN'] = {}
-        dataGroup = 0
+        data_group = 0
 
         for masterChannel in self.masterChannelList:
             # writes dataGroup Block
-            pointers['DG'][dataGroup] = {}
+            pointers['DG'][data_group] = {}
             position = fid.tell()
-            if 0 < dataGroup:  # not possible for first DG
+            if 0 < data_group:  # not possible for first DG
                 # previous datagroup pointer to this new datagroup
-                writePointer(fid, pointers['DG'][dataGroup - 1]['nextDG'], position)
+                write_pointer(fid, pointers['DG'][data_group - 1]['nextDG'], position)
             else:
                 # first datagroup pointer in header block
-                writePointer(fid, pointers['HD']['DG'], position)
-            pointers['DG'][dataGroup]['nextDG'] = position + 4
-            pointers['DG'][dataGroup]['CG'] = position + 8
-            pointers['DG'][dataGroup]['data'] = position + 16
+                write_pointer(fid, pointers['HD']['DG'], position)
+            pointers['DG'][data_group]['nextDG'] = position + 4
+            pointers['DG'][data_group]['CG'] = position + 8
+            pointers['DG'][data_group]['data'] = position + 16
             # DG block size, pointer to next DataGroup,
             # pointer to channel group, pointer to trigger block, pointer to data block
             # number of channel group, number of record IDs, reserved
@@ -1197,85 +1194,85 @@ class mdf3(MdfSkeleton):
             fid.write(pack('<2sH4I2H4s', *head))
 
             # sorted data so only one channel group
-            pointers['CG'][dataGroup] = {}
+            pointers['CG'][data_group] = {}
             # write first CG pointer in datagroup
             position = fid.tell()
-            writePointer(fid, pointers['DG'][dataGroup]['CG'], position)
-            pointers['CG'][dataGroup]['firstCN'] = position + 8
-            pointers['CG'][dataGroup]['TX'] = position + 12
-            pointers['CG'][dataGroup]['dataRecordSize'] = position + 20
-            numChannels = len(self.masterChannelList[masterChannel])
-            masterData = self.getChannelData(masterChannel)
-            nRecords = len(masterData)
+            write_pointer(fid, pointers['DG'][data_group]['CG'], position)
+            pointers['CG'][data_group]['firstCN'] = position + 8
+            pointers['CG'][data_group]['TX'] = position + 12
+            pointers['CG'][data_group]['dataRecordSize'] = position + 20
+            num_channels = len(self.masterChannelList[masterChannel])
+            master_data = self.get_channel_data(masterChannel)
+            n_records = len(master_data)
             # CG block size, pointer to next Channel Group
             # pointer to first channel block, pointer to TX block
             # No record ID no need for sorted data, Number of channels
             # Size of data record, Number of records, pointer to sample reduction block
-            head = (b'CG', 30, 0, 0, 0, 0, numChannels, 0, nRecords, 0)
+            head = (b'CG', 30, 0, 0, 0, 0, num_channels, 0, n_records, 0)
             fid.write(pack('<2sH3I3H2I', *head))
 
             # Channel blocks writing
-            pointers['CN'][dataGroup] = {}
-            dataList = ()
-            dataTypeList = ''
-            recordNumberOfBits = 0
-            preceedingChannel = None
-            bitOffset = 0
-            byteOffset = 0
+            pointers['CN'][data_group] = {}
+            data_list = ()
+            data_type_list = ''
+            record_number_of_bits = 0
+            preceeding_channel = None
+            bit_offset = 0
+            byte_offset = 0
             # first channel bock pointer from CG
             position = fid.tell()
-            writePointer(fid, pointers['CG'][dataGroup]['firstCN'], position)
+            write_pointer(fid, pointers['CG'][data_group]['firstCN'], position)
             for channel in self.masterChannelList[masterChannel]:
                 position = fid.tell()
-                pointers['CN'][dataGroup][channel] = {}
-                pointers['CN'][dataGroup][channel]['beginCN'] = position
-                pointers['CN'][dataGroup][channel]['nextCN'] = position + 4
-                pointers['CN'][dataGroup][channel]['CC'] = position + 8
-                pointers['CN'][dataGroup][channel]['TX'] = position + 16
-                if preceedingChannel is not None:  # not possible for first CN
+                pointers['CN'][data_group][channel] = {}
+                pointers['CN'][data_group][channel]['beginCN'] = position
+                pointers['CN'][data_group][channel]['nextCN'] = position + 4
+                pointers['CN'][data_group][channel]['CC'] = position + 8
+                pointers['CN'][data_group][channel]['TX'] = position + 16
+                if preceeding_channel is not None:  # not possible for first CN
                     # pointer in previous CN
-                    writePointer(fid, pointers['CN'][dataGroup][preceedingChannel]['nextCN'],
-                                 pointers['CN'][dataGroup][channel]['beginCN'])
-                preceedingChannel = channel
+                    write_pointer(fid, pointers['CN'][data_group][preceeding_channel]['nextCN'],
+                                  pointers['CN'][data_group][channel]['beginCN'])
+                preceeding_channel = channel
                 if channel not in set(self.masterChannelList):
-                    masterFlag = 0  # data channel
+                    master_flag = 0  # data channel
                 else:
-                    masterFlag = 1  # master channel
+                    master_flag = 1  # master channel
                 desc = self.get_channel_desc(channel)
                 #if bitOffset exceeds two byte limit, we start using the byte offset field
-                if bitOffset > 0xFFFF:
-                    bitOffset -= 0x10000
-                    byteOffset += 8192
-                data = self.getChannelData(channel)  # channel data
+                if bit_offset > 0xFFFF:
+                    bit_offset -= 0x10000
+                    byte_offset += 8192
+                data = self.get_channel_data(channel)  # channel data
                 temp = data
-                dataList = dataList + (temp, )
+                data_list = data_list + (temp, )
                 cn_numpy_kind = data.dtype.kind
-                cn_numpy_itemsize = data.dtype.itemsize
-                numberOfBits = cn_numpy_itemsize * 8
+                cn_numpy_item_size = data.dtype.itemsize
+                number_of_bits = cn_numpy_item_size * 8
                 if cn_numpy_kind in ('u', 'b'):
-                    dataType = 0
+                    data_type = 0
                 elif cn_numpy_kind == 'i':
-                    dataType = 1
+                    data_type = 1
                 elif cn_numpy_kind == 'f':
-                    if cn_numpy_itemsize == 8:
-                        dataType = 3
-                    elif cn_numpy_itemsize == 4:
-                        dataType = 2
+                    if cn_numpy_item_size == 8:
+                        data_type = 3
+                    elif cn_numpy_item_size == 4:
+                        data_type = 2
                     else:
                         raise Exception('Not recognized dtype')
                 elif cn_numpy_kind in ('S', 'U', 'V'):
-                    dataType = 7
+                    data_type = 7
                 else:
                     raise Exception('Not recognized dtype')
                     return data.dtype
                 if data.dtype.kind not in ['S', 'U']:
-                    dataTypeList = ''.join([dataTypeList, data.dtype.char])
+                    data_type_list = ''.join([data_type_list, data.dtype.char])
                 else:
-                    dataTypeList = ''.join([dataTypeList, '{}s'.format(data.dtype.itemsize)])
-                    numberOfBits = 8 * data.dtype.itemsize
-                recordNumberOfBits += numberOfBits
+                    data_type_list = ''.join([data_type_list, '{}s'.format(data.dtype.itemsize)])
+                    number_of_bits = 8 * data.dtype.itemsize
+                record_number_of_bits += number_of_bits
                 if data.dtype.kind not in ['S', 'U']:
-                    valueRangeValid = 1
+                    value_range_valid = 1
                     if len(data) > 0 and issubdtype(data.dtype, numpy_number):
                         maximum = npmax(data)
                         minimum = npmin(data)
@@ -1283,10 +1280,10 @@ class mdf3(MdfSkeleton):
                         maximum = 0
                         minimum = 0
                 else:
-                    valueRangeValid = 0  # No value range valid
+                    value_range_valid = 0  # No value range valid
                     minimum = 0  # Min value
                     maximum = 0  # Max value
-                pointers['CN'][dataGroup][channel]['longChannelName'] = position + 218
+                pointers['CN'][data_group][channel]['longChannelName'] = position + 218
                 # CN,  block size
                 # pointer to next channel block, pointer to conversion block
                 # pointer to source depending block, pointer to dependency block
@@ -1301,21 +1298,21 @@ class mdf3(MdfSkeleton):
                     description = '{:\x00<128.127}'.format(desc).encode('latin-1')
                 except:
                     description = b'\x00' * 128
-                head = (b'CN', 228, 0, 0, 0, 0, 0, masterFlag,
+                head = (b'CN', 228, 0, 0, 0, 0, 0, master_flag,
                         ('{:\x00<32.31}'.format(channel) + '\x00').encode('latin-1'),
                         description,
-                        bitOffset, numberOfBits, dataType, valueRangeValid,
-                        minimum, maximum, 0, 0, 0, byteOffset)
+                        bit_offset, number_of_bits, data_type, value_range_valid,
+                        minimum, maximum, 0, 0, 0, byte_offset)
                 fid.write(pack('<2sH5IH32s128s4H3d2IH', *head))
-                bitOffset += numberOfBits
+                bit_offset += number_of_bits
 
                 # TXblock for long channel name
-                writePointer(fid, pointers['CN'][dataGroup][channel]['longChannelName'], fid.tell())
+                write_pointer(fid, pointers['CN'][data_group][channel]['longChannelName'], fid.tell())
                 head = (b'TX', len(channel) + 4 + 1, channel.encode('latin-1') + b'\x00')
                 fid.write(pack('<2sH{}s'.format(len(channel)+1), *head))
 
                 # Conversion blocks writing
-                writePointer(fid, pointers['CN'][dataGroup][channel]['CC'], fid.tell())
+                write_pointer(fid, pointers['CN'][data_group][channel]['CC'], fid.tell())
                 # channel description
                 # conversion already done during reading
                 # additional size information, not necessary for 65535 conversion type ?
@@ -1324,23 +1321,23 @@ class mdf3(MdfSkeleton):
                                                   .encode('latin-1', 'replace'))
                 except:
                     unit = b'\x00' * 20
-                head = (b'CC', 46, valueRangeValid, minimum, maximum,
+                head = (b'CC', 46, value_range_valid, minimum, maximum,
                         unit, 65535, 0)
                 fid.write(pack('<2shH2d20s2H', *head))
 
             # number of channels in CG
-            currentPosition = fid.tell()
-            fid.seek(pointers['CG'][dataGroup]['dataRecordSize'])
-            fid.write(pack('H', int(recordNumberOfBits / 8)))  # Size of data record
-            fid.seek(currentPosition)
+            current_position = fid.tell()
+            fid.seek(pointers['CG'][data_group]['dataRecordSize'])
+            fid.write(pack('H', int(record_number_of_bits / 8)))  # Size of data record
+            fid.seek(current_position)
 
             # data writing
             # write data pointer in datagroup
-            writePointer(fid, pointers['DG'][dataGroup]['data'], fid.tell())
+            write_pointer(fid, pointers['DG'][data_group]['data'], fid.tell())
             # dumps data vector from numpy
-            fid.write(fromarrays(dataList).tobytes(order='F'))
+            fid.write(fromarrays(data_list).tobytes(order='F'))
 
-            dataGroup += 1
+            data_group += 1
 
         # print(pointers, file=stderr)
         fid.close()

@@ -17,8 +17,8 @@ from veusz.plugins import *
 from veusz.plugins.datasetplugin import Dataset1D as ImportDataset1D
 from veusz.plugins.field import FieldFloat as ImportFieldFloat
 try:
-    from mdfreader import mdf
-    from mdfreader import mdfinfo
+    from mdfreader import Mdf
+    from mdfreader import MdfInfo
 except ImportError:
     try:
         from veusz.plugins.mdfreader import mdf
@@ -29,11 +29,11 @@ except ImportError:
         import os.path
         sys.path.append(os.getcwdu())
         print(os.path.join(os.getcwdu(), 'plugins'))
-        from mdfreader import mdf
-        from mdfreader import mdfinfo
+        from mdfreader import Mdf
+        from mdfreader import MdfInfo
 
 
-class ImportPlugin(mdfinfo):
+class ImportPlugin(MdfInfo):
 
     """Define a plugin to read data in a particular format.
 
@@ -58,7 +58,7 @@ class ImportPlugin(mdfinfo):
         Returns (text, okaytoimport)
         """
 
-        info = mdfinfo(fileName=params.filename)
+        info = MdfInfo()
 
         if info.mdfversion < 400:
             f = ''
@@ -85,7 +85,7 @@ class ImportPlugin(mdfinfo):
                     f += 'Project Name: ' + Comment['project'] + '\n'
                 if 'subject' in Comment:
                     f += 'Subject: ' + Comment['subject'] + '\n' + 'Channel List:\n'
-        for channelName in info.listChannels():
+        for channelName in info.list_channels():
             f += '   ' + channelName + '\n'
         return f, True
 
@@ -97,7 +97,7 @@ class ImportPlugin(mdfinfo):
         return []
 
 
-class MdfImportPlugin(ImportPlugin, mdf):
+class MdfImportPlugin(ImportPlugin, Mdf):
 
     """Plugin to import mdf (Mostly ETAS INCA or CANape files)"""
 
@@ -115,8 +115,8 @@ class MdfImportPlugin(ImportPlugin, mdf):
         Return a list of ImportDataset1D, ImportDataset2D objects
         """
 
-        data = mdf(params.filename)
-        data.resample(samplingTime=params.field_results['mult'])
+        data = Mdf(params.filename)
+        data.resample(sampling_time=params.field_results['mult'])
         List = []
         for channelName in list(data.keys()):
             if len(data[channelName]['data']) > 0 and not data[channelName]['data'].dtype.kind in ['S', 'U']:
