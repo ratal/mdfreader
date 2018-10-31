@@ -689,7 +689,7 @@ class Record(list):
                                 and channel_pos_bit_end <= 8 * (prev_chan_byte_offset + prev_chan_n_bytes)
                         if embedding_channel is not None:
                             embedding_channel_includes_curr_chan = \
-                                channel_pos_bit_end <= embedding_channel.posByteEnd(info) * 8
+                                channel_pos_bit_end <= embedding_channel.pos_byte_end(info) * 8
                         else:
                             embedding_channel_includes_curr_chan = False
                         if channel.byteOffset >= prev_chan_byte_offset and \
@@ -698,7 +698,7 @@ class Record(list):
                             # not byte aligned
                             self.byte_aligned = False
                         if embedding_channel is not None and \
-                                channel_pos_bit_end > embedding_channel.posByteEnd(info) * 8:
+                                channel_pos_bit_end > embedding_channel.pos_byte_end(info) * 8:
                             embedding_channel = None
                         if prev_chan_includes_curr_chan or \
                                 embedding_channel_includes_curr_chan:  # bit(s) in byte(s)
@@ -961,17 +961,17 @@ class Record(list):
             if dataRead_available:  # use rather cython compiled code for performance
                 bytesdata = bytes(bit_stream)
                 for chan in channels_indexes:
-                    if self[chan].isCABlock(info):
+                    if self[chan].is_ca_block(info):
                         ca = self[chan].CABlock(info)
                         array_flag = ca['ca_ndim']
                     else:
                         array_flag = 0
                     buf[self[chan].name] = \
-                        dataRead(bytesdata, self[chan].bitCount(info),
-                                 self[chan].signalDataType(info),
-                                 self[chan].nativedataFormat(info),
+                        dataRead(bytesdata, self[chan].bit_count(info),
+                                 self[chan].signal_data_type(info),
+                                 self[chan].native_data_format(info),
                                  n_records, self.CGrecordLength,
-                                 self[chan].bitOffset(info), self[chan].posByteBeg(info),
+                                 self[chan].bit_offset(info), self[chan].pos_byte_beg(info),
                                  self[chan].nBytes, array_flag)
                 return buf
             else:
@@ -1144,7 +1144,7 @@ class Mdf4(MdfSkeleton):
             If you use convertAfterRead by setting it to false,
             all data from channels will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
-            To calculate value from channel, you can then use method .getChannelData()
+            To calculate value from channel, you can then use method .get_channel_data()
 
         compression : bool, optional
             flag to activate data compression with blosc
@@ -1605,7 +1605,7 @@ class Mdf4(MdfSkeleton):
                 data_list = ()
                 last_channel = 0
                 for n_channel, channel in enumerate(self.masterChannelList[masterChannel]):
-                    data = self.getChannelData(channel)
+                    data = self.get_channel_data(channel)
                     # no interest to write invalid bytes as channel, should be processed if needed before writing
                     if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
                         last_channel = n_channel

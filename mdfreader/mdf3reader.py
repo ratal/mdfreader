@@ -659,13 +659,13 @@ class DATA(dict):
 
     Methods
     ------------
-    addRecord(record)
+    add_record(record)
         Adds a new record in DATA class dict
     read(channelSet)
         Reads data block
-    loadSorted(record, nameList=None)
+    load_sorted(record, nameList=None)
         Reads sorted data block from record definition
-    loadUnSorted(nameList=None)
+    load_unsorted(nameList=None)
         Reads unsorted data block, not yet implemented
     """
 
@@ -838,7 +838,7 @@ class Mdf3(MdfSkeleton):
             If you use convertAfterRead by setting it to false, all data from channels
             will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
-            To calculate value from channel, you can then use method .getChannelData()
+            To calculate value from channel, you can then use method .get_channel_data()
 
         filter_channel_names : bool, optional
             flag to filter long channel names from its module names separated by '.'
@@ -958,7 +958,7 @@ class Mdf3(MdfSkeleton):
                                 # Process concatenated bits inside uint8
                                 if chan.bit_masking_needed:
                                     # if channel data do not use complete bytes
-                                    if chan.signal_data_type in (0, 1, 9, 10, 13, 14):  # integers
+                                    if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
                                         temp = right_shift(temp, chan.embedding_channel_bitOffset)
                                         mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
                                         temp = bitwise_and(temp, mask)

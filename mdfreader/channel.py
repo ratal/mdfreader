@@ -26,7 +26,7 @@ CAN_open_offset = {'ms': 0, 'days': 4, 'minute': 2, 'hour': 3, 'day': 4, 'month'
 
 class Channel4(object):
     __slots__ = ['channelNumber', 'channelGroup', 'dataGroup',
-                 'type', 'name', 'VLSD_CG_Flag', 'nBytes', 'byteOffset', 'bit_masking_needed']
+                 'type', 'name', 'VLSD_CG_Flag', 'nBytes', 'byteOffset']
     """ channel class gathers all about channel structure in a record
 
     Attributes

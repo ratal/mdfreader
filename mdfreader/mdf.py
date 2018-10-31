@@ -150,10 +150,10 @@ class MdfSkeleton(dict):
         self.clear()
         self.fileName = fileName
         if fileName is not None:
-            self.read(fileName, channelList=channelList,
-                      convertAfterRead=convertAfterRead,
-                      filterChannelNames=filterChannelNames,
-                      noDataLoading=noDataLoading,
+            self.read(fileName, channel_list=channelList,
+                      convert_after_read=convertAfterRead,
+                      filter_channel_names=filterChannelNames,
+                      no_data_loading=noDataLoading,
                       compression=compression,
                       metadata=metadata)
 
