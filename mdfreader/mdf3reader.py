@@ -623,12 +623,12 @@ class Record(list):
                 if not nbytes == Channel.nBytes:
                     byte = bitarray(8 * (Channel.nBytes - nbytes), endian='little')
                     byte.setall(False)
-                    if Channel.signal_data_type not in (1, 10, 14):  # not signed integer
+                    if Channel.signalDataType not in (1, 10, 14):  # not signed integer
                         temp[Channel.name].extend(byte)
                     else:  # signed integer (two's complement), keep sign bit and extend with bytes
                         temp[Channel.name] = signed_int(temp[Channel.name], byte)
                 n_trail_bits = Channel.nBytes*8 - Channel.bitCount
-                if Channel.signal_data_type in (1, 10, 14) and \
+                if Channel.signalDataType in (1, 10, 14) and \
                         nbytes == Channel.nBytes and \
                         n_trail_bits > 0:  # Ctype byte length but signed integer
                     trail_bits = bitarray(n_trail_bits, endian='little')
