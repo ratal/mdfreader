@@ -112,8 +112,8 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
             return _read_unsorted(record, info, parent_block, channel_set)
 
     elif parent_block['id'] in ('##SD', b'##SD'):
-        return _read_sdblock(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
-                             parent_block['length'] - 24)
+        return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
+                              parent_block['length'] - 24)
 
     elif parent_block['id'] in ('##DZ', b'##DZ'):  # zipped data block
         # uncompress data
@@ -121,8 +121,8 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
                                                              parent_block['dz_zip_parameter'],
                                                              parent_block['dz_org_data_length'])
         if vlsd:  # VLSD channel
-            return _read_sdblock(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
-                                 parent_block['dz_org_data_length'])
+            return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
+                                  parent_block['dz_org_data_length'])
         if channel_set is None and sorted_flag:  # reads all blocks if sorted block and no channelSet defined
             if record.byte_aligned and not record.hiddenBytes:
                 return fromstring(parent_block['data'], dtype={'names': record.dataRecordName,
@@ -137,7 +137,29 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
 
 
 def _read_unsorted(record, info, parent_block, channel_set=None):
-    # reads only the channels using offset functions, channel by channel.
+    """ reads only the channels using offset functions, channel by channel within unsorted data
+
+    Parameters
+    ------------
+    record : class
+        record class
+    info: info class
+    channel_set : set of str, optional
+        set of channel to read
+    parent_block:
+        number of records
+    channel_set: set
+    set of channel names to be parsed
+
+    Returns
+    --------
+    buf : array
+        data array
+
+    Notes
+    ------
+    channel_set is not used yet
+    """
     buf = defaultdict(list)
     position = 0
     record_id_c_format = record[list(record.keys())[0]]['record'].recordIDCFormat
@@ -146,8 +168,7 @@ def _read_unsorted(record, info, parent_block, channel_set=None):
     # initialise data structure
     for record_id in record:
         for channelName in record[record_id]['record'].dataRecordName:
-            buf[channelName] = []  # empty(record.numberOfRecords,dtype=record[recordID]['record'].dataFormat)
-            # index[channelName]=0
+            buf[channelName] = []
     # read data
     while position < len(parent_block['data']):
         record_id = record_id_c_format.unpack(parent_block['data'][position:position + record_id_size])[0]
@@ -179,22 +200,22 @@ def _read_unsorted(record, info, parent_block, channel_set=None):
     return buf
 
 
-def _read_sdblock(signal_data_type, sdblock, sdblock_length):
+def _read_sd_block(signal_data_type, sd_block, sd_block_length):
     """ Reads vlsd channel from its SD Block bytes
 
-        Parameters
-        ----------------
-        signal_data_type : int
+    Parameters
+    ----------------
+    signal_data_type : int
 
-        sdblock : bytes
-        SD Block bytes
+    sd_block : bytes
+    SD Block bytes
 
-        sdblock_length: int
-        SD Block data length (header not included)
+    sd_block_length: int
+    SD Block data length (header not included)
 
-        Returns
-        -----------
-        array
+    Returns
+    -----------
+    array
     """
     if signal_data_type == 6:
         channel_format = 'ISO8859'
@@ -207,10 +228,10 @@ def _read_sdblock(signal_data_type, sdblock, sdblock_length):
     pointer = 0
     buf = []
 
-    while pointer < sdblock_length:
-        VLSDLen = structunpack('I', sdblock[pointer:pointer + 4])[0]  # length of data
+    while pointer < sd_block_length:
+        VLSDLen = structunpack('I', sd_block[pointer:pointer + 4])[0]  # length of data
         pointer += 4
-        buf.append(sdblock[pointer:pointer + VLSDLen].decode(channel_format).rstrip('\x00'))
+        buf.append(sd_block[pointer:pointer + VLSDLen].decode(channel_format).rstrip('\x00'))
         pointer += VLSDLen
     buf = _equalize_string_length(buf)
     return array(buf)
@@ -575,7 +596,7 @@ class Record(list):
             output.append('CG {} '.format(chan.channelGroup))
             output.append('CN {} '.format(chan.channelNumber))
             output.append('VLSD {} \n'.format(chan.VLSD_CG_Flag))
-        output.append('CG block record bytes length : {}\nDatagroup number : {}'
+        output.append('CG block record bytes length : {}\nData group number : {}'
                       '\nByte aligned : {}\nHidden bytes : {}\n'.format(self.CGrecordLength, self.dataGroup,
                                                                         self.byte_aligned, self.hiddenBytes))
         if self.master['name'] is not None:
@@ -595,8 +616,8 @@ class Record(list):
         channel_number : int
             channel number in mdfinfo4.info4 class
         """
-        Channel = Channel4()
-        self.append(Channel.set(info, self.dataGroup, self.channelGroup, channel_number))
+        channel = Channel4()
+        self.append(channel.set(info, self.dataGroup, self.channelGroup, channel_number))
         self.channelNames.add(self[-1].name)
 
     def load_info(self, info):
@@ -959,7 +980,7 @@ class Record(list):
             buf = recarray(n_records, dtype=dtype)
         if buf is not None:  # at least some channels should be parsed
             if dataRead_available:  # use rather cython compiled code for performance
-                bytesdata = bytes(bit_stream)
+                bytes_data = bytes(bit_stream)
                 for chan in channels_indexes:
                     if self[chan].is_ca_block(info):
                         ca = self[chan].ca_block(info)
@@ -967,7 +988,7 @@ class Record(list):
                     else:
                         array_flag = 0
                     buf[self[chan].name] = \
-                        data_read(bytesdata, self[chan].bit_count(info),
+                        data_read(bytes_data, self[chan].bit_count(info),
                                   self[chan].signal_data_type(info),
                                   self[chan].native_data_format(info),
                                   n_records, self.CGrecordLength,
@@ -1025,45 +1046,45 @@ class Record(list):
         if buf is not None:
             # read data
             from bitarray import bitarray
-            B = bitarray(endian="little")  # little endian by default
-            B.frombytes(bytes(bit_stream))
+            bit_array = bitarray(endian="little")  # little endian by default
+            bit_array.frombytes(bytes(bit_stream))
             record_bit_size = self.CGrecordLength * 8
             for chan in channels_indexes:
-                signal_data_type = self[chan].signalDataType(info)
-                n_bytes = self[chan].nBytes
+                signal_data_type = self[chan].signal_data_type(info)
+                n_bytes_estimated = self[chan].nBytes
                 if not self[chan].type in (1, 2):
-                    temp = [B[self[chan].posBitBeg(info) + record_bit_size * i:
-                            self[chan].posBitEnd(info) + record_bit_size * i]
+                    temp = [bit_array[self[chan].pos_bit_beg(info) + record_bit_size * i:
+                            self[chan].pos_bit_end(info) + record_bit_size * i]
                             for i in range(n_records)]
-                    nbytes = len(temp[0].tobytes())
-                    if not nbytes == n_bytes and \
+                    n_bytes = len(temp[0].tobytes())
+                    if not n_bytes == n_bytes_estimated and \
                             signal_data_type not in (6, 7, 8, 9, 10, 11, 12):  # not Ctype byte length
-                        byte = bitarray(8 * (n_bytes - nbytes), endian='little')
+                        byte = bitarray(8 * (n_bytes_estimated - n_bytes), endian='little')
                         byte.setall(False)
                         if signal_data_type not in (2, 3):  # not signed integer
                             for i in range(n_records):  # extend data of bytes to match numpy requirement
                                 temp[i].extend(byte)
                         else:  # signed integer (two's complement), keep sign bit and extend with bytes
                             temp = signed_int(temp, byte)
-                    n_trail_bits = n_bytes*8 - self[chan].bitCount(info)
+                    n_trail_bits = n_bytes_estimated*8 - self[chan].bit_count(info)
                     if signal_data_type in (2, 3) and \
-                            nbytes == n_bytes and \
-                            n_trail_bits > 0:  # Ctype byte length but signed integer
+                            n_bytes == n_bytes_estimated and \
+                            n_trail_bits > 0:  # C type byte length but signed integer
                         trail_bits = bitarray(n_trail_bits, endian='little')
                         temp = signed_int(temp, trail_bits)
                 else:  # Channel Array
-                    temp = [B[self[chan].posBitBeg(info) + record_bit_size * i:
-                              self[chan].posBitBeg(info) + 8 * n_bytes + record_bit_size * i]
+                    temp = [bit_array[self[chan].pos_bit_beg(info) + record_bit_size * i:
+                                      self[chan].pos_bit_beg(info) + 8 * n_bytes_estimated + record_bit_size * i]
                             for i in range(n_records)]
-                if 's' not in self[chan].Format(info):
-                    CFormat = self[chan].CFormat(info)
-                    if ('>' in self[chan].dataFormat(info) and byteorder == 'little') or \
-                       (byteorder == 'big' and '<' in self[chan].dataFormat(info)):
-                        temp = [CFormat.unpack(temp[i].tobytes())[0]
+                if 's' not in self[chan].c_format(info):
+                    c_structure = self[chan].c_format_structure(info)
+                    if ('>' in self[chan].data_format(info) and byteorder == 'little') or \
+                       (byteorder == 'big' and '<' in self[chan].data_format(info)):
+                        temp = [c_structure.unpack(temp[i].tobytes())[0]
                                 for i in range(n_records)]
                         temp = asarray(temp).byteswap().newbyteorder()
                     else:
-                        temp = [CFormat.unpack(temp[i].tobytes())[0]
+                        temp = [c_structure.unpack(temp[i].tobytes())[0]
                                 for i in range(n_records)]
                         temp = asarray(temp)
                 else:
@@ -1366,10 +1387,10 @@ class Mdf4(MdfSkeleton):
 
         if convert_after_read and not compression:
             self._noDataLoading = False
-            self._convert_all_channel_4()
+            self._convert_all_channel4()
         # print( 'Finished in ' + str( time.clock() - inttime ) , file=stderr)
 
-    def _get_channel_data_4(self, channel_name, raw_data=False):
+    def _get_channel_data4(self, channel_name, raw_data=False):
         """Returns channel numpy array
 
         Parameters
@@ -1395,15 +1416,15 @@ class Mdf4(MdfSkeleton):
                     (self.info.fid, self.info.fileName, self.info.zipfile) = _open_mdf(self.fileName)
                 self.read4(file_name=None, info=None, channel_list=[channel_name], convert_after_read=False)
             if not raw_data:
-                return self._convert_channel_data_4(self.get_channel(channel_name),
-                                                    channel_name, self.convertTables)[channel_name]
+                return self._convert_channel_data4(self.get_channel(channel_name), channel_name,
+                                                   self.convertTables)[channel_name]
             else:
                 return self.get_channel(channel_name)[dataField]
         else:
             return None
 
     @staticmethod
-    def _convert_channel_data_4(channel, channel_name, convert_tables, multi_processed=False, q=None):
+    def _convert_channel_data4(channel, channel_name, convert_tables, multi_processed=False, q=None):
         """converts specific channel from raw to physical data according to CCBlock information
 
         Parameters
@@ -1449,12 +1470,14 @@ class Mdf4(MdfSkeleton):
             elif conversion_type == 6 and not text_type and convert_tables:
                 vector = _value_range_to_value_table_conversion(vector, conversion_parameter['cc_val'])
             elif conversion_type == 7 and not text_type and convert_tables:
-                vector = _value_to_text_conversion(vector, conversion_parameter['cc_val'], conversion_parameter['cc_ref'])
+                vector = _value_to_text_conversion(vector, conversion_parameter['cc_val'],
+                                                   conversion_parameter['cc_ref'])
             elif conversion_type == 8 and not text_type and convert_tables:
                 vector = _value_range_to_text_conversion(vector, conversion_parameter['cc_val'],
                                                          conversion_parameter['cc_ref'])
             elif conversion_type == 9 and text_type and convert_tables:
-                vector = _text_to_value_conversion(vector, conversion_parameter['cc_val'], conversion_parameter['cc_ref'])
+                vector = _text_to_value_conversion(vector, conversion_parameter['cc_val'],
+                                                   conversion_parameter['cc_ref'])
             elif conversion_type == 10 and text_type and convert_tables:
                 vector = _text_to_text_conversion(vector, conversion_parameter['cc_ref'])
         L = dict()
@@ -1464,7 +1487,7 @@ class Mdf4(MdfSkeleton):
         else:
             return L
 
-    def _convert_channel_4(self, channel_name):
+    def _convert_channel4(self, channel_name):
         """converts specific channel from raw to physical data according to CCBlock information
 
         Parameters
@@ -1472,10 +1495,10 @@ class Mdf4(MdfSkeleton):
         channel_name : str
             Name of channel
         """
-        self.set_channel_data(channel_name, self._get_channel_data_4(channel_name))
+        self.set_channel_data(channel_name, self._get_channel_data4(channel_name))
         self.remove_channel_conversion(channel_name)
 
-    def _convert_all_channel_4(self):
+    def _convert_all_channel4(self):
         """Converts all channels from raw data to converted data according to CCBlock information
         Converted data will take more memory.
         """
@@ -1484,7 +1507,7 @@ class Mdf4(MdfSkeleton):
             self.read4(self.fileName, convert_after_read=True)
         else:
             if self.multiProc is False:
-                [self._convert_channel_4(channelName) for channelName in self]
+                [self._convert_channel4(channelName) for channelName in self]
             else:  # multiprocessing
                 proc = []
                 Q = Queue()
@@ -1494,9 +1517,9 @@ class Mdf4(MdfSkeleton):
                     if 'conversion' in channel:
                         conversion = self.get_channel_conversion(channelName)
                         if conversion['type'] in (1, 2):  # more time in multi proc
-                            self._convert_channel_4(channelName)
+                            self._convert_channel4(channelName)
                         else:
-                            proc.append(Process(target=self._convert_channel_data_4,
+                            proc.append(Process(target=self._convert_channel_data4,
                                                 args=(channel, channelName, self.convertTables, True, Q)))
                             proc[-1].start()
                 for p in proc:
@@ -1584,13 +1607,13 @@ class Mdf4(MdfSkeleton):
                 pointer = blocks['CG']['block_start'] + 104
                 blocks['CG']['CN'] = pointer  # First CN link
 
-                master_channel_data = self._get_channel_data_4(masterChannel)
+                master_channel_data = self._get_channel_data4(masterChannel)
                 if master_channel_data is not None:
                     cg_cycle_count = len(master_channel_data)
-                elif self._get_channel_data_4(self.masterChannelList[masterChannel][0]).shape[0] == 1:  # classification
+                elif self._get_channel_data4(self.masterChannelList[masterChannel][0]).shape[0] == 1:  # classification
                     cg_cycle_count = 1
                 elif master_channel_data not in self.masterChannelList[masterChannel]:
-                    cg_cycle_count = len(self._get_channel_data_4(self.masterChannelList[masterChannel][0]))
+                    cg_cycle_count = len(self._get_channel_data4(self.masterChannelList[masterChannel][0]))
                     warn('no master channel in data group {}'.format(dataGroup))
                 else:
                     # no data in data group, skip
@@ -1773,8 +1796,8 @@ class Mdf4(MdfSkeleton):
         try:
             invalid_bit_pos = self.get_invalid_bit(channel_name)
             if isinstance(invalid_bit_pos, int):  # invalid bit existing
-                mask = self._get_channel_data_4(self.get_invalid_channel(channel_name))
-                data = self._get_channel_data_4(channel_name)
+                mask = self._get_channel_data4(self.get_invalid_channel(channel_name))
+                data = self._get_channel_data4(channel_name)
                 data = data.view(MaskedArray)
                 invalid_byte = invalid_bit_pos >> 3
                 data.mask = bitwise_and(mask[:, invalid_byte], invalid_bit_pos & 0x07)
@@ -1943,13 +1966,13 @@ def _value_range_to_value_table_conversion(vector, cc_val):
     key_max = [cc_val[i] for i in range(1, 3 * val_count + 1, 3)]
     value = [cc_val[i] for i in range(2, 3 * val_count + 1, 3)]
     # look up in range keys
-    for lindex in range(len(vector)):
+    for l_index in range(len(vector)):
         key_index = 0  # default index if not found
         for i in range(val_count):
-            if key_min[i] < vector[lindex] < key_max[i]:
+            if key_min[i] < vector[l_index] < key_max[i]:
                 key_index = i
                 break
-        vector[lindex] = value[key_index]
+        vector[l_index] = value[key_index]
     return vector
 
 
@@ -2081,10 +2104,10 @@ def _text_to_value_conversion(vector, cc_val, cc_ref):
     """
     ref_count = len(cc_ref)
     temp = []
-    for lindex in range(len(vector)):
+    for l_index in range(len(vector)):
         key_index = ref_count  # default index if not found
         for i in range(ref_count):
-            if vector[lindex] == cc_ref[i]:
+            if vector[l_index] == cc_ref[i]:
                 key_index = i
                 break
         temp.append(cc_val[key_index])
@@ -2105,11 +2128,11 @@ def _text_to_text_conversion(vector, cc_ref):
     converted data to physical value
     """
     ref_count = len(cc_ref) - 2
-    for lindex in range(len(vector)):
+    for l_index in range(len(vector)):
         key_index = ref_count + 1  # default index if not found
         for i in range(0, ref_count, 2):
-            if vector[lindex] == cc_ref[i]:
+            if vector[l_index] == cc_ref[i]:
                 key_index = i
                 break
-        vector[lindex] = cc_ref[key_index]
+        vector[l_index] = cc_ref[key_index]
     return vector

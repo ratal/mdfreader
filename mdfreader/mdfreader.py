@@ -192,7 +192,7 @@ class MdfInfo(dict):
             self.update(Info3(None, self.fid, self.filterChannelNames))
         else:  # MDF version 4.x
             self.update(Info4(None, self.fid, minimal))
-            if self.zipfile and fid is None: # not from mdfreader.read()
+            if self.zipfile and fid is None:  # not from mdfreader.read()
                 remove(self.fileName)
 
     def list_channels(self, file_name=None):
@@ -396,8 +396,8 @@ class Mdf(Mdf3, Mdf4):
 
         if self.MDFVersionNumber < 400:  # up to version 3.x not compatible with version 4.x
             if not no_data_loading:
-                self.read3(self.fileName, None, multi_processed, channel_list, convert_after_read, filter_channel_names,
-                           compression)
+                self.read3(self.fileName, None, multi_processed, channel_list,
+                           convert_after_read, filter_channel_names, compression)
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
                 self.info = Info3(None, fid=self.fid, minimal=1)
@@ -405,7 +405,8 @@ class Mdf(Mdf3, Mdf4):
                 self.update(mdf_dict)
         else:  # MDF version 4.x
             if not no_data_loading:
-                self.read4(self.fileName, None, multi_processed, channel_list, convert_after_read, compression, metadata)
+                self.read4(self.fileName, None, multi_processed, channel_list,
+                           convert_after_read, compression, metadata)
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
                 self.info = Info4(None, fid=self.fid, minimal=1)
@@ -422,7 +423,8 @@ class Mdf(Mdf3, Mdf4):
         ----------------
         file_name : str, optional
             Name of file
-            If file name is not input, written file name will be the one read with appended '_new' string before extension
+            If file name is not input, written file name will be the one read with
+            appended '_new' string before extension
         compression : bool
             Flag to store data compressed (from mdf version 4.1)
             If activated, will write in version 4.1 even if original file is in version 3.x
@@ -465,7 +467,7 @@ class Mdf(Mdf3, Mdf4):
         if self.MDFVersionNumber < 400:
             vector = self._get_channel_data3(channel_name, raw_data)
         else:
-            vector = self._get_channel_data_4(channel_name, raw_data)
+            vector = self._get_channel_data4(channel_name, raw_data)
         if self._noDataLoading:
             # remove data loaded in object to save memory
             self.set_channel_data(channel_name, None)
@@ -478,7 +480,7 @@ class Mdf(Mdf3, Mdf4):
         if self.MDFVersionNumber < 400:
             return self._convert_all_channel3()
         else:
-            return self._convert_all_channel_4()
+            return self._convert_all_channel4()
 
     def plot(self, channel_name_list_of_list):
         """Plot channels with Matplotlib
@@ -619,7 +621,8 @@ class Mdf(Mdf3, Mdf4):
                     else:
                         master_data = arange(min(min_time), max(max_time), sampling_time)
                     self.add_channel(master_channel_name, master_data, master_channel_name,
-                                     master_type=self.get_channel_master_type(master), unit=self.get_channel_unit(master),
+                                     master_type=self.get_channel_master_type(master),
+                                     unit=self.get_channel_unit(master),
                                      description=self.get_channel_desc(master), conversion=None)
             else:
                 master_channel_name = master_channel # master channel defined in argument
@@ -632,7 +635,8 @@ class Mdf(Mdf3, Mdf4):
                 # create master channel if not proposed
                 if master_channel is None and master_data is not None:
                     self.add_channel(master_channel_name, master_data, master_channel_name,
-                                     master_type=self.get_channel_master_type(master), unit=self.get_channel_unit(master),
+                                     master_type=self.get_channel_master_type(master),
+                                     unit=self.get_channel_unit(master),
                                      description=self.get_channel_desc(master), conversion=None)
 
                 # Interpolate channels
@@ -1353,10 +1357,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    temp = Mdf(fileName=args.fileName, channelList=args.channelList,
-               converAfterRead=args.convertAfterRead,
-               filterChannelNames=args.filterChannelNames,
-               noDataLoading=args.noDataLoading,
+    temp = Mdf(file_name=args.fileName, channel_list=args.channelList,
+               convert_after_read=args.convertAfterRead,
+               filter_channel_names=args.filterChannelNames,
+               no_data_loading=args.noDataLoading,
                compression=args.compression)
     if args.export is not None:
         if args.export == 'CSV':

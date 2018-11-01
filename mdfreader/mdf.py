@@ -120,8 +120,10 @@ class MdfSkeleton(dict):
         filter_channel_names : bool, optional
             flag to filter long channel names from its module names
             separated by '.'
+
         compression : bool optional
             flag to compress data in memory
+
         convert_tables : bool, optional, default False
             flag to convert or not only conversions with tables.
             These conversions types take generally long time and memory
@@ -299,6 +301,7 @@ class MdfSkeleton(dict):
             channel name
         field : str
             channel dict key
+
         Returns
         -------
         removed value from dict
@@ -416,6 +419,7 @@ class MdfSkeleton(dict):
             channel name
         field : str
             channel dict key
+
         Returns
         -------
         channel description string
@@ -504,7 +508,7 @@ class MdfSkeleton(dict):
         channel_name : str
             channel name
         conversion : dict
-            conversion dictionnary
+            conversion dictionary
         """
         self._set_channel(channel_name, conversion, field=conversionField)
 
@@ -521,6 +525,18 @@ class MdfSkeleton(dict):
         self._set_channel(channel_name, attachment, field=attachmentField)
 
     def set_invalid_bit(self, channel_name, bit_position):
+        """returns the invalid bit position of channel
+
+        Parameters
+        ----------------
+        channel_name : str
+            channel name
+        bit_position
+            invalid bit position of channel within invalid channel bytes
+        Returns
+        -------
+        bit position
+        """
         self[channel_name][invalidPosField] = bit_position
 
     def set_invalid_channel(self, channel_name, invalid_channel):
@@ -551,7 +567,7 @@ class MdfSkeleton(dict):
         channel_name : str
             channel name
 
-        Return
+        Returns
         -------
         bool
         """
@@ -573,7 +589,7 @@ class MdfSkeleton(dict):
         date : str
         time : str
 
-        Note
+        Notes
         =====
         All fields are optional, default being empty string
         """
@@ -591,9 +607,9 @@ class MdfSkeleton(dict):
         Returns
         ------------
         string of mdf class ordered as below
-        master_channel_name
+        "master_channel_name
             channel_name   description
-            numpy_array    unit
+            numpy_array    unit"
         """
         output = list()
         if self.fileName is not None:
@@ -785,8 +801,6 @@ class CompressedData:
         -------------
         data : numpy array compressed
             compressed data
-        size : tuple
-            numpy array size
         dtype : numpy dtype object
             numpy array dtype
         """
@@ -807,7 +821,7 @@ class CompressedData:
     def decompression(self):
         """ data decompression
 
-        Return
+        Returns
         -------------
         uncompressed numpy array
         """

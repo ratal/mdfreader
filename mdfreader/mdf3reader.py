@@ -596,8 +596,8 @@ class Record(list):
 
         """
         from bitarray import bitarray
-        B = bitarray(endian="little")  # little endian by default
-        B.frombytes(bytes(bit_stream))
+        bit_array = bitarray(endian="little")  # little endian by default
+        bit_array.frombytes(bytes(bit_stream))
 
         def signed_int(temp, extension):
             """ extend bits of signed data managing two's complement
@@ -619,15 +619,15 @@ class Record(list):
             channel_set = self.channelNames
         for Channel in self:  # list of channel classes from channelSet
             if Channel.name in channel_set:
-                temp[Channel.name] = B[Channel.posBitBeg: Channel.posBitEnd]
+                temp[Channel.name] = bit_array[Channel.posBitBeg: Channel.posBitEnd]
                 n_bytes = len(temp[Channel.name].tobytes())
                 if not n_bytes == Channel.nBytes:
-                    byte = bitarray(8 * (Channel.nBytes - n_bytes), endian='little')
-                    byte.setall(False)
+                    delta_byte = bitarray(8 * (Channel.nBytes - n_bytes), endian='little')
+                    delta_byte.setall(False)
                     if Channel.signalDataType not in (1, 10, 14):  # not signed integer
-                        temp[Channel.name].extend(byte)
+                        temp[Channel.name].extend(delta_byte)
                     else:  # signed integer (two's complement), keep sign bit and extend with bytes
-                        temp[Channel.name] = signed_int(temp[Channel.name], byte)
+                        temp[Channel.name] = signed_int(temp[Channel.name], delta_byte)
                 n_trail_bits = Channel.nBytes*8 - Channel.bitCount
                 if Channel.signalDataType in (1, 10, 14) and \
                         n_bytes == Channel.nBytes and \
@@ -734,8 +734,6 @@ class DATA(dict):
 
         Parameters
         ----------------
-        record: class
-            channel group definition listing record channel classes
         name_list : set of str, optional
             list of channel names
 
