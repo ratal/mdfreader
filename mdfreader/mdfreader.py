@@ -869,13 +869,13 @@ class Mdf(Mdf3, Mdf4):
             file_name = splitext(self.fileName)[0]
             file_name = file_name + '.nc'
         f = netcdf.netcdf_file(file_name, 'w')
-        set_attribute(f, 'Date', self.file_metadata['date'])
-        set_attribute(f, 'Time', self.file_metadata['time'])
-        set_attribute(f, 'Author', self.file_metadata['author'])
-        set_attribute(f, 'Organization', self.file_metadata['organisation'])
-        set_attribute(f, 'ProjectName', self.file_metadata['project'])
-        set_attribute(f, 'Subject', self.file_metadata['subject'])
-        set_attribute(f, 'Comment', self.file_metadata['comment'])
+        set_attribute(f, 'Date', self.fileMetadata['date'])
+        set_attribute(f, 'Time', self.fileMetadata['time'])
+        set_attribute(f, 'Author', self.fileMetadata['author'])
+        set_attribute(f, 'Organization', self.fileMetadata['organisation'])
+        set_attribute(f, 'ProjectName', self.fileMetadata['project'])
+        set_attribute(f, 'Subject', self.fileMetadata['subject'])
+        set_attribute(f, 'Comment', self.fileMetadata['comment'])
         # Create dimensions having name of all time channels
         for master in list(self.masterChannelList.keys()):
             f.createDimension(master, len(self.get_channel_data(self.masterChannelList[master][0])))
@@ -980,14 +980,14 @@ class Mdf(Mdf3, Mdf4):
         f = h5py.File(file_name, 'w')  # create hdf5 file
         # create group in root associated to file
         file_group = f.create_group(os.path.basename(file_name))
-        set_attribute(file_group, 'Author', self.file_metadata['author'])
-        set_attribute(file_group, 'Date', self.file_metadata['date'])
-        set_attribute(file_group, 'Time', self.file_metadata['time'])
-        set_attribute(file_group, 'Time', self.file_metadata['time'])
-        set_attribute(file_group, 'Organization', self.file_metadata['organisation'])
-        set_attribute(file_group, 'ProjectName', self.file_metadata['project'])
-        set_attribute(file_group, 'Subject', self.file_metadata['subject'])
-        set_attribute(file_group, 'Comment', self.file_metadata['comment'])
+        set_attribute(file_group, 'Author', self.fileMetadata['author'])
+        set_attribute(file_group, 'Date', self.fileMetadata['date'])
+        set_attribute(file_group, 'Time', self.fileMetadata['time'])
+        set_attribute(file_group, 'Time', self.fileMetadata['time'])
+        set_attribute(file_group, 'Organization', self.fileMetadata['organisation'])
+        set_attribute(file_group, 'ProjectName', self.fileMetadata['project'])
+        set_attribute(file_group, 'Subject', self.fileMetadata['subject'])
+        set_attribute(file_group, 'Comment', self.fileMetadata['comment'])
         master_type_dict = {0: 'None', 1: 'Time', 2: 'Angle', 3: 'Distance', 4: 'Index', None: 'None'}
         if len(list(self.masterChannelList.keys())) > 1:
             # if several time groups of channels, not resampled
@@ -1282,9 +1282,9 @@ class Mdf(Mdf3, Mdf4):
             warn('Module pandas missing')
         if sampling is not None:
             self.resample(sampling)
-        if self.file_metadata['date'] != '' and self.file_metadata['time'] != '':
-            date = self.file_metadata['date'].replace(':', '-')
-            time = self.file_metadata['time']
+        if self.fileMetadata['date'] != '' and self.fileMetadata['time'] != '':
+            date = self.fileMetadata['date'].replace(':', '-')
+            time = self.fileMetadata['time']
             datetime_info = datetime64(date + 'T' + time)
         else:
             datetime_info = datetime64(datetime.now())

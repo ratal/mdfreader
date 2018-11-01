@@ -1396,7 +1396,7 @@ class Mdf4(MdfSkeleton):
                 self.read4(file_name=None, info=None, channel_list=[channel_name], convert_after_read=False)
             if not raw_data:
                 return self._convert_channel_data_4(self.get_channel(channel_name),
-                                                    channel_name, self.convert_tables)[channel_name]
+                                                    channel_name, self.convertTables)[channel_name]
             else:
                 return self.get_channel(channel_name)[dataField]
         else:
@@ -1497,7 +1497,7 @@ class Mdf4(MdfSkeleton):
                             self._convert_channel_4(channelName)
                         else:
                             proc.append(Process(target=self._convert_channel_data_4,
-                                                args=(channel, channelName, self.convert_tables, True, Q)))
+                                                args=(channel, channelName, self.convertTables, True, Q)))
                             proc[-1].start()
                 for p in proc:
                     L.update(Q.get())  # concatenate results of processes in dict
@@ -1547,7 +1547,7 @@ class Mdf4(MdfSkeleton):
         blocks['HD']['MD'] = pointer
         blocks['HD_comment'] = CommentBlock()
         blocks['HD_comment']['block_start'] = pointer
-        blocks['HD_comment'].load(self.file_metadata, 'HD')
+        blocks['HD_comment'].load(self.fileMetadata, 'HD')
         pointer = blocks['HD_comment']['block_start'] + blocks['HD_comment']['block_length']
 
         # file history block
@@ -1560,7 +1560,7 @@ class Mdf4(MdfSkeleton):
         blocks['FH']['MD'] = pointer
         blocks['FH_comment'] = CommentBlock()
         blocks['FH_comment']['block_start'] = pointer
-        blocks['FH_comment'].load(self.file_metadata, 'FH')
+        blocks['FH_comment'].load(self.fileMetadata, 'FH')
         pointer = blocks['FH_comment']['block_start'] + blocks['FH_comment']['block_length']
 
         # write DG block

@@ -130,18 +130,18 @@ class MdfSkeleton(dict):
         # flag to control multiprocessing, default deactivate,
         # giving priority to mdfconverter
         self.multiProc = False
-        self.file_metadata = dict()
-        self.file_metadata['author'] = ''
-        self.file_metadata['organisation'] = ''
-        self.file_metadata['project'] = ''
-        self.file_metadata['subject'] = ''
-        self.file_metadata['comment'] = ''
-        self.file_metadata['time'] = ''
-        self.file_metadata['date'] = ''
+        self.fileMetadata = dict()
+        self.fileMetadata['author'] = ''
+        self.fileMetadata['organisation'] = ''
+        self.fileMetadata['project'] = ''
+        self.fileMetadata['subject'] = ''
+        self.fileMetadata['comment'] = ''
+        self.fileMetadata['time'] = ''
+        self.fileMetadata['date'] = ''
         self.MDFVersionNumber = 300
         self.filterChannelNames = filter_channel_names
         # by default, do not convert table conversion types, taking lot of time and memory
-        self.convert_tables = convert_tables
+        self.convertTables = convert_tables
         self._pandasframe = False
         self.info = None
         self._compression_level = 9  # default compression level
@@ -577,13 +577,13 @@ class MdfSkeleton(dict):
         =====
         All fields are optional, default being empty string
         """
-        self.file_metadata['author'] = author
-        self.file_metadata['organisation'] = organisation
-        self.file_metadata['project'] = project
-        self.file_metadata['subject'] = subject
-        self.file_metadata['comment'] = comment
-        self.file_metadata['date'] = date
-        self.file_metadata['time'] = time
+        self.fileMetadata['author'] = author
+        self.fileMetadata['organisation'] = organisation
+        self.fileMetadata['project'] = project
+        self.fileMetadata['subject'] = subject
+        self.fileMetadata['comment'] = comment
+        self.fileMetadata['date'] = date
+        self.fileMetadata['time'] = time
 
     def __str__(self):
         """representation a mdf_skeleton class data structure
@@ -600,9 +600,9 @@ class MdfSkeleton(dict):
             output.append('file name : {}\n'.format(self.fileName))
         else:
             output.append('')
-        for m in self.file_metadata.keys():
-            if self.file_metadata[m] is not None:
-                output.append('{} : {}\n'.format(m, self.file_metadata[m]))
+        for m in self.fileMetadata.keys():
+            if self.fileMetadata[m] is not None:
+                output.append('{} : {}\n'.format(m, self.fileMetadata[m]))
         if not self._pandasframe:
             output.append('\nchannels listed by data groups:\n')
             for d in self.masterChannelList.keys():
@@ -647,10 +647,10 @@ class MdfSkeleton(dict):
         yop.multiProc = self.multiProc
         yop.fileName = self.fileName
         yop.masterChannelList = self.masterChannelList
-        yop.file_metadata = self.file_metadata
+        yop.fileMetadata = self.fileMetadata
         yop.MDFVersionNumber = self.MDFVersionNumber
         yop.filterChannelNames = self.filterChannelNames
-        yop.convert_tables = self.convert_tables
+        yop.convertTables = self.convert_tables
         for channel in self:
             yop[channel] = self[channel]
         return yop

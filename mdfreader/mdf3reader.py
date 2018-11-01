@@ -1003,7 +1003,7 @@ class Mdf3(MdfSkeleton):
                     (self.info.fid, self.info.fileName, zipfile) = _open_mdf(self.fileName)
                 self.read3(file_name=None, info=self.info, channel_list=[channel_name], convert_after_read=False)
             if not raw_data:
-                return self._convert3(channel_name, self.convert_tables)
+                return self._convert3(channel_name, self.convertTables)
             else:
                 return self.get_channel(channel_name)[dataField]
         else:
@@ -1067,7 +1067,7 @@ class Mdf3(MdfSkeleton):
         channel_name : str
             Name of channel
         """
-        self.set_channel_data(channel_name, self._convert3(channel_name, self.convert_tables))
+        self.set_channel_data(channel_name, self._convert3(channel_name, self.convertTables))
         self.remove_channel_conversion(channel_name)
 
     def _convert_all_channel3(self):
@@ -1125,32 +1125,32 @@ class Mdf3(MdfSkeleton):
         pointers['HD']['TX'] = 72
         pointers['HD']['PR'] = 76
         n_data_group = len(self.masterChannelList)
-        if self.file_metadata['author'] is not None:  # Author
+        if self.fileMetadata['author'] is not None:  # Author
             try:
-                author = '{:\x00<32.31}'.format(self.file_metadata['author']).encode('latin-1', 'ignore')
+                author = '{:\x00<32.31}'.format(self.fileMetadata['author']).encode('latin-1', 'ignore')
             except UnicodeEncodeError:
                 author = b'\x00' * 32
         elif os.name == 'posix':
             author = '{:\x00<32.31}'.format(getlogin()).encode('latin-1')
         else:
             author = b'\x00' * 32
-        if self.file_metadata['organisation'] is not None:  # Organization
+        if self.fileMetadata['organisation'] is not None:  # Organization
             try:
-                organization = '{:\x00<32.31}'.format(self.file_metadata['organisation']).encode('latin-1', 'ignore')
+                organization = '{:\x00<32.31}'.format(self.fileMetadata['organisation']).encode('latin-1', 'ignore')
             except UnicodeEncodeError:
                 organization = b'\x00' * 32
         else:
             organization = b'\x00' * 32
-        if self.file_metadata['project'] is not None:  # Project
+        if self.fileMetadata['project'] is not None:  # Project
             try:
-                project = '{:\x00<32.31}'.format(self.file_metadata['project']).encode('latin-1', 'ignore')
+                project = '{:\x00<32.31}'.format(self.fileMetadata['project']).encode('latin-1', 'ignore')
             except UnicodeEncodeError:
                 project = b'\x00' * 32
         else:
             project = b'\x00' * 32
-        if self.file_metadata['subject'] is not None:  # Subject
+        if self.fileMetadata['subject'] is not None:  # Subject
             try:
-                subject = '{:\x00<32.31}'.format(self.file_metadata['subject']).encode('latin-1', 'ignore')
+                subject = '{:\x00<32.31}'.format(self.fileMetadata['subject']).encode('latin-1', 'ignore')
             except UnicodeEncodeError:
                 subject = b'\x00' * 32
         else:
