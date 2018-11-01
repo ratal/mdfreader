@@ -154,6 +154,7 @@ class Channel4(object):
         self.VLSD_CG_Flag = False
         self.nBytes = 0
         self.byteOffset = 0
+        #self.bit_masking_needed = True
 
     def __str__(self):
         """ channel object attributes print
@@ -890,7 +891,7 @@ class Channel4(object):
         """
         self.name = '{0}_{1}'.format(self.name, channel_group)
 
-    def bit_masking_needed(self, info):
+    def bit_masking_need(self, info):
         """ Valid if bit masking need
 
         Parameters
