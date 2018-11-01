@@ -518,7 +518,7 @@ class Record(list):
                 rec = recarray(self.numberOfRecords, dtype={'names': data_record_name,
                                                             'formats': numpy_data_record_format})
                 try:  # use rather cython compiled code for performance
-                    from dataRead import dataRead
+                    from dataRead import data_read
                     # converts data type from mdf 3.x to 4.x
                     convertDataType3to4 = {0: 0, 1: 2, 2: 4, 3: 4,
                                            7: 6, 8: 10,
@@ -528,15 +528,15 @@ class Record(list):
                         bit_stream = fid.read(chunk_size)
                         for id, chan in enumerate(rec_chan):
                             rec[chan.name][previous_index: previous_index + n_record_chunk] = \
-                                dataRead(bytes(bit_stream),
-                                         chan.bitCount,
-                                         convertDataType3to4[chan.signalDataType],
-                                         chan.nativedataFormat,
-                                         n_record_chunk,
-                                         self.CGrecordLength,
-                                         chan.bitOffset,
-                                         chan.posByteBeg,
-                                         chan.nBytes, 0)
+                                data_read(bytes(bit_stream),
+                                          chan.bitCount,
+                                          convertDataType3to4[chan.signalDataType],
+                                          chan.nativedataFormat,
+                                          n_record_chunk,
+                                          self.CGrecordLength,
+                                          chan.bitOffset,
+                                          chan.posByteBeg,
+                                          chan.nBytes, 0)
                             # masking already considered in dataRead
                             self[rec_chan[id].channelNumber].bit_masking_needed = False
                         previous_index += n_record_chunk

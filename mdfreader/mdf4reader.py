@@ -52,7 +52,7 @@ from .mdf import MdfSkeleton, _open_mdf, invalidChannel, dataField, \
     conversionField, idField, invalidPosField, CompressedData
 from .channel import Channel4
 try:
-    from dataRead import dataRead
+    from dataRead import data_read
     dataRead_available = True
 except ImportError:
     warn('dataRead cannot be imported, compile it with Cython', ImportWarning)
@@ -967,12 +967,12 @@ class Record(list):
                     else:
                         array_flag = 0
                     buf[self[chan].name] = \
-                        dataRead(bytesdata, self[chan].bit_count(info),
-                                 self[chan].signal_data_type(info),
-                                 self[chan].native_data_format(info),
-                                 n_records, self.CGrecordLength,
-                                 self[chan].bit_offset(info), self[chan].pos_byte_beg(info),
-                                 self[chan].nBytes, array_flag)
+                        data_read(bytesdata, self[chan].bit_count(info),
+                                  self[chan].signal_data_type(info),
+                                  self[chan].native_data_format(info),
+                                  n_records, self.CGrecordLength,
+                                  self[chan].bit_offset(info), self[chan].pos_byte_beg(info),
+                                  self[chan].nBytes, array_flag)
                 return buf
             else:
                 return self.read_channels_from_bytes_fallback(bit_stream, info, channel_set, n_records, dtype)
