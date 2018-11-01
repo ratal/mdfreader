@@ -51,7 +51,7 @@ class Info3(dict):
         flag to filter long channel names including module names separated by a '.'
     fileName : str
         name of file
-    fid : 
+    fid :
         file identifier
 
     Notes

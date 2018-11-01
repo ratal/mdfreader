@@ -49,7 +49,7 @@ class Channel4(object):
     byteOffset : int
         byte offset in record
     bit_masking_needed : boolean
-        
+
 
     Methods
     ------------
@@ -154,7 +154,7 @@ class Channel4(object):
         self.VLSD_CG_Flag = False
         self.nBytes = 0
         self.byteOffset = 0
-        #self.bit_masking_needed = True
+        # self.bit_masking_needed = True
 
     def __str__(self):
         """ channel object attributes print
@@ -184,8 +184,7 @@ class Channel4(object):
         ATBlock class from mdfinfo4 module
         """
         try:
-            return ATBlock(fid, info['CN'][self.dataGroup][self.channelGroup]\
-                                [self.channelNumber]['cn_data'])
+            return ATBlock(fid, info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data'])
         except KeyError:
             print('No Attachment block for this channel')
 
@@ -244,8 +243,7 @@ class Channel4(object):
         14 CANopen time
         """
         if not self.type == 4:  # Invalid bit channel
-            return info['CN'][self.dataGroup][self.channelGroup]\
-                        [self.channelNumber]['cn_data_type']
+            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type']
         else:
             if byte_aligned:
                 return 10  # byte array
@@ -301,8 +299,7 @@ class Channel4(object):
         4 index
         """
         try:
-            return info['CN'][self.dataGroup][self.channelGroup]\
-                    [self.channelNumber]['cn_sync_type']
+            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_sync_type']
         except KeyError:
             return 0  # in case of invalid bytes channel
 
@@ -409,8 +406,8 @@ class Channel4(object):
         """
         if not self.type == 4:  # not channel containing invalid bit
             n_bytes = _bits_to_bytes(info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count']
-                                    + info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
-                                    ['cn_bit_offset'], self.isnumeric(info))
+                                     + info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
+                                     ['cn_bit_offset'], self.isnumeric(info))
             if self.type in (1, 2):  # array channel
                 n_bytes *= self.ca_block(info)['PNd']
                 block = self.ca_block(info)
@@ -444,8 +441,7 @@ class Channel4(object):
         -----------
         boolean
         """
-        if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]\
-                ['cn_data_type'] in (1, 3, 5, 9):  # endianness
+        if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'] in (1, 3, 5, 9):
             return False
         else:
             return True
@@ -555,8 +551,9 @@ class Channel4(object):
         elif self.type in (1, 2):  # array channel
             ca = self.ca_block(info)
             n_bytes = _bits_to_bytes(info['CN'][self.dataGroup][self.channelGroup]
-                                    [self.channelNumber]['cn_bit_count'] + info['CN'][self.dataGroup][self.channelGroup]
-                                    [self.channelNumber]['cn_bit_offset'], self.isnumeric(info))
+                                     [self.channelNumber]['cn_bit_count'] +
+                                     info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset'],
+                                     self.isnumeric(info))
             endian, data_type = data_type_format4(signal_data_type, n_bytes)
             return '{}{}{}'.format(endian, ca['PNd'], data_type)
         elif self.type == 3:  # CAN channel
@@ -879,7 +876,7 @@ class Channel4(object):
             return True
         else:
             return False
-    
+
     def change_channel_name(self, channel_group):
         """ In case of duplicate channel names within several channel groups
         for unsorted data, rename channel name

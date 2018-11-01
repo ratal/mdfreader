@@ -1238,7 +1238,7 @@ class Mdf3(MdfSkeleton):
                 else:
                     master_flag = 1  # master channel
                 desc = self.get_channel_desc(channel)
-                #if bitOffset exceeds two byte limit, we start using the byte offset field
+                # if bitOffset exceeds two bytes limit, we start using the byte offset field
                 if bit_offset > 0xFFFF:
                     bit_offset -= 0x10000
                     byte_offset += 8192

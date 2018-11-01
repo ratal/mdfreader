@@ -122,7 +122,7 @@ class MdfInfo(dict):
     fid
         file identifier
     zipfile
-        flag to indicate the mdf4 is packaged in a zip 
+        flag to indicate the mdf4 is packaged in a zip
 
     Methods
     ------------
@@ -224,7 +224,7 @@ class MdfInfo(dict):
         else:
             channel_name_list = Info4()
             name_list = channel_name_list.list_channels_4(self.fileName, self.fid)
-            if zipfile: # not from mdfreader.read()
+            if zipfile:  # not from mdfreader.read()
                 remove(self.fileName)
         return name_list
 
@@ -625,7 +625,7 @@ class Mdf(Mdf3, Mdf4):
                                      unit=self.get_channel_unit(master),
                                      description=self.get_channel_desc(master), conversion=None)
             else:
-                master_channel_name = master_channel # master channel defined in argument
+                master_channel_name = master_channel  # master channel defined in argument
                 if master_channel not in list(self.masterChannelList.keys()):
                     warn('master channel name not in existing')
                     raise ValueError('Master Channel not existing')
@@ -726,7 +726,7 @@ class Mdf(Mdf3, Mdf4):
         if begin is None and end is None:
             raise Exception('Please input at least one beginning or ending value to cut data')
 
-        for master in self.masterChannelList: # for each channel group
+        for master in self.masterChannelList:  # for each channel group
             # find corresponding indexes to cut
             master_data = self.get_channel_data(master)
             if master_data is not None and len(master_data) > 0:  # not empty data
@@ -764,7 +764,7 @@ class Mdf(Mdf3, Mdf4):
         data not sharing same master channel
         Warning: this can be slow for big data, CSV is text format after all
         """
-        if self: # data in mdf
+        if self:  # data in mdf
             import csv
             self.resample(sampling)
             if file_name is None:
@@ -1070,7 +1070,7 @@ class Mdf(Mdf3, Mdf4):
             data = self.get_channel_data(channel)
             if data.dtype.kind not in ('S', 'U', 'V'):  # does not like special characters chains, skip
                 channel_name = _convert_to_matlab_name(channel)
-                if len(channel_name) > 0  and channel_name is not None:
+                if len(channel_name) > 0 and channel_name is not None:
                     temp[channel_name] = data
                 elif channel_name is not None:
                     warn(u'Could not export {}, name is not compatible with Matlab'.format(channel))

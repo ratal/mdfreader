@@ -64,7 +64,7 @@ si_type = {0: 'OTHER', 1: 'ECU', 2: 'BUS',
 si_bus_type = {0: 'NONE', 1: 'OTHER', 2: 'CAN', 3: 'LIN',
                4: 'MOST', 5: 'FLEXRAY', 6: 'K_LINE', 7: 'ETHERNET', 8: 'USB'}
 # EV cause
-ev_cause = {0: 'OTHER',1: 'ERROR', 2: 'TOOL', 3: 'SCRIPT', 4: 'USER'}
+ev_cause = {0: 'OTHER', 1: 'ERROR', 2: 'TOOL', 3: 'SCRIPT', 4: 'USER'}
 
 # precompiled path for xmls to speed up parsing
 CN_TX = objectify.ObjectPath('CNcomment.TX')

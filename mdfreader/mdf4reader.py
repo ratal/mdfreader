@@ -707,7 +707,7 @@ class Record(list):
                         prev_chan_byte_offset = prev_chan.byteOffset
                         prev_chan_n_bytes = prev_chan.nBytes
                         prev_chan_includes_curr_chan = channel_pos_bit_beg >= 8 * prev_chan_byte_offset \
-                                and channel_pos_bit_end <= 8 * (prev_chan_byte_offset + prev_chan_n_bytes)
+                            and channel_pos_bit_end <= 8 * (prev_chan_byte_offset + prev_chan_n_bytes)
                         if embedding_channel is not None:
                             embedding_channel_includes_curr_chan = \
                                 channel_pos_bit_end <= embedding_channel.pos_byte_end(info) * 8
@@ -728,7 +728,7 @@ class Record(list):
                             if self.recordToChannelMatching:  # not first channel
                                 self.recordToChannelMatching[channel.name] = \
                                     self.recordToChannelMatching[prev_chan.name]
-                            else: # first channels
+                            else:  # first channels
                                 self.recordToChannelMatching[channel.name] = channel.name
                                 self.numpyDataRecordFormat.append(data_format)
                                 self.dataRecordName.append(channel.name)
@@ -953,7 +953,7 @@ class Record(list):
     def read_channels_from_bytes(self, bit_stream, info, channel_set=None, n_records=None, dtype=None,
                                  channels_indexes=None):
         """ reads stream of record bytes using dataRead module if available otherwise bitarray
-        
+
         Parameters
         ------------
         bit_stream : stream
@@ -965,7 +965,7 @@ class Record(list):
             number of records
         dtype: numpy dtype
         channels_indexes: list of int
-        
+
         Returns
         --------
         rec : numpy recarray
@@ -2002,17 +2002,16 @@ def _value_to_text_conversion(vector, cc_val, cc_ref):
         if isinstance(cc_ref[ref], CCBlock):
             if cc_ref[ref]['cc_type'] == 3:
                 # formula to be applied
-                cc_ref[ref] = lambdify(X, cc_ref[ref]['cc_ref']['Comment']
-                                       , modules='numpy', dummify=False)
-            elif cc_ref[ref]['cc_type'] == 1: # linear conversion
-                cc_ref[ref] = lambdify(X, '{0}* X + {1}'.format(cc_ref[ref]['cc_val'][1], cc_ref[ref]['cc_val'][0]) 
-                                       , modules='numpy', dummify=False)
+                cc_ref[ref] = lambdify(X, cc_ref[ref]['cc_ref']['Comment'],
+                                       modules='numpy', dummify=False)
+            elif cc_ref[ref]['cc_type'] == 1:  # linear conversion
+                cc_ref[ref] = lambdify(X, '{0}* X + {1}'.format(cc_ref[ref]['cc_val'][1], cc_ref[ref]['cc_val'][0]),
+                                       modules='numpy', dummify=False)
             else:
                 warn('To implement missing conversion, please ask')
         elif (PythonVersion > 3 and not isinstance(cc_ref[ref], str)) or \
                 (PythonVersion < 3 and not isinstance(cc_ref[ref], unicode)):  # identity, non conversion
-            cc_ref[ref] = lambdify(X, 'X'
-                                    , modules='numpy', dummify=False)
+            cc_ref[ref] = lambdify(X, 'X', modules='numpy', dummify=False)
     key_index = where(vector[0] == cc_val)[0]  # look up for first value in vector
     if not len(key_index) == 0:  # value corresponding in cc_val
         temp[0] = cc_ref[key_index[0]]
@@ -2063,14 +2062,14 @@ def _value_range_to_text_conversion(vector, cc_val, cc_ref):
         if isinstance(cc_ref[ref], CCBlock):
             if cc_ref[ref]['cc_type'] == 3:
                 # formula to be applied
-                cc_ref[ref] = lambdify(X, cc_ref[ref]['cc_ref']['Comment']
-                                       , modules='numpy', dummify=False)
+                cc_ref[ref] = lambdify(X, cc_ref[ref]['cc_ref']['Comment'],
+                                       modules='numpy', dummify=False)
             elif cc_ref[ref]['cc_type'] == 1:  # linear conversion
-                cc_ref[ref] = lambdify(X, '{0} * X + {1}'.format(cc_val[1], cc_val[0])
-                                       , modules='numpy', dummify=False)
+                cc_ref[ref] = lambdify(X, '{0} * X + {1}'.format(cc_val[1], cc_val[0]),
+                                       modules='numpy', dummify=False)
             else:  # identity, no conversion
-                cc_ref[ref] = lambdify(X, '1 * X'
-                                       , modules='numpy', dummify=False)
+                cc_ref[ref] = lambdify(X, '1 * X',
+                                       modules='numpy', dummify=False)
             # Otherwise a string
     # look up in range keys
     temp = []
