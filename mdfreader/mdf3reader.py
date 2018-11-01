@@ -537,7 +537,8 @@ class Record(list):
                                          chan.bitOffset,
                                          chan.posByteBeg,
                                          chan.nBytes, 0)
-                            self[id].bit_masking_needed = False  # masking already considered in dataRead
+                            # masking already considered in dataRead
+                            self[rec_chan[id].channelNumber].bit_masking_needed = False
                         previous_index += n_record_chunk
                     return rec
                 except:
