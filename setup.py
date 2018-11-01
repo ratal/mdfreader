@@ -78,7 +78,7 @@ install_requires = ['numpy>=1.14', 'sympy', 'lxml']
 # $ pip install -e .[dev,test]
 extras_require = {
     'export': ['scipy', 'h5py', 'xlwt', 'xlwt3', 'openpyxl>2.0', 'pandas'],
-    'plot': ['matplotlib'],
+    'plot': ['matplotlib', 'mpldatacursor'],
     'converter': ['PyQt4'],
     'experimental': ['bitarray'],
     'compression': ['blosc'],
