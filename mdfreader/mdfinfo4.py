@@ -252,7 +252,7 @@ class HDBlock(dict):
         if self['hd_md_comment']:  # if comments exist
             self['Comment'] = {}
             comment = CommentBlock()
-            comment.read_cm(fid=fid, pointer=self['hd_md_comment'], MDType=3)
+            comment.read_cm_hd(fid=fid, pointer=self['hd_md_comment'])
             self['Comment'].update(comment)
 
     def write(self, fid):
@@ -299,7 +299,7 @@ class FHBlock(dict):
         if self['fh_md_comment']:  # comments exist
             self['Comment'] = {}
             comment = CommentBlock()
-            comment.read_cm(fid=fid, pointer=self['fh_md_comment'], MDType=4)
+            comment.read_cm_fh(fid=fid, pointer=self['fh_md_comment'])
             self['Comment'].update(comment)
 
     def write(self, fid):
@@ -340,12 +340,12 @@ class CHBlock(dict):
         if self['ch_md_comment']:  # comments exist
             self['Comment'] = {}
             comment = CommentBlock()
-            comment.read_cm(fid=fid, pointer=self['ch_md_comment'])
+            comment.read_cm_ch(fid=fid, pointer=self['ch_md_comment'])
             self['Comment'].update(comment)
         if self['ch_tx_name']:  # text block containing name of hierarchy level
             self['ch_name_level'] = {}
             comment = CommentBlock()
-            comment.read_cm(fid=fid, pointer=self['ch_tx_name'])
+            comment.read_tx(fid=fid, pointer=self['ch_tx_name'])
             self['ch_name_level'].update(comment)
 
 
@@ -353,8 +353,8 @@ class CommentBlock(dict):
     """ reads or writes Comment block and saves in class dict
     """
 
-    def read_cm(self, **kargs):
-        """ reads Comment block and saves in class dict
+    def read_tx(self, fid, pointer):
+        """ reads TX block
 
         Parameters
         ----------
@@ -362,195 +362,427 @@ class CommentBlock(dict):
             file identifier
         pointer: int
             position in file
-        MDType: str
-            describes metadata type, ('CN', 'unit', 'FH', 'SI', 'HD', 'CC', 'EV')
-
-        Notes
-        --------
-        Can read xml (MD metadata) or text (TX) comments from several
-        kind of blocks
         """
-
-        if kargs['pointer'] > 0:
-            kargs['fid'].seek(kargs['pointer'])
+        if pointer > 0:
+            fid.seek(pointer)
             # block header
             (self['id'],
              reserved,
              self['length'],
-             self['link_count']) = _HeaderStruct.unpack(kargs['fid'].read(24))
-            if self['id'] in ('##MD', b'##MD'):
-                # Metadata block
-                # removes normal 0 at end
-                # self['Comment'] = None
-                try:
-                    xml_string = kargs['fid'].read(self['length'] - 24).rstrip(b'\x00')
-                    xml_tree = objectify.fromstring(xml_string)
-                except:
-                    warn('xml metadata malformed')
-                    xml_tree = None
-                # specific action per comment block type,
-                # #extracts specific tags from xml
-                if 'MDType' in kargs:
-                    if kargs['MDType'] == 0:  # channel comment
-                        try:
-                            self['description'] = CN_TX(xml_tree).text
-                        except AttributeError:
-                            warn('Could not parse CN block TX tag')
-                        try:
-                            self['names'] = CN_names(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                        if 'minimal' in kargs and kargs['minimal'] is False:
-                            # not really used for the moment
-                            try:
-                                self['axis_monotony'] = CN_axis_monotony(xml_tree).text
-                            except AttributeError:
-                                pass  # optional
-                            try:
-                                self['raster'] = CN_raster(xml_tree).text
-                            except AttributeError:
-                                pass  # optional
-                            try:
-                                self['formula'] = CN_formula(xml_tree).text
-                            except AttributeError:
-                                pass  # optional
-                            try:
-                                self['linker_name'] = CN_linker_name(xml_tree).text
-                            except AttributeError:
-                                pass  # optional
-                            try:
-                                self['linker_address'] = CN_linker_address(xml_tree).text
-                            except AttributeError:
-                                pass  # optional
-                            try:
-                                self['address'] = CN_address(xml_tree).text
-                            except AttributeError:
-                                pass  # optional
-                    elif kargs['MDType'] == 1:  # cn_unit channel unit
-                        try:
-                            self['unit'] = CN_unit_TX(xml_tree).text
-                        except AttributeError:
-                            warn('Could not parse unit TX tag')
-                    elif kargs['MDType'] == 2:  # CC channel unit
-                        try:
-                            self['unit'] = CC_unit_TX(xml_tree).text
-                        except AttributeError:
-                            warn('Could not parse unit TX tag')
-                    elif kargs['MDType'] == 5:  # SI comments
-                        try:
-                            self['TX'] = SI_TX(xml_tree).text
-                        except AttributeError:
-                            warn('Could not parse SI block TX tag')
-                        try:
-                            self['names'] = SI_names(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                        try:
-                            self['path'] = SI_path(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                        try:
-                            self['bus'] = SI_bus(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                        try:
-                            self['protocol'] = SI_protocol(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                    elif kargs['MDType'] == 3:  # HD header comment
-                        try:
-                            self['TX'] = xml_tree.TX.text
-                        except AttributeError:
-                            warn('Could not parse HD block TX tag')
-                        try:
-                            self['time_source'] = xml_tree.time_source.text
-                        except AttributeError:
-                            pass  # optional
-                        try:
-                            tmp = xml_tree.common_properties
-                            for t in range(tmp.countchildren()):
-                                self[tmp.e[t].attrib.values()[0]] = tmp.e[t].text
-                        except AttributeError:
-                            pass  # optional
-                    elif kargs['MDType'] == 4:  # FH file History comment
-                        try:
-                            self['TX'] = xml_tree.TX.text
-                        except AttributeError:
-                            warn('Could not parse FH block TX tag')
-                        try:
-                            self['tool_id'] = xml_tree.tool_id.text
-                        except AttributeError:
-                            warn('Could not parse FH block tool_id tag')
-                        try:
-                            self['tool_vendor'] = xml_tree.tool_vendor.text
-                        except AttributeError:
-                            warn('Could not parse extract HD block tool_vendor tag')
-                        try:
-                            self['tool_version'] = xml_tree.tool_version.text
-                        except AttributeError:
-                            warn('Could not parse extract HD block tool_vendor tag')
-                        try:
-                            self['user_name'] = xml_tree.user_name.text
-                        except AttributeError:
-                            pass  # optional
-                    elif kargs['MDType'] == 6:  # CC comments
-                        try:
-                            self['TX'] = CC_TX(xml_tree).text
-                        except AttributeError:
-                            warn('Could not parse CC block TX tag')
-                        try:
-                            self['names'] = CC_names(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                        try:
-                            self['COMPU_METHOD'] = CC_COMPU_METHOD(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                        try:
-                            self['formula'] = CC_formula(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                    elif kargs['MDType'] == 7:  # EV comments
-                        try:
-                            self['TX'] = EV_TX(xml_tree).text
-                        except AttributeError:
-                            warn('Could not parse EV block TX tag')
-                        try:
-                            self['pre_trigger_interval'] = EV_pre_trigger_interval(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                        try:
-                            self['post_trigger_interval'] = EV_post_trigger_interval(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                        try:
-                            self['formula'] = EV_formula(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                        try:
-                            self['timeout'] = EV_timeout(xml_tree).text
-                        except AttributeError:
-                            pass  # optional
-                    else:
-                        if kargs['MDType'] is not None:
-                            warn('No recognized MDType {}'.format(kargs['MDType']))
-            elif self['id'] in ('##TX', b'##TX'):
-                if 'MDType' in kargs and kargs['MDType'] == 0:  # channel comment
-                    self['name'] = kargs['fid'].read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
-                else:
-                    self['Comment'] = kargs['fid'].read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+             self['link_count']) = _HeaderStruct.unpack(fid.read(24))
+            self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
 
-    def load(self, data, MDType):
-        if MDType == 'TX':
+    def read_cm_header(self, fid, pointer):
+        """ reads Comment block header
+
+        Parameters
+        ----------
+        fid:
+            file identifier
+        pointer: int
+            position in file
+        """
+        if pointer > 0:
+            fid.seek(pointer)
+            # block header
+            (self['id'],
+             reserved,
+             self['length'],
+             self['link_count']) = _HeaderStruct.unpack(fid.read(24))
+
+    def read_xml(self, fid):
+        """ reads Comment block xml and objectifies it
+
+        Parameters
+        ----------
+        fid:
+            file identifier
+        """
+        # Metadata block
+        # removes normal 0 at end
+        try:
+            xml_string = fid.read(self['length'] - 24).rstrip(b'\x00')
+            xml_tree = objectify.fromstring(xml_string)
+        except:
+            warn('xml metadata malformed')
+            xml_tree = None
+        return xml_tree
+
+    def read_cm_hd(self, fid, pointer):
+        """ reads Comment block from header block
+
+         Parameters
+         ----------
+         fid:
+             file identifier
+         pointer: int
+             position in file
+         """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            if self['id'] in ('##MD', b'##MD'):
+                xml_tree = self.read_xml(fid)
+                try:
+                    self['TX'] = xml_tree.TX.text
+                except AttributeError:
+                    warn('Could not parse HD block TX tag')
+                try:
+                    self['time_source'] = xml_tree.time_source.text
+                except AttributeError:
+                    pass  # optional
+                try:
+                    tmp = xml_tree.common_properties
+                    for t in range(tmp.countchildren()):
+                        self[tmp.e[t].attrib.values()[0]] = tmp.e[t].text
+                except AttributeError:
+                    pass  # optional
+            elif self['id'] in ('##TX', b'##TX'):
+                self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+
+    def read_cm_fh(self, fid, pointer):
+        """ reads Comment block from file history block
+
+         Parameters
+         ----------
+         fid:
+             file identifier
+         pointer: int
+             position in file
+         """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            if self['id'] in ('##MD', b'##MD'):
+                xml_tree = self.read_xml(fid)
+                try:
+                    self['TX'] = xml_tree.TX.text
+                except AttributeError:
+                    warn('Could not parse FH block TX tag')
+                try:
+                    self['tool_id'] = xml_tree.tool_id.text
+                except AttributeError:
+                    warn('Could not parse FH block tool_id tag')
+                try:
+                    self['tool_vendor'] = xml_tree.tool_vendor.text
+                except AttributeError:
+                    warn('Could not parse extract HD block tool_vendor tag')
+                try:
+                    self['tool_version'] = xml_tree.tool_version.text
+                except AttributeError:
+                    warn('Could not parse extract HD block tool_vendor tag')
+                try:
+                    self['user_name'] = xml_tree.user_name.text
+                except AttributeError:
+                    pass  # optional
+            elif self['id'] in ('##TX', b'##TX'):
+                self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+
+    def read_cm_ch(self, fid, pointer):
+        """ reads Comment block from file channel hierarchy block
+
+         Parameters
+         ----------
+         fid:
+             file identifier
+         pointer: int
+             position in file
+         """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            if self['id'] in ('##MD', b'##MD'):
+                xml_tree = self.read_xml(fid)
+                if xml_tree is not None:
+                    try:
+                        self['TX'] = xml_tree.TX.text
+                    except AttributeError:
+                        warn('Could not parse CH block TX tag')
+                    try:
+                        self['names'] = xml_tree.names.text
+                    except AttributeError:
+                        warn('Could not parse CH block names tag')
+            elif self['id'] in ('##TX', b'##TX'):
+                self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+
+    def read_cm_at(self, fid, pointer):
+        """ reads Comment block from attachment block
+
+         Parameters
+         ----------
+         fid:
+             file identifier
+         pointer: int
+             position in file
+         """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            xml_tree = self.read_xml(fid)
+            try:
+                self['TX'] = xml_tree.TX.text
+            except AttributeError:
+                warn('Could not parse AT block TX tag')
+
+    def read_cm_ev(self, fid, pointer):
+        """ reads Comment block from event block
+
+         Parameters
+         ----------
+         fid:
+             file identifier
+         pointer: int
+             position in file
+         """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            if self['id'] in ('##MD', b'##MD'):
+                xml_tree = self.read_xml(fid)
+                if xml_tree is not None:
+                    try:
+                        self['TX'] = EV_TX(xml_tree).text
+                    except AttributeError:
+                        warn('Could not parse EV block TX tag')
+                    try:
+                        self['pre_trigger_interval'] = EV_pre_trigger_interval(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['post_trigger_interval'] = EV_post_trigger_interval(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['formula'] = EV_formula(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['timeout'] = EV_timeout(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+            elif self['id'] in ('##TX', b'##TX'):
+                self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+
+    def read_cm_dg(self, fid, pointer):
+        """ reads Comment block from data group block
+
+         Parameters
+         ----------
+         fid:
+             file identifier
+         pointer: int
+             position in file
+         """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            if self['id'] in ('##MD', b'##MD'):
+                xml_tree = self.read_xml(fid)
+                try:
+                    self['TX'] = xml_tree.TX.text
+                except AttributeError:
+                    warn('Could not parse AT block TX tag')
+            elif self['id'] in ('##TX', b'##TX'):
+                self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+
+    def read_cm_cg(self, fid, pointer):
+        """ reads Comment block from channel group block
+
+         Parameters
+         ----------
+         fid:
+             file identifier
+         pointer: int
+             position in file
+         """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            if self['id'] in ('##MD', b'##MD'):
+                xml_tree = self.read_xml(fid)
+                try:
+                    self['TX'] = xml_tree.TX.text
+                except AttributeError:
+                    warn('Could not parse CG block TX tag')
+                try:
+                    self['names'] = xml_tree.names.text
+                except AttributeError:
+                    warn('Could not parse CG block names tag')
+            elif self['id'] in ('##TX', b'##TX'):
+                self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+
+    def read_cm_si(self, fid, pointer):
+        """ reads Comment block from source information block
+
+         Parameters
+         ----------
+         fid:
+             file identifier
+         pointer: int
+             position in file
+         """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            if self['id'] in ('##MD', b'##MD'):
+                xml_tree = self.read_xml(fid)
+                if xml_tree is not None:
+                    try:
+                        self['TX'] = SI_TX(xml_tree).text
+                    except AttributeError:
+                        warn('Could not parse SI block TX tag')
+                    try:
+                        self['names'] = SI_names(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['path'] = SI_path(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['bus'] = SI_bus(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['protocol'] = SI_protocol(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+            elif self['id'] in ('##TX', b'##TX'):
+                self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+
+    def read_cm_cn(self, fid, pointer, minimal=True):
+        """ reads Comment block from channel block
+
+        Parameters
+        ----------
+        fid:
+            file identifier
+        pointer: int
+            position in file
+        minimal: boolean
+           flag to reduce metadata parsing
+        """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            if self['id'] in ('##MD', b'##MD'):
+                xml_tree = self.read_xml(fid)
+                if xml_tree is not None:
+                    try:
+                        self['description'] = CN_TX(xml_tree).text
+                    except AttributeError:
+                        warn('Could not parse CN block TX tag')
+                    try:
+                        self['names'] = CN_names(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+                    if minimal is False:
+                        # not really used for the moment
+                        try:
+                            self['axis_monotony'] = CN_axis_monotony(xml_tree).text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['raster'] = CN_raster(xml_tree).text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['formula'] = CN_formula(xml_tree).text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['linker_name'] = CN_linker_name(xml_tree).text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['linker_address'] = CN_linker_address(xml_tree).text
+                        except AttributeError:
+                            pass  # optional
+                        try:
+                            self['address'] = CN_address(xml_tree).text
+                        except AttributeError:
+                            pass  # optional
+            elif self['id'] in ('##TX', b'##TX'):
+                self['name'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+
+    def read_cm_cn_unit(self, fid, pointer):
+        """ reads Comment block for channel unit
+
+         Parameters
+         ----------
+         fid:
+             file identifier
+         pointer: int
+             position in file
+         """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            if self['id'] in ('##MD', b'##MD'):
+                xml_tree = self.read_xml(fid)
+                try:
+                    self['unit'] = CN_unit_TX(xml_tree).text
+                except AttributeError:
+                    warn('Could not parse unit TX tag')
+            elif self['id'] in ('##TX', b'##TX'):
+                self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+
+    def read_cm_cc(self, fid, pointer):
+        """ reads Comment block from channel conversion block
+
+         Parameters
+         ----------
+         fid:
+             file identifier
+         pointer: int
+             position in file
+         """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            if self['id'] in ('##MD', b'##MD'):
+                xml_tree = self.read_xml(fid)
+                if xml_tree is not None:
+                    try:
+                        self['TX'] = CC_TX(xml_tree).text
+                    except AttributeError:
+                        warn('Could not parse CC block TX tag')
+                    try:
+                        self['names'] = CC_names(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['COMPU_METHOD'] = CC_COMPU_METHOD(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+                    try:
+                        self['formula'] = CC_formula(xml_tree).text
+                    except AttributeError:
+                        pass  # optional
+            elif self['id'] in ('##TX', b'##TX'):
+                self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+
+    def read_cm_cc_unit(self, fid, pointer):
+        """ reads Comment block for channel conversion unit
+
+         Parameters
+         ----------
+         fid:
+             file identifier
+         pointer: int
+             position in file
+         """
+        if pointer > 0:
+            self.read_cm_header(fid, pointer)
+            if self['id'] in ('##MD', b'##MD'):
+                xml_tree = self.read_xml(fid)
+                try:
+                    self['unit'] = CC_unit_TX(xml_tree).text
+                except AttributeError:
+                    warn('Could not parse unit TX tag')
+            elif self['id'] in ('##TX', b'##TX'):
+                self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
+
+    def load(self, data, md_type):
+        if md_type == 'TX':
             data = b''.join([data.encode('utf-8', 'replace'), b'\0'])
             block_id = b'##TX'
         else:
             register_namespace('', 'http://www.asam.net/mdf/v4')
-            if MDType == 'HD':
+            if md_type == 'HD':
                 root = Element('HDcomment')
                 root.set('xmlns', 'http://www.asam.net/mdf/v4')
-                TX = SubElement(root, 'TX')
-                TX.text = data['comment']
+                tx = SubElement(root, 'TX')
+                tx.text = data['comment']
                 common_properties = SubElement(root, 'common_properties')
                 e = SubElement(common_properties, 'e',
                                attrib={'name': 'subject'})
@@ -564,13 +796,13 @@ class CommentBlock(dict):
                 e = SubElement(common_properties, 'e',
                                attrib={'name': 'author'})
                 e.text = data['author']
-            elif MDType == 'CN':
+            elif md_type == 'CN':
                 pass
-            elif MDType == 'FH':
+            elif md_type == 'FH':
                 root = Element('FHcomment')
                 root.set('xmlns', 'http://www.asam.net/mdf/v4')
-                TX = SubElement(root, 'TX')
-                TX.text = data['comment']
+                tx = SubElement(root, 'TX')
+                tx.text = data['comment']
                 tool_id = SubElement(root, 'tool_id')
                 tool_id.text = 'mdfreader'
                 tool_vendor = SubElement(root, 'tool_vendor')
@@ -617,7 +849,7 @@ class DGBlock(dict):
         if self['dg_md_comment']:  # comments exist
             self['Comment'] = {}
             comment = CommentBlock()
-            comment.read_cm(fid=fid, pointer=self['dg_md_comment'])
+            comment.read_cm_dg(fid=fid, pointer=self['dg_md_comment'])
             self['Comment'].update(comment)
 
     def write(self, fid):
@@ -664,11 +896,11 @@ class CGBlock(dict):
          self['cg_invalid_bytes']) = _CGStruct.unpack(fid.read(104))
         if self['cg_md_comment']:  # comments exist
             self['Comment'] = CommentBlock()
-            self['Comment'].read_cm(fid=fid, pointer=self['cg_md_comment'])
+            self['Comment'].read_cm_cg(fid=fid, pointer=self['cg_md_comment'])
         if self['cg_tx_acq_name']:  # comments exist
             self['acq_name'] = {}
             comment = CommentBlock()
-            comment.read_cm(fid=fid, pointer=self['cg_tx_acq_name'])
+            comment.read_tx(fid=fid, pointer=self['cg_tx_acq_name'])
             self['acq_name'].update(comment)
         if self['cg_si_acq_source']:  # comments exist
             self['acq_source'] = {}
@@ -754,10 +986,10 @@ class CNBlock(dict):
                 self['cn_default_x'] = None
             if self['cn_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock()
-                self['Comment'].read_cm(fid=kargs['fid'], pointer=self['cn_md_comment'], MDType=0, minimal=True)
+                self['Comment'].read_cm_cn(fid=kargs['fid'], pointer=self['cn_md_comment'], minimal=True)
             if self['cn_md_unit']:  # comments exist
                 self['unit'] = CommentBlock()
-                self['unit'].read_cm(fid=kargs['fid'], pointer=self['cn_md_unit'], MDType=1)
+                self['unit'].read_cm_cn_unit(fid=kargs['fid'], pointer=self['cn_md_unit'])
                 if self['cn_sync_type'] and (self['unit'] is None or not self['unit']):
                     # no units but already known by spec
                     if self['cn_sync_type'] == 1:
@@ -768,8 +1000,8 @@ class CNBlock(dict):
                         self['unit'] = 'm'
             if self['cn_tx_name']:  # comments exist
                 comment = CommentBlock()
-                comment.read_cm(fid=kargs['fid'], pointer=self['cn_tx_name'], MDType=0)
-                self['name'] = comment['name']
+                comment.read_tx(fid=kargs['fid'], pointer=self['cn_tx_name'])
+                self['name'] = comment['Comment']
 
     def write(self, fid):
         # write block header
@@ -832,7 +1064,7 @@ class CCBlock(dict):
                 pointer = self['cc_ref']
                 self['cc_ref'] = {}
                 cc = CommentBlock()
-                cc.read_cm(fid=fid, pointer=pointer)
+                cc.read_tx(fid=fid, pointer=pointer)
                 self['cc_ref'].update(cc)
             elif self['cc_type']in (7, 8, 9, 10):  # text list
                 self['cc_ref'] = list(self['cc_ref'])
@@ -843,7 +1075,7 @@ class CCBlock(dict):
                     # for algebraic formulae
                     if identifier in ('##TX', '##MD', b'##TX', b'##MD'):
                         temp = CommentBlock()
-                        temp.read_cm(fid=fid, pointer=self['cc_ref'][i])
+                        temp.read_tx(fid=fid, pointer=self['cc_ref'][i])
                         self['cc_ref'][i] = temp['Comment']
                     elif identifier in ('##CC', b'##CC'):  # for table conversion
                         # much more complicated nesting conversions !!!
@@ -852,13 +1084,13 @@ class CCBlock(dict):
                         self['cc_ref'][i] = cc
             if self['cc_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock()
-                self['Comment'].read_cm(fid=fid, pointer=self['cc_md_comment'], MDType=6)
+                self['Comment'].read_cm_cc(fid=fid, pointer=self['cc_md_comment'])
             if self['cc_md_unit']:  # comments exist
                 self['unit'] = CommentBlock()
-                self['unit'].read_cm(fid=fid, pointer=self['cc_md_unit'], MDType=2)
+                self['unit'].read_cm_cc_unit(fid=fid, pointer=self['cc_md_unit'])
             if self['cc_tx_name']:  # comments exist
                 self['name'] = CommentBlock()
-                self['name'].read_cm(fid=fid, pointer=self['cc_tx_name'])
+                self['name'].read_tx(fid=fid, pointer=self['cc_tx_name'])
         else:  # no conversion
             self['cc_type'] = 0
 
@@ -970,7 +1202,7 @@ class ATBlock(dict):
             if self['at_md_comment']:  # comments exist
                 self['Comment'] = {}
                 comment = CommentBlock()
-                comment.read_cm(fid=fid, pointer=self['at_md_comment'])
+                comment.read_cm_at(fid=fid, pointer=self['at_md_comment'])
                 self['Comment'].update(comment)
 
 
@@ -1021,10 +1253,10 @@ class EVBlock(dict):
                         ATBlock(fid, self['ev_at_reference'][at])
             if self['ev_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock()
-                self['Comment'].read_cm(fid=fid, pointer=self['ev_md_comment'], MDType=7)
+                self['Comment'].read_cm_ev(fid=fid, pointer=self['ev_md_comment'])
             if self['ev_tx_name']:  # comments exist
                 self['name'] = CommentBlock()
-                self['name'].read_cm(fid=fid, pointer=self['ev_tx_name'])
+                self['name'].read_tx(fid=fid, pointer=self['ev_tx_name'])
 
 
 class SRBlock(dict):
@@ -1079,11 +1311,11 @@ class SIBlock(dict):
                 warn('unexpected SI bus type')
             # post treatment
             self['source_name'] = CommentBlock()
-            self['source_name'].read_cm(fid=fid, pointer=self['si_tx_name'])
+            self['source_name'].read_tx(fid=fid, pointer=self['si_tx_name'])
             self['source_path'] = CommentBlock()
-            self['source_path'].read_cm(fid=fid, pointer=self['si_tx_path'])
+            self['source_path'].read_tx(fid=fid, pointer=self['si_tx_path'])
             self['comment'] = CommentBlock()
-            self['comment'].read_cm(fid=fid, pointer=self['si_md_comment'], MDType=5)
+            self['comment'].read_cm_si(fid=fid, pointer=self['si_md_comment'])
 
 
 class DTBlock(dict):
