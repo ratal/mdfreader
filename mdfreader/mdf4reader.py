@@ -217,23 +217,33 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length):
     -----------
     array
     """
-    if signal_data_type == 6:
-        channel_format = 'ISO8859'
-    elif signal_data_type == 7:
-        channel_format = 'utf-8'
-    elif signal_data_type == 8:
-        channel_format = '<utf-16'
-    elif signal_data_type == 9:
-        channel_format = '>utf-16'
     pointer = 0
     buf = []
-
-    while pointer < sd_block_length:
-        VLSDLen = structunpack('I', sd_block[pointer:pointer + 4])[0]  # length of data
-        pointer += 4
-        buf.append(sd_block[pointer:pointer + VLSDLen].decode(channel_format).rstrip('\x00'))
-        pointer += VLSDLen
-    buf = _equalize_string_length(buf)
+    if signal_data_type < 10:
+        if signal_data_type == 6:
+            channel_format = 'ISO8859'
+        elif signal_data_type == 7:
+            channel_format = 'utf-8'
+        elif signal_data_type == 8:
+            channel_format = '<utf-16'
+        elif signal_data_type == 9:
+            channel_format = '>utf-16'
+        else:
+            channel_format = 'utf-8'
+            warn('signal_data_type should have fixed length')
+        while pointer < sd_block_length:
+            VLSDLen = structunpack('I', sd_block[pointer:pointer + 4])[0]  # length of data
+            pointer += 4
+            buf.append(sd_block[pointer:pointer + VLSDLen].decode(channel_format).rstrip('\x00'))
+            pointer += VLSDLen
+        buf = _equalize_string_length(buf)
+    else:  # byte arrays or mime types
+        while pointer < sd_block_length:
+            VLSDLen = structunpack('I', sd_block[pointer:pointer + 4])[0]  # length of data
+            pointer += 4
+            buf.append(sd_block[pointer:pointer + VLSDLen])
+            pointer += VLSDLen
+        buf = _equalize_byte_length(buf)
     return array(buf)
 
 
@@ -248,9 +258,26 @@ def _equalize_string_length(buf):
     -----------
     list of str elements all having same length
     """
-    maxlen = len(max(buf, key=len))
+    max_len = len(max(buf, key=len))
     for i in range(len(buf)):  # resize string to same length, numpy constrain
-        buf[i] = ''.join([buf[i], ' ' * (maxlen - len(buf[i]))])
+        buf[i] = ''.join([buf[i], ' ' * (max_len - len(buf[i]))])
+    return buf
+
+
+def _equalize_byte_length(buf):
+    """ Makes all bytes in a list having same length by appending null bytes.
+
+    Parameters
+    ----------------
+    buf : list of bytes
+
+    Returns
+    -----------
+    list of bytes all having same length
+    """
+    max_len = len(max(buf, key=len))
+    for i in range(len(buf)):  # resize string to same length, numpy constrain
+        buf[i] = buf[i].append('\x00' * (max_len - len(buf[i])))
     return buf
 
 
