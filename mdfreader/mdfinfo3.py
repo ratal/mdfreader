@@ -68,16 +68,16 @@ class Info3(dict):
     - mdfinfo['CCBlock'][dataGroup][channelGroup][channel] Channel conversion information
     """
 
-    def __init__(self, fileName=None, fid=None, filterChannelNames=False, minimal=0):
+    def __init__(self, file_name=None, fid=None, filter_channel_names=False, minimal=0):
         """ info3 class constructor
 
         Parameters
         ----------------
-        fileName : str, optional
+        file_name : str, optional
             name of file
         fid : float, optional
             file identifier
-        filterChannelNames : bool, optional
+        filter_channel_names : bool, optional
             flag to filter long channel names including module names separated by a '.'
         minimal : int
             0 will load every metadata
@@ -96,16 +96,16 @@ class Info3(dict):
         self['CCBlock'] = dict()  # Conversion block
         self['allChannelList'] = set()  # all channels
         self['ChannelNamesByDG'] = dict()
-        self.filterChannelNames = filterChannelNames
-        self.fileName = fileName
+        self.filterChannelNames = filter_channel_names
+        self.fileName = file_name
         self.fid = None
-        if fileName is not None and fid is None:
+        if file_name is not None and fid is None:
             try:
                 self.fid = open(self.fileName, 'rb')
             except IOError:
                 raise IOError('Can not find file ' + self.fileName)
             self.read_info3(self.fid, minimal)
-        elif fileName is None and fid is not None:
+        elif file_name is None and fid is not None:
             self.read_info3(fid, minimal)
 
     def read_info3(self, fid, minimal=0):
