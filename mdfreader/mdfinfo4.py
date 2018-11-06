@@ -2038,7 +2038,7 @@ class Info4(dict):
                 at_blocks[at] = (ATBlock(fid, at_blocks[at - 1]['at_at_next']))
             return at_blocks
 
-    def list_channels_4(self, file_name=None, fid=None):
+    def list_channels4(self, file_name=None, fid=None):
         """ Read MDF file and extract its complete structure
 
         Parameters

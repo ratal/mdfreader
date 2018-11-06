@@ -96,7 +96,7 @@ Command example in ipython:
     # You can reduce to minimum metadata reading with below argument (no source information, attachment, etc.) 
     yop=mdfreader.Mdf('NameOfFile', metadata=0)  # 0: full, 2: minimal
     # only for mdf4.x, you can search for the mdf key of a channel name that can have been recorded by different sources
-    yop.get_channel_name_4('channelName', 'source path or name')  # returns list of mdf keys
+    yop.get_channel_name4('channelName', 'source path or name')  # returns list of mdf keys
     # to yield one channel and keep its content in mdf object
     yop.get_channel('channelName')
     # to yield one channel numpy array

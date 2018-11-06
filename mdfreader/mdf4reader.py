@@ -1117,7 +1117,7 @@ class Mdf4(MdfSkeleton):
         flag to convert raw data to physical just after read
     filterChannelNames : bool
         flag to filter long channel names from its module names separated by '.'
-    file_metadata : dict
+    fileMetadata : dict
         file metadata with minimum keys : author, organisation, project, subject, comment, time, date
 
     Methods
@@ -1808,7 +1808,7 @@ class Mdf4(MdfSkeleton):
             pass
             # warn('no invalid data found for channel ')
 
-    def get_channel_name_4(self, name, path):
+    def get_channel_name4(self, name, path):
         """finds mdf channel name from name and path
 
         Parameters

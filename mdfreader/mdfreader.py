@@ -223,7 +223,7 @@ class MdfInfo(dict):
             name_list = channel_name_list.list_channels3(self.fileName, self.fid)
         else:
             channel_name_list = Info4()
-            name_list = channel_name_list.list_channels_4(self.fileName, self.fid)
+            name_list = channel_name_list.list_channels4(self.fileName, self.fid)
             if zipfile:  # not from mdfreader.read()
                 remove(self.fileName)
         return name_list
@@ -258,7 +258,7 @@ class Mdf(Mdf3, Mdf4):
     multiProc : bool
         Flag to request channel conversion multi processed for performance improvement.
         One thread per data group.
-    file_metadata : dict
+    fileMetadata : dict
         file metadata with minimum keys : author, organisation, project, subject, comment, time, date
 
     Methods

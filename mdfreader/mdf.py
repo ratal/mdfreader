@@ -55,7 +55,7 @@ invalidChannel = 'invalid_channel'
 
 class MdfSkeleton(dict):
     __slots__ = ['masterChannelList', 'fileName', 'MDFVersionNumber', 'multiProc',
-                 'convertAfterRead', 'filterChannelNames', 'file_metadata', 'convert_tables',
+                 'convertAfterRead', 'filterChannelNames', 'fileMetadata', 'convertTables',
                  '_pandasframe', 'info', '_compression_level', '_noDataLoading',
                  'fid', 'zipfile']
     """ MdfSkeleton class
@@ -76,7 +76,7 @@ class MdfSkeleton(dict):
         flag to convert raw data to physical just after read
     filterChannelNames : bool
         flag to filter long channel names from its module names separated by '.'
-    file_metadata : dict
+    fileMetadata : dict
         file metadata with minimum keys : author, organisation, project, subject, comment, time, date
 
     Methods
