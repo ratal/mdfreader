@@ -1231,6 +1231,18 @@ class Mdf4(MdfSkeleton):
         if info.fid is None or info.fid.closed:
             info.fid = open(self.fileName, 'rb')
 
+        # keep events
+        try:
+            self.events = info['EV']
+        except KeyError:
+            pass
+
+        # keep attachments
+        try:
+            self.attachments = info['AT']
+        except KeyError:
+            pass
+
         # reads metadata
         if not self._noDataLoading:
             file_date_time = gmtime(info['HD']['hd_start_time_ns'] / 1000000000)

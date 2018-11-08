@@ -1261,8 +1261,9 @@ class EVBlock(dict):
                 self['Comment'] = CommentBlock()
                 self['Comment'].read_cm_ev(fid=fid, pointer=self['ev_md_comment'])
             if self['ev_tx_name']:  # comments exist
-                self['name'] = CommentBlock()
-                self['name'].read_tx(fid=fid, pointer=self['ev_tx_name'])
+                temp = CommentBlock()
+                temp.read_tx(fid=fid, pointer=self['ev_tx_name'])
+                self['ev_tx_name'] = temp['Comment']
 
 
 class SRBlock(dict):
@@ -1588,7 +1589,7 @@ class Info4(dict):
             self['FH'].append(FHBlock(fid, self['FH'][-1]['fh_fh_next']))
 
         # reads Channel Hierarchy blocks
-        if self['HD']['hd_ch_first']:
+        if self['HD']['hd_ch_first'] and not minimal:
             self['CH'] = self.read_ch_block(fid, self['HD']['hd_ch_first'])
 
         # reads Attachment block
