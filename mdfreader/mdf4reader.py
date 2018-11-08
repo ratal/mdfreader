@@ -237,14 +237,13 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length):
             buf.append(sd_block[pointer:pointer + VLSDLen].decode(channel_format).rstrip('\x00'))
             pointer += VLSDLen
         buf = _equalize_string_length(buf)
-        return array(buf)
     else:  # byte arrays or mime types
         while pointer < sd_block_length:
             VLSDLen = structunpack('I', sd_block[pointer:pointer + 4])[0]  # length of data
             pointer += 4
             buf.append(sd_block[pointer:pointer + VLSDLen])
             pointer += VLSDLen
-        buf = _equalize_byte_length(buf)
+        # buf = _equalize_byte_length(buf)
     return array(buf)
 
 
