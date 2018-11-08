@@ -24,6 +24,7 @@ from warnings import warn
 from zlib import compress, decompress
 from numpy import sort, zeros, array, append
 import time
+from collections import OrderedDict
 from xml.etree.ElementTree import Element, SubElement, \
     tostring, register_namespace
 from lxml import objectify
@@ -1204,6 +1205,14 @@ class ATBlock(dict):
                 comment = CommentBlock()
                 comment.read_cm_at(fid=fid, pointer=self['at_md_comment'])
                 self['Comment'].update(comment)
+            if self['at_tx_filename']:  # file name
+                temp = CommentBlock()
+                temp.read_tx(fid, self['at_tx_filename'])
+                self['at_tx_filename'] = temp['Comment']
+            if self['at_tx_mimetype']:  # file name mime type
+                temp = CommentBlock()
+                temp.read_tx(fid, self['at_tx_mimetype'])
+                self['at_tx_mimetype'] = temp['Comment']
 
 
 class EVBlock(dict):
@@ -1248,9 +1257,6 @@ class EVBlock(dict):
             if self['ev_attachment_count'] > 0:
                 self['ev_at_reference'] = \
                     _mdf_block_read(fid, _LINK, self['ev_attachment_count'])
-                for at in range(self['ev_attachment_count']):
-                    self['attachment'][at] = \
-                        ATBlock(fid, self['ev_at_reference'][at])
             if self['ev_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock()
                 self['Comment'].read_cm_ev(fid=fid, pointer=self['ev_md_comment'])
@@ -1564,7 +1570,7 @@ class Info4(dict):
 
         Parameters
         ----------------
-        fid : float
+        fid : identifier
             file identifier
         minimal: flag
             to activate minimum content reading for raw data fetching
@@ -1575,40 +1581,30 @@ class Info4(dict):
         # reads Header HDBlock
         self['HD'].update(HDBlock(fid))
 
-        if not minimal:
-            # warn('reads File History blocks, always exists')
-            fh = 0  # index of fh blocks
-            self['FH'][fh] = {}
-            self['FH'][fh] .update(FHBlock(fid, self['HD']['hd_fh_first']))
-            while self['FH'][fh]['fh_fh_next']:
-                self['FH'][fh + 1] = {}
-                self['FH'][fh + 1].update(FHBlock(fid, self['FH'][fh]['fh_fh_next']))
-                fh += 1
+        # reads File History blocks, always exists
+        self['FH'] = list()
+        self['FH'].append(FHBlock(fid, self['HD']['hd_fh_first']))
+        while self['FH'][-1]['fh_fh_next']:
+            self['FH'].append(FHBlock(fid, self['FH'][-1]['fh_fh_next']))
 
-        # warn('reads Channel Hierarchy blocks')
+        # reads Channel Hierarchy blocks
         if self['HD']['hd_ch_first']:
-            ch = 0
-            self['CH'][ch] = {}
-            self['CH'][ch].update(CHBlock(fid, self['HD']['hd_ch_first']))
-            while self['CH'][ch]['ch_ch_next']:
-                self['CH'][ch].update(CHBlock(fid, self['CH'][ch]['ch_ch_next']))
-                ch += 1
+            self['CH'] = self.read_ch_block(fid, self['HD']['hd_ch_first'])
 
         # reads Attachment block
-        if not minimal:
-            self['AT'] = self.read_at_block(fid, self['HD']['hd_at_first'])
+        if self['HD']['hd_at_first'] and not minimal:
+            self['AT'] = OrderedDict()
+            pointer = self['HD']['hd_at_first']
+            while pointer:
+                self['AT'][pointer] = ATBlock(fid, pointer)
+                pointer = self['AT'][pointer]['at_at_next']
 
         # reads Event Block
         if self['HD']['hd_ev_first'] and not minimal:
-            ev = 0
-            self['EV'] = {}
-            self['EV'][ev] = EVBlock(fid, self['HD']['hd_ev_first'])
-            while self['EV'][ev]['ev_ev_next']:
-                ev += 1
-                self['EV'][ev] = EVBlock(fid, self['EV'][ev - 1]['ev_ev_next'])
+            self['EV'] = self.read_ev_block(fid, self['HD']['hd_ev_first'])
 
         # reads Data Group Blocks and recursively the other related blocks
-        self.read_dg_block(fid, None, minimal)
+        self.read_dg_block(fid, False, minimal)
 
     def read_dg_block(self, fid, channel_name_list=False, minimal=0):
         """reads Data Group Blocks
@@ -1822,17 +1818,7 @@ class Info4(dict):
                         temp.read_cn(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
                         self['CN'][dg][cg][cn]['CN'].update(temp)
                     else:
-                        raise('unknown channel composition')
-
-                if not minimal:
-                    # reads Attachment Block
-                    if self['CN'][dg][cg][cn]['cn_attachment_count'] > 1:
-                        for at in range(self['CN'][dg][cg][cn]['cn_attachment_count']):
-                            self['CN'][dg][cg][cn]['attachment'][at].update(
-                                self.read_at_block(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
-                    elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
-                        self['CN'][dg][cg][cn]['attachment'][0].update(
-                            self.read_at_block(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
+                        warn('unknown channel composition')
 
             while self['CN'][dg][cg][cn]['cn_cn_next']:
                 cn = cn + 1
@@ -1879,17 +1865,7 @@ class Info4(dict):
                             temp.read_cn(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
                             self['CN'][dg][cg][cn]['CN'].update(temp)
                         else:
-                            raise('unknown channel composition')
-
-                    if not minimal:
-                        # reads Attachment Block
-                        if self['CN'][dg][cg][cn]['cn_attachment_count'] > 1:
-                            for at in range(self['CN'][dg][cg][cn]['cn_attachment_count']):
-                                self['CN'][dg][cg][cn]['attachment'][at].update(
-                                    self.read_at_block(fid, self['CN'][dg][cg][cn]['cn_at_reference'][at]))
-                        elif self['CN'][dg][cg][cn]['cn_attachment_count'] == 1:
-                            self['CN'][dg][cg][cn]['attachment'][0].update(
-                                self.read_at_block(fid, self['CN'][dg][cg][cn]['cn_at_reference']))
+                            warn('unknown channel composition')
 
         mlsd_channels = self.read_composition(fid, dg, cg, mlsd_channels)
 
@@ -2013,30 +1989,47 @@ class Info4(dict):
             return sr_blocks
 
     @staticmethod
-    def read_at_block(fid, pointer):
-        """reads Attachment blocks
+    def read_ev_block(fid, pointer):
+        """reads Events Blocks
 
         Parameters
         ----------------
-        fid : float
+        fid : identifier
             file identifier
         pointer : int
-            position of ATBlock in file
+            position of EVBlock in file
 
         Returns
         -----------
-        Attachments Blocks in a dict
+        Event Blocks in a dict
         """
-        if pointer > 0:
-            at = 0
-            at_blocks = {}
-            if type(pointer) in (tuple, list):
-                pointer = pointer[0]
-            at_blocks[0] = ATBlock(fid, pointer)
-            while at_blocks[at]['at_at_next'] > 0:
-                at += 1
-                at_blocks[at] = (ATBlock(fid, at_blocks[at - 1]['at_at_next']))
-            return at_blocks
+        ev_blocks = OrderedDict()
+        while pointer:
+            ev_blocks[pointer] = EVBlock(fid, pointer)
+            pointer = ev_blocks[pointer]['ev_ev_next']
+        return ev_blocks
+
+    def read_ch_block(self, fid, pointer):
+        """reads channel hierarchy Blocks
+
+        Parameters
+        ----------------
+        fid : identifier
+            file identifier
+        pointer : int
+            position of EVBlock in file
+
+        Returns
+        -----------
+        channel hierarchy Blocks in a dict
+        """
+        ch_blocks = list()
+        while pointer:
+            ch_blocks.append(CHBlock(fid, pointer))
+            if ch_blocks[-1]['ch_ch_first']:  # child CHBlock
+                ch_blocks[-1]['child'] = self.read_ch_block(fid, ch_blocks[-1]['ch_ch_first'])
+            pointer = ch_blocks[-1]['ch_ch_next']
+        return ch_blocks
 
     def list_channels4(self, file_name=None, fid=None):
         """ Read MDF file and extract its complete structure
