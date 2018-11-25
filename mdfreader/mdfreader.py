@@ -141,26 +141,26 @@ class MdfInfo(dict):
     >>> yop.list_channels(FILENAME) # returns a simple list of channel names
     """
 
-    def __init__(self, fileName=None, filterChannelNames=False, fid=None, minimal=0):
+    def __init__(self, file_name=None, filter_channel_names=False, fid=None, minimal=0):
 
         """ You can give optionally to constructor a file name that will be parsed
 
         Parameters
         ----------------
-        fileName : str, optional
+        file_name : str, optional
             file name
-        filterChannelNames : bool, optional
+        filter_channel_names : bool, optional
             flag to filter long channel names including module names separated by a '.'
         fid : file identifier, optional
         """
 
-        self.fileName = fileName
-        self.filterChannelNames = filterChannelNames
+        self.fileName = file_name
+        self.filterChannelNames = filter_channel_names
         self.mdfversion = 410
         self.fid = fid
         self.zipfile = False
-        if fileName is not None:
-            self.read_info(fileName, fid, minimal)
+        if file_name is not None:
+            self.read_info(file_name, fid, minimal)
 
     def read_info(self, file_name=None, fid=None, minimal=0):
 
@@ -1258,7 +1258,7 @@ class Mdf(Mdf3, Mdf4):
                 mdf_data = mdf_class.get_channel_data(channel)
                 self[channel] = mdf_class[channel]  # initialise all fields, units, descriptions, etc.
                 refill = empty(initial_time_size)
-                refill.fil(nan)  # fill with NANs
+                refill.fill(nan)  # fill with NANs
                 self.set_channel_data(channel, hstack((refill, mdf_data)))  # readjust against time
             else:  # channel missing in mdfClass
                 data = self.get_channel_data(channel)
