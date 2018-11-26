@@ -5,33 +5,19 @@ from distutils.extension import Extension
 from warnings import warn
 
 try:
-    from Cython.Distutils import build_ext
+    from Cython.Build import cythonize
+    # If we successfully imported Cython, look for a .pyx file
+    import numpy
+    ext_modules = cythonize('dataRead.pyx', include_path=[numpy.get_include()], gdb_debug=True)
 except:
     # If we couldn't import Cython, use the normal setuptools
     # and look for a pre-compiled .c file instead of a .pyx file
     from setuptools.command.build_ext import build_ext
     ext_modules = [Extension("dataRead", ["dataRead.c"])]
-else:
-    # If we successfully imported Cython, look for a .pyx file
-    ext_modules = [Extension("dataRead", ["dataRead.pyx"])]
-
-
-class CustomBuildExtCommand(build_ext):
-    """build_ext command for use when numpy headers are needed."""
-    def run(self):
-
-        # Import numpy here, only when headers are needed
-        import numpy
-
-        # Add numpy headers to include_dirs
-        self.include_dirs.append(numpy.get_include())
-
-        # Call original build_ext command
-        build_ext.run(self)
 
 
 name = 'mdfreader'
-version = '2.7.8'
+version = '3.0'
 
 description = 'A Measured Data Format file parser'
 
@@ -92,7 +78,7 @@ install_requires = ['numpy>=1.14', 'sympy', 'lxml']
 # $ pip install -e .[dev,test]
 extras_require = {
     'export': ['scipy', 'h5py', 'xlwt', 'xlwt3', 'openpyxl>2.0', 'pandas'],
-    'plot': ['matplotlib'],
+    'plot': ['matplotlib', 'mpldatacursor'],
     'converter': ['PyQt4'],
     'experimental': ['bitarray'],
     'compression': ['blosc'],
@@ -117,18 +103,20 @@ extras_require = {
 entry_points = {
     'console_scripts': ['mdfconverter=mdfconverter.mdfconverter:main', ],
 }
-
+print(ext_modules)
 try:  # try compiling module with cython or c code
     setup(name=name, version=version, description=description, long_description=long_description,
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
-          entry_points=entry_points, ext_modules=ext_modules)
+          entry_points=entry_points, ext_modules=ext_modules, include_dirs=[numpy.get_include()])
 except:  # without Cython
+    import sys
+    print("Unexpected error:", sys.exc_info())
     extras_require.pop('experimental')
     install_requires.append('bitarray')  # replaces cython requirement by bitarray
     setup(name=name, version=version, description=description, long_description=long_description,
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
-          entry_points=entry_points)
+          entry_points=entry_points, include_dirs=[numpy.get_include()])
     warn('It is strongly advised to install Cython along with compilation environment '
          'for performance and robustness purpose')

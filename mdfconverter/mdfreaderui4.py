@@ -35,8 +35,8 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         QMainWindow.__init__(self, parent)
         self.setupUi(self)
         self.fileNames = []  # files to convert
-        self.mdfClass = mdf()  # instance of mdf
-        self.mdfinfoClass = mdfinfo()  # instance of mdfinfo
+        self.mdfClass = Mdf()  # instance of mdf
+        self.mdfinfoClass = MdfInfo()  # instance of mdfinfo
         self.convertSelection = 'Matlab'  # by default Matlab conversion is selected
         self.MergeFiles = False  # by default
         self.labFileName = []  # .lab file name
@@ -66,7 +66,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
             self.mdfinfoClass.__init__()
             self.cleanChannelList()
             self.cleanSelectedChannelList()
-            ChannelList = convertChannelList(self.mdfinfoClass.listChannels(str(self.fileNames[0])))
+            ChannelList = convertChannelList(self.mdfinfoClass.list_channels(str(self.fileNames[0])))
             self.SelectedChannelList.addItems(ChannelList)
             self.FileList.setItemSelected(self.FileList.item(0), True)
 
@@ -145,20 +145,20 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                     buffer.update(res[0])  # assigns next class to buffer
                     buffer.masterChannelList = res[1]
                     fileNameList.append(res[2])
-                    self.mdfClass.mergeMdf(buffer)  # merge buffer to merged class mdfClass
+                    self.mdfClass.merge_mdf(buffer)  # merge buffer to merged class mdfClass
                 # Export
                 if self.convertSelection == 'Matlab':
-                    self.mdfClass.exportToMatlab()
+                    self.mdfClass.export_to_matlab()
                 elif self.convertSelection == 'csv':
-                    self.mdfClass.exportToCSV()
+                    self.mdfClass.export_to_csv()
                 elif self.convertSelection == 'netcdf':
-                    self.mdfClass.exportToNetCDF()
+                    self.mdfClass.export_to_NetCDF()
                 elif self.convertSelection == 'hdf5':
-                    self.mdfClass.exportToHDF5()
+                    self.mdfClass.export_to_hdf5()
                 elif self.convertSelection == 'excel':
-                    self.mdfClass.exportToExcel()
+                    self.mdfClass.export_to_excel()
                 elif self.convertSelection == 'excel2010':
-                    self.mdfClass.exportToXlsx()
+                    self.mdfClass.export_to_xlsx()
                 elif self.convertSelection == 'mdf3':
                     self.mdfClass.write(fileName + '_new')
                 self.cleanChannelList()
@@ -176,7 +176,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
         self.mdfinfoClass.__init__()
         # self.mdfinfoClass.readinfo(item)
         self.cleanChannelList()
-        ChannelList = convertChannelList(self.mdfinfoClass.listChannels(str(item.text())))
+        ChannelList = convertChannelList(self.mdfinfoClass.list_channels(str(item.text())))
         self.channelList.addItems(ChannelList)
         self.mdfinfoClass.__init__()  # clean object to free memory
 
@@ -301,26 +301,26 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
 
 def processMDF(fileName, channelist, resampleFlag, resampleValue, convertFlag, convertSelection):
     # Will process file according to defined options
-    yop = mdf()
+    yop = Mdf()
     yop.multiProc = False  # already multiprocessed
     yop.convertAfterRead = True
     yop.read(fileName)  # reads complete file
-    yop.keepChannels(channelist)  # removes unnecessary channels
+    yop.keep_channels(channelist)  # removes unnecessary channels
     if resampleFlag:
         yop.resample(resampleValue)
     if convertFlag:
         if convertSelection == 'Matlab':
-            yop.exportToMatlab()
+            yop.export_to_matlab()
         elif convertSelection == 'csv':
-            yop.exportToCSV()
+            yop.export_to_csv()
         elif convertSelection == 'netcdf':
-            yop.exportToNetCDF()
+            yop.export_to_NetCDF()
         elif convertSelection == 'hdf5':
-            yop.exportToHDF5()
+            yop.export_to_hdf5()
         elif convertSelection == 'excel':
-            yop.exportToExcel()
+            yop.export_to_excel()
         elif convertSelection == 'excel2010':
-            yop.exportToXlsx()
+            yop.export_to_xlsx()
         elif convertSelection == 'mdf3':
             yop.write(fileName + '_new')
     yopPicklable = {}  # picklable dict and not object
