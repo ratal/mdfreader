@@ -39,6 +39,7 @@ from struct import unpack
 from math import ceil
 from os.path import splitext
 from os import remove
+from os import name as osname
 from sys import version_info
 from warnings import warn
 from datetime import datetime
@@ -327,7 +328,7 @@ class Mdf(Mdf3, Mdf4):
     >>> yop.convert_to_pandas() # converts data groups into pandas dataframes
     >>> yop.write() # writes mdf file
     # drops all the channels except the one in argument
-    >>> yop.keep_channels({'channel1','channel2','channel3'})
+    >>> yop.keep_channels(['channel1','channel2','channel3'])
     >>> yop.get_channel_data('channelName') # returns channel numpy array
     """
 
@@ -498,7 +499,8 @@ class Mdf(Mdf3, Mdf4):
         try:
             import matplotlib.pyplot as plt
         except ImportError:
-            raise ImportError('matplotlib not found')
+            warn('matplotlib not found')
+            return
         try:
             from mpldatacursor import datacursor
             cursor_possible = True
@@ -848,6 +850,7 @@ class Mdf(Mdf3, Mdf4):
             from scipy.io import netcdf
         except ImportError:
             warn('scipy.io module not found')
+            return
 
         def clean_name(name):
             allowed_str = ' ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-+_.@'
@@ -953,6 +956,7 @@ class Mdf(Mdf3, Mdf4):
             import os
         except ImportError:
             warn('h5py not found')
+            return
 
         def set_attribute(obj, name, value):
             if value is not None and len(value) > 0:
@@ -1059,8 +1063,9 @@ class Mdf(Mdf3, Mdf4):
         # export class data structure into .mat file
         try:
             from scipy.io import savemat
-        except:
-            raise ImportError('scipy module not found')
+        except ImportError:
+            warn('scipy module not found')
+            return
         if file_name is None:
             file_name = splitext(self.fileName)[0]
             file_name = file_name + '.mat'
@@ -1099,8 +1104,9 @@ class Mdf(Mdf3, Mdf4):
                 import xlwt
             else:
                 import xlwt3 as xlwt
-        except:
-            raise ImportError('xlwt module missing')
+        except ImportError:
+            warn('xlwt module missing')
+            return
         if file_name is None:
             file_name = splitext(self.fileName)[0]
             file_name = file_name + '.xls'
@@ -1175,6 +1181,7 @@ class Mdf(Mdf3, Mdf4):
             from openpyxl.utils.exceptions import IllegalCharacterError
         except ImportError:
             warn('Module openpyxl missing')
+            return
         if file_name is None:
             file_name = splitext(self.fileName)[0]
             file_name = file_name + '.xlsx'
@@ -1277,61 +1284,98 @@ class Mdf(Mdf3, Mdf4):
         Notes
         --------
         One pandas dataframe is converted per data group
-        Not adapted yet for mdf4 as it considers only time master channels
         """
         # convert data structure into pandas module
         try:
             import pandas as pd
         except ImportError:
             warn('Module pandas missing')
+            return
         if sampling is not None:
             self.resample(sampling)
-        if self.fileMetadata['date'] != '' and self.fileMetadata['time'] != '':
-            date = self.fileMetadata['date'].replace(':', '-')
-            time = self.fileMetadata['time']
-            datetime_info = datetime64(date + 'T' + time)
-        else:
-            datetime_info = datetime64(datetime.now())
-        original_keys = list(self.keys())
         for group in self.masterChannelList:
-            if group not in self.masterChannelList[group]:
-                warn('no master channel in group {}'.format(group))
-            elif self.get_channel_master_type(group) != 1:
-                warn('Warning: master channel is not time, '
-                     'not appropriate conversion for pandas')
-            temp = {}
-            # convert time channel into timedelta
-            if group in self.masterChannelList[group]:
-                time = datetime_info + array(self.get_channel_data(group) * 1E6,
-                                             dtype='timedelta64[us]')
-                for channel in self.masterChannelList[group]:
-                    data = self.get_channel_data(channel)
-                    if data.ndim == 1 and data.shape == time.shape \
-                            and not data.dtype.char == 'V':
-                        temp[channel] = pd.Series(data, index=time)
-                self[group + '_group'] = pd.DataFrame(temp)
-                self[group + '_group'].pop(group)  # delete time channel, no need anymore
-            else:  # no master channel in channel group
-                for channel in self.masterChannelList[group]:
-                    data = self.get_channel_data(channel)
-                    if data.ndim == 1 and not data.dtype.char == 'V':
-                        temp[channel] = pd.Series(data)
-                self[group + '_group'] = pd.DataFrame(temp)
-        # clean rest of self from data and time channel information
-        [self[channel].pop(dataField) for channel in original_keys]
-        [self[channel].pop(masterField) for channel in original_keys if masterField in self[channel]]
+            self[group + '_group'] = self.return_pandas_dataframe(group)
+            # clean rest of self from data and time channel information
+            [self[channel].pop(dataField) for channel in self.masterChannelList[group]]
+            [self[channel].pop(masterField) for channel in self.masterChannelList[group] if masterField in self[channel]]
         self.masterGroups = []  # save time groups name in list
-        [self.masterGroups.append(group + '_group') for group in list(self.masterChannelList.keys())]
+        [self.masterGroups.append(group + '_group') for group in self.masterChannelList]
         self.masterChannelList = {}
         self._pandasframe = True
 
+    def return_pandas_dataframe(self, master_channel_name):
+        """returns a dataframe of a raster described by its master channel name
+
+        Parameters
+        ----------------
+        master_channel_name : str
+            master channel name, key to a raster to be returned as pandas dataframe
+
+        Return
+        ---------
+        pandas dataframe of raster or data group
+        """
+        try:
+            import pandas as pd
+        except ImportError:
+            warn('Module pandas missing')
+            return
+        if master_channel_name in self:
+            if master_channel_name not in self.masterChannelList[master_channel_name]:
+                warn('no master channel in group {}'.format(master_channel_name))
+            if master_channel_name in self.masterChannelList[master_channel_name]:
+                if self.get_channel_master_type(master_channel_name) == 1:
+                    # master channel exists and is time type
+                    # convert time channel into timedelta
+                    if self.fileMetadata['date'] != '' and self.fileMetadata['time'] != '':
+                        date = self.fileMetadata['date'].replace(':', '-')
+                        time = self.fileMetadata['time']
+                        datetime_info = datetime64(date + 'T' + time)
+                    else:
+                        datetime_info = datetime64(datetime.now())
+                    time = datetime_info + array(self.get_channel_data(master_channel_name) * 1E6,
+                                                 dtype='timedelta64[us]')
+                    temporary_dataframe = pd.DataFrame(index=time)
+                else:  # not time master channel
+                    temporary_dataframe = pd.DataFrame(index=self.get_channel_data(master_channel_name))
+            else:  # no master channel
+                temporary_dataframe = pd.DataFrame()
+            for channel in self.masterChannelList[master_channel_name]:
+                data = self.get_channel_data(channel)
+                if data.ndim == 1 and data.shape[0] == temporary_dataframe.shape[0] \
+                        and not data.dtype.char == 'V':
+                    temporary_dataframe[channel] = data
+            return temporary_dataframe
+        else:
+            warn('Master channel name not in mdf')
+            return
+
+    def export_to_parquet(self, file_name=None):
+        """Exports mdf data into parquet file
+
+        Parameters
+        ----------------
+        file_name : str, optional
+            file name. If no name defined, it will use original mdf name and path with .parquet extension
+        """
+        try:
+            from fastparquet import write as write_parquet
+        except ImportError:
+            warn('fastparquet not installed')
+            return
+        if file_name is None:
+            file_name = splitext(self.fileName)[0]
+            file_name = file_name + '.parquet'
+        for master_channel_name in self.masterChannelList:
+            frame = self.return_pandas_dataframe(master_channel_name)
+            if frame is not None:
+                write_parquet(file_name, frame, compression='GZIP')
+
 
 if __name__ == "__main__":
-    try:
+    if osname == 'nt':
         from multiprocessing import freeze_support
         freeze_support()
-    except:
-        None
     parser = ArgumentParser(prog='mdfreader', description='reads mdf file')
     parser.add_argument('--export', dest='export', default=None,
                         choices=['CSV', 'HDF5', 'Matlab', 'Xlsx', 'Excel', 'NetCDF', 'MDF'],
