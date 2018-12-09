@@ -127,7 +127,10 @@ Command example in ipython:
     yop.export_to_hdf5()
     yop.export_to_matlab()
     yop.export_to_xlsx()
-    # converts data groups into pandas dataframes
+    yop.export_to_parquet()
+    # return pandas dataframe from master channel name
+    yop.return_pandas_dataframe('master_channel_name')
+    # converts data groups into pandas dataframes and keeps it in mdf object
     yop.convert_to_pandas()
     # drops all the channels except the one in argument
     yop.keep_channels({'channel1','channel2','channel3'})
