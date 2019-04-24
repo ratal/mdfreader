@@ -145,6 +145,10 @@ class Channel4(object):
             data group number corresponding to mdfinfo4.info4 class
         VLSD_CG_Flag : bool, default False
             flag when Channel Group VLSD is used
+        nBytes : int, default 0
+            number of bytes for this channel
+        byteOffset : int, default
+            position of channel in record, not including record ID
         """
         self.name = ''
         self.type = 0
