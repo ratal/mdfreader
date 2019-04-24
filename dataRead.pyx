@@ -239,7 +239,7 @@ cdef inline read_unsigned_short(const char* bit_stream, str record_format, unsig
         else:
             for i in range(number_of_records):
                 memcpy(&temp, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
-                temp2byte = temp[0]<<8 | temp[1]  #  swap bytes
+                temp2byte = swap16(temp)
                 # right shift
                 if bit_offset > 0:
                     temp2byte = temp2byte >> bit_offset
@@ -284,7 +284,7 @@ cdef inline read_signed_short(const char* bit_stream, str record_format, unsigne
         else:
             for i in range(number_of_records):
                 memcpy(&temp, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
-                temp2byte = temp[0]<<8 | temp[1]  #  swap bytes
+                temp2byte = swap16(temp)
                 # right shift
                 if bit_offset > 0:
                     temp2byte = temp2byte >> bit_offset
@@ -295,6 +295,16 @@ cdef inline read_signed_short(const char* bit_stream, str record_format, unsigne
                     temp2byte |= sign_extend
                 buf[i] = temp2byte
         return buf
+
+cdef inline swap(char* temp, const char byte1, const char byte2):
+    cdef char t
+    t = temp[byte1]
+    temp[byte1] = temp[byte2]
+    temp[byte2] = t
+    return temp
+
+cdef inline swap16(char* temp):
+    return swap(temp, 0, 1)
 
 cdef inline read_unsigned_int(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg,
@@ -327,7 +337,7 @@ cdef inline read_unsigned_int(const char* bit_stream, str record_format, unsigne
         else:
             for i in range(number_of_records):
                 memcpy(&temp4, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp4byte = temp4[0]<<24 | temp4[1]<<16 | temp4[2]<<8 | temp4[3]  #  swap bytes
+                temp4byte = swap32(temp4) #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp4byte = temp4byte >> bit_offset
@@ -350,7 +360,7 @@ cdef inline read_unsigned_int(const char* bit_stream, str record_format, unsigne
         else:
             for i in range(number_of_records):
                 memcpy(&temp3, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp4byte = temp3[0]<<16 | temp3[1]<<8 | temp3[2]  #  swap bytes
+                temp4byte = swap24(temp3)  #  swap bytes
                 # right shift 
                 if bit_offset > 0:
                     temp4byte = temp4byte >> bit_offset
@@ -360,6 +370,18 @@ cdef inline read_unsigned_int(const char* bit_stream, str record_format, unsigne
                 buf[i] = temp4byte
         return buf
     
+cdef inline swap24(char* temp):
+    return swap(temp, 0, 2)
+
+cdef inline swap32(char* temp):
+    cdef char t
+    t = temp[0]
+    temp[0] = temp[3]
+    temp[3] = t
+    t = temp[1]
+    temp[1] = temp[2]
+    temp[2] = t
+    return temp
 
 cdef inline read_signed_int(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg,
@@ -398,7 +420,7 @@ cdef inline read_signed_int(const char* bit_stream, str record_format, unsigned 
         else:
             for i in range(number_of_records):
                 memcpy(&temp4, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp4byte = temp4[0]<<24 | temp4[1]<<16 | temp4[2]<<8 | temp4[3]  #  swap bytes
+                temp4byte = swap32(temp4)  #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp4byte = temp4byte >> bit_offset
@@ -427,7 +449,7 @@ cdef inline read_signed_int(const char* bit_stream, str record_format, unsigned 
         else:
             for i in range(number_of_records):
                 memcpy(&temp3, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp4byte = temp3[0]<<16 | temp3[1]<<8 | temp3[2]  #  swap bytes
+                temp4byte = swap24(temp3)  #  swap bytes
                 # right shift 
                 if bit_offset > 0:
                     temp4byte = temp4byte >> bit_offset
@@ -473,8 +495,7 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp8, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp8[0]<<56 | temp8[1]<<48 | temp8[2]<<40 | temp8[3]<<32 | \
-                            temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes
+                temp8byte = swap64(temp8) #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -496,8 +517,7 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp7, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp7[0]<<48 | temp7[1]<<40 | temp7[2]<<32 | \
-                            temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes
+                temp8byte = swap56(temp7) #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -519,8 +539,7 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp6, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp6[0]<<40 | temp6[1]<<32 | temp6[2]<<24 | \
-                            temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes
+                temp8byte = swap48(temp6) #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -542,8 +561,7 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp5, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp5[0]<<32 | temp5[1]<<24 | \
-                            temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes
+                temp8byte = swap40(temp5) #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -552,6 +570,58 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
                     temp8byte &= mask
                 buf[i] = temp8byte
     return buf
+
+cdef inline swap40(char* temp):
+    cdef char t
+    t = temp[0]
+    temp[0] = temp[4]
+    temp[4] = t
+    t = temp[1]
+    temp[1] = temp[3]
+    temp[3] = t
+    return temp
+
+cdef inline swap48(char* temp):
+    cdef char t
+    t = temp[0]
+    temp[0] = temp[5]
+    temp[5] = t
+    t = temp[1]
+    temp[1] = temp[4]
+    temp[4] = t
+    t = temp[2]
+    temp[2] = temp[3]
+    temp[3] = t
+    return temp
+
+cdef inline swap56(char* temp):
+    cdef char t
+    t = temp[0]
+    temp[0] = temp[6]
+    temp[6] = t
+    t = temp[1]
+    temp[1] = temp[5]
+    temp[5] = t
+    t = temp[2]
+    temp[2] = temp[4]
+    temp[4] = t
+    return temp
+
+cdef inline swap64(char* temp):
+    cdef char t
+    t = temp[0]
+    temp[0] = temp[7]
+    temp[7] = t
+    t = temp[1]
+    temp[1] = temp[6]
+    temp[6] = t
+    t = temp[2]
+    temp[2] = temp[5]
+    temp[5] = t
+    t = temp[3]
+    temp[3] = temp[4]
+    temp[4] = t
+    return temp
 
 cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg,
@@ -592,8 +662,7 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp8, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp8[0]<<56 | temp8[1]<<48 | temp8[2]<<40 | temp8[3]<<32 | \
-                            temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes
+                temp8byte = swap64(temp8) #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -621,8 +690,7 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp7, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp7[0]<<48 | temp7[1]<<40 | temp7[2]<<32 | \
-                            temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes
+                temp8byte = swap56(temp7) #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -650,8 +718,7 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp6, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp6[0]<<40 | temp6[1]<<32 | temp6[2]<<24 | \
-                            temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes
+                temp8byte = swap48(temp6) #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -679,8 +746,7 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp5, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp5[0]<<32 | temp5[1]<<24 | \
-                            temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes
+                temp8byte = swap40(temp5) #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
