@@ -199,6 +199,8 @@ class Info3(dict):
 
                 # Clean signal name
                 short_signal_name = self['CNBlock'][dg][cg][channel]['signalName']  # short name of signal
+                # keep original non unique channel name
+                self['CNBlock'][dg][cg][channel]['orig_name'] = short_signal_name
 
                 if self['CNBlock'][dg][cg][channel]['pointerToASAMNameBlock'] > 0:
                     # long name of signal
