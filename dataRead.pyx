@@ -136,7 +136,6 @@ cdef inline read_float(const char* bit_stream, str record_format, unsigned long 
     cdef np.ndarray[np.float32_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
     cdef unsigned long long i
     cdef float temp_float = 0
-    cdef char temp[4]
     for i in range(number_of_records):
         memcpy(&temp_float, &bit_stream[pos_byte_beg + record_byte_size * i], 4)
         buf[i] = temp_float
@@ -150,7 +149,6 @@ cdef inline read_double(const char* bit_stream, str record_format, unsigned long
     cdef np.ndarray[np.float64_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
     cdef unsigned long long i
     cdef double temp_double = 0
-    cdef char temp[8]
     for i in range(number_of_records):
         memcpy(&temp_double, &bit_stream[pos_byte_beg + record_byte_size * i], 8)
         buf[i] = temp_double
@@ -186,11 +184,11 @@ cdef inline read_signed_char(const char* bit_stream, str record_format, unsigned
         unsigned long bit_count, unsigned char bit_offset):
     cdef np.ndarray[np.int8_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
     cdef unsigned long long i
-    cdef char mask = ((1 << bit_count) - 1)
+    cdef unsigned char mask = ((1 << bit_count) - 1)
     cdef char temp1byte = 0
-    cdef char sign_bit = 0
-    cdef char sign_bit_mask = (1 << (bit_count-1))
-    cdef char sign_extend = ((1 << (8 - bit_count)) - 1) << bit_count
+    cdef unsigned char sign_bit = 0
+    cdef unsigned char sign_bit_mask = (1 << (bit_count-1))
+    cdef unsigned char sign_extend = ((1 << (8 - bit_count)) - 1) << bit_count
     if bit_count == 8:
         for i in range(number_of_records):
             memcpy(&temp1byte, &bit_stream[pos_byte_beg + record_byte_size * i], 1)
@@ -216,7 +214,7 @@ cdef inline read_unsigned_short(const char* bit_stream, str record_format, unsig
     cdef unsigned long long i
     cdef unsigned short mask = ((1 << bit_count) - 1)
     cdef unsigned short temp2byte = 0
-    cdef char temp[2]
+    cdef unsigned char temp[2]
     if bit_count == 16:
         for i in range(number_of_records):
             memcpy(&temp2byte, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
@@ -239,7 +237,7 @@ cdef inline read_unsigned_short(const char* bit_stream, str record_format, unsig
         else:
             for i in range(number_of_records):
                 memcpy(&temp, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
-                temp2byte = swap16(temp)
+                temp2byte = temp[0]<<8 | temp[1]  #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp2byte = temp2byte >> bit_offset
@@ -254,12 +252,12 @@ cdef inline read_signed_short(const char* bit_stream, str record_format, unsigne
         unsigned long bit_count, unsigned char bit_offset, unsigned char swap):
     cdef np.ndarray[np.int16_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
     cdef unsigned long long i
-    cdef short mask = ((1 << bit_count) - 1)
+    cdef unsigned short mask = ((1 << bit_count) - 1)
     cdef short temp2byte = 0
-    cdef short sign_bit = 0
-    cdef short sign_bit_mask = (1 << (bit_count-1))
-    cdef short sign_extend = ((1 << (16 - bit_count)) - 1) << bit_count
-    cdef char temp[2]
+    cdef unsigned short sign_bit = 0
+    cdef unsigned short sign_bit_mask = (1 << (bit_count-1))
+    cdef unsigned short sign_extend = ((1 << (16 - bit_count)) - 1) << bit_count
+    cdef unsigned char temp[2]
     if bit_count == 16:
         for i in range(number_of_records):
             memcpy(&temp2byte, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
@@ -284,7 +282,7 @@ cdef inline read_signed_short(const char* bit_stream, str record_format, unsigne
         else:
             for i in range(number_of_records):
                 memcpy(&temp, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
-                temp2byte = swap16(temp)
+                temp2byte = temp[0]<<8 | temp[1]  #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp2byte = temp2byte >> bit_offset
@@ -296,16 +294,6 @@ cdef inline read_signed_short(const char* bit_stream, str record_format, unsigne
                 buf[i] = temp2byte
         return buf
 
-cdef inline swap(char* temp, const char byte1, const char byte2):
-    cdef char t
-    t = temp[byte1]
-    temp[byte1] = temp[byte2]
-    temp[byte2] = t
-    return temp
-
-cdef inline swap16(char* temp):
-    return swap(temp, 0, 1)
-
 cdef inline read_unsigned_int(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg,
         unsigned long bit_count, unsigned char bit_offset, unsigned long n_bytes, unsigned char swap):
@@ -313,8 +301,8 @@ cdef inline read_unsigned_int(const char* bit_stream, str record_format, unsigne
     cdef unsigned long long i
     cdef unsigned int mask = ((1 << bit_count) - 1)
     cdef unsigned int temp4byte = 0
-    cdef char temp4[4]
-    cdef char temp3[3]
+    cdef unsigned char temp4[4]
+    cdef unsigned char temp3[3]
     if bit_count == 32:
         for i in range(number_of_records):
             memcpy(&temp4byte, &bit_stream[pos_byte_beg + record_byte_size * i], 4)
@@ -337,7 +325,7 @@ cdef inline read_unsigned_int(const char* bit_stream, str record_format, unsigne
         else:
             for i in range(number_of_records):
                 memcpy(&temp4, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp4byte = swap32(temp4) #  swap bytes
+                temp4byte = temp4[0]<<24 | temp4[1]<<16 | temp4[2]<<8 | temp4[3]  #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp4byte = temp4byte >> bit_offset
@@ -360,7 +348,7 @@ cdef inline read_unsigned_int(const char* bit_stream, str record_format, unsigne
         else:
             for i in range(number_of_records):
                 memcpy(&temp3, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp4byte = swap24(temp3)  #  swap bytes
+                temp4byte = temp3[0]<<16 | temp3[1]<<8 | temp3[2]  #  swap bytes
                 # right shift 
                 if bit_offset > 0:
                     temp4byte = temp4byte >> bit_offset
@@ -369,32 +357,20 @@ cdef inline read_unsigned_int(const char* bit_stream, str record_format, unsigne
                     temp4byte &= mask
                 buf[i] = temp4byte
         return buf
-    
-cdef inline swap24(char* temp):
-    return swap(temp, 0, 2)
 
-cdef inline swap32(char* temp):
-    cdef char t
-    t = temp[0]
-    temp[0] = temp[3]
-    temp[3] = t
-    t = temp[1]
-    temp[1] = temp[2]
-    temp[2] = t
-    return temp
 
 cdef inline read_signed_int(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg,
         unsigned long bit_count, unsigned char bit_offset, unsigned long n_bytes, unsigned char swap):
     cdef np.ndarray[np.int32_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
     cdef unsigned long long i
-    cdef int mask = ((1 << bit_count) - 1)
+    cdef unsigned int mask = ((1 << bit_count) - 1)
     cdef int temp4byte = 0
-    cdef int sign_bit = 0
-    cdef int sign_bit_mask = (1 << (bit_count-1))
-    cdef int sign_extend = ((1 << (32 - bit_count)) - 1) << bit_count
-    cdef char temp4[4]
-    cdef char temp3[3]
+    cdef unsigned int sign_bit = 0
+    cdef unsigned int sign_bit_mask = (1 << (bit_count-1))
+    cdef unsigned int sign_extend = ((1 << (32 - bit_count)) - 1) << bit_count
+    cdef unsigned char temp4[4]
+    cdef unsigned char temp3[3]
     if bit_count == 32:
         for i in range(number_of_records):
             memcpy(&temp4byte, &bit_stream[pos_byte_beg + record_byte_size * i], 4)
@@ -420,7 +396,7 @@ cdef inline read_signed_int(const char* bit_stream, str record_format, unsigned 
         else:
             for i in range(number_of_records):
                 memcpy(&temp4, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp4byte = swap32(temp4)  #  swap bytes
+                temp4byte = temp4[0]<<24 | temp4[1]<<16 | temp4[2]<<8 | temp4[3]  #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp4byte = temp4byte >> bit_offset
@@ -449,7 +425,7 @@ cdef inline read_signed_int(const char* bit_stream, str record_format, unsigned 
         else:
             for i in range(number_of_records):
                 memcpy(&temp3, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp4byte = swap24(temp3)  #  swap bytes
+                temp4byte = temp3[0]<<16 | temp3[1]<<8 | temp3[2]  #  swap bytes
                 # right shift 
                 if bit_offset > 0:
                     temp4byte = temp4byte >> bit_offset
@@ -469,10 +445,10 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
     cdef unsigned long long i
     cdef unsigned long long mask = ((1 << bit_count) - 1)
     cdef unsigned long long temp8byte = 0
-    cdef char temp8[8]
-    cdef char temp7[7]
-    cdef char temp6[6]
-    cdef char temp5[5]
+    cdef unsigned char temp8[8]
+    cdef unsigned char temp7[7]
+    cdef unsigned char temp6[6]
+    cdef unsigned char temp5[5]
     if bit_count == 64:
         for i in range(number_of_records):
             memcpy(&temp8byte, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
@@ -495,7 +471,8 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp8, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = swap64(temp8) #  swap bytes
+                temp8byte = temp8[0]<<56 | temp8[1]<<48 | temp8[2]<<40 | temp8[3]<<32 | \
+                            temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -517,7 +494,8 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp7, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = swap56(temp7) #  swap bytes
+                temp8byte = temp7[0]<<48 | temp7[1]<<40 | temp7[2]<<32 | \
+                            temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -539,7 +517,8 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp6, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = swap48(temp6) #  swap bytes
+                temp8byte = temp6[0]<<40 | temp6[1]<<32 | temp6[2]<<24 | \
+                            temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -561,7 +540,8 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp5, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = swap40(temp5) #  swap bytes
+                temp8byte = temp5[0]<<32 | temp5[1]<<24 | \
+                            temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -571,72 +551,20 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
                 buf[i] = temp8byte
     return buf
 
-cdef inline swap40(char* temp):
-    cdef char t
-    t = temp[0]
-    temp[0] = temp[4]
-    temp[4] = t
-    t = temp[1]
-    temp[1] = temp[3]
-    temp[3] = t
-    return temp
-
-cdef inline swap48(char* temp):
-    cdef char t
-    t = temp[0]
-    temp[0] = temp[5]
-    temp[5] = t
-    t = temp[1]
-    temp[1] = temp[4]
-    temp[4] = t
-    t = temp[2]
-    temp[2] = temp[3]
-    temp[3] = t
-    return temp
-
-cdef inline swap56(char* temp):
-    cdef char t
-    t = temp[0]
-    temp[0] = temp[6]
-    temp[6] = t
-    t = temp[1]
-    temp[1] = temp[5]
-    temp[5] = t
-    t = temp[2]
-    temp[2] = temp[4]
-    temp[4] = t
-    return temp
-
-cdef inline swap64(char* temp):
-    cdef char t
-    t = temp[0]
-    temp[0] = temp[7]
-    temp[7] = t
-    t = temp[1]
-    temp[1] = temp[6]
-    temp[6] = t
-    t = temp[2]
-    temp[2] = temp[5]
-    temp[5] = t
-    t = temp[3]
-    temp[3] = temp[4]
-    temp[4] = t
-    return temp
-
 cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg,
         unsigned long bit_count, unsigned char bit_offset, unsigned long n_bytes, unsigned char swap):
     cdef np.ndarray[np.int64_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
     cdef unsigned long long i
-    cdef long long mask = ((1 << bit_count) - 1)
+    cdef unsigned long long mask = ((1 << bit_count) - 1)
     cdef long long temp8byte = 0
-    cdef long sign_bit = 0
-    cdef long long sign_bit_mask = (1 << (bit_count-1))
-    cdef long long sign_extend = ((1 << (64 - bit_count)) - 1) << bit_count
-    cdef char temp8[8]
-    cdef char temp7[7]
-    cdef char temp6[6]
-    cdef char temp5[5]
+    cdef unsigned long sign_bit = 0
+    cdef unsigned long long sign_bit_mask = (1 << (bit_count-1))
+    cdef unsigned long long sign_extend = ((1 << (64 - bit_count)) - 1) << bit_count
+    cdef unsigned char temp8[8]
+    cdef unsigned char temp7[7]
+    cdef unsigned char temp6[6]
+    cdef unsigned char temp5[5]
     if bit_count == 64:
         for i in range(number_of_records):
             memcpy(&temp8byte, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
@@ -662,7 +590,8 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp8, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = swap64(temp8) #  swap bytes
+                temp8byte = temp8[0]<<56 | temp8[1]<<48 | temp8[2]<<40 | temp8[3]<<32 | \
+                            temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -690,7 +619,8 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp7, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = swap56(temp7) #  swap bytes
+                temp8byte = temp7[0]<<48 | temp7[1]<<40 | temp7[2]<<32 | \
+                            temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -718,7 +648,8 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp6, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = swap48(temp6) #  swap bytes
+                temp8byte = temp6[0]<<40 | temp6[1]<<32 | temp6[2]<<24 | \
+                            temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
@@ -746,7 +677,8 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp5, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = swap40(temp5) #  swap bytes
+                temp8byte = temp5[0]<<32 | temp5[1]<<24 | \
+                            temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes
                 # right shift
                 if bit_offset > 0:
                     temp8byte = temp8byte >> bit_offset
