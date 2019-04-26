@@ -958,7 +958,8 @@ class Mdf3(MdfSkeleton):
                                 if chan.bit_masking_needed:
                                     # if channel data do not use complete bytes
                                     if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
-                                        temp = right_shift(temp, chan.embedding_channel_bitOffset)
+                                        if chan.embedding_channel_bitOffset > 0:
+                                            temp = right_shift(temp, chan.embedding_channel_bitOffset)
                                         mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
