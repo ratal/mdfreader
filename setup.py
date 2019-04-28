@@ -4,12 +4,12 @@ from os import path
 from distutils.extension import Extension
 from warnings import warn
 
-try:
+try:  # numpy and cython installed
     from Cython.Build import cythonize
     # If we successfully imported Cython, look for a .pyx file
     import numpy
     ext_modules = cythonize('dataRead.pyx', include_path=[numpy.get_include()], gdb_debug=True)
-except:
+except ImportError:
     # If we couldn't import Cython, use the normal setuptools
     # and look for a pre-compiled .c file instead of a .pyx file
     from setuptools.command.build_ext import build_ext
@@ -57,7 +57,8 @@ classifiers = [
     'Programming Language :: Python :: 2.7',
     'Programming Language :: Python :: 3.4',
     'Programming Language :: Python :: 3.5',
-    'Programming Language :: Python :: 3.6'
+    'Programming Language :: Python :: 3.6',
+    'Programming Language :: Python :: 3.7'
 ]
 
 # What does your project relate to?
@@ -103,13 +104,13 @@ extras_require = {
 entry_points = {
     'console_scripts': ['mdfconverter=mdfconverter.mdfconverter:main', ],
 }
-print(ext_modules)
-try:  # try compiling module with cython or c code
+
+try:  # try compiling module with cython or c code with numpy and cython already installed
     setup(name=name, version=version, description=description, long_description=long_description,
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
           entry_points=entry_points, ext_modules=ext_modules, include_dirs=[numpy.get_include()])
-except:  # without Cython
+except:  # could not compile extension dataRead
     import sys
     print("Unexpected error:", sys.exc_info())
     extras_require.pop('experimental')
@@ -117,6 +118,6 @@ except:  # without Cython
     setup(name=name, version=version, description=description, long_description=long_description,
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
-          entry_points=entry_points, include_dirs=[numpy.get_include()])
+          entry_points=entry_points)
     warn('It is strongly advised to install Cython along with compilation environment '
          'for performance and robustness purpose')
