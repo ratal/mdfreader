@@ -5077,7 +5077,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_read_signed_short(char const *_
   PyArrayObject *__pyx_v_buf = 0;
   unsigned PY_LONG_LONG __pyx_v_i;
   unsigned short __pyx_v_mask;
-  unsigned short __pyx_v_temp2byte;
+  short __pyx_v_temp2byte;
   unsigned short __pyx_v_sign_bit;
   unsigned short __pyx_v_sign_bit_mask;
   unsigned short __pyx_v_sign_extend;
@@ -5150,7 +5150,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_read_signed_short(char const *_
  *     cdef np.ndarray[np.int16_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
  *     cdef unsigned long long i
  *     cdef unsigned short mask = ((1 << bit_count) - 1)             # <<<<<<<<<<<<<<
- *     cdef unsigned short temp2byte = 0
+ *     cdef short temp2byte = 0
  *     cdef unsigned short sign_bit = 0
  */
   __pyx_v_mask = ((1 << __pyx_v_bit_count) - 1);
@@ -5158,7 +5158,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_read_signed_short(char const *_
   /* "dataRead.pyx":256
  *     cdef unsigned long long i
  *     cdef unsigned short mask = ((1 << bit_count) - 1)
- *     cdef unsigned short temp2byte = 0             # <<<<<<<<<<<<<<
+ *     cdef short temp2byte = 0             # <<<<<<<<<<<<<<
  *     cdef unsigned short sign_bit = 0
  *     cdef unsigned short sign_bit_mask = (1 << (bit_count-1))
  */
@@ -5166,7 +5166,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_read_signed_short(char const *_
 
   /* "dataRead.pyx":257
  *     cdef unsigned short mask = ((1 << bit_count) - 1)
- *     cdef unsigned short temp2byte = 0
+ *     cdef short temp2byte = 0
  *     cdef unsigned short sign_bit = 0             # <<<<<<<<<<<<<<
  *     cdef unsigned short sign_bit_mask = (1 << (bit_count-1))
  *     cdef unsigned short sign_extend = ((1 << (16 - bit_count)) - 1) << bit_count
@@ -5174,7 +5174,7 @@ static CYTHON_INLINE PyObject *__pyx_f_8dataRead_read_signed_short(char const *_
   __pyx_v_sign_bit = 0;
 
   /* "dataRead.pyx":258
- *     cdef unsigned short temp2byte = 0
+ *     cdef short temp2byte = 0
  *     cdef unsigned short sign_bit = 0
  *     cdef unsigned short sign_bit_mask = (1 << (bit_count-1))             # <<<<<<<<<<<<<<
  *     cdef unsigned short sign_extend = ((1 << (16 - bit_count)) - 1) << bit_count
