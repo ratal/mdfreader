@@ -403,15 +403,15 @@ class Record(list):
                 # so just comparing with previous channel
                 prev_chan = self[-2]
                 prev_chan_includes_curr_chan = channel.posBitBeg >= 8 * prev_chan.byteOffset \
-                    and channel.posBitEnd <= 8 * (prev_chan.byteOffset + prev_chan.nBytes)
+                    and channel.posBitEnd <= 8 * (prev_chan.byteOffset + prev_chan.nBytes_aligned)
                 if embedding_channel is not None:
                     embedding_channel_includes_curr_chan = \
                         channel.posBitEnd <= embedding_channel.posByteEnd * 8
                 else:
                     embedding_channel_includes_curr_chan = False
                 if channel.byteOffset >= prev_chan.byteOffset and \
-                        channel.posBitBeg < 8 * (prev_chan.byteOffset + prev_chan.nBytes) and \
-                        channel.posBitEnd > 8 * (prev_chan.byteOffset + prev_chan.nBytes):
+                        channel.posBitBeg < 8 * (prev_chan.byteOffset + prev_chan.nBytes_aligned) and \
+                        channel.posBitEnd > 8 * (prev_chan.byteOffset + prev_chan.nBytes_aligned):
                     # not byte aligned
                     self.byte_aligned = False
                 if embedding_channel is not None and \
@@ -431,13 +431,13 @@ class Record(list):
                             channel.name
                         self.numpyDataRecordFormat.append(channel.dataFormat)
                         self.dataRecordName.append(channel.name)
-                        self.recordLength += channel.nBytes
+                        self.recordLength += channel.nBytes_aligned
             if embedding_channel is None:  # adding bytes
                 self.recordToChannelMatching[channel.name] = \
                     channel.name
                 self.numpyDataRecordFormat.append(channel.dataFormat)
                 self.dataRecordName.append(channel.name)
-                self.recordLength += channel.nBytes
+                self.recordLength += channel.nBytes_aligned
         if self.recordIDnumber == 2:  # second record ID at end of record
             self.dataRecordName.append('RecordID{}_2'.format(self.channelGroup))
             self.numpyDataRecordFormat.append('uint8')
@@ -536,7 +536,7 @@ class Record(list):
                                           self.CGrecordLength,
                                           chan.bitOffset,
                                           chan.posByteBeg,
-                                          chan.nBytes, 0)
+                                          chan.nBytes_not_aligned, 0)
                             # masking already considered in dataRead
                             self[rec_chan[id].channelNumber].bit_masking_needed = False
                         previous_index += n_record_chunk
@@ -621,16 +621,16 @@ class Record(list):
             if Channel.name in channel_set:
                 temp[Channel.name] = bit_array[Channel.posBitBeg: Channel.posBitEnd]
                 n_bytes = len(temp[Channel.name].tobytes())
-                if not n_bytes == Channel.nBytes:
-                    delta_byte = bitarray(8 * (Channel.nBytes - n_bytes), endian='little')
+                if not n_bytes == Channel.nBytes_aligned:
+                    delta_byte = bitarray(8 * (Channel.nBytes_aligned - n_bytes), endian='little')
                     delta_byte.setall(False)
                     if Channel.signalDataType not in (1, 10, 14):  # not signed integer
                         temp[Channel.name].extend(delta_byte)
                     else:  # signed integer (two's complement), keep sign bit and extend with bytes
                         temp[Channel.name] = signed_int(temp[Channel.name], delta_byte)
-                n_trail_bits = Channel.nBytes*8 - Channel.bitCount
+                n_trail_bits = Channel.nBytes_aligned*8 - Channel.bitCount
                 if Channel.signalDataType in (1, 10, 14) and \
-                        n_bytes == Channel.nBytes and \
+                        n_bytes == Channel.nBytes_aligned and \
                         n_trail_bits > 0:  # Ctype byte length but signed integer
                     trail_bits = bitarray(n_trail_bits, endian='little')
                     temp[Channel.name] = signed_int(temp[Channel.name], trail_bits)

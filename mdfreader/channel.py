@@ -19,14 +19,14 @@ from __future__ import absolute_import  # for consistency between python 2 and 3
 from struct import Struct
 from warnings import warn
 from .mdfinfo4 import ATBlock
-from .mdf import _bits_to_bytes, _convert_name
+from .mdf import _bits_to_bytes_aligned, _bits_to_bytes_not_aligned, _convert_name
 
 CAN_open_offset = {'ms': 0, 'days': 4, 'minute': 2, 'hour': 3, 'day': 4, 'month': 5, 'year': 6}
 
 
 class Channel4(object):
     __slots__ = ['channelNumber', 'channelGroup', 'dataGroup',
-                 'type', 'name', 'VLSD_CG_Flag', 'nBytes', 'byteOffset']
+                 'type', 'name', 'VLSD_CG_Flag', 'nBytes_aligned', 'byteOffset']
     """ channel class gathers all about channel structure in a record
 
     Attributes
@@ -44,7 +44,7 @@ class Channel4(object):
         data group number corresponding to mdfinfo4.info4 class
     VLSD_CG_Flag : bool
         flag when Channel Group VLSD is used
-    nBytes : int
+    nBytes_aligned : int
         number of bytes taken by channel at each sampling
     byteOffset : int
         byte offset in record
@@ -156,7 +156,7 @@ class Channel4(object):
         self.dataGroup = 0
         self.channelGroup = 0
         self.VLSD_CG_Flag = False
-        self.nBytes = 0
+        self.nBytes_aligned = 0
         self.byteOffset = 0
         # self.bit_masking_needed = True
 
@@ -280,7 +280,7 @@ class Channel4(object):
             else:
                 return 8
         elif self.type == 4:  # Invalid bit channel
-            return self.nBytes * 8
+            return self.nBytes_aligned * 8
         else:
             warn('Not found channel type')
 
@@ -395,23 +395,31 @@ class Channel4(object):
         else:
             return False
 
-    def calc_bytes(self, info):
-        """ calculates channel bytes number
+    def calc_bytes(self, info, aligned=True):
+        """ calculates channel aligned bytes number
 
         Parameters
         ----------------
 
         info : mdfinfo4.info4 class
             info4 class containing all MDF Blocks
+        aligned : boolean
+            with or without aligned bytes
 
         Returns
         -----------
         number of bytes integer
         """
-        if not self.type == 4:  # not channel containing invalid bit
-            n_bytes = _bits_to_bytes(info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count']
-                                     + info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
-                                     ['cn_bit_offset'], self.isnumeric(info))
+        if not self.type == 4:  # not channel containing invalid
+            if aligned:
+                n_bytes = _bits_to_bytes_aligned(
+                    info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count']
+                    + info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset'],
+                    self.isnumeric(info))
+            else:
+                n_bytes = _bits_to_bytes_not_aligned(
+                    info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count']
+                    + info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset'])
             if self.type in (1, 2):  # array channel
                 n_bytes *= self.ca_block(info)['PNd']
                 block = self.ca_block(info)
@@ -474,7 +482,7 @@ class Channel4(object):
         """
         endian = ''
         if self.type == 4:  # Invalid bit channel
-            data_format = '{}V'.format(self.nBytes)
+            data_format = '{}V'.format(self.nBytes_aligned)
         elif info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_composition'] and \
                 'CABlock' in info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]:  # channel array
             ca_block = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
@@ -508,7 +516,7 @@ class Channel4(object):
             endian = '<'
         else:  # not channel array
             endian, data_format = array_format4(
-                info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'], self.nBytes)
+                info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'], self.nBytes_aligned)
         return endian, data_format
 
     def data_format(self, info):
@@ -548,16 +556,16 @@ class Channel4(object):
         if self.type == 0:  # standard channel
             if signal_data_type not in (13, 14):
                 if not self.channel_type(info) == 1:  # if not VSLD
-                    endian, data_type = data_type_format4(signal_data_type, self.nBytes)
+                    endian, data_type = data_type_format4(signal_data_type, self.nBytes_aligned)
                 else:  # VLSD
-                    endian, data_type = data_type_format4(0, self.nBytes)
+                    endian, data_type = data_type_format4(0, self.nBytes_aligned)
                 return '{}{}'.format(endian, data_type)
         elif self.type in (1, 2):  # array channel
             ca = self.ca_block(info)
-            n_bytes = _bits_to_bytes(info['CN'][self.dataGroup][self.channelGroup]
-                                     [self.channelNumber]['cn_bit_count'] +
-                                     info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset'],
-                                     self.isnumeric(info))
+            n_bytes = _bits_to_bytes_aligned(
+                info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count'] +
+                info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset'],
+                self.isnumeric(info))
             endian, data_type = data_type_format4(signal_data_type, n_bytes)
             return '{}{}{}'.format(endian, ca['PNd'], data_type)
         elif self.type == 3:  # CAN channel
@@ -571,7 +579,7 @@ class Channel4(object):
             else:
                 return 'B'
         elif self.type == 4:  # Invalid bit channel
-            return '{}s'.format(self.nBytes)
+            return '{}s'.format(self.nBytes_aligned)
         else:
             warn('Not found channel type')
 
@@ -677,7 +685,7 @@ class Channel4(object):
         -----------
         integer, channel bytes ending position
         """
-        return self.pos_byte_beg(info) + self.nBytes
+        return self.pos_byte_beg(info) + self.nBytes_aligned
 
     def pos_bit_beg(self, info):
         """ channel data bit starting position in record
@@ -809,7 +817,7 @@ class Channel4(object):
             block = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
             if 'CABlock' in block:  # nested array
                 self.type = 2
-        self.nBytes = self.calc_bytes(info)
+        self.nBytes_aligned = self.calc_bytes(info)
         self.byteOffset = self.calc_byte_offset(info)
 
     def set_CANOpen(self, info, data_group, channel_group, channel_number, name):
@@ -834,7 +842,7 @@ class Channel4(object):
         self.channelNumber = channel_number
         self.dataGroup = data_group
         self.channelGroup = channel_group
-        self.nBytes = self.calc_bytes(info)
+        self.nBytes_aligned = self.calc_bytes(info)
         self.byteOffset = self.calc_byte_offset(info)
 
     def set_invalid_bytes(self, info, data_group, channel_group, channel_number):
@@ -856,7 +864,7 @@ class Channel4(object):
         self.channelNumber = channel_number
         self.dataGroup = data_group
         self.channelGroup = channel_group
-        self.nBytes = self.calc_bytes(info)
+        self.nBytes_aligned = self.calc_bytes(info)
         self.byteOffset = self.calc_byte_offset(info)
 
     def invalid_bit(self, info):
@@ -906,7 +914,7 @@ class Channel4(object):
         boolean True if channel needs bit masking, otherwise False
 
         """
-        if not self.nBytes == self.bit_count(info) / 8:
+        if not self.nBytes_aligned == self.bit_count(info) / 8:
             self.bit_masking_needed = True
         else:
             self.bit_masking_needed = False
@@ -1149,7 +1157,7 @@ class Channel3:
         signal type according to specification
     bitCount : int
         number of bits used to store channel record
-    nBytes : int
+    nBytes_aligned : int
         number of bytes (1 byte = 8 bits) taken by channel record
     dataFormat : str
         numpy dtype as string
@@ -1213,14 +1221,15 @@ class Channel3:
         self.posBitEnd = self.posBitBeg + self.bitCount
         self.byteOffset = self.posBitBeg // 8
         self.bitOffset = self.posBitBeg % 8
-        self.nBytes = _bits_to_bytes(self.bitCount + self.bitOffset, numeric)
+        self.nBytes_aligned = _bits_to_bytes_aligned(self.bitCount + self.bitOffset, numeric)
+        self.nBytes_not_aligned = _bits_to_bytes_not_aligned(self.bitCount + self.bitOffset)
         (self.dataFormat, self.nativedataFormat) = \
-            _array_format3(self.signalDataType, self.nBytes, byte_order)
-        self.CFormat = Struct(_data_type_format3(self.signalDataType, self.nBytes, byte_order))
+            _array_format3(self.signalDataType, self.nBytes_aligned, byte_order)
+        self.CFormat = Struct(_data_type_format3(self.signalDataType, self.nBytes_aligned, byte_order))
         self.embedding_channel_bitOffset = self.bitOffset  # for channel containing other channels
         self.posByteBeg = record_id_number + self.byteOffset
-        self.posByteEnd = record_id_number + self.byteOffset + self.nBytes
-        if not self.nBytes == self.bitCount / 8:
+        self.posByteEnd = record_id_number + self.byteOffset + self.nBytes_aligned
+        if not self.nBytes_aligned == self.bitCount / 8:
             self.bit_masking_needed = True
         else:
             self.bit_masking_needed = False

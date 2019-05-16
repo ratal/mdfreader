@@ -708,7 +708,7 @@ def _open_mdf(file_name):
     return (fid, file_name, zipfile)
 
 
-def _bits_to_bytes(n_bits, numeric=True):
+def _bits_to_bytes_aligned(n_bits, numeric=True):
     """ Converts number of bits into number of aligned bytes
 
     Parameters
@@ -720,7 +720,7 @@ def _bits_to_bytes(n_bits, numeric=True):
 
     Returns
     ----------
-    number of equivalent bytes
+    number of equivalent aligned bytes
     """
     if numeric:
         if n_bits == 0:
@@ -735,13 +735,27 @@ def _bits_to_bytes(n_bits, numeric=True):
             n_bytes = 8
         else:
             warn('error converting bits into bytes for a numeric channel, too many bits')
-            n_bytes = n_bits // 8
-            if not n_bits % 8 == 0:
-                n_bytes += 1
+            n_bytes = _bits_to_bytes_not_aligned(n_bits)
     else:
-        n_bytes = n_bits // 8
-        if not n_bits % 8 == 0:
-            n_bytes += 1
+        n_bytes = _bits_to_bytes_not_aligned(n_bits)
+    return n_bytes
+
+
+def _bits_to_bytes_not_aligned(n_bits):
+    """ Converts number of bits into number of not aligned bytes
+
+    Parameters
+    -------------
+    n_bits : int
+        number of bits
+
+    Returns
+    ----------
+    number of equivalent not aligned bytes
+    """
+    n_bytes = n_bits // 8
+    if not n_bits % 8 == 0:
+        n_bytes += 1
     return n_bytes
 
 

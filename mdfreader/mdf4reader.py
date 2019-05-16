@@ -732,7 +732,7 @@ class Record(list):
                         channel_pos_bit_beg = channel.pos_bit_beg(info)
                         prev_chan = self[-2]
                         prev_chan_byte_offset = prev_chan.byteOffset
-                        prev_chan_n_bytes = prev_chan.nBytes
+                        prev_chan_n_bytes = prev_chan.nBytes_aligned
                         prev_chan_includes_curr_chan = channel_pos_bit_beg >= 8 * prev_chan_byte_offset \
                             and channel_pos_bit_end <= 8 * (prev_chan_byte_offset + prev_chan_n_bytes)
                         if embedding_channel is not None:
@@ -759,12 +759,12 @@ class Record(list):
                                 self.recordToChannelMatching[channel.name] = channel.name
                                 self.numpyDataRecordFormat.append(data_format)
                                 self.dataRecordName.append(channel.name)
-                                self.recordLength += channel.nBytes
+                                self.recordLength += channel.nBytes_aligned
                     if embedding_channel is None:  # adding bytes
                         self.recordToChannelMatching[channel.name] = channel.name
                         self.numpyDataRecordFormat.append(data_format)
                         self.dataRecordName.append(channel.name)
-                        self.recordLength += channel.nBytes
+                        self.recordLength += channel.nBytes_aligned
                     if 'VLSD_CG' in info:  # is there VLSD CG
                         for recordID in info['VLSD_CG']:  # look for VLSD CG Channel
                             if info['VLSD_CG'][recordID]['cg_cn'] == (self.channelGroup, channelNumber):
@@ -1020,7 +1020,7 @@ class Record(list):
                                   self[chan].native_data_format(info),
                                   n_records, self.CGrecordLength,
                                   self[chan].bit_offset(info), self[chan].pos_byte_beg(info),
-                                  self[chan].nBytes, array_flag)
+                                  self[chan].calc_bytes(info, aligned=False), array_flag)
                 return buf
             else:
                 return self.read_channels_from_bytes_fallback(bit_stream, info, channel_set, n_records, dtype)
@@ -1078,7 +1078,7 @@ class Record(list):
             record_bit_size = self.CGrecordLength * 8
             for chan in channels_indexes:
                 signal_data_type = self[chan].signal_data_type(info)
-                n_bytes_estimated = self[chan].nBytes
+                n_bytes_estimated = self[chan].nBytes_aligned
                 if not self[chan].type in (1, 2):
                     temp = [bit_array[self[chan].pos_bit_beg(info) + record_bit_size * i:
                             self[chan].pos_bit_end(info) + record_bit_size * i]
