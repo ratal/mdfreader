@@ -103,9 +103,9 @@ def _convert_to_matlab_name(channel):
 
 class MdfInfo(dict):
     __slots__ = ['fileName', 'fid', 'zipfile', 'mdfversion', 'filterChannelNames']
-    """ MDFINFO is a class gathering information from block headers in a MDF (Measure Data Format) file
-        Structure is nested dicts. Primary key is Block type, then data group, channel group and channel number.
-        Examples of dicts
+    """ MDFINFO is a class gathering information from block headers in a MDF (Measure Data Format) file.
+    Structure is nested dicts. Primary key is Block type, then data group, channel group and channel number.
+    Examples of dicts
     - mdfinfo['HDBlock'] header block
     - mdfinfo['DGBlock'][dataGroup] Data Group block
     - mdfinfo['CGBlock'][dataGroup][channelGroup] Channel Group block
@@ -244,7 +244,6 @@ class MdfInfo(dict):
 
 
 class Mdf(Mdf3, Mdf4):
-
     """ Mdf class
 
     Attributes
@@ -346,35 +345,35 @@ class Mdf(Mdf3, Mdf4):
             file name
 
         multi_processed : bool
-            flag to activate multiprocessing of channel data conversion
+            flag to activate multiprocessing of channel data conversion.
 
         channel_list : list of str, optional
-            list of channel names to be read
+            list of channel names to be read.
             If you use channelList, reading might be much slower but it will save you memory.
-            Can be used to read big files
+            Can be used to read big files.
 
         convert_after_read : bool, optional
-            flag to convert channel after read, True by default
+            flag to convert channel after read, True by default.
             If you use convertAfterRead by setting it to false, all data from channels will be kept raw,
-            no conversion applied. If many float are stored in file, you can gain from 3 to 4 times memory footprint
-            To calculate value from channel, you can then use method .getChannelData()
+            no conversion applied. If many float are stored in file, you can gain from 3 to 4 times memory footprint.
+            To calculate value from channel, you can then use method getChannelData()
 
         filter_channel_names : bool, optional
             flag to filter long channel names from its module names separated by '.'
 
         no_data_loading : bool, optional
-            Flag to read only file info but no data to have minimum memory use
+            Flag to read only file info but no data to have minimum memory use.
 
         compression : bool or str, optional
-            To compress data in memory using blosc or bcolz, takes cpu time
-            if compression = int(1 to 9), uses bcolz for compression
-            if compression = 'blosc', uses blosc for compression
-            Choice given, efficiency depends of data
+            To compress data in memory using blosc or bcolz, takes cpu time.
+            if compression = int(1 to 9), uses bcolz for compression.
+            if compression = 'blosc', uses blosc for compression.
+            Choice given, efficiency depends of data.
 
         metadata: int, optional, default = 2
             Reading metadata has impact on performance, especially for mdf 4.x using xml.
-            2: minimal metadata reading (mostly channel blocks)
-            1: used for noDataLoading
+            2: minimal metadata reading (mostly channel blocks).
+            1: used for noDataLoading.
             0: all metadata reading, including Source Information, Attachment, etc..
 
         Notes
