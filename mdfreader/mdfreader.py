@@ -12,14 +12,14 @@ Created on Sun Oct 10 12:57:28 2010
 Dependencies
 -------------------
 - Python >2.6, >3.2 <http://www.python.org>
-- Numpy >1.6 <http://numpy.scipy.org>
+- Numpy >1.14 <http://numpy.scipy.org>
 - Sympy to convert channels with formula
 - bitarray for not byte aligned data parsing
 - Matplotlib >1.0 <http://matplotlib.sourceforge.net>
 - NetCDF
 - h5py for the HDF5 export
 - xlwt for the excel export (not existing for python3)
-- openpyxl for the excel 2007 export
+- openpyxl >2.0 for the excel 2007 export
 - scipy for the Matlab file conversion
 - zlib to uncompress data block if needed
 
@@ -300,8 +300,8 @@ class Mdf(Mdf3, Mdf4):
 
     Notes
     --------
-    mdf class is a nested dict
-    Channel name is the primary dict key of mdf class
+    mdf class is a nested dict.
+    Channel name is the primary dict key of mdf class.
     At a higher level, each channel includes the following keys :
         - 'data' : containing vector of data (numpy)
         - 'unit' : unit (string)
@@ -330,6 +330,10 @@ class Mdf(Mdf3, Mdf4):
     # drops all the channels except the one in argument
     >>> yop.keep_channels(['channel1','channel2','channel3'])
     >>> yop.get_channel_data('channelName') # returns channel numpy array
+    >>> yop=mdfreader.Mdf()  # create an empty Mdf object
+    # add channel in Mdf object
+    >>> yop.add_channel(channel_name, data, master_channel, master_type, unit='lumen', description='what you want')
+    >>> yop.write('filename') # change version with yop.MDFVersionNumber or specifically use write3/4()
     """
 
     def read(self, file_name=None, multi_processed=False, channel_list=None, convert_after_read=True,
@@ -475,7 +479,7 @@ class Mdf(Mdf3, Mdf4):
         return vector
 
     def convert_all_channels(self):
-        """Converts all channels from raw data to converted data according to CCBlock information
+        """Converts all channels from raw data to converted data according to CCBlock information.
         Converted data will take more memory.
         """
         if self.MDFVersionNumber < 400:
@@ -946,8 +950,8 @@ class Mdf(Mdf3, Mdf4):
 
         Notes
         --------
-        The maximum attributes will be stored
-        Data structure will be similar has it is in masterChannelList attribute
+        The maximum attributes will be stored.
+        Data structure will be similar has it is in masterChannelList attribute.
         Dependency: h5py
         """
         #
@@ -1057,7 +1061,7 @@ class Mdf(Mdf3, Mdf4):
         This method will dump all data into Matlab file but you will loose below information:
         - unit and descriptions of channel
         - data structure, what is corresponding master channel to a channel.
-        Channels might have then different lengths
+        Channels might have then different lengths.
         Dependency: scipy
         """
         # export class data structure into .mat file
@@ -1094,9 +1098,9 @@ class Mdf(Mdf3, Mdf4):
 
         Notes
         --------
-        xlwt is not fast even for small files, consider other binary formats like HDF5 or Matlab
-        If there are more than 256 channels, data will be saved over different worksheets
-        Also Excel 2003 is becoming rare these days, prefer using exportToXlsx
+        xlwt is not fast even for small files, consider other binary formats like HDF5 or Matlab.
+        If there are more than 256 channels, data will be saved over different worksheets.
+        Also Excel 2003 is becoming rare these days, prefer using exportToXlsx.
         Dependencies: xlwt for python 2.6+, xlwt3 for python 3.2+
         """
         try:
@@ -1283,7 +1287,7 @@ class Mdf(Mdf3, Mdf4):
 
         Notes
         --------
-        One pandas dataframe is converted per data group
+        One pandas dataframe is converted per data group (one master per data group)
         """
         # convert data structure into pandas module
         try:

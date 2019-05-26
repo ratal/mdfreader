@@ -104,16 +104,16 @@ class MdfSkeleton(dict):
             file name
 
         channel_list : list of str, optional
-            list of channel names to be read
+            list of channel names to be read.
             If you use channelList, reading might be much slower but it will
             save you memory. Can be used to read big files.
 
         convert_after_read : bool, optional
-            flag to convert channel after read, True by default
+            flag to convert channel after read, True by default.
             If you use convertAfterRead by setting it to false, all data from
             channels will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times
-            memory footprint
+            memory footprint.
             To calculate value from channel, you can then use
             method .get_channel_data()
 
@@ -122,11 +122,11 @@ class MdfSkeleton(dict):
             separated by '.'
 
         compression : bool optional
-            flag to compress data in memory
+            flag to compress data in memory.
 
         convert_tables : bool, optional, default False
             flag to convert or not only conversions with tables.
-            These conversions types take generally long time and memory
+            These conversions types take generally long time and memory.
         """
         self.masterChannelList = OrderedDict()
         # flag to control multiprocessing, default deactivate,

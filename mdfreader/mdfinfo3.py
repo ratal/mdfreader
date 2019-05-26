@@ -9,7 +9,7 @@ Created on Thu Dec 9 12:57:28 2014
 Dependencies
 -------------------
 - Python >2.6, >3.2 <http://www.python.org>
-- Numpy >1.6 <http://numpy.scipy.org>
+- Numpy >1.14 <http://numpy.scipy.org>
 
 
 Attributes
