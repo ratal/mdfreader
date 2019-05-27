@@ -107,6 +107,7 @@ entry_points = {
 
 try:  # try compiling module with cython or c code with numpy and cython already installed
     setup(name=name, version=version, description=description, long_description=long_description,
+          long_description_content_type='text/markdown',
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
           entry_points=entry_points, ext_modules=ext_modules, include_dirs=[numpy.get_include()])
@@ -116,6 +117,7 @@ except:  # could not compile extension dataRead
     extras_require.pop('experimental')
     install_requires.append('bitarray')  # replaces cython requirement by bitarray
     setup(name=name, version=version, description=description, long_description=long_description,
+          long_description_content_type='text/markdown',
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
           entry_points=entry_points)
