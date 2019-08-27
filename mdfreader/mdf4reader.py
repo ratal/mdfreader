@@ -143,13 +143,14 @@ def _read_unsorted(record, info, parent_block, channel_set=None):
     ------------
     record : class
         record class
-    info: info class
+    info: class
+        info class
     channel_set : set of str, optional
         set of channel to read
     parent_block:
         number of records
     channel_set: set
-    set of channel names to be parsed
+        set of channel names to be parsed
 
     Returns
     --------
@@ -331,11 +332,18 @@ class Data(dict):
         record: class
             channel group definition listing record channel classes
         """
-        self[record.recordID] = {}
-        self[record.recordID]['record'] = record
-        # detects VLSD CG
-        for recordID in self[record.recordID]['record'].VLSD_CG:
-            self[recordID]['record'].VLSD_CG = self[record.recordID]['record'].VLSD_CG
+        if record.recordID not in self:  # do not overwrite already existing record in Data, for VLSD_CG
+            self[record.recordID] = {}
+            self[record.recordID]['record'] = record
+            # detects VLSD CG
+            for recordID in self[record.recordID]['record'].VLSD_CG:
+                if recordID not in self:  # create new recordId
+                    self[recordID] = {}
+                    self[recordID]['record'] = record
+                self[recordID]['record'].VLSD_CG = self[record.recordID]['record'].VLSD_CG
+        else:  # VLSD_CG
+            record.VLSD_CG = self[record.recordID]['record'].VLSD_CG
+            self[record.recordID]['record'] = record
 
     def read(self, channel_set, info, filename):
         """Reads data block
@@ -487,9 +495,14 @@ class Data(dict):
             temps.update(temp)
             self.pointer_to_data = temps['hl_dl_first']
             temps['data'] = self.load(record, info, name_list=name_list, sorted_flag=sorted_flag, vlsd=vlsd)
-        elif temps['id'] in ('##DT', '##RD', b'##DT', b'##RD'):  # normal sorted data block, direct read
-            temps['data'] = record.read_sorted_record(self.fid, info, channel_set=name_list)
-        elif temps['id'] in ('##SD', b'##SD'):  # VLSD
+        elif temps['id'] in ('##DT', '##RD', b'##DT', b'##RD'):
+            if sorted_flag:  # normal sorted data block, direct read
+                temps['data'] = record.read_sorted_record(self.fid, info, channel_set=name_list)
+            else:  # VLSD_CG
+                temps['data'] = self.fid.read(temps['length'] - 24)
+                temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,
+                                            sorted_flag=sorted_flag)
+        elif temps['id'] in ('##SD', b'##SD'):  # VLSD, not CG
             temps['data'] = self.fid.read(temps['length'] - 24)
             temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,
                                         sorted_flag=sorted_flag)
@@ -632,6 +645,7 @@ class Record(list):
         for record in self.numpyDataRecordFormat:
             output.append(' {} '.format(record))
         output.append('\nVLSD_CG {}\n'.format(self.VLSD_CG))
+        output.append('\nCG_flags {}\n'.format(self.Flags))
         return ''.join(output)
 
     def add_channel(self, info, channel_number):
