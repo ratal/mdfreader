@@ -3,7 +3,7 @@
 
 Abstract:
 =========
-This Module imports MDF files (Measured Data Format V3.x and V4.x), typically from INCA (ETAS), CANape or CANOe. It is widely used in automotive industry to record data from ECUs. The main module mdfreader.py inherits from 2 modules (One pair for each MDF version X) : The first one to read the file's blocks descriptions (mdfinfoX) and the second (mdfXreader) to read the raw data from the file. It can optionally run multithreaded. It was built in mind to process efficently big amount of data in a batch, endurance evaluation files for data mining.
+This Module imports MDF files (Measured Data Format V3.x and V4.x), typically from INCA (ETAS), CANape or CANOe. It is widely used in automotive industry to record data from ECUs. The main module mdfreader.py inherits from 2 modules (One pair for each MDF version X) : The first one to read the file's blocks descriptions (mdfinfoX) and the second (mdfXreader) to read the raw data from the file. It can optionally run multithreaded. It was built in mind to process efficiently big amount of data in a batch, endurance evaluation files for data mining.
 
 The structure of the mdf object inheriting from python dict
 ===========================================================
@@ -71,10 +71,10 @@ User interface in PyQt4 or PyQt5 to convert batch of files is part of package. Y
 Others:
 =======
 In the case of big files or lack of memory, you can optionally:
-* Read only a channel list (argument channelList = ['channel', 'list'], you can get the file channel list without loading data with mdfinfo)
-* Keep raw data as stored in mdf without data type conversion (argument convertAfterRead=False). Data will then be converted on the fly by the other functions (plot, exportTo..., getChannelData, etc.) but raw data type will remain as in mdf file along with conversion information.
+* Read only a channel list (argument channel_list = ['channel', 'list'], you can get the file channel list without loading data with mdfinfo)
+* Keep raw data as stored in mdf without data type conversion (argument convert_after_read=False). Data will then be converted on the fly by the other functions (plot, export_to..., get_channel_data, etc.) but raw data type will remain as in mdf file along with conversion information.
 * Compress data in memory with blosc with argument compression. Default compression level is 9.
-* Create a mdf dict with its metadata but without data (argument noDataLoading=True). Data will be read from file on demand by mdfreader methods (in general by getChannelData method)
+* Create a mdf dict with its metadata but without data (argument no_data_loading=True). Data will be read from file on demand by mdfreader methods (in general by get_channel_data method)
 
 For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
 
@@ -87,11 +87,11 @@ Command example in ipython:
     # you can print file content in ipython with a simple:
     yop
     # alternatively, for max speed and smaller memory footprint, read only few channels
-    yop=mdfreader.Mdf('NameOfFile', channelList=['channel1', 'channel2'], convertAfterRead=False)
+    yop=mdfreader.Mdf('NameOfFile', channel_list=['channel1', 'channel2'], convert_after_read=False)
     # also possible to keep data compressed for small memory footprint, using Blosc module
     yop=mdfreader.Mdf('NameOfFile', compression=True)
     # for interactive file exploration, possible to read the file but not its data to save memory
-    yop=mdfreader.Mdf('NameOfFile', noDataLoading=True) # channel data will be loaded from file if needed
+    yop=mdfreader.Mdf('NameOfFile', no_data_loading=True) # channel data will be loaded from file if needed
     # parsing xml metadata from mdf4.x for many channels can take more than just reading data.
     # You can reduce to minimum metadata reading with below argument (no source information, attachment, etc.) 
     yop=mdfreader.Mdf('NameOfFile', metadata=0)  # 0: full, 2: minimal
