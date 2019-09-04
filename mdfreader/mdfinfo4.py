@@ -2230,7 +2230,7 @@ def _generate_dummy_mdf4(info, channel_list):
                             mdfdict[name][unitField] = ''
                         mdfdict[name][masterField] = 0  # default is time
                         mdfdict[name][masterTypeField] = None
-                        mdfdict[name][idField] = (dg, cg, cn)
+                        mdfdict[name][idField] = info.unique_id(dg, cg, cn)
                     if info['CN'][dg][cg][cn]['cn_sync_type']:
                         # master channel of cg
                         master = name

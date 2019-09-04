@@ -1283,7 +1283,7 @@ class Mdf4(MdfSkeleton):
 
         data_groups = info['DG']  # parse all data groups
         if self._noDataLoading and channel_list is not None:
-            data_groups = [self[channel][idField][0] for channel in channel_list]
+            data_groups = [self[channel][idField][0][0] for channel in channel_list]
 
         for dataGroup in data_groups:
             channel_set = channel_set_file
@@ -1324,7 +1324,7 @@ class Mdf4(MdfSkeleton):
 
                     channel_groups = buf
                     if self._noDataLoading and channel_list is not None:
-                        channel_groups = [info['CG'][dataGroup][self[channel][idField][1]]['cg_record_id']
+                        channel_groups = [info['CG'][dataGroup][self[channel][idField][0][1]]['cg_record_id']
                                           for channel in channel_list]
 
                     # processing data from buf then transfer to self
@@ -1334,7 +1334,7 @@ class Mdf4(MdfSkeleton):
 
                             channels = buf[record_id]['record']
                             if self._noDataLoading and channel_list is not None:
-                                channels = [channels[self[channel][idField][2]] for channel in channel_list]
+                                channels = [channels[self[channel][idField][0][2]] for channel in channel_list]
                             for chan in channels:  # for each channel class
                                 if channel_set is None or chan.name in channel_set:
                                     if not chan.type == 4:  # normal channel
