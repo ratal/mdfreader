@@ -244,7 +244,7 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length):
             pointer += 4
             buf.append(sd_block[pointer:pointer + VLSDLen])
             pointer += VLSDLen
-        # buf = _equalize_byte_length(buf)
+        buf = _equalize_byte_length(buf)
     return array(buf)
 
 
@@ -278,7 +278,7 @@ def _equalize_byte_length(buf):
     """
     max_len = len(max(buf, key=len))
     for i, element in enumerate(buf):  # resize string to same length, numpy constrain
-        buf[i] = bytearray(element).extend(b'0' * (max_len - len(element)))
+        buf[i] = bytearray(element).rjust(max_len,  b'\x00')
     return buf
 
 
