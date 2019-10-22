@@ -237,15 +237,16 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length):
             pointer += 4
             buf.append(sd_block[pointer:pointer + VLSDLen].decode(channel_format).rstrip('\x00'))
             pointer += VLSDLen
-        buf = _equalize_string_length(buf)
+        buf = array(_equalize_string_length(buf))
     else:  # byte arrays or mime types
         while pointer < sd_block_length:
             VLSDLen = structunpack('I', sd_block[pointer:pointer + 4])[0]  # length of data
             pointer += 4
             buf.append(sd_block[pointer:pointer + VLSDLen])
             pointer += VLSDLen
-        buf = _equalize_byte_length(buf)
-    return array(buf)
+        buf, max_len = _equalize_byte_length(buf)
+        buf = frombuffer(buf, dtype='V{}'.format(max_len))
+    return buf
 
 
 def _equalize_string_length(buf):
@@ -277,9 +278,10 @@ def _equalize_byte_length(buf):
     list of bytes all having same length
     """
     max_len = len(max(buf, key=len))
+    output = bytearray()
     for i, element in enumerate(buf):  # resize string to same length, numpy constrain
-        buf[i] = bytearray(element).rjust(max_len,  b'\x00')
-    return buf
+        output.extend(bytearray(element).rjust(max_len,  b'\x00'))
+    return output, max_len
 
 
 class Data(dict):
