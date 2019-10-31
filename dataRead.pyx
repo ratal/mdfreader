@@ -6,6 +6,9 @@ from sys import byteorder
 from cpython.bytes cimport PyBytes_AsString
 from libc.string cimport memcpy
 
+cdef extern from "complex.h":
+    pass
+
 #@cython.boundscheck(False)
 #@cython.wraparound(False)
 def data_read(bytes tmp, unsigned short bit_count,
@@ -64,6 +67,14 @@ def data_read(bytes tmp, unsigned short bit_count,
             else: #  swap bytes
                 return read_double(bit_stream, record_format, number_of_records,
                                       record_byte_size, pos_byte_beg, 1)
+        elif signal_data_type in (4, 5) and n_bytes == 2:  # half precision
+            if (byteorder == 'little' and signal_data_type == 4) or \
+                    (byteorder == 'big' and signal_data_type == 5):
+                return read_half(bit_stream, record_format, number_of_records,
+                                      record_byte_size, pos_byte_beg, 0)
+            else: #  swap bytes
+                return read_half(bit_stream, record_format, number_of_records,
+                                      record_byte_size, pos_byte_beg, 1)
         elif signal_data_type in (0, 1, 13) and n_bytes == 1:  # unsigned char
             return read_unsigned_char(bit_stream, record_format, number_of_records,
                                  record_byte_size, pos_byte_beg, bit_count, bit_offset)
@@ -118,6 +129,21 @@ def data_read(bytes tmp, unsigned short bit_count,
             else: #  swap bytes
                 return read_signed_longlong(bit_stream, record_format, number_of_records,
                                         record_byte_size, pos_byte_beg, bit_count, bit_offset, n_bytes, 1)
+        elif signal_data_type in (15, 16):  # complex
+            if (byteorder == 'little' and signal_data_type == 0) or \
+                    (byteorder == 'big' and signal_data_type == 1):
+                swap_flag = 0
+            else: #  swap bytes
+                swap_flag = 1
+            if n_bytes == 16:
+                return read_cdouble(bit_stream, record_format, number_of_records,
+                                      record_byte_size, pos_byte_beg, 0)
+            elif n_bytes == 8:
+                return read_cfloat(bit_stream, record_format, number_of_records,
+                                      record_byte_size, pos_byte_beg, 0)
+            elif n_bytes == 4:
+                return read_chalf(bit_stream, record_format, number_of_records,
+                                      record_byte_size, pos_byte_beg, 0)
         else:
             return read_byte(bit_stream, record_format, number_of_records,
                                 record_byte_size, pos_byte_beg, n_bytes, bit_count, bit_offset)
@@ -130,6 +156,33 @@ def data_read(bytes tmp, unsigned short bit_count,
             return read_array(bit_stream, record_format, number_of_records,
                                  record_byte_size, pos_byte_beg, n_bytes, bit_count, bit_offset, 1)
 
+cdef inline read_half(const char* bit_stream, str record_format, unsigned long long number_of_records,
+        unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
+    cdef np.ndarray[np.float16_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
+    cdef unsigned long long i
+    cdef float temp_float = 0  # most probably not ok, temp_float too big
+    for i in range(number_of_records):
+        # Most probably the copy of 2 bytes into a 4 bytes placeholder is not correct
+        memcpy(&temp_float, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
+        buf[i] = temp_float
+    if swap == 0:
+        return buf
+    else:
+        return buf.byteswap()
+
+cdef inline read_chalf(const char* bit_stream, str record_format, unsigned long long number_of_records,
+        unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
+    cdef np.ndarray[np.complex64_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
+    cdef unsigned long long i
+    cdef float complex temp_cfloat = 0
+    for i in range(number_of_records):
+        memcpy(&temp_cfloat, &bit_stream[pos_byte_beg + record_byte_size * i], 4)
+        # Most probably the copy of 4 bytes into a 8 bytes placeholder is not correct
+        buf[i] = temp_cfloat
+    if swap == 0:
+        return buf
+    else:
+        return buf.byteswap()
 
 cdef inline read_float(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
@@ -143,7 +196,20 @@ cdef inline read_float(const char* bit_stream, str record_format, unsigned long 
         return buf
     else:
         return buf.byteswap()
-    
+
+cdef inline read_cfloat(const char* bit_stream, str record_format, unsigned long long number_of_records,
+        unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
+    cdef np.ndarray[np.complex64_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
+    cdef unsigned long long i
+    cdef float complex temp_cfloat = 0
+    for i in range(number_of_records):
+        memcpy(&temp_cfloat, &bit_stream[pos_byte_beg + record_byte_size * i], 8)
+        buf[i] = temp_cfloat
+    if swap == 0:
+        return buf
+    else:
+        return buf.byteswap()
+
 cdef inline read_double(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
     cdef np.ndarray[np.float64_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
@@ -156,7 +222,20 @@ cdef inline read_double(const char* bit_stream, str record_format, unsigned long
         return buf
     else:
         return buf.byteswap()
-    
+
+cdef inline read_cdouble(const char* bit_stream, str record_format, unsigned long long number_of_records,
+        unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
+    cdef np.ndarray[np.complex128_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
+    cdef unsigned long long i
+    cdef double complex temp_cdouble = 0
+    for i in range(number_of_records):
+        memcpy(&temp_cdouble, &bit_stream[pos_byte_beg + record_byte_size * i], 16)
+        buf[i] = temp_cdouble
+    if swap == 0:
+        return buf
+    else:
+        return buf.byteswap()
+
 cdef inline read_unsigned_char(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg,
         unsigned long bit_count, unsigned char bit_offset):
