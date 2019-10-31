@@ -245,6 +245,8 @@ class Channel4(object):
         12 mime stream
         13 CANopen date
         14 CANopen time
+        15 LE Complex
+        16 BE Complex
         """
         if not self.type == 4:  # Invalid bit channel
             return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type']
@@ -963,7 +965,9 @@ def array_format4(signal_data_type, number_of_bytes):
         endian = '<'
 
     elif signal_data_type == 4:  # floating point, low endian
-        if number_of_bytes == 4:
+        if number_of_bytes == 2:
+            data_type = 'f2'
+        elif number_of_bytes == 4:
             data_type = 'f4'
         elif number_of_bytes == 8:
             data_type = 'f8'
@@ -998,7 +1002,9 @@ def array_format4(signal_data_type, number_of_bytes):
         endian = '>'
 
     elif signal_data_type == 5:  # floating point, big endian
-        if number_of_bytes == 4:
+        if number_of_bytes == 2:
+            data_type = 'f2'
+        elif number_of_bytes == 4:
             data_type = 'f4'
         elif number_of_bytes == 8:
             data_type = 'f8'
@@ -1027,6 +1033,28 @@ def array_format4(signal_data_type, number_of_bytes):
     elif signal_data_type in (13, 14):  # CANOpen date or time
         data_type = ''
         endian = ''
+    elif signal_data_type == 15:  # LE complex
+        if number_of_bytes == 4:
+            # data_type = 'c4'
+            raise Exception('numpy does not support yet half precision complex')
+        elif number_of_bytes == 8:
+            data_type = 'c8'
+        elif number_of_bytes == 16:
+            data_type = 'c16'
+        else:
+            warn('Unsupported number of bytes for floating point {}'.format(number_of_bytes))
+        endian = '<'
+    elif signal_data_type == 16:  # BE complex
+        if number_of_bytes == 4:
+            # data_type = 'c4'
+            raise Exception('numpy does not support yet half precision complex')
+        elif number_of_bytes == 8:
+            data_type = 'c8'
+        elif number_of_bytes == 16:
+            data_type = 'c16'
+        else:
+            warn('Unsupported number of bytes for floating point {}'.format(number_of_bytes))
+        endian = '>'
     else:
         warn('Unsupported Signal Data Type {} {}'.format(signal_data_type, number_of_bytes))
 
@@ -1102,7 +1130,9 @@ def data_type_format4(signal_data_type, number_of_bytes):
         endian = '>'
 
     elif signal_data_type == 4:  # floating point
-        if number_of_bytes == 4:
+        if number_of_bytes == 2:
+            data_type = 'e'
+        elif number_of_bytes == 4:
             data_type = 'f'
         elif number_of_bytes == 8:
             data_type = 'd'
@@ -1111,7 +1141,9 @@ def data_type_format4(signal_data_type, number_of_bytes):
         endian = '<'
 
     elif signal_data_type == 5:  # floating point
-        if number_of_bytes == 4:
+        if number_of_bytes == 2:
+            data_type = 'e'
+        elif number_of_bytes == 4:
             data_type = 'f'
         elif number_of_bytes == 8:
             data_type = 'd'
@@ -1129,6 +1161,28 @@ def data_type_format4(signal_data_type, number_of_bytes):
 
     elif signal_data_type == 9:  # UTF16 string/bytes
         data_type = '{}s'.format(number_of_bytes)
+        endian = '>'
+
+    elif signal_data_type == 15:  # LE Complex
+        if number_of_bytes == 2:
+            data_type = '2e'
+        elif number_of_bytes == 4:
+            data_type = '2f'
+        elif number_of_bytes == 8:
+            data_type = '2d'
+        else:
+            warn('Unsupported number of bytes for floating point {}'.format(signal_data_type))
+        endian = '<'
+
+    elif signal_data_type == 16:  # BE Complex
+        if number_of_bytes == 2:
+            data_type = '2e'
+        elif number_of_bytes == 4:
+            data_type = '2f'
+        elif number_of_bytes == 8:
+            data_type = '2d'
+        else:
+            warn('Unsupported number of bytes for floating point {}'.format(signal_data_type))
         endian = '>'
 
     else:
