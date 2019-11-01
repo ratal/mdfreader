@@ -1317,8 +1317,8 @@ class Mdf3(MdfSkeleton):
                 # conversion already done during reading
                 # additional size information, not necessary for 65535 conversion type ?
                 try:
-                    unit = '{:\x00<20.19}'.format(self.get_channel_unit(channel)
-                                                  .encode('latin-1', 'replace'))
+                    unit = '{:\x00<20.19}'.format(self.get_channel_unit(channel))\
+                                                  .encode('latin-1', 'replace')
                 except:
                     unit = b'\x00' * 20
                 head = (b'CC', 46, value_range_valid, minimum, maximum,
