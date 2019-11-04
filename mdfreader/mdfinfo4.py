@@ -53,8 +53,10 @@ _DZStruct = Struct('<2s2BI2Q')
 _HLStruct = Struct('<QHB5s')
 _SIStruct = Struct('<4sI5Q3B5s')
 _DGStruct = Struct('<4sI6QB7s')
-_CGStruct = Struct('<4sI10Q2H3I')
-_CNStruct = Struct('<4B4IBcH6d')
+_CGStruct1 = Struct('<4sI8Q')
+_CGStruct2 = Struct('<2Q2H3I')
+_CNStruct1 = Struct('<4sI10Q')
+_CNStruct2 = Struct('<4B4IBcH6d')
 _CCStruct1 = Struct('<4sI6Q')
 _CCStruct2 = Struct('<2B3H2d')
 _SRStruct = Struct('<4sI5Qd2B6s')
@@ -887,14 +889,17 @@ class CGBlock(dict):
          self['cg_tx_acq_name'],
          self['cg_si_acq_source'],
          self['cg_sr_first'],
-         self['cg_md_comment'],
-         self['cg_record_id'],
+         self['cg_md_comment']) = _CGStruct1.unpack(fid.read(72))
+        if self['link_count'] > 6:
+            self['cg_cg_master'] = unpack(_LINK, fid.read(8))
+        # data section
+        (self['cg_record_id'],
          self['cg_cycle_count'],
          self['cg_flags'],
          self['cg_path_separator'],
          self['cg_reserved'],
          self['cg_data_bytes'],
-         self['cg_invalid_bytes']) = _CGStruct.unpack(fid.read(104))
+         self['cg_invalid_bytes']) = _CGStruct2.unpack(fid.read(32))
         if self['cg_md_comment']:  # comments exist
             self['Comment'] = CommentBlock()
             self['Comment'].read_cm_cg(fid=fid, pointer=self['cg_md_comment'])
@@ -935,14 +940,23 @@ class CNBlock(dict):
 
     def read_cn(self, **kargs):
         if kargs['pointer'] != 0 and kargs['pointer'] is not None:
+            self['pointer'] = kargs['pointer']
             kargs['fid'].seek(kargs['pointer'])
             (self['id'],
              reserved,
              self['length'],
-             self['link_count']) = _HeaderStruct.unpack(kargs['fid'].read(24))
-            self['pointer'] = kargs['pointer']
+             self['link_count'],
+             self['cn_cn_next'],
+             self['cn_composition'],
+             self['cn_tx_name'],
+             self['cn_si_source'],
+             self['cn_cc_conversion'],
+             self['cn_data'],
+             self['cn_md_unit'],
+             self['cn_md_comment']) = _CNStruct1.unpack(kargs['fid'].read(88))
+            if self['link_count'] > 8:
+                links = _mdf_block_read(kargs['fid'], _LINK, self['link_count'] - 8)
             # data section
-            kargs['fid'].seek(kargs['pointer'] + self['length'] - 72)
             (self['cn_type'],
              self['cn_sync_type'],
              self['cn_data_type'],
@@ -959,30 +973,20 @@ class CNBlock(dict):
              cn_limit_min,
              cn_limit_max,
              cn_limit_ext_min,
-             cn_limit_ext_max) = _CNStruct.unpack(kargs['fid'].read(72))
-            # Channel Group block : Links
-            kargs['fid'].seek(kargs['pointer'] + 24)
-            (self['cn_cn_next'],
-             self['cn_composition'],
-             self['cn_tx_name'],
-             self['cn_si_source'],
-             self['cn_cc_conversion'],
-             self['cn_data'],
-             self['cn_md_unit'],
-             self['cn_md_comment']) = unpack('<8Q', kargs['fid'].read(64))
+             cn_limit_ext_max) = _CNStruct2.unpack(kargs['fid'].read(72))
             if self['cn_attachment_count'] > 0:
-                self['cn_at_reference'] = \
-                    _mdf_block_read(kargs['fid'], _LINK, self['cn_attachment_count'])
                 self['attachment'] = {}
                 if self['cn_attachment_count'] > 1:
+                    self['cn_at_reference'] = links[:self['cn_attachment_count']]
                     for at in range(self['cn_attachment_count']):
                         self['attachment'][at] = \
                             ATBlock(kargs['fid'], self['cn_at_reference'][at])
                 else:
+                    self['cn_at_reference'] = links
                     self['attachment'][0] = \
                         ATBlock(kargs['fid'], self['cn_at_reference'])
             if self['link_count'] > (8 + self['cn_attachment_count']):
-                self['cn_default_x'] = _mdf_block_read(kargs['fid'], _LINK, 3)
+                self['cn_default_x'] = links[self['cn_attachment_count']:]
             else:
                 self['cn_default_x'] = None
             if self['cn_md_comment']:  # comments exist
@@ -1228,8 +1232,15 @@ class EVBlock(dict):
              reserved,
              self['length'],
              self['link_count']) = _HeaderStruct.unpack(fid.read(24))
+            # link section
+            (self['ev_ev_next'],
+             self['ev_ev_parent'],
+             self['ev_ev_range'],
+             self['ev_tx_name'],
+             self['ev_md_comment']) = unpack('<5Q', fid.read(40))
+            if self['link_count'] > 5:
+                links = _mdf_block_read(fid, _LINK, self['link_count'] - 5)
             # data section
-            fid.seek(pointer + self['length'] - 32)
             (self['ev_type'],
              self['ev_sync_type'],
              self['ev_range_type'],
@@ -1241,22 +1252,23 @@ class EVBlock(dict):
              self['ev_creator_index'],
              self['ev_sync_base_value'],
              self['ev_sync_factor']) = unpack('<5B3sI2Hqd', fid.read(32))
-            # link section
-            fid.seek(pointer + 24)
-            (self['ev_ev_next'],
-             self['ev_ev_parent'],
-             self['ev_ev_range'],
-             self['ev_tx_name'],
-             self['ev_md_comment']) = unpack('<5Q', fid.read(40))
-            self['ev_scope'] = _mdf_block_read(fid, _LINK, self['ev_scope_count'])
+            # variable links
+            if self['ev_scope_count'] > 0:
+                if self['ev_scope_count'] > 1:
+                    self['ev_scope'] = links[:self['ev_scope_count']]
+                else:
+                    self['ev_scope'] = links
+            if self['ev_attachment_count'] > 0:
+                if self['ev_attachment_count'] > 1:
+                    self['ev_at_reference'] = links[self['ev_scope_count']:
+                                                    self['ev_scope_count'] + self['ev_attachment_count']]
+                else:
+                    self['ev_at_reference'] = links
             # post treatment
             try:
                 self['ev_cause'] = ev_cause[self['ev_cause']]
             except KeyError:
                 warn('unexpected ev cause')
-            if self['ev_attachment_count'] > 0:
-                self['ev_at_reference'] = \
-                    _mdf_block_read(fid, _LINK, self['ev_attachment_count'])
             if self['ev_md_comment']:  # comments exist
                 self['Comment'] = CommentBlock()
                 self['Comment'].read_cm_ev(fid=fid, pointer=self['ev_md_comment'])
@@ -1264,6 +1276,8 @@ class EVBlock(dict):
                 temp = CommentBlock()
                 temp.read_tx(fid=fid, pointer=self['ev_tx_name'])
                 self['ev_tx_name'] = temp['Comment']
+            if self['ev_flags'] & (1 << 1):  # Bit 1 set
+                self['ev_tx_group_name'] = links[-1:]
 
 
 class SRBlock(dict):
