@@ -1035,8 +1035,8 @@ def array_format4(signal_data_type, number_of_bytes):
         endian = ''
     elif signal_data_type == 15:  # LE complex
         if number_of_bytes == 4:
-            # data_type = 'c4'
-            raise Exception('numpy does not support yet half precision complex')
+            data_type = 'c4'
+            warn('numpy does not support yet half precision complex')
         elif number_of_bytes == 8:
             data_type = 'c8'
         elif number_of_bytes == 16:
@@ -1046,8 +1046,8 @@ def array_format4(signal_data_type, number_of_bytes):
         endian = '<'
     elif signal_data_type == 16:  # BE complex
         if number_of_bytes == 4:
-            # data_type = 'c4'
-            raise Exception('numpy does not support yet half precision complex')
+            data_type = 'c4'
+            warn('numpy does not support yet half precision complex')
         elif number_of_bytes == 8:
             data_type = 'c8'
         elif number_of_bytes == 16:
