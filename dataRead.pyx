@@ -1,6 +1,7 @@
 import numpy as np
 cimport numpy as np
 from sys import byteorder
+from libc.stdint cimport uint16_t, uint32_t, uint64_t
 #cimport cython
 
 from cpython.bytes cimport PyBytes_AsString
@@ -158,31 +159,31 @@ def data_read(bytes tmp, unsigned short bit_count,
 
 cdef inline read_half(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
-    cdef np.ndarray[np.float16_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
+    cdef uint16_t[:] buf = np.empty(number_of_records, dtype=np.uint16)
     cdef unsigned long long i
-    cdef float temp_float = 0  # most probably not ok, temp_float too big
+    cdef uint16_t temp_uint16 = 0  # using uint16 because float16_t is not existing
     for i in range(number_of_records):
-        # Most probably the copy of 2 bytes into a 4 bytes placeholder is not correct
-        memcpy(&temp_float, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
-        buf[i] = temp_float
+        memcpy(&temp_uint16, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
+        buf[i] = temp_uint16
     if swap == 0:
-        return buf
+        return buf.view(dtype=np.float16)
     else:
-        return buf.byteswap()
+        return buf.view(dtype=np.float16).byteswap()
 
 cdef inline read_chalf(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
-    cdef np.ndarray[np.complex64_t] buf = np.empty(number_of_records, dtype=record_format)  # return numpy array
+    cdef uint64_t[:] buf = np.empty(number_of_records, dtype=np.uint32)  # complex_32 does not exist in numpy
     cdef unsigned long long i
-    cdef float complex temp_cfloat = 0
+    cdef uint16_t temp16_real = 0
+    cdef uint16_t temp16_img = 0
     for i in range(number_of_records):
-        memcpy(&temp_cfloat, &bit_stream[pos_byte_beg + record_byte_size * i], 4)
-        # Most probably the copy of 4 bytes into a 8 bytes placeholder is not correct
-        buf[i] = temp_cfloat
+        memcpy(&temp16_real, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
+        memcpy(&temp16_img, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
+        buf[i] = <uint32_t>temp16_real<<32 | <uint32_t>temp16_img
     if swap == 0:
-        return buf
+        return buf.view(dtype=np.complex_64)  # returning single instead of half precision complex
     else:
-        return buf.byteswap()
+        return buf.view(dtype=np.complex_64).byteswap()
 
 cdef inline read_float(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
