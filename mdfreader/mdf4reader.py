@@ -1535,6 +1535,9 @@ class Mdf4(MdfSkeleton):
                                                    conversion_parameter['cc_ref'])
             elif conversion_type == 10 and text_type and convert_tables:
                 vector = _text_to_text_conversion(vector, conversion_parameter['cc_ref'])
+            elif conversion_type == 11 and text_type and convert_tables:
+                vector = _bitfield_text_table_conversion(vector, conversion_parameter['cc_val'],
+                                                         conversion_parameter['cc_ref'])
         L = dict()
         L[channel_name] = vector
         if multi_processed:
@@ -2190,3 +2193,36 @@ def _text_to_text_conversion(vector, cc_ref):
                 break
         vector[l_index] = cc_ref[key_index]
     return vector
+
+
+def _bitfield_text_table_conversion(vector, cc_val, cc_ref):
+    """ apply text to value conversion to data
+
+    Parameters
+    ----------------
+    vector : numpy 1D array
+        raw data to be converted to physical value
+    cc_val : cc_val from mdfinfo4.info4 conversion block ('CCBlock') dict
+    cc_ref : cc_ref from mdfinfo4.info4 conversion block ('CCBlock') dict
+
+    Returns
+    -----------
+    converted data to physical value
+    """
+    ref_count = len(cc_ref)
+    temp = []
+    for l_index in range(len(vector)):
+        assembled_string = ''
+        for i in range(ref_count):
+            bitmask = bitwise_and(vector[l_index], cc_val[i])
+            if cc_ref[i]:  # not NIL link
+                if cc_ref[i]['cc_type'] == 7:
+                    assembled_string += _value_to_text_conversion(bitmask,
+                                                                  cc_ref[i]['cc_val'],
+                                                                  cc_ref[i]['cc_ref'])
+                if cc_ref[i]['cc_type'] == 8:
+                    assembled_string += _value_range_to_text_conversion(bitmask,
+                                                                        cc_ref[i]['cc_val'],
+                                                                        cc_ref[i]['cc_ref'])
+        temp.append(assembled_string)
+    return asarray(temp)

@@ -1071,7 +1071,7 @@ class CCBlock(dict):
                 cc = CommentBlock()
                 cc.read_tx(fid=fid, pointer=pointer)
                 self['cc_ref'].update(cc)
-            elif self['cc_type']in (7, 8, 9, 10):  # text list
+            elif self['cc_type']in (7, 8, 9, 10, 11):  # text list
                 self['cc_ref'] = list(self['cc_ref'])
                 for i in range(self['cc_ref_count']):
                     fid.seek(self['cc_ref'][i])
