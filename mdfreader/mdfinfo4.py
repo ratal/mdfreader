@@ -1352,9 +1352,81 @@ class DTBlock(dict):
         return self['end_position']
 
 
+class DVBlock(dict):
+    def load(self, record_byte_offset, nRecords, pointer):
+        self['datablocks_length'] = 24 + record_byte_offset * nRecords
+        self['pointer'] = pointer
+        self['end_position'] = _calculate_block_start(self['pointer'] + self['datablocks_length'])
+
+    def write(self, fid, data):
+        fid.write(_HeaderStruct.pack(b'##DV', 0, self['datablocks_length'], 0))
+        # dumps data
+        fid.write(data)
+        return self['end_position']
+
+
+class DIBlock(dict):
+    def load(self, record_byte_offset, nRecords, pointer):
+        self['datablocks_length'] = 24 + record_byte_offset * nRecords
+        self['pointer'] = pointer
+        self['end_position'] = _calculate_block_start(self['pointer'] + self['datablocks_length'])
+
+    def write(self, fid, data):
+        fid.write(_HeaderStruct.pack(b'##DI', 0, self['datablocks_length'], 0))
+        # dumps data
+        fid.write(data)
+        return self['end_position']
+
+
+class LDBlock(dict):
+
+    """ reads List Data block
+    """
+
+    def read(self, fid, link_count):
+        # block header is already read
+        self['ld_ld_next'] = unpack('<Q', fid.read(8))[0]
+        self['ld_data'] = {}
+        self['ld_data'][0] = unpack('<{}Q'.format(link_count - 1),
+                                    fid.read(8 * (link_count - 1)))
+        (self['ld_flags'],
+         self['ld_count']) = unpack('<2IQ', fid.read(8))
+        if self['ld_flags'] & (1 << 31):  # invalid data present
+            self['ld_inval_data'] = [self['ld_data'].pop(i) for i in range(int(link_count/2), link_count)]
+        if self['ld_flags'] & 0b1:  # equal length data list
+            self['ld_equal_sample_sample_count'] = unpack('<Q', fid.read(8))[0]
+        else:  # data list defined by byte offset
+            self['ld_sample_offset'] = unpack('<{}Q'.format(self['ld_count']),
+                                              fid.read(8 * self['ld_count']))
+        if self['ld_flags'] & 0b10:  # time values
+            self['ld_time_values'] = unpack('<{}Q'.format(self['ld_count']),
+                                            fid.read(8 * self['ld_count']))
+        if self['ld_flags'] & 0b100:  # angle values
+            self['ld_angle_values'] = unpack('<{}Q'.format(self['ld_count']),
+                                             fid.read(8 * self['ld_count']))
+        if self['ld_flags'] & 0b1000:  # distance values
+            self['ld_distance_values'] = unpack('<{}Q'.format(self['ld_count']),
+                                                fid.read(8 * self['ld_count']))
+
+    def write(self, fid, chunks, position):
+        self['block_start'] = position
+        number_ld = len(chunks)
+        self['block_length'] = 40 + 16 * number_ld
+        ld_offset = zeros(shape=number_ld, dtype='<u8')
+        if number_ld > 1:
+            for counter in range(1, number_ld):
+                (n_record_chunk, chunk_size) = chunks[counter]
+                ld_offset[counter] = ld_offset[counter - 1] + chunk_size
+        data_bytes = (b'##LD', 0, self['block_length'], number_ld + 1, 0)
+        fid.write(pack('<4sI3Q'.format(number_ld, number_ld), *data_bytes))
+        fid.write(pack('{0}Q'.format(number_ld), *zeros(shape=number_ld, dtype='<u8')))
+        fid.write(pack('<2I', 0, number_ld))
+        fid.write(pack('{0}Q'.format(number_ld), *ld_offset))
+
+
 class DLBlock(dict):
 
-    """ reads Data List block
+    """ reads List Data block
     """
 
     def read(self, fid, link_count):
@@ -1366,11 +1438,20 @@ class DLBlock(dict):
         (self['dl_flags'],
          dl_reserved,
          self['dl_count']) = unpack('<B3sI', fid.read(8))
-        if self['dl_flags']:  # equal length data list
+        if self['dl_flags'] & 0b1:  # equal length data list
             self['dl_equal_length'] = unpack('<Q', fid.read(8))[0]
         else:  # data list defined by byte offset
             self['dl_offset'] = unpack('<{}Q'.format(self['dl_count']),
                                        fid.read(8 * self['dl_count']))
+        if self['dl_flags'] & 0b10:  # time values
+            self['dl_time_values'] = unpack('<{}Q'.format(self['dl_count']),
+                                            fid.read(8 * self['dl_count']))
+        if self['dl_flags'] & 0b100:  # angle values
+            self['dl_angle_values'] = unpack('<{}Q'.format(self['dl_count']),
+                                             fid.read(8 * self['dl_count']))
+        if self['dl_flags'] & 0b1000:  # distance values
+            self['dl_distance_values'] = unpack('<{}Q'.format(self['dl_count']),
+                                                fid.read(8 * self['dl_count']))
 
     def write(self, fid, chunks, position):
         self['block_start'] = position
