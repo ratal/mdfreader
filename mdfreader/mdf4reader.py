@@ -408,7 +408,10 @@ class Data(dict):
         temps = defaultdict()
         # block header
         temps.update(_load_header(self.fid, self.pointer_to_data))
-        if temps['id'] in ('##DL', b'##DL'):  # data list block
+        if temps['id'] in ('##DV', b'##DV'):
+            # to be optimised by using unpack in case of column oriented storage (only one channel)
+            temps['data'] = record.read_sorted_record(self.fid, info, channel_set=name_list)
+        elif temps['id'] in ('##DL', b'##DL'):  # data list block
             temp = DLBlock()
             temp.read(self.fid, temps['link_count'])
             temps.update(temp)
@@ -2196,7 +2199,7 @@ def _text_to_text_conversion(vector, cc_ref):
 
 
 def _bitfield_text_table_conversion(vector, cc_val, cc_ref):
-    """ apply text to value conversion to data
+    """ apply bitfield to raw data and convert to string
 
     Parameters
     ----------------
@@ -2207,7 +2210,7 @@ def _bitfield_text_table_conversion(vector, cc_val, cc_ref):
 
     Returns
     -----------
-    converted data to physical value
+    converted data to string
     """
     ref_count = len(cc_ref)
     temp = []
