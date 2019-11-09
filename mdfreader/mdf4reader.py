@@ -47,7 +47,7 @@ from numpy.ma import MaskedArray
 from warnings import simplefilter, warn
 from .mdfinfo4 import Info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _load_header, DLBlock, \
-    DZBlock, HLBlock, CCBlock, DTBlock, CABlock
+    DZBlock, HLBlock, CCBlock, DTBlock, CABlock, DVBlock
 from .mdf import MdfSkeleton, _open_mdf, invalidChannel, dataField, \
     conversionField, idField, invalidPosField, CompressedData
 from .channel import Channel4
@@ -1593,7 +1593,7 @@ class Mdf4(MdfSkeleton):
                         self.set_channel_data(channelName, L[channelName])
                         self.remove_channel_conversion(channelName)
 
-    def write4(self, file_name=None, compression=False):
+    def write4(self, file_name=None, compression=False, column_oriented=False):
         """Writes simple mdf 4.1 file
 
         Parameters
@@ -1603,6 +1603,8 @@ class Mdf4(MdfSkeleton):
             If file name is not input, written file name will be the one read with appended '_new' string before extension
         compression : bool
             flag to store data compressed
+        column_oriented : bool
+            flag to store data in columns, faster reading channel by channel and not jumping in records
 
         Notes
         --------
@@ -1654,197 +1656,414 @@ class Mdf4(MdfSkeleton):
         for block in blocks.values():
             block.write(fid)
         if self.masterChannelList:  # some channels exist
-            for dataGroup, masterChannel in enumerate(self.masterChannelList):
-                # writes dataGroup Block
-                dg = DGBlock()
-                dg['block_start'] = pointer
-                pointer = dg['block_start'] + 64
-                dg['CG'] = pointer  # First CG link
+            if column_oriented:
+                for dataGroup, masterChannel in enumerate(self.masterChannelList):
+                    # write master channel
+                    master_channel_data = self._get_channel_data4(masterChannel)
+                    if master_channel_data is not None:
+                        cg_cycle_count = len(master_channel_data)
+                    elif self._get_channel_data4(self.masterChannelList[masterChannel][0]).shape[0] == 1:
+                        # classification
+                        cg_cycle_count = 1
+                    elif master_channel_data not in self.masterChannelList[masterChannel]:
+                        cg_cycle_count = len(self._get_channel_data4(self.masterChannelList[masterChannel][0]))
+                        warn('no master channel in data group {}'.format(dataGroup))
+                    else:
+                        # no data in data group, skip
+                        warn('no data in data group {0} with master channel {1}'.format(dataGroup, masterChannel))
+                        continue
+                    cg_master_pointer = pointer + 64  # CG after DG at pointer
+                    dg = self._write4_column(fid, pointer, cg_cycle_count, masterChannel, compression)
 
-                blocks = OrderedDict()  # initialise blocks for this datagroup
-                # write CGBlock
-                blocks['CG'] = CGBlock()
-                blocks['CG']['block_start'] = pointer
-                pointer = blocks['CG']['block_start'] + 104
-                blocks['CG']['CN'] = pointer  # First CN link
+                    for channel in self.masterChannelList[masterChannel]:
+                        # write other channels
+                        if not channel == masterChannel:
+                            dg = self._write4_column(fid, pointer, cg_cycle_count, channel, compression,
+                                                     cg_master_pointer=cg_master_pointer)
 
-                master_channel_data = self._get_channel_data4(masterChannel)
-                if master_channel_data is not None:
-                    cg_cycle_count = len(master_channel_data)
-                elif self._get_channel_data4(self.masterChannelList[masterChannel][0]).shape[0] == 1:  # classification
-                    cg_cycle_count = 1
-                elif master_channel_data not in self.masterChannelList[masterChannel]:
-                    cg_cycle_count = len(self._get_channel_data4(self.masterChannelList[masterChannel][0]))
-                    warn('no master channel in data group {}'.format(dataGroup))
-                else:
-                    # no data in data group, skip
-                    warn('no data in data group {0} with master channel {1}'.format(dataGroup, masterChannel))
-                    continue
-                blocks['CG']['cg_cycle_count'] = cg_cycle_count
-
-                # write channels
-                record_byte_offset = 0
-                cn_flag = 0
-                number_of_channel = 0
-                n_records = 0
-                data_list = ()
-                last_channel = 0
-                for n_channel, channel in enumerate(self.masterChannelList[masterChannel]):
-                    data = self.get_channel_data(channel)
-                    # no interest to write invalid bytes as channel, should be processed if needed before writing
-                    if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
-                        last_channel = n_channel
-                        data_ndim = data.ndim - 1
-                        if not data_ndim:
-                            data_list = data_list + (data, )
-                        else:  # data contains arrays
-                            data_dim_size = data.shape
-                            if not cg_cycle_count == data_dim_size[0]:
-                                warn('Array length do not match number of cycled in CG block')
-                            data_dim_size = data_dim_size[1:]
-                            SNd = 0
-                            PNd = 1
-                            for x in data_dim_size:
-                                SNd += x
-                                PNd *= x
-                            flattened = reshape(data, (cg_cycle_count, PNd))
-                            for i in range(PNd):
-                                data_list = data_list + (flattened[:, i],)
-                        number_of_channel += 1
-                        blocks[n_channel] = CNBlock()
-                        if issubdtype(data.dtype, numpy_number):  # is numeric
-                            blocks[n_channel]['cn_val_range_min'] = npmin(data)
-                            blocks[n_channel]['cn_val_range_max'] = npmax(data)
-                            blocks[n_channel]['cn_flags'] = 8  # only Bit 3: Limit range valid flag
-                        else:
-                            blocks[n_channel]['cn_val_range_min'] = 0
-                            blocks[n_channel]['cn_val_range_max'] = 0
-                            blocks[n_channel]['cn_flags'] = 0
-                        if masterChannel is not channel:
-                            blocks[n_channel]['cn_type'] = 0
-                            blocks[n_channel]['cn_sync_type'] = 0
-                        else:
-                            blocks[n_channel]['cn_type'] = 2  # master channel
-                            blocks[n_channel]['cn_sync_type'] = 1  # default is time channel
-                            n_records = len(data)
-
-                        cn_numpy_kind = data.dtype.kind
-                        if cn_numpy_kind in ('u', 'b'):
-                            data_type = 0  # LE
-                        elif cn_numpy_kind == 'i':
-                            data_type = 2  # LE
-                        elif cn_numpy_kind == 'f':
-                            data_type = 4  # LE
-                        elif cn_numpy_kind == 'S':
-                            data_type = 6
-                        elif cn_numpy_kind == 'U':
-                            data_type = 7  # UTF-8
-                        elif cn_numpy_kind == 'V':
-                            data_type = 10  # bytes
-                        else:
-                            warn('{} {} {}'.format(channel, data.dtype, cn_numpy_kind))
-                            raise Exception('Not recognized dtype')
-                        blocks[n_channel]['cn_data_type'] = data_type
-                        blocks[n_channel]['cn_bit_offset'] = 0  # always byte aligned
-                        blocks[n_channel]['cn_byte_offset'] = record_byte_offset
-                        byte_count = data.dtype.itemsize
-                        record_byte_offset += byte_count
-                        blocks[n_channel]['cn_bit_count'] = byte_count * 8
-                        blocks[n_channel]['block_start'] = pointer
-                        pointer = blocks[n_channel]['block_start'] + 160
-
-                        # arrays handling
-                        if not data_ndim:
-                            blocks[n_channel]['Composition'] = 0
-                        else:
-                            blocks[n_channel]['Composition'] = pointer  # pointer to CABlock
-                            # creates CABlock
-                            ca = ''.join([channel, '_CA'])
-                            blocks[ca] = CABlock()
-                            blocks[ca]['block_start'] = pointer
-                            blocks[ca]['ndim'] = data_ndim
-                            blocks[ca]['ndim_size'] = data_dim_size
-                            blocks[ca].load(data.itemsize)
-                            pointer = blocks[ca]['block_start'] + blocks[ca]['block_length']
-
-                        if cn_flag:
-                            # Next DG
-                            blocks[n_channel-1]['CN'] = blocks[n_channel]['block_start']
-                            blocks[n_channel]['CN'] = 0  # initialise 'CN' key
-                        else:
-                            cn_flag = blocks[n_channel]['block_start']
-                            blocks[n_channel]['CN'] = 0  # creates first CN link, null for the moment
-
-                        # write channel name
-                        blocks[n_channel]['TX'] = pointer
-                        blocks[channel] = CommentBlock()
-                        blocks[channel]['block_start'] = pointer
-                        blocks[channel].load(channel, 'TX')
-                        pointer = blocks[channel]['block_start'] + blocks[channel]['block_length']
-
-                        # write channel unit
-                        unit = self.get_channel_unit(channel)
-                        if unit is not None and len(unit) > 0:
-                            blocks[n_channel]['Unit'] = pointer
-                            unit_name = '{}{}{}'.format(channel, '_U_', n_channel)
-                            blocks[unit_name] = CommentBlock()
-                            blocks[unit_name]['block_start'] = pointer
-                            blocks[unit_name].load(unit, 'TX')
-                            pointer = blocks[unit_name]['block_start'] + blocks[unit_name]['block_length']
-                        else:
-                            blocks[n_channel]['Unit'] = 0
-
-                        # write channel description
-                        desc = self.get_channel_desc(channel)
-                        if desc is not None and len(desc) > 0:
-                            blocks[n_channel]['Comment'] = pointer
-                            desc_name = '{}{}{}'.format(channel, '_C_', n_channel)
-                            blocks[desc_name] = CommentBlock()
-                            blocks[desc_name]['block_start'] = pointer
-                            blocks[desc_name].load(desc, 'TX')
-                            pointer = blocks[desc_name]['block_start'] + blocks[desc_name]['block_length']
-                        else:
-                            blocks[n_channel]['Comment'] = 0
-
-                if n_records == 0 and masterChannel is not self.masterChannelList[masterChannel]:
-                    # No master channel in channel group
-                    n_records = len(data_list[0])
-
-                if last_channel in blocks:
-                    blocks[last_channel]['CN'] = 0  # last CN link is null
-                # writes size of record in CG
-                blocks['CG']['cg_data_bytes'] = record_byte_offset
-
-                # data pointer in data group
-                dg['data'] = pointer
-                if compression:
-                    data = HLBlock()
-                    data.load(record_byte_offset, n_records, pointer)
-                    dg_start_position = fid.tell()
-                    dg['DG'] = 0
-                else:
-                    data = DTBlock()
-                    data.load(record_byte_offset, n_records, pointer)
-                    dg['DG'] = data['end_position']
-
-                dg.write(fid)  # write DG block
-
-                # writes all blocks (CG, CN, TX for unit and description) before writing data block
-                for block in blocks.values():
-                    block.write(fid)
-
-                # data block writing
-                pointer = data.write(fid, fromarrays(data_list).tobytes(order='F'))
-                if compression:
-                    # next DG position is not predictable due to DZ Blocks unknown length
-                    fid.seek(dg_start_position + 24)
-                    fid.write(pack('<Q', pointer))
-                    fid.seek(pointer)
-
-            fid.seek(dg['block_start'] + 24)
-            fid.write(pack('Q', 0))  # last DG pointer is null
-
+                fid.seek(dg['block_start'] + 24)
+                fid.write(pack('Q', 0))  # last DG pointer is null
+            else:
+                self._write4_non_column(fid, pointer, compression)
         fid.close()
+
+    def _write4_non_column(self, fid, pointer, compression=False):
+        """Writes simple mdf 4.1 file
+
+        Parameters
+        ----------------
+        fid
+            file identifier
+        compression : bool
+            flag to store data compressed
+
+        Notes
+        --------
+        All channels will be converted to physical data, so size might be bigger than original file
+        """
+
+        for dataGroup, masterChannel in enumerate(self.masterChannelList):
+            # writes dataGroup Block
+            dg = DGBlock()
+            dg['block_start'] = pointer
+            pointer = dg['block_start'] + 64
+            dg['CG'] = pointer  # First CG link
+
+            blocks = OrderedDict()  # initialise blocks for this datagroup
+            # write CGBlock
+            blocks['CG'] = CGBlock()
+            blocks['CG']['master_channel_flag'] = False
+            blocks['CG']['length'] = 104
+            blocks['CG']['block_start'] = pointer
+            pointer = blocks['CG']['block_start'] + blocks['CG']['length']
+            blocks['CG']['CN'] = pointer  # First CN link
+
+            master_channel_data = self._get_channel_data4(masterChannel)
+            if master_channel_data is not None:
+                cg_cycle_count = len(master_channel_data)
+            elif self._get_channel_data4(self.masterChannelList[masterChannel][0]).shape[0] == 1:  # classification
+                cg_cycle_count = 1
+            elif master_channel_data not in self.masterChannelList[masterChannel]:
+                cg_cycle_count = len(self._get_channel_data4(self.masterChannelList[masterChannel][0]))
+                warn('no master channel in data group {}'.format(dataGroup))
+            else:
+                # no data in data group, skip
+                warn('no data in data group {0} with master channel {1}'.format(dataGroup, masterChannel))
+                continue
+            blocks['CG']['cg_cycle_count'] = cg_cycle_count
+
+            # write channels
+            record_byte_offset = 0
+            cn_flag = 0
+            number_of_channel = 0
+            n_records = 0
+            data_list = ()
+            last_channel = 0
+            for n_channel, channel in enumerate(self.masterChannelList[masterChannel]):
+                data = self.get_channel_data(channel)
+                # no interest to write invalid bytes as channel, should be processed if needed before writing
+                if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
+                    last_channel = n_channel
+                    data_ndim = data.ndim - 1
+                    if not data_ndim:
+                        data_list = data_list + (data, )
+                    else:  # data contains arrays
+                        data_dim_size = data.shape
+                        if not cg_cycle_count == data_dim_size[0]:
+                            warn('Array length do not match number of cycled in CG block')
+                        data_dim_size = data_dim_size[1:]
+                        SNd = 0
+                        PNd = 1
+                        for x in data_dim_size:
+                            SNd += x
+                            PNd *= x
+                        flattened = reshape(data, (cg_cycle_count, PNd))
+                        for i in range(PNd):
+                            data_list = data_list + (flattened[:, i],)
+                    number_of_channel += 1
+                    blocks[n_channel] = CNBlock()
+                    if issubdtype(data.dtype, numpy_number):  # is numeric
+                        blocks[n_channel]['cn_val_range_min'] = npmin(data)
+                        blocks[n_channel]['cn_val_range_max'] = npmax(data)
+                        blocks[n_channel]['cn_flags'] = 8  # only Bit 3: Limit range valid flag
+                    else:
+                        blocks[n_channel]['cn_val_range_min'] = 0
+                        blocks[n_channel]['cn_val_range_max'] = 0
+                        blocks[n_channel]['cn_flags'] = 0
+                    if masterChannel is not channel:
+                        blocks[n_channel]['cn_type'] = 0
+                        blocks[n_channel]['cn_sync_type'] = 0
+                    else:
+                        blocks[n_channel]['cn_type'] = 2  # master channel
+                        blocks[n_channel]['cn_sync_type'] = 1  # default is time channel
+                        n_records = len(data)
+
+                    cn_numpy_kind = data.dtype.kind
+                    if cn_numpy_kind in ('u', 'b'):
+                        data_type = 0  # LE
+                    elif cn_numpy_kind == 'i':
+                        data_type = 2  # LE
+                    elif cn_numpy_kind == 'f':
+                        data_type = 4  # LE
+                    elif cn_numpy_kind == 'S':
+                        data_type = 6
+                    elif cn_numpy_kind == 'U':
+                        data_type = 7  # UTF-8
+                    elif cn_numpy_kind == 'V':
+                        data_type = 10  # bytes
+                    else:
+                        warn('{} {} {}'.format(channel, data.dtype, cn_numpy_kind))
+                        raise Exception('Not recognized dtype')
+                    blocks[n_channel]['cn_data_type'] = data_type
+                    blocks[n_channel]['cn_bit_offset'] = 0  # always byte aligned
+                    blocks[n_channel]['cn_byte_offset'] = record_byte_offset
+                    byte_count = data.dtype.itemsize
+                    record_byte_offset += byte_count
+                    blocks[n_channel]['cn_bit_count'] = byte_count * 8
+                    blocks[n_channel]['block_start'] = pointer
+                    pointer = blocks[n_channel]['block_start'] + 160
+
+                    # arrays handling
+                    if not data_ndim:
+                        blocks[n_channel]['Composition'] = 0
+                    else:
+                        blocks[n_channel]['Composition'] = pointer  # pointer to CABlock
+                        # creates CABlock
+                        ca = ''.join([channel, '_CA'])
+                        blocks[ca] = CABlock()
+                        blocks[ca]['block_start'] = pointer
+                        blocks[ca]['ndim'] = data_ndim
+                        blocks[ca]['ndim_size'] = data_dim_size
+                        blocks[ca].load(data.itemsize)
+                        pointer = blocks[ca]['block_start'] + blocks[ca]['block_length']
+
+                    if cn_flag:
+                        # Next DG
+                        blocks[n_channel-1]['CN'] = blocks[n_channel]['block_start']
+                        blocks[n_channel]['CN'] = 0  # initialise 'CN' key
+                    else:
+                        cn_flag = blocks[n_channel]['block_start']
+                        blocks[n_channel]['CN'] = 0  # creates first CN link, null for the moment
+
+                    # write channel name
+                    blocks[n_channel]['TX'] = pointer
+                    blocks[channel] = CommentBlock()
+                    blocks[channel]['block_start'] = pointer
+                    blocks[channel].load(channel, 'TX')
+                    pointer = blocks[channel]['block_start'] + blocks[channel]['block_length']
+
+                    # write channel unit
+                    unit = self.get_channel_unit(channel)
+                    if unit is not None and len(unit) > 0:
+                        blocks[n_channel]['Unit'] = pointer
+                        unit_name = '{}{}{}'.format(channel, '_U_', n_channel)
+                        blocks[unit_name] = CommentBlock()
+                        blocks[unit_name]['block_start'] = pointer
+                        blocks[unit_name].load(unit, 'TX')
+                        pointer = blocks[unit_name]['block_start'] + blocks[unit_name]['block_length']
+                    else:
+                        blocks[n_channel]['Unit'] = 0
+
+                    # write channel description
+                    desc = self.get_channel_desc(channel)
+                    if desc is not None and len(desc) > 0:
+                        blocks[n_channel]['Comment'] = pointer
+                        desc_name = '{}{}{}'.format(channel, '_C_', n_channel)
+                        blocks[desc_name] = CommentBlock()
+                        blocks[desc_name]['block_start'] = pointer
+                        blocks[desc_name].load(desc, 'TX')
+                        pointer = blocks[desc_name]['block_start'] + blocks[desc_name]['block_length']
+                    else:
+                        blocks[n_channel]['Comment'] = 0
+
+            if n_records == 0 and masterChannel is not self.masterChannelList[masterChannel]:
+                # No master channel in channel group
+                n_records = len(data_list[0])
+
+            if last_channel in blocks:
+                blocks[last_channel]['CN'] = 0  # last CN link is null
+            # writes size of record in CG
+            blocks['CG']['cg_data_bytes'] = record_byte_offset
+
+            # data pointer in data group
+            dg['data'] = pointer
+            if compression:
+                data = HLBlock()
+                data.load(record_byte_offset, n_records, pointer)
+                dg_start_position = fid.tell()
+                dg['DG'] = 0
+            else:
+                data = DTBlock()
+                data.load(record_byte_offset, n_records, pointer)
+                dg['DG'] = data['end_position']
+
+            dg.write(fid)  # write DG block
+
+            # writes all blocks (CG, CN, TX for unit and description) before writing data block
+            for block in blocks.values():
+                block.write(fid)
+
+            # data block writing
+            pointer = data.write(fid, fromarrays(data_list).tobytes(order='F'))
+            if compression:
+                # next DG position is not predictable due to DZ Blocks unknown length
+                fid.seek(dg_start_position + 24)
+                fid.write(pack('<Q', pointer))
+                fid.seek(pointer)
+
+        fid.seek(dg['block_start'] + 24)
+        fid.write(pack('Q', 0))  # last DG pointer is null
+
+    def _write4_column(self, fid, pointer, cg_cycle_count, channel,
+                       compression=False, cg_master_pointer=None):
+        """Writes simple mdf 4.2 file
+
+        Parameters
+        ----------------
+        fid
+            file identifier
+        compression : bool
+            flag to store data compressed
+
+        Notes
+        --------
+        All channels will be converted to physical data, so size might be bigger than original file
+        """
+        record_byte_offset = 0
+
+        # writes dataGroup Block
+        dg = DGBlock()
+        dg['block_start'] = pointer
+        pointer = dg['block_start'] + 64
+        dg['CG'] = pointer  # First CG link
+
+        blocks = OrderedDict()  # initialise blocks for this datagroup
+        # write CGBlock
+        blocks['CG'] = CGBlock()
+        blocks['CG']['cg_cg_master'] = cg_master_pointer
+        if cg_master_pointer is None:  # master channel writing
+            blocks['CG']['length'] = 112
+        else:
+            blocks['CG']['length'] = 104
+        blocks['CG']['block_start'] = pointer
+        pointer = blocks['CG']['block_start'] + blocks['CG']['length']
+        blocks['CG']['CN'] = pointer  # First CN link
+        blocks['CG']['cg_cycle_count'] = cg_cycle_count
+
+        # write channels
+        data = self.get_channel_data(channel)
+        # no interest to write invalid bytes as channel, should be processed if needed before writing
+        if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
+            data_ndim = data.ndim - 1
+            if data_ndim:  # data contains arrays
+                data_dim_size = data.shape
+                if not cg_cycle_count == data_dim_size[0]:
+                    warn('Array length do not match number of cycled in CG block')
+                data_dim_size = data_dim_size[1:]
+                SNd = 0
+                PNd = 1
+                for x in data_dim_size:
+                    SNd += x
+                    PNd *= x
+                flattened = reshape(data, (cg_cycle_count, PNd))
+                for i in range(PNd):
+                    data = data + (flattened[:, i],)
+            blocks['CN'] = CNBlock()
+            if issubdtype(data.dtype, numpy_number):  # is numeric
+                blocks['CN']['cn_val_range_min'] = npmin(data)
+                blocks['CN']['cn_val_range_max'] = npmax(data)
+                blocks['CN']['cn_flags'] = 8  # only Bit 3: Limit range valid flag
+            else:
+                blocks['CN']['cn_val_range_min'] = 0
+                blocks['CN']['cn_val_range_max'] = 0
+                blocks['CN']['cn_flags'] = 0
+            if cg_master_pointer is not None:
+                blocks['CN']['cn_type'] = 0
+                blocks['CN']['cn_sync_type'] = 0
+            else:
+                blocks['CN']['cn_type'] = 2  # master channel
+                blocks['CN']['cn_sync_type'] = 1  # default is time channel
+
+            cn_numpy_kind = data.dtype.kind
+            if cn_numpy_kind in ('u', 'b'):
+                data_type = 0  # LE
+            elif cn_numpy_kind == 'i':
+                data_type = 2  # LE
+            elif cn_numpy_kind == 'f':
+                data_type = 4  # LE
+            elif cn_numpy_kind == 'S':
+                data_type = 6
+            elif cn_numpy_kind == 'U':
+                data_type = 7  # UTF-8
+            elif cn_numpy_kind == 'V':
+                data_type = 10  # bytes
+            else:
+                warn('{} {} {}'.format(channel, data.dtype, cn_numpy_kind))
+                raise Exception('Not recognized dtype')
+            blocks['CN']['cn_data_type'] = data_type
+            blocks['CN']['cn_bit_offset'] = 0  # always byte aligned
+            blocks['CN']['cn_byte_offset'] = record_byte_offset
+            byte_count = data.dtype.itemsize
+            record_byte_offset += byte_count
+            blocks['CN']['cn_bit_count'] = byte_count * 8
+            blocks['CN']['block_start'] = pointer
+            pointer = blocks['CN']['block_start'] + 160
+            blocks['CN']['CN'] = 0  # creates first CN link, null for the moment
+
+            blocks['CN']['Composition'] = 0
+            # arrays handling
+            if data_ndim:
+                blocks['CN']['Composition'] = pointer  # pointer to CABlock
+                # creates CABlock
+                ca = ''.join([channel, '_CA'])
+                blocks[ca] = CABlock()
+                blocks[ca]['block_start'] = pointer
+                blocks[ca]['ndim'] = data_ndim
+                blocks[ca]['ndim_size'] = data_dim_size
+                blocks[ca].load(data.itemsize)
+                pointer = blocks[ca]['block_start'] + blocks[ca]['block_length']
+
+            # write channel name
+            blocks['CN']['TX'] = pointer
+            blocks[channel] = CommentBlock()
+            blocks[channel]['block_start'] = pointer
+            blocks[channel].load(channel, 'TX')
+            pointer = blocks[channel]['block_start'] + blocks[channel]['block_length']
+
+            # write channel unit
+            unit = self.get_channel_unit(channel)
+            if unit is not None and len(unit) > 0:
+                blocks['CN']['Unit'] = pointer
+                unit_name = '{}{}{}'.format(channel, '_U_', 'CN')
+                blocks[unit_name] = CommentBlock()
+                blocks[unit_name]['block_start'] = pointer
+                blocks[unit_name].load(unit, 'TX')
+                pointer = blocks[unit_name]['block_start'] + blocks[unit_name]['block_length']
+            else:
+                blocks['CN']['Unit'] = 0
+
+            # write channel description
+            desc = self.get_channel_desc(channel)
+            if desc is not None and len(desc) > 0:
+                blocks['CN']['Comment'] = pointer
+                desc_name = '{}{}{}'.format(channel, '_C_', 'CN')
+                blocks[desc_name] = CommentBlock()
+                blocks[desc_name]['block_start'] = pointer
+                blocks[desc_name].load(desc, 'TX')
+                pointer = blocks[desc_name]['block_start'] + blocks[desc_name]['block_length']
+            else:
+                blocks['CN']['Comment'] = 0
+
+            # writes size of record in CG
+            blocks['CG']['cg_data_bytes'] = record_byte_offset
+
+            # data pointer in data group
+            dg['data'] = pointer
+            if compression:
+                data_blocks = HLBlock()
+                data_blocks.load(record_byte_offset, cg_cycle_count, pointer)
+                dg_start_position = fid.tell()
+                dg['DG'] = 0
+            else:
+                data_blocks = DVBlock()
+                data_blocks.load(record_byte_offset, cg_cycle_count, pointer)
+                dg['DG'] = data_blocks['end_position']
+
+            dg.write(fid)  # write DG block
+
+            # writes all blocks (CG, CN, TX for unit and description) before writing data block
+            for block in blocks.values():
+                block.write(fid)
+
+            # data block writing
+            pointer = data_blocks.write(fid, fromarrays(data).tobytes(order='F'))
+            if compression:
+                # next DG position is not predictable due to DZ Blocks unknown length
+                fid.seek(dg_start_position + 24)
+                fid.write(pack('<Q', pointer))
+                fid.seek(pointer)
+
+        return dg
 
     def apply_invalid_bit(self, channel_name):
         """Mask data of channel based on its invalid bit definition if there is
