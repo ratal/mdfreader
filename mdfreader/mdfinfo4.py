@@ -925,12 +925,20 @@ class CGBlock(dict):
         # no character specified for path separator,
         # reserved, number of bytes taken by data in record,
         # no invalid bytes)
-        data_bytes = (b'##CG', 0, 104, 6,
-                      0, self['CN'], 0, 0, 0, 0, 0,
-                      self['cg_cycle_count'], 0, 0,
-                      b'\0' * 4,
-                      self['cg_data_bytes'], 0)
-        fid.write(pack('<4sI2Q8Q2H4s2I', *data_bytes))
+        if 'cg_cg_master' in self and self['cg_cg_master'] is not None:
+            data_bytes = (b'##CG', 0, self['length'], 6,
+                          0, self['CN'], 0, 0, 0, 0, self['cg_cg_master'], 0,
+                          self['cg_cycle_count'], 8, 0,
+                          b'\0' * 4,
+                          self['cg_data_bytes'], 0)
+            fid.write(pack('<4sI2Q9Q2H4s2I', *data_bytes))
+        else:
+            data_bytes = (b'##CG', 0, self['length'], 6,
+                          0, self['CN'], 0, 0, 0, 0, 0,
+                          self['cg_cycle_count'], 0, 0,
+                          b'\0' * 4,
+                          self['cg_data_bytes'], 0)
+            fid.write(pack('<4sI2Q8Q2H4s2I', *data_bytes))
 
 
 class CNBlock(dict):
