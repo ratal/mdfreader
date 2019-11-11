@@ -47,7 +47,7 @@ from numpy.ma import MaskedArray
 from warnings import simplefilter, warn
 from .mdfinfo4 import Info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _load_header, DLBlock, \
-    DZBlock, HLBlock, CCBlock, DTBlock, CABlock, DVBlock
+    DZBlock, HLBlock, CCBlock, DTBlock, CABlock, DVBlock, LDBlock
 from .mdf import MdfSkeleton, _open_mdf, invalidChannel, dataField, \
     conversionField, idField, invalidPosField, CompressedData
 from .channel import Channel4
@@ -411,36 +411,40 @@ class Data(dict):
         if temps['id'] in ('##DV', b'##DV'):
             # to be optimised by using unpack in case of column oriented storage (only one channel)
             temps['data'] = record.read_sorted_record(self.fid, info, channel_set=name_list)
-        elif temps['id'] in ('##DL', b'##DL'):  # data list block
-            temp = DLBlock()
-            temp.read(self.fid, temps['link_count'])
+        elif temps['id'] in ('##DL', b'##DL', '##LD', b'##LD'):  # data list block
+            if temps['id'] in ('##DL', b'##DL'):
+                temp = DLBlock()
+                temp.read_dl(self.fid, temps['link_count'])
+            else:
+                temp = LDBlock()
+                temp.read_ld(self.fid, temps['link_count'])
             temps.update(temp)
-            if temps['dl_dl_next']:
+            if temps['next']:
                 index = 1
-            while temps['dl_dl_next']:  # reads pointers to all data blocks (DT, RD, SD, DZ)
+            while temps['next']:  # reads pointers to all data blocks (DT, RD, SD, DZ)
                 temp = defaultdict()
-                temp.update(_load_header(self.fid, temps['dl_dl_next']))
-                temps['dl_dl_next'] = structunpack('<Q', self.fid.read(8))[0]
-                temps['dl_data'][index] = \
+                temp.update(_load_header(self.fid, temps['next']))
+                temps['next'] = structunpack('<Q', self.fid.read(8))[0]
+                temps['data'][index] = \
                     structunpack('<{}Q'.
                                  format(temp['link_count'] - 1),
                                  self.fid.read(8 * (temp['link_count'] - 1)))
                 index += 1
-            if temps['dl_count']:
+            if temps['count']:
                 # read and concatenate raw blocks
                 previous_index = 0
                 data_block = defaultdict()
                 data_block['data'] = bytearray()
                 if vlsd:  # need to load all blocks as variable length, cannot process block by block
-                    for DL in temps['dl_data']:
-                        for pointer in temps['dl_data'][DL]:
+                    for DL in temps['data']:
+                        for pointer in temps['data'][DL]:
                             # read fist data blocks linked by DLBlock to identify data block type
                             data_block.update(_load_header(self.fid, pointer))
                             if data_block['id'] in ('##SD', b'##SD'):
                                 data_block['data'].extend(self.fid.read(data_block['length'] - 24))
                             elif data_block['id'] in ('##DZ', b'##DZ'):
                                 temp = DZBlock()
-                                temp.read(self.fid)
+                                temp.read_dz(self.fid)
                                 data_block.update(temp)
                                 data_block['data'].extend(DZBlock.decompress_data_block(
                                     self.fid.read(data_block['dz_data_length']),
@@ -454,15 +458,16 @@ class Data(dict):
                     temps['data'] = _data_block(record, info, parent_block=data_block, channel_set=name_list,
                                                 n_records=None, sorted_flag=sorted_flag, vlsd=vlsd)
                 else:
-                    for DL in temps['dl_data']:
-                        for pointer in temps['dl_data'][DL]:
+                    for DL in temps['data']:
+                        for pointer in temps['data'][DL]:
                             # read fist data blocks linked by DLBlock to identify data block type
                             data_block.update(_load_header(self.fid, pointer))
-                            if data_block['id'] in ('##DT', '##RD', b'##DT', b'##RD'):
+                            if data_block['id'] in (b'##DT', b'##DV', b'##RD', b'##DI', b'##RV', b'##RI',
+                                                    '##DT', '##DV', '##RD', '##DI', '##RV', '##RI',):
                                 data_block['data'].extend(self.fid.read(data_block['length'] - 24))
                             elif data_block['id'] in ('##DZ', b'##DZ'):
                                 temp = DZBlock()
-                                temp.read(self.fid)
+                                temp.read_dz(self.fid)
                                 data_block.update(temp)
                                 data_block['data'].extend(DZBlock.decompress_data_block(
                                                           self.fid.read(data_block['dz_data_length']),
@@ -496,7 +501,7 @@ class Data(dict):
         elif temps['id'] in ('##HL', b'##HL'):  # header list block for DZBlock
             # link section
             temp = HLBlock()
-            temp.read(self.fid)
+            temp.read_hl(self.fid)
             temps.update(temp)
             self.pointer_to_data = temps['hl_dl_first']
             temps['data'] = self.load(record, info, name_list=name_list, sorted_flag=sorted_flag, vlsd=vlsd)
@@ -513,7 +518,7 @@ class Data(dict):
                                         sorted_flag=sorted_flag)
         elif temps['id'] in ('##DZ', b'##DZ'):  # zipped data block
             temp = DZBlock()
-            temp.read(self.fid)
+            temp.read_dz(self.fid)
             temps.update(temp)
             temps['data'] = self.fid.read(temps['dz_data_length'])
             temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,

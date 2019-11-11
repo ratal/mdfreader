@@ -926,7 +926,7 @@ class CGBlock(dict):
         # reserved, number of bytes taken by data in record,
         # no invalid bytes)
         if 'cg_cg_master' in self and self['cg_cg_master'] is not None:
-            data_bytes = (b'##CG', 0, self['length'], 6,
+            data_bytes = (b'##CG', 0, self['length'], 7,
                           0, self['CN'], 0, 0, 0, 0, self['cg_cg_master'], 0,
                           self['cg_cycle_count'], 8, 0,
                           b'\0' * 4,
@@ -1391,30 +1391,30 @@ class LDBlock(dict):
     """ reads List Data block
     """
 
-    def read(self, fid, link_count):
+    def read_ld(self, fid, link_count):
         # block header is already read
-        self['ld_ld_next'] = unpack('<Q', fid.read(8))[0]
-        self['ld_data'] = {}
-        self['ld_data'][0] = unpack('<{}Q'.format(link_count - 1),
+        self['next'] = unpack('<Q', fid.read(8))[0]
+        self['data'] = {}
+        self['data'][0] = unpack('<{}Q'.format(link_count - 1),
                                     fid.read(8 * (link_count - 1)))
-        (self['ld_flags'],
-         self['ld_count']) = unpack('<2IQ', fid.read(8))
-        if self['ld_flags'] & (1 << 31):  # invalid data present
-            self['ld_inval_data'] = [self['ld_data'].pop(i) for i in range(int(link_count/2), link_count)]
-        if self['ld_flags'] & 0b1:  # equal length data list
-            self['ld_equal_sample_sample_count'] = unpack('<Q', fid.read(8))[0]
+        (self['flags'],
+         self['count']) = unpack('<2IQ', fid.read(8))
+        if self['flags'] & (1 << 31):  # invalid data present
+            self['inval_data'] = [self['data'].pop(i) for i in range(int(link_count/2), link_count)]
+        if self['flags'] & 0b1:  # equal length data list
+            self['equal_sample_sample_count'] = unpack('<Q', fid.read(8))[0]
         else:  # data list defined by byte offset
-            self['ld_sample_offset'] = unpack('<{}Q'.format(self['ld_count']),
-                                              fid.read(8 * self['ld_count']))
-        if self['ld_flags'] & 0b10:  # time values
-            self['ld_time_values'] = unpack('<{}Q'.format(self['ld_count']),
-                                            fid.read(8 * self['ld_count']))
-        if self['ld_flags'] & 0b100:  # angle values
-            self['ld_angle_values'] = unpack('<{}Q'.format(self['ld_count']),
-                                             fid.read(8 * self['ld_count']))
-        if self['ld_flags'] & 0b1000:  # distance values
-            self['ld_distance_values'] = unpack('<{}Q'.format(self['ld_count']),
-                                                fid.read(8 * self['ld_count']))
+            self['sample_offset'] = unpack('<{}Q'.format(self['count']),
+                                           fid.read(8 * self['count']))
+        if self['flags'] & 0b10:  # time values
+            self['time_values'] = unpack('<{}Q'.format(self['count']),
+                                         fid.read(8 * self['count']))
+        if self['flags'] & 0b100:  # angle values
+            self['angle_values'] = unpack('<{}Q'.format(self['count']),
+                                          fid.read(8 * self['count']))
+        if self['flags'] & 0b1000:  # distance values
+            self['distance_values'] = unpack('<{}Q'.format(self['count']),
+                                             fid.read(8 * self['count']))
 
     def write(self, fid, chunks, position):
         self['block_start'] = position
@@ -1437,29 +1437,29 @@ class DLBlock(dict):
     """ reads List Data block
     """
 
-    def read(self, fid, link_count):
+    def read_dl(self, fid, link_count):
         # block header is already read
-        self['dl_dl_next'] = unpack('<Q', fid.read(8))[0]
-        self['dl_data'] = {}
-        self['dl_data'][0] = unpack('<{}Q'.format(link_count - 1),
+        self['next'] = unpack('<Q', fid.read(8))[0]
+        self['data'] = {}
+        self['data'][0] = unpack('<{}Q'.format(link_count - 1),
                                     fid.read(8 * (link_count - 1)))
-        (self['dl_flags'],
+        (self['flags'],
          dl_reserved,
-         self['dl_count']) = unpack('<B3sI', fid.read(8))
-        if self['dl_flags'] & 0b1:  # equal length data list
-            self['dl_equal_length'] = unpack('<Q', fid.read(8))[0]
+         self['count']) = unpack('<B3sI', fid.read(8))
+        if self['flags'] & 0b1:  # equal length data list
+            self['equal_length'] = unpack('<Q', fid.read(8))[0]
         else:  # data list defined by byte offset
-            self['dl_offset'] = unpack('<{}Q'.format(self['dl_count']),
-                                       fid.read(8 * self['dl_count']))
-        if self['dl_flags'] & 0b10:  # time values
-            self['dl_time_values'] = unpack('<{}Q'.format(self['dl_count']),
-                                            fid.read(8 * self['dl_count']))
-        if self['dl_flags'] & 0b100:  # angle values
-            self['dl_angle_values'] = unpack('<{}Q'.format(self['dl_count']),
-                                             fid.read(8 * self['dl_count']))
-        if self['dl_flags'] & 0b1000:  # distance values
-            self['dl_distance_values'] = unpack('<{}Q'.format(self['dl_count']),
-                                                fid.read(8 * self['dl_count']))
+            self['offset'] = unpack('<{}Q'.format(self['count']),
+                                    fid.read(8 * self['count']))
+        if self['flags'] & 0b10:  # time values
+            self['time_values'] = unpack('<{}Q'.format(self['count']),
+                                         fid.read(8 * self['count']))
+        if self['flags'] & 0b100:  # angle values
+            self['angle_values'] = unpack('<{}Q'.format(self['count']),
+                                          fid.read(8 * self['count']))
+        if self['flags'] & 0b1000:  # distance values
+            self['distance_values'] = unpack('<{}Q'.format(self['count']),
+                                             fid.read(8 * self['count']))
 
     def write(self, fid, chunks, position):
         self['block_start'] = position
@@ -1482,7 +1482,7 @@ class DZBlock(dict):
     """ reads Data List block
     """
 
-    def read(self, fid):
+    def read_dz(self, fid):
         # block header is already read
         (self['dz_org_block_type'],
          self['dz_zip_type'],
@@ -1559,7 +1559,7 @@ class HLBlock(dict):
     """ reads Header List block
     """
 
-    def read(self, fid):
+    def read_hl(self, fid):
         (self['hl_dl_first'],
          self['hl_flags'],
          self['hl_zip_type'],
