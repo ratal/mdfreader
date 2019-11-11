@@ -420,7 +420,7 @@ class Mdf(Mdf3, Mdf4):
         if not self.fid.closed:  # close file
             self.fid.close()
 
-    def write(self, file_name=None, compression=False):
+    def write(self, file_name=None, compression=False, column_oriented=False):
         """Writes simple mdf file, same format as originally read, default is 4.x
 
         Parameters
@@ -432,6 +432,8 @@ class Mdf(Mdf3, Mdf4):
         compression : bool
             Flag to store data compressed (from mdf version 4.1)
             If activated, will write in version 4.1 even if original file is in version 3.x
+        column_oriented : bool
+            Flag to store , column oriented channels
 
         Notes
         --------
@@ -447,7 +449,7 @@ class Mdf(Mdf3, Mdf4):
         if self.MDFVersionNumber < 400 and not compression:
             self.write3(file_name=file_name)
         else:
-            self.write4(file_name=file_name, compression=compression)
+            self.write4(file_name=file_name, compression=compression, column_oriented=column_oriented)
 
     def get_channel_data(self, channel_name, raw_data=False):
         """Return channel numpy array
