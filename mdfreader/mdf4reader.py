@@ -1594,7 +1594,7 @@ class Mdf4(MdfSkeleton):
                         self.remove_channel_conversion(channelName)
 
     def write4(self, file_name=None, compression=False, column_oriented=False):
-        """Writes simple mdf 4.1 file
+        """Writes simple mdf file
 
         Parameters
         ----------------
@@ -1672,14 +1672,15 @@ class Mdf4(MdfSkeleton):
                         # no data in data group, skip
                         warn('no data in data group {0} with master channel {1}'.format(dataGroup, masterChannel))
                         continue
-                    cg_master_pointer = pointer + 64  # CG after DG at pointer
-                    dg = self._write4_column(fid, pointer, cg_cycle_count, masterChannel, compression)
 
                     for channel in self.masterChannelList[masterChannel]:
                         # write other channels
-                        if not channel == masterChannel:
-                            dg = self._write4_column(fid, pointer, cg_cycle_count, channel, compression,
-                                                     cg_master_pointer=cg_master_pointer)
+                        if channel == masterChannel:
+                            cg_master_pointer = pointer + 64  # CG after DG at pointer
+                            dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, masterChannel, compression)
+                        else:
+                            dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, channel, compression,
+                                                              cg_master_pointer=cg_master_pointer)
 
                 fid.seek(dg['block_start'] + 24)
                 fid.write(pack('Q', 0))  # last DG pointer is null
@@ -1688,7 +1689,7 @@ class Mdf4(MdfSkeleton):
         fid.close()
 
     def _write4_non_column(self, fid, pointer, compression=False):
-        """Writes simple mdf 4.1 file
+        """Writes simple mdf 4.1 file with sorted data
 
         Parameters
         ----------------
@@ -1775,7 +1776,7 @@ class Mdf4(MdfSkeleton):
                         blocks[n_channel]['cn_sync_type'] = 0
                     else:
                         blocks[n_channel]['cn_type'] = 2  # master channel
-                        blocks[n_channel]['cn_sync_type'] = 1  # default is time channel
+                        blocks[n_channel]['cn_sync_type'] = self.get_channel_master_type(channel)
                         n_records = len(data)
 
                     cn_numpy_kind = data.dtype.kind
@@ -1896,14 +1897,21 @@ class Mdf4(MdfSkeleton):
 
     def _write4_column(self, fid, pointer, cg_cycle_count, channel,
                        compression=False, cg_master_pointer=None):
-        """Writes simple mdf 4.2 file
+        """Writes simple mdf 4.2 file with column oriented channels
+        Mostly efficient for reading but size might be bigger than original file
 
         Parameters
         ----------------
         fid
             file identifier
+        cg_cycle_count : int
+            number of records for the channel
+        channel : string
+            channel name
         compression : bool
             flag to store data compressed
+        cg_master_pointer : int
+            point to other CGBlock containing master channel
 
         Notes
         --------
@@ -1922,9 +1930,9 @@ class Mdf4(MdfSkeleton):
         blocks['CG'] = CGBlock()
         blocks['CG']['cg_cg_master'] = cg_master_pointer
         if cg_master_pointer is None:  # master channel writing
-            blocks['CG']['length'] = 112
-        else:
             blocks['CG']['length'] = 104
+        else:
+            blocks['CG']['length'] = 112
         blocks['CG']['block_start'] = pointer
         pointer = blocks['CG']['block_start'] + blocks['CG']['length']
         blocks['CG']['CN'] = pointer  # First CN link
@@ -1962,7 +1970,7 @@ class Mdf4(MdfSkeleton):
                 blocks['CN']['cn_sync_type'] = 0
             else:
                 blocks['CN']['cn_type'] = 2  # master channel
-                blocks['CN']['cn_sync_type'] = 1  # default is time channel
+                blocks['CN']['cn_sync_type'] = self.get_channel_master_type(channel)
 
             cn_numpy_kind = data.dtype.kind
             if cn_numpy_kind in ('u', 'b'):
@@ -2041,7 +2049,7 @@ class Mdf4(MdfSkeleton):
             dg['data'] = pointer
             if compression:
                 data_blocks = HLBlock()
-                data_blocks.load(record_byte_offset, cg_cycle_count, pointer)
+                data_blocks.load(record_byte_offset, cg_cycle_count, pointer, column_oriented_flag=True)
                 dg_start_position = fid.tell()
                 dg['DG'] = 0
             else:
@@ -2063,7 +2071,7 @@ class Mdf4(MdfSkeleton):
                 fid.write(pack('<Q', pointer))
                 fid.seek(pointer)
 
-        return dg
+        return dg, pointer
 
     def apply_invalid_bit(self, channel_name):
         """Mask data of channel based on its invalid bit definition if there is

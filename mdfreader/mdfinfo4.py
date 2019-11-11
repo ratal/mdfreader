@@ -834,9 +834,9 @@ class DGBlock(dict):
 
     def __init__(self, fid=None, pointer=None):
         if fid is not None:
-            self.read(fid, pointer)
+            self.read_dg(fid, pointer)
 
-    def read(self, fid, pointer):
+    def read_dg(self, fid, pointer):
         fid.seek(pointer)
         self['pointer'] = pointer
         (self['id'],
@@ -875,9 +875,9 @@ class CGBlock(dict):
 
     def __init__(self, fid=None, pointer=None):
         if fid is not None:
-            self.read(fid, pointer)
+            self.read_cg(fid, pointer)
 
-    def read(self, fid, pointer):
+    def read_cg(self, fid, pointer):
         fid.seek(pointer)
         self['pointer'] = pointer
         (self['id'],
@@ -1426,7 +1426,7 @@ class LDBlock(dict):
                 (n_record_chunk, chunk_size) = chunks[counter]
                 ld_offset[counter] = ld_offset[counter - 1] + chunk_size
         data_bytes = (b'##LD', 0, self['block_length'], number_ld + 1, 0)
-        fid.write(pack('<4sI3Q'.format(number_ld, number_ld), *data_bytes))
+        fid.write(pack('<4sI3Q', *data_bytes))
         fid.write(pack('{0}Q'.format(number_ld), *zeros(shape=number_ld, dtype='<u8')))
         fid.write(pack('<2I', 0, number_ld))
         fid.write(pack('{0}Q'.format(number_ld), *ld_offset))
@@ -1471,7 +1471,7 @@ class DLBlock(dict):
                 (n_record_chunk, chunk_size) = chunks[counter]
                 dl_offset[counter] = dl_offset[counter - 1] + chunk_size
         data_bytes = (b'##DL', 0, self['block_length'], number_dl + 1, 0)
-        fid.write(pack('<4sI3Q'.format(number_dl, number_dl), *data_bytes))
+        fid.write(pack('<4sI3Q', *data_bytes))
         fid.write(pack('{0}Q'.format(number_dl), *zeros(shape=number_dl, dtype='<u8')))
         fid.write(pack('<2I', 0, number_dl))
         fid.write(pack('{0}Q'.format(number_dl), *dl_offset))
@@ -1530,19 +1530,24 @@ class DZBlock(dict):
         # compress data
         # uses data transposition for max compression
         org_data_length = len(data)
-        M = org_data_length // record_length
-        temp = array(memoryview(data[:M * record_length]))
-        tail = array(memoryview(data[M * record_length:]))
-        temp = temp.reshape(M, record_length).T.ravel()
-        if len(tail) > 0:
-            temp = append(temp, tail)
-        # compress transposed data
-        compressed_data = compress(temp.tostring())
+        if self['dz_zip_type']:
+            M = org_data_length // record_length
+            temp = array(memoryview(data[:M * record_length]))
+            tail = array(memoryview(data[M * record_length:]))
+            temp = temp.reshape(M, record_length).T.ravel()
+            if len(tail) > 0:
+                temp = append(temp, tail)
+            # compress transposed data
+            compressed_data = compress(temp.tostring())
+        else:
+            compressed_data = compress(data)
+            record_length = 0
         dz_data_length = len(compressed_data)
         self['DZBlock_length'] = 48 + dz_data_length
         # writes header
         fid.write(_HeaderStruct.pack(b'##DZ', 0, self['DZBlock_length'], 0))
-        data_bytes = (b'DT', 1, 0, record_length, org_data_length, dz_data_length)
+        data_bytes = (self['dz_org_block_type'], self['dz_zip_type'], 0,
+                      record_length, org_data_length, dz_data_length)
         fid.write(_DZStruct.pack(*data_bytes))
         # writes compressed data
         fid.write(compressed_data)
@@ -1560,9 +1565,10 @@ class HLBlock(dict):
          self['hl_zip_type'],
          hl_reserved) = _HLStruct.unpack(fid.read(16))
 
-    def load(self, record_byte_offset, n_records, position):
+    def load(self, record_byte_offset, n_records, position, column_oriented_flag=False):
         self['record_length'] = record_byte_offset
         self['block_start'] = position
+        self['column_oriented_flag'] = column_oriented_flag
         self['block_length'] = 40
         # calculate data chunks
         n_chunks = (record_byte_offset * n_records) // chunk_size_writing + 1
@@ -1575,10 +1581,17 @@ class HLBlock(dict):
 
     def write(self, fid, data):
         fid.write(_HeaderStruct.pack(b'##HL', 0, self['block_length'], 1))
-        # uses not equal length blocks, transposed compressed data
-        fid.write(_HLStruct.pack(self['block_start'] + self['block_length'], 0, 1, b'\x00' * 5))
+        if self['column_oriented_flag']:
+            DL = LDBlock()
+            dz_org_block_type = b'DV'
+            dz_zip_type = 0  # for a column oriented channel, no meanning to have transposition
+        else:
+            # uses not equal length blocks, transposed compressed data
+            DL = DLBlock()
+            dz_org_block_type = b'DT'
+            dz_zip_type = 1
+        fid.write(_HLStruct.pack(self['block_start'] + self['block_length'], 0, dz_zip_type, b'\x00' * 5))
         pointer = self['block_start'] + self['block_length']
-        DL = DLBlock()
         DL.write(fid, self['chunks'], pointer)
         pointer += DL['block_length']
         dl_data = zeros(shape=len(self['chunks']), dtype='<u8')
@@ -1586,6 +1599,8 @@ class HLBlock(dict):
         for counter, (n_record_chunk, chunk_size) in enumerate(self['chunks']):
             DZ = DZBlock()
             DZ['block_start'] = _calculate_block_start(pointer)
+            DZ['dz_org_block_type'] = dz_org_block_type
+            DZ['dz_zip_type'] = dz_zip_type
             dl_data[counter] = DZ['block_start']
             pointer = DZ.write(fid, data[data_pointer: data_pointer + chunk_size], self['record_length'])
             data_pointer += chunk_size
@@ -2094,7 +2109,8 @@ class Info4(dict):
 
     @staticmethod
     def read_ev_block(fid, pointer):
-        """reads Events Blocks
+
+        """ reads Events Blocks
 
         Parameters
         ----------------
@@ -2107,6 +2123,7 @@ class Info4(dict):
         -----------
         Event Blocks in a dict
         """
+
         ev_blocks = OrderedDict()
         while pointer:
             ev_blocks[pointer] = EVBlock(fid, pointer)
