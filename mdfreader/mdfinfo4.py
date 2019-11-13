@@ -890,8 +890,8 @@ class CGBlock(dict):
          self['cg_si_acq_source'],
          self['cg_sr_first'],
          self['cg_md_comment']) = _CGStruct1.unpack(fid.read(72))
-        if self['link_count'] > 6:
-            self['cg_cg_master'] = unpack(_LINK, fid.read(8))
+        if self['link_count'] > 6:  # linked to another cg containing master
+            self['cg_cg_master'] = unpack(_LINK, fid.read(8))[0]
         # data section
         (self['cg_record_id'],
          self['cg_cycle_count'],
@@ -1669,6 +1669,7 @@ class Info4(dict):
         self['CC'] = {}  # Conversion block
         self['AT'] = {}  # Attachment block
         self['allChannelList'] = set()  # all channels
+        self['masters'] = dict()  # channels grouped by master
         self.fileName = file_name
         self.fid = None
         if fid is None and file_name is not None:
@@ -2237,6 +2238,22 @@ class Info4(dict):
             name = u'{0}_{1}_{2}'.format(name, dg, source_name)
         self['ChannelNamesByDG'][dg].add(name)
         self['allChannelList'].add(name)
+
+        if self['CG'][dg][cg]['link_count'] > 6:  # cg master link
+            try:
+                self['masters'][self['CG'][dg][cg]['cg_cg_master']]['channels'].add(name)
+            except KeyError:
+                self['masters'][self['CG'][dg][cg]['cg_cg_master']] = dict()
+                self['masters'][self['CG'][dg][cg]['cg_cg_master']]['channels'] = set()
+        else:
+            try:
+                self['masters'][self['CG'][dg][cg]['pointer']]['channels'].add(name)
+            except KeyError:
+                self['masters'][self['CG'][dg][cg]['pointer']] = dict()
+                self['masters'][self['CG'][dg][cg]['pointer']]['channels'] = set()
+            if self['CN'][dg][cg][cn]['cn_type'] in (2, 5):  # master channel
+                self['masters'][self['CG'][dg][cg]['pointer']]['name'] = name
+                self['masters'][self['CG'][dg][cg]['pointer']]['id'] = (dg, cg, cn)
         return name
 
     def unique_id(self, ndg, ncg, ncn):
