@@ -517,11 +517,14 @@ class CommentBlock(dict):
          """
         if pointer > 0:
             self.read_cm_header(fid, pointer)
-            xml_tree = self.read_xml(fid)
-            try:
-                self['TX'] = xml_tree.TX.text
-            except AttributeError:
-                warn('Could not parse AT block TX tag')
+            if self['id'] in (b'##MD', '##MD'):
+                xml_tree = self.read_xml(fid)
+                try:
+                    self['TX'] = xml_tree.TX.text
+                except AttributeError:
+                    warn('Could not parse AT block TX tag')
+            elif self['id'] in (b'##TX', '##TX'):
+                self['Comment'] = fid.read(self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
 
     def read_cm_ev(self, fid, pointer):
         """ reads Comment block from event block
