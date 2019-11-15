@@ -2051,7 +2051,7 @@ class Info4(dict):
                     self['CN'][dg][cg][chan]['orig_name'] = self['CN'][dg][cg][chan]['name']
                     # make sure channel name is unique
                     self['CN'][dg][cg][chan]['name'] = \
-                        self._unique_channel_name(fid, self['CN'][dg][cg][chan]['name'], dg, cg, cn)
+                        self._unique_channel_name(fid, self['CN'][dg][cg][chan]['name'], dg, cg, chan)
 
                     self['CC'][dg][cg][chan] = CCBlock()
                     self['CC'][dg][cg][chan].read_cc(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
@@ -2066,7 +2066,7 @@ class Info4(dict):
                         self['CN'][dg][cg][chan]['orig_name'] = self['CN'][dg][cg][chan]['name']
                         # make sure channel name is unique
                         self['CN'][dg][cg][chan]['name'] = \
-                            self._unique_channel_name(fid, self['CN'][dg][cg][chan]['name'], dg, cg, cn)
+                            self._unique_channel_name(fid, self['CN'][dg][cg][chan]['name'], dg, cg, chan)
 
                         self['CC'][dg][cg][chan] = CCBlock()
                         self['CC'][dg][cg][chan].read_cc(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
