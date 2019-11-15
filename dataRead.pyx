@@ -166,9 +166,9 @@ cdef inline read_half(const char* bit_stream, str record_format, unsigned long l
         memcpy(&temp_uint16, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
         buf[i] = temp_uint16
     if swap == 0:
-        return buf.view(dtype=np.float16)
+        return np.asarray(buf).view(dtype=np.float16)
     else:
-        return buf.view(dtype=np.float16).byteswap()
+        return np.asarray(buf).view(dtype=np.float16).byteswap()
 
 cdef inline read_chalf(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
@@ -181,9 +181,9 @@ cdef inline read_chalf(const char* bit_stream, str record_format, unsigned long 
         memcpy(&temp16_img, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
         buf[i] = <uint32_t>temp16_real<<32 | <uint32_t>temp16_img
     if swap == 0:
-        return buf.view(dtype=np.complex_64)  # returning single instead of half precision complex
+        return np.asarray(buf).view(dtype=np.complex_64)  # returning single instead of half precision complex
     else:
-        return buf.view(dtype=np.complex_64).byteswap()
+        return np.asarray(buf).view(dtype=np.complex_64).byteswap()
 
 cdef inline read_float(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
