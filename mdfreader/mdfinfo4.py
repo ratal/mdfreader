@@ -1394,13 +1394,13 @@ class LDBlock(dict):
     def read_ld(self, fid, link_count):
         # block header is already read
         self['next'] = unpack('<Q', fid.read(8))[0]
-        self['data'] = {}
-        self['data'][0] = unpack('<{}Q'.format(link_count - 1),
+        self['list_data'] = {}
+        self['list_data'][0] = unpack('<{}Q'.format(link_count - 1),
                                     fid.read(8 * (link_count - 1)))
         (self['flags'],
          self['count']) = unpack('<2IQ', fid.read(8))
         if self['flags'] & (1 << 31):  # invalid data present
-            self['inval_data'] = [self['data'].pop(i) for i in range(int(link_count/2), link_count)]
+            self['inval_data'] = [self['list_data'].pop(i) for i in range(int(link_count/2), link_count)]
         if self['flags'] & 0b1:  # equal length data list
             self['equal_sample_sample_count'] = unpack('<Q', fid.read(8))[0]
         else:  # data list defined by byte offset
@@ -1440,8 +1440,8 @@ class DLBlock(dict):
     def read_dl(self, fid, link_count):
         # block header is already read
         self['next'] = unpack('<Q', fid.read(8))[0]
-        self['data'] = {}
-        self['data'][0] = unpack('<{}Q'.format(link_count - 1),
+        self['list_data'] = {}
+        self['list_data'][0] = unpack('<{}Q'.format(link_count - 1),
                                     fid.read(8 * (link_count - 1)))
         (self['flags'],
          dl_reserved,
@@ -2020,10 +2020,6 @@ class Info4(dict):
             self['CA'][dg] = {}
         except KeyError:
             pass
-        try:
-            self['CG'][dg] = {}
-        except KeyError:
-            pass
 
     def read_composition(self, fid, dg, cg, mlsd_channels):
         """check for composition of channels, arrays or structures
@@ -2245,15 +2241,19 @@ class Info4(dict):
             except KeyError:
                 self['masters'][self['CG'][dg][cg]['cg_cg_master']] = dict()
                 self['masters'][self['CG'][dg][cg]['cg_cg_master']]['channels'] = set()
+                self['masters'][self['CG'][dg][cg]['cg_cg_master']]['name'] = 'master_{}'.format(dg)
+            self['CN'][dg][cg][cn]['masterCG'] = self['CG'][dg][cg]['cg_cg_master']
         else:
             try:
                 self['masters'][self['CG'][dg][cg]['pointer']]['channels'].add(name)
             except KeyError:
                 self['masters'][self['CG'][dg][cg]['pointer']] = dict()
                 self['masters'][self['CG'][dg][cg]['pointer']]['channels'] = set()
-            if self['CN'][dg][cg][cn]['cn_type'] in (2, 5):  # master channel
+                self['masters'][self['CG'][dg][cg]['pointer']]['name'] = 'master_{}'.format(dg)
+            if self['CN'][dg][cg][cn]['cn_type'] in (2, 3):  # master channel
                 self['masters'][self['CG'][dg][cg]['pointer']]['name'] = name
-                self['masters'][self['CG'][dg][cg]['pointer']]['id'] = (dg, cg, cn)
+                self['masters'][self['CG'][dg][cg]['pointer']]['id'] = (dg, cg)
+            self['CN'][dg][cg][cn]['masterCG'] = self['CG'][dg][cg]['pointer']
         return name
 
     def unique_id(self, ndg, ncg, ncn):

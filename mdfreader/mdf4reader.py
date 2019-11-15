@@ -425,7 +425,7 @@ class Data(dict):
                 temp = defaultdict()
                 temp.update(_load_header(self.fid, temps['next']))
                 temps['next'] = structunpack('<Q', self.fid.read(8))[0]
-                temps['data'][index] = \
+                temps['list_data'][index] = \
                     structunpack('<{}Q'.
                                  format(temp['link_count'] - 1),
                                  self.fid.read(8 * (temp['link_count'] - 1)))
@@ -436,8 +436,8 @@ class Data(dict):
                 data_block = defaultdict()
                 data_block['data'] = bytearray()
                 if vlsd:  # need to load all blocks as variable length, cannot process block by block
-                    for DL in temps['data']:
-                        for pointer in temps['data'][DL]:
+                    for DL in temps['list_data']:
+                        for pointer in temps['list_data'][DL]:
                             # read fist data blocks linked by DLBlock to identify data block type
                             data_block.update(_load_header(self.fid, pointer))
                             if data_block['id'] in ('##SD', b'##SD'):
@@ -458,8 +458,8 @@ class Data(dict):
                     temps['data'] = _data_block(record, info, parent_block=data_block, channel_set=name_list,
                                                 n_records=None, sorted_flag=sorted_flag, vlsd=vlsd)
                 else:
-                    for DL in temps['data']:
-                        for pointer in temps['data'][DL]:
+                    for DL in temps['list_data']:
+                        for pointer in temps['list_data'][DL]:
                             # read fist data blocks linked by DLBlock to identify data block type
                             data_block.update(_load_header(self.fid, pointer))
                             if data_block['id'] in (b'##DT', b'##DV', b'##RD', b'##DI', b'##RV', b'##RI',
@@ -621,9 +621,7 @@ class Record(list):
         self.channelGroup = channel_group
         self.numpyDataRecordFormat = []
         self.dataRecordName = []
-        self.master = {}
-        self.master['name'] = 'master_{}'.format(data_group)
-        self.master['number'] = None
+        self.master = 'master_{}'.format(data_group)
         self.Flags = 0
         self.VLSD_CG = {}
         self.VLSD = []
@@ -649,8 +647,8 @@ class Record(list):
         output.append('CG block record bytes length : {}\nData group number : {}'
                       '\nByte aligned : {}\nHidden bytes : {}\n'.format(self.CGrecordLength, self.dataGroup,
                                                                         self.byte_aligned, self.hiddenBytes))
-        if self.master['name'] is not None:
-            output.append('Master channel : {}\n'.format(self.master['name']))
+        if self.master is not None:
+            output.append('Master channel : {}\n'.format(self.master))
         output.append('Numpy records format : \n')
         for record in self.numpyDataRecordFormat:
             output.append(' {} '.format(record))
@@ -713,12 +711,7 @@ class Record(list):
             channel.set(info, self.dataGroup, self.channelGroup, channelNumber)
             channel_type = channel.channel_type(info)
             data_format = channel.data_format(info)
-            if channel_type in (2, 3):  # master channel found
-                if self.master['number'] is None or channel.channel_sync_type(info) == 1:
-                    # new master channel found
-                    # or more than 1 master channel, priority to time channel
-                    self.master['number'] = channelNumber
-                    self.master['name'] = channel.name
+            self.master = info['masters'][info['CN'][self.dataGroup][self.channelGroup][channelNumber]['masterCG']]['name']
             if channel_type in (0, 1, 2, 4, 5):  # not virtual channel
                 signal_data_type = channel.signal_data_type(info)
                 if signal_data_type == 13:
@@ -915,8 +908,8 @@ class Record(list):
         previous_index = 0
         if channel_set is None:
             channel_set = self.channelNames
-        if channel_set is not None and not self.master['name'] in channel_set:
-            channel_set.add(self.master['name'])  # adds master channel
+        if channel_set is not None and not self.master in channel_set:
+            channel_set.add(self.master)  # adds master channel
         rec, channels_indexes = self.initialise_recarray(info, channel_set, self.numberOfRecords)
         if rec is not None:
             if dataRead_available:
@@ -1313,11 +1306,11 @@ class Mdf4(MdfSkeleton):
                             temp.load_info(info)  # load all info related to record
                             buf.add_record(temp)  # adds record to DATA
                             record_id = info['CG'][dataGroup][channelGroup]['cg_record_id']
-                            if temp.master['name'] is not None \
+                            if temp.master is not None \
                                     and buf[record_id]['record'].channelNames:
                                 if channel_set is not None and not self._noDataLoading\
-                                        and temp.master['name'] not in channel_set:
-                                    channel_set.add(temp.master['name'])  # adds master channel in channelSet if missing
+                                        and temp.master not in channel_set:
+                                    channel_set.add(temp.master)  # adds master channel in channelSet if missing
                             if channel_set is not None and buf[record_id]['record'].CANOpen:
                                 # adds CANOpen channels if existing in not empty channelSet
                                 if buf[record_id]['record'].CANOpen == 'time':
@@ -1340,7 +1333,7 @@ class Mdf4(MdfSkeleton):
                     # processing data from buf then transfer to self
                     for record_id in channel_groups:  # for each channel group in data block
                         if 'record' in buf[record_id]:
-                            master_channel = buf[record_id]['record'].master['name']
+                            master_channel = buf[record_id]['record'].master
 
                             channels = buf[record_id]['record']
                             if self._noDataLoading and channel_list is not None:
