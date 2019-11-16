@@ -1402,22 +1402,23 @@ class LDBlock(dict):
                                     fid.read(8 * (link_count - 1)))
         (self['flags'],
          self['count']) = unpack('<2I', fid.read(8))
-        if self['flags'] & (1 << 31):  # invalid data present
-            self['inval_data'] = [self['list_data'].pop(i) for i in range(int(link_count/2), link_count)]
-        if self['flags'] & 0b1:  # equal length data list
-            self['equal_sample_count'] = unpack('<Q', fid.read(8))[0]
-        else:  # data list defined by byte offset
-            self['sample_offset'] = unpack('<{}Q'.format(self['count']),
-                                           fid.read(8 * self['count']))
-        if self['flags'] & 0b10:  # time values
-            self['time_values'] = unpack('<{}Q'.format(self['count']),
-                                         fid.read(8 * self['count']))
-        if self['flags'] & 0b100:  # angle values
-            self['angle_values'] = unpack('<{}Q'.format(self['count']),
-                                          fid.read(8 * self['count']))
-        if self['flags'] & 0b1000:  # distance values
-            self['distance_values'] = unpack('<{}Q'.format(self['count']),
+        if self['flags']:  # flags existing
+            if self['flags'] & (1 << 31):  # invalid data present
+                self['inval_data'] = [self['list_data'].pop(i) for i in range(int(link_count/2), link_count)]
+            if self['flags'] & 0b1:  # equal length data list
+                self['equal_sample_count'] = unpack('<Q', fid.read(8))[0]
+            else:  # data list defined by byte offset
+                self['sample_offset'] = unpack('<{}Q'.format(self['count']),
+                                               fid.read(8 * self['count']))
+            if self['flags'] & 0b10:  # time values
+                self['time_values'] = unpack('<{}Q'.format(self['count']),
                                              fid.read(8 * self['count']))
+            if self['flags'] & 0b100:  # angle values
+                self['angle_values'] = unpack('<{}Q'.format(self['count']),
+                                              fid.read(8 * self['count']))
+            if self['flags'] & 0b1000:  # distance values
+                self['distance_values'] = unpack('<{}Q'.format(self['count']),
+                                                 fid.read(8 * self['count']))
 
     def write(self, fid, chunks, position):
         self['block_start'] = position
@@ -1808,6 +1809,13 @@ class Info4(dict):
             else:
                 vlsd_cg_block.append(cg)
 
+            if self['CN'][dg][cg][0]['unique_channel_in_CG'] and not self['CG'][dg][cg]['cg_cg_next'] \
+                    and not self['CG'][dg][cg]['cg_invalid_bytes']:
+                # unique channel in data group
+                self['DG'][dg]['unique_channel_in_DG'] = True
+            else:
+                self['DG'][dg]['unique_channel_in_DG'] = False
+
             while self['CG'][dg][cg]['cg_cg_next']:
                 cg += 1
                 vlsd = False  # flag for at least one VLSD channel in CG
@@ -1854,27 +1862,28 @@ class Info4(dict):
                                 self['VLSD_CG'][self['CG'][dg][VLSDcg]['cg_record_id']] = temp
                                 break
 
-            # reorder channel blocks and related blocks(CC, SI, AT, CA) based on byte offset
-            # this reorder is meant to improve performance while parsing records using core.records.fromfile
-            # as it will not use cn_byte_offset
-            # first, calculate new mapping/order
-            n_channel = len(self['CN'][dg][cg])
-            Map = zeros(shape=n_channel, dtype=[('index', 'u4'), ('bit_offset', 'u4')])
-            for cn in range(n_channel):
-                Map[cn] = (cn, self['CN'][dg][cg][cn]['cn_byte_offset'] * 8 + self['CN'][dg][cg][cn]['cn_bit_offset'])
-            ordered_map = sort(Map, order='bit_offset')
+            if not self['DG'][dg]['unique_channel_in_DG']:  # no need to order if unique in CG
+                # reorder channel blocks and related blocks(CC, SI, AT, CA) based on byte offset
+                # this reorder is meant to improve performance while parsing records using core.records.fromfile
+                # as it will not use cn_byte_offset
+                # first, calculate new mapping/order
+                n_channel = len(self['CN'][dg][cg])
+                Map = zeros(shape=n_channel, dtype=[('index', 'u4'), ('bit_offset', 'u4')])
+                for cn in range(n_channel):
+                    Map[cn] = (cn, self['CN'][dg][cg][cn]['cn_byte_offset'] * 8 + self['CN'][dg][cg][cn]['cn_bit_offset'])
+                ordered_map = sort(Map, order='bit_offset')
 
-            to_change_index = Map == ordered_map
-            for cn in range(n_channel):
-                if not to_change_index[cn]:
-                    # offset all indexes of indexes to be moved
-                    self['CN'][dg][cg][cn + n_channel] = self['CN'][dg][cg].pop(cn)
-                    self['CC'][dg][cg][cn + n_channel] = self['CC'][dg][cg].pop(cn)
-            for cn in range(n_channel):
-                if not to_change_index[cn]:
-                    # change to ordered index
-                    self['CN'][dg][cg][cn] = self['CN'][dg][cg].pop(ordered_map[cn][0] + n_channel)
-                    self['CC'][dg][cg][cn] = self['CC'][dg][cg].pop(ordered_map[cn][0] + n_channel)
+                to_change_index = Map == ordered_map
+                for cn in range(n_channel):
+                    if not to_change_index[cn]:
+                        # offset all indexes of indexes to be moved
+                        self['CN'][dg][cg][cn + n_channel] = self['CN'][dg][cg].pop(cn)
+                        self['CC'][dg][cg][cn + n_channel] = self['CC'][dg][cg].pop(cn)
+                for cn in range(n_channel):
+                    if not to_change_index[cn]:
+                        # change to ordered index
+                        self['CN'][dg][cg][cn] = self['CN'][dg][cg].pop(ordered_map[cn][0] + n_channel)
+                        self['CC'][dg][cg][cn] = self['CC'][dg][cg].pop(ordered_map[cn][0] + n_channel)
 
     def read_cn_block(self, fid, dg, cg, channel_name_list=False, minimal=0):
         """reads Channel blocks
@@ -1901,6 +1910,10 @@ class Info4(dict):
         temp.read_cn(fid=fid, pointer=self['CG'][dg][cg]['cg_cn_first'])
         if temp is not None:
             self['CN'][dg][cg][cn].update(temp)
+        if not self['CN'][dg][cg][cn]['cn_cn_next']:  # only one channel in CGBlock
+            self['CN'][dg][cg][cn]['unique_channel_in_CG'] = True
+        else:
+            self['CN'][dg][cg][cn]['unique_channel_in_CG'] = False
         mlsd_channels = []
         # check for MLSD
         if self['CN'][dg][cg][cn]['cn_type'] == 5:

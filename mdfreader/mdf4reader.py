@@ -548,7 +548,7 @@ class Record(list):
                  'numpyDataRecordFormat', 'dataRecordName', 'master',
                  'recordToChannelMatching', 'channelNames', 'Flags', 'VLSD_CG',
                  'VLSD', 'MLSD', 'byte_aligned', 'hiddenBytes', 'invalid_channel',
-                 'CANOpen']
+                 'CANOpen', 'unique_channel_in_DG']
     """ Record class listing channel classes. It is representing a channel group
 
     Attributes
@@ -632,6 +632,7 @@ class Record(list):
         self.hiddenBytes = False
         self.invalid_channel = None
         self.CANOpen = None
+        self.unique_channel_in_DG = False
 
     def __str__(self):
         output = list()
@@ -705,6 +706,7 @@ class Record(list):
         self.Flags = info['CG'][self.dataGroup][self.channelGroup]['cg_flags']
         if 'MLSD' in info:
             self.MLSD = info['MLSD']
+        self.unique_channel_in_DG = info['DG'][self.dataGroup]['unique_channel_in_DG']
         embedding_channel = None
         for channelNumber in info['CN'][self.dataGroup][self.channelGroup]:
             channel = Channel4()
@@ -840,7 +842,10 @@ class Record(list):
         only one channel on demand, but be aware it might be much slower.
         """
         if channel_set is None and self.byte_aligned and not self.hiddenBytes:
-            return self.read_all_channels_sorted_record(fid)
+            if self.unique_channel_in_DG:
+                return self.read_unique_channel(fid, info)
+            else:
+                return self.read_all_channels_sorted_record(fid)
         else:  # reads only some channels from a sorted data block
             if channel_set is None or len(channel_set & self.channelNames) > 0:
                 return self.read_not_all_channels_sorted_record(fid, info, channel_set)
@@ -887,6 +892,26 @@ class Record(list):
                            shape=n_record_chunk)
             previous_index += n_record_chunk
         return buf
+
+    def read_unique_channel(self, fid, info):
+        """ reads all channels from file using numpy fromstring, chunk by chunk
+
+            Parameters
+            ------------
+            fid :
+                file identifier
+            info
+                info class
+
+            Returns
+            --------
+            rec : numpy recarray
+                contains a matrix of raw data in a recarray (attributes corresponding to channel name)
+        """
+        nbytes = info['CG'][self.dataGroup][self.channelGroup]['cg_data_bytes'] * \
+                 info['CG'][self.dataGroup][self.channelGroup]['cg_cycle_count']
+        return frombuffer(fid.read(nbytes), dtype={'names': self.dataRecordName,
+                                                   'formats': self.numpyDataRecordFormat})
 
     def read_not_all_channels_sorted_record(self, fid, info, channel_set):
         """ reads channels from file listed in channelSet
