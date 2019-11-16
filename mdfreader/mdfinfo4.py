@@ -1401,11 +1401,11 @@ class LDBlock(dict):
         self['list_data'][0] = unpack('<{}Q'.format(link_count - 1),
                                     fid.read(8 * (link_count - 1)))
         (self['flags'],
-         self['count']) = unpack('<2IQ', fid.read(8))
+         self['count']) = unpack('<2I', fid.read(8))
         if self['flags'] & (1 << 31):  # invalid data present
             self['inval_data'] = [self['list_data'].pop(i) for i in range(int(link_count/2), link_count)]
         if self['flags'] & 0b1:  # equal length data list
-            self['equal_sample_sample_count'] = unpack('<Q', fid.read(8))[0]
+            self['equal_sample_count'] = unpack('<Q', fid.read(8))[0]
         else:  # data list defined by byte offset
             self['sample_offset'] = unpack('<{}Q'.format(self['count']),
                                            fid.read(8 * self['count']))
