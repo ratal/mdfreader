@@ -97,7 +97,7 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
     """
     if n_records is None and hasattr(record, 'numberOfRecords'):
         n_records = record.numberOfRecords
-    if parent_block['id'] in ('##DT', '##RD', b'##DT', b'##RD'):  # normal data block
+    if parent_block['id'] in (b'##DT', b'##DV', b'##RD', '##DT', '##RD', '##DV'):  # normal data block
         if sorted_flag:
             if channel_set is None and not record.hiddenBytes and\
                     record.byte_aligned:  # No channel list and length of records corresponds to C datatypes
@@ -111,11 +111,11 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
         else:  # unsorted reading
             return _read_unsorted(record, info, parent_block, channel_set)
 
-    elif parent_block['id'] in ('##SD', b'##SD'):
+    elif parent_block['id'] in (b'##SD', '##SD'):
         return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
                               parent_block['length'] - 24)
 
-    elif parent_block['id'] in ('##DZ', b'##DZ'):  # zipped data block
+    elif parent_block['id'] in (b'##DZ', '##DZ'):  # zipped data block
         # uncompress data
         parent_block['data'] = DZBlock.decompress_data_block(parent_block['data'], parent_block['dz_zip_type'],
                                                              parent_block['dz_zip_parameter'],
