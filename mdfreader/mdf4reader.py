@@ -848,7 +848,10 @@ class Record(list):
                 return self.read_all_channels_sorted_record(fid)
         else:  # reads only some channels from a sorted data block
             if channel_set is None or len(channel_set & self.channelNames) > 0:
-                return self.read_not_all_channels_sorted_record(fid, info, channel_set)
+                if self.unique_channel_in_DG:
+                    return self.read_unique_channel(fid, info)
+                else:
+                    return self.read_not_all_channels_sorted_record(fid, info, channel_set)
 
     def generate_chunks(self):
         """ calculate data split
