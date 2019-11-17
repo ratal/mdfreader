@@ -1809,8 +1809,8 @@ class Info4(dict):
             else:
                 vlsd_cg_block.append(cg)
 
-            if self['CN'][dg][cg][0]['unique_channel_in_CG'] and not self['CG'][dg][cg]['cg_cg_next'] \
-                    and not self['CG'][dg][cg]['cg_invalid_bytes']:
+            if self['CN'][dg][cg] and self['CN'][dg][cg][0]['unique_channel_in_CG'] and \
+                    not self['CG'][dg][cg]['cg_cg_next'] and not self['CG'][dg][cg]['cg_invalid_bytes']:
                 # unique channel in data group
                 self['DG'][dg]['unique_channel_in_DG'] = True
             else:

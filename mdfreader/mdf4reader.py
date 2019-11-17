@@ -1699,14 +1699,21 @@ class Mdf4(MdfSkeleton):
                         warn('no data in data group {0} with master channel {1}'.format(dataGroup, masterChannel))
                         continue
 
+                    cg_master_pointer = None
                     for channel in self.masterChannelList[masterChannel]:
                         # write other channels
                         if channel == masterChannel:
                             cg_master_pointer = pointer + 64  # CG after DG at pointer
-                            dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, masterChannel, compression)
+                            dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, masterChannel,
+                                                              True, compression)
                         else:
-                            dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, channel, compression,
-                                                              cg_master_pointer=cg_master_pointer)
+                            if cg_master_pointer is not None:
+                                dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, channel,
+                                                                  False, compression,
+                                                                  cg_master_pointer=cg_master_pointer)
+                            else:  # no master
+                                dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, channel,
+                                                                  False, compression)
 
                 fid.seek(dg['block_start'] + 24)
                 fid.write(pack('Q', 0))  # last DG pointer is null
@@ -1770,10 +1777,16 @@ class Mdf4(MdfSkeleton):
                 data = self.get_channel_data(channel)
                 # no interest to write invalid bytes as channel, should be processed if needed before writing
                 if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
+                    byte_count = data.dtype.itemsize
+                    number_of_channel += 1
+                    blocks[n_channel] = CNBlock()
+                    blocks[n_channel]['cn_byte_offset'] = record_byte_offset
+
                     last_channel = n_channel
                     data_ndim = data.ndim - 1
                     if not data_ndim:
                         data_list = data_list + (data, )
+                        record_byte_offset += byte_count
                     else:  # data contains arrays
                         data_dim_size = data.shape
                         if not cg_cycle_count == data_dim_size[0]:
@@ -1787,8 +1800,8 @@ class Mdf4(MdfSkeleton):
                         flattened = reshape(data, (cg_cycle_count, PNd))
                         for i in range(PNd):
                             data_list = data_list + (flattened[:, i],)
-                    number_of_channel += 1
-                    blocks[n_channel] = CNBlock()
+                        record_byte_offset += byte_count * PNd
+
                     if issubdtype(data.dtype, numpy_number):  # is numeric
                         blocks[n_channel]['cn_val_range_min'] = npmin(data)
                         blocks[n_channel]['cn_val_range_max'] = npmax(data)
@@ -1823,9 +1836,7 @@ class Mdf4(MdfSkeleton):
                         raise Exception('Not recognized dtype')
                     blocks[n_channel]['cn_data_type'] = data_type
                     blocks[n_channel]['cn_bit_offset'] = 0  # always byte aligned
-                    blocks[n_channel]['cn_byte_offset'] = record_byte_offset
-                    byte_count = data.dtype.itemsize
-                    record_byte_offset += byte_count
+
                     blocks[n_channel]['cn_bit_count'] = byte_count * 8
                     blocks[n_channel]['block_start'] = pointer
                     pointer = blocks[n_channel]['block_start'] + 160
@@ -1921,7 +1932,7 @@ class Mdf4(MdfSkeleton):
         fid.seek(dg['block_start'] + 24)
         fid.write(pack('Q', 0))  # last DG pointer is null
 
-    def _write4_column(self, fid, pointer, cg_cycle_count, channel,
+    def _write4_column(self, fid, pointer, cg_cycle_count, channel, master_channel_flag,
                        compression=False, cg_master_pointer=None):
         """Writes simple mdf 4.2 file with column oriented channels
         Mostly efficient for reading but size might be bigger than original file
@@ -1934,6 +1945,8 @@ class Mdf4(MdfSkeleton):
             number of records for the channel
         channel : string
             channel name
+        master_channel_flag : boolean
+            flag set if it is a master channel
         compression : bool
             flag to store data compressed
         cg_master_pointer : int
@@ -1968,6 +1981,7 @@ class Mdf4(MdfSkeleton):
         data = self.get_channel_data(channel)
         # no interest to write invalid bytes as channel, should be processed if needed before writing
         if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
+            byte_count = data.dtype.itemsize
             data_ndim = data.ndim - 1
             if data_ndim:  # data contains arrays
                 data_dim_size = data.shape
@@ -1979,9 +1993,11 @@ class Mdf4(MdfSkeleton):
                 for x in data_dim_size:
                     SNd += x
                     PNd *= x
-                flattened = reshape(data, (cg_cycle_count, PNd))
-                for i in range(PNd):
-                    data = data + (flattened[:, i],)
+                data = reshape(data, (cg_cycle_count, PNd))
+                record_byte_offset += PNd * byte_count
+            else:
+                record_byte_offset += byte_count
+
             blocks['CN'] = CNBlock()
             if issubdtype(data.dtype, numpy_number):  # is numeric
                 blocks['CN']['cn_val_range_min'] = npmin(data)
@@ -1991,7 +2007,7 @@ class Mdf4(MdfSkeleton):
                 blocks['CN']['cn_val_range_min'] = 0
                 blocks['CN']['cn_val_range_max'] = 0
                 blocks['CN']['cn_flags'] = 0
-            if cg_master_pointer is not None:
+            if not master_channel_flag:
                 blocks['CN']['cn_type'] = 0
                 blocks['CN']['cn_sync_type'] = 0
             else:
@@ -2016,9 +2032,7 @@ class Mdf4(MdfSkeleton):
                 raise Exception('Not recognized dtype')
             blocks['CN']['cn_data_type'] = data_type
             blocks['CN']['cn_bit_offset'] = 0  # always byte aligned
-            blocks['CN']['cn_byte_offset'] = record_byte_offset
-            byte_count = data.dtype.itemsize
-            record_byte_offset += byte_count
+            blocks['CN']['cn_byte_offset'] = 0  # only one channel
             blocks['CN']['cn_bit_count'] = byte_count * 8
             blocks['CN']['block_start'] = pointer
             pointer = blocks['CN']['block_start'] + 160
