@@ -2136,6 +2136,14 @@ class Mdf4(MdfSkeleton):
             pass
             # warn('no invalid data found for channel ')
 
+    def apply_all_invalid_bit(self):
+        """Mask data of all channels based on its invalid bit definition if there is
+
+                """
+        for master_channel in self.masterChannelList:
+            for channel_name in self.masterChannelList[master_channel]:
+                self.apply_invalid_bit(channel_name)
+
     def get_channel_name4(self, name, path):
         """finds mdf channel name from name and path
 
