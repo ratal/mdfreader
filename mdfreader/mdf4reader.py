@@ -1701,19 +1701,20 @@ class Mdf4(MdfSkeleton):
 
                     cg_master_pointer = None
                     for channel in self.masterChannelList[masterChannel]:
-                        # write other channels
-                        if channel == masterChannel:
-                            cg_master_pointer = pointer + 64  # CG after DG at pointer
-                            dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, masterChannel,
-                                                              True, compression)
-                        else:
-                            if cg_master_pointer is not None:
-                                dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, channel,
-                                                                  False, compression,
-                                                                  cg_master_pointer=cg_master_pointer)
-                            else:  # no master
-                                dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, channel,
-                                                                  False, compression)
+                        if channel.find('invalid_bytes') == -1:  # not invalid bytes channel
+                            # write other channels
+                            if channel == masterChannel:
+                                cg_master_pointer = pointer + 64  # CG after DG at pointer
+                                dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, masterChannel,
+                                                                  True, compression)
+                            else:
+                                if cg_master_pointer is not None:
+                                    dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, channel,
+                                                                      False, compression,
+                                                                      cg_master_pointer=cg_master_pointer)
+                                else:  # no master
+                                    dg, pointer = self._write4_column(fid, pointer, cg_cycle_count, channel,
+                                                                      False, compression)
 
                 fid.seek(dg['block_start'] + 24)
                 fid.write(pack('Q', 0))  # last DG pointer is null
@@ -1980,7 +1981,7 @@ class Mdf4(MdfSkeleton):
         # write channels
         data = self.get_channel_data(channel)
         # no interest to write invalid bytes as channel, should be processed if needed before writing
-        if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
+        if data is not None and len(data) > 0:
             byte_count = data.dtype.itemsize
             data_ndim = data.ndim - 1
             if data_ndim:  # data contains arrays
