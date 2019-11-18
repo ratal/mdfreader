@@ -2104,7 +2104,7 @@ class Mdf4(MdfSkeleton):
                 block.write(fid)
 
             # data block writing
-            pointer = data_blocks.write(fid, fromarrays(data).tobytes(order='F'))
+            pointer = data_blocks.write(fid, data.tobytes())
             if compression:
                 # next DG position is not predictable due to DZ Blocks unknown length
                 fid.seek(dg_start_position + 24)
