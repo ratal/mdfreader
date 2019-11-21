@@ -1420,20 +1420,92 @@ class LDBlock(dict):
                 self['distance_values'] = unpack('<{}Q'.format(self['count']),
                                                  fid.read(8 * self['count']))
 
-    def write(self, fid, chunks, position):
+    def load(self, record_byte_offset, n_records, position, column_oriented_flag=False):
+        self['record_length'] = record_byte_offset
+        self['n_records'] = n_records
         self['block_start'] = position
-        number_ld = len(chunks)
-        self['block_length'] = 40 + 16 * number_ld
+        self['column_oriented_flag'] = column_oriented_flag
+        self['block_length'] = 40
+        # calculate data chunks
+        n_chunks = (record_byte_offset * n_records) // chunk_size_writing + 1
+        chunk_length = (record_byte_offset * n_records) // n_chunks
+        n_record_chunk = chunk_length // record_byte_offset
+        self['chunks'] = [(n_record_chunk, record_byte_offset * n_record_chunk)] * n_chunks
+        n_record_chunk = n_records - n_record_chunk * n_chunks
+        if n_record_chunk > 0:
+            self['chunks'].append((n_record_chunk, record_byte_offset * n_record_chunk))
+
+    def write(self, fid, data, invalid_data=None, compression_flag=False):
+        number_ld = len(self['chunks'])
+        ld_flags = 0
+        if invalid_data is not None:
+            number_invalid_ld = number_ld
+            dl_invalid_data = zeros(shape=len(self['chunks']), dtype='<u8')
+            ld_flags = 1 << 31
+        else:
+            number_invalid_ld = 0
+        self['block_length'] = 40 + 16 * number_ld + 8 * number_invalid_ld
         ld_offset = zeros(shape=number_ld, dtype='<u8')
         if number_ld > 1:
             for counter in range(1, number_ld):
-                (n_record_chunk, chunk_size) = chunks[counter]
+                (n_record_chunk, chunk_size) = self['chunks'][counter]
                 ld_offset[counter] = ld_offset[counter - 1] + chunk_size
         data_bytes = (b'##LD', 0, self['block_length'], number_ld + 1, 0)
         fid.write(pack('<4sI3Q', *data_bytes))
         fid.write(pack('{0}Q'.format(number_ld), *zeros(shape=number_ld, dtype='<u8')))
-        fid.write(pack('<2I', 0, number_ld))
+        if invalid_data is not None:
+            fid.write(pack('{0}Q'.format(number_ld), *zeros(shape=number_ld, dtype='<u8')))
+        fid.write(pack('<2I', ld_flags, number_ld))
         fid.write(pack('{0}Q'.format(number_ld), *ld_offset))
+
+        # writing data blocks
+        pointer = self['block_start'] + self['block_length']
+        dl_data = zeros(shape=len(self['chunks']), dtype='<u8')
+        data_pointer = 0
+        if compression_flag:
+            if self['column_oriented_flag']:
+                dz_zip_type = 0  # for a column oriented channel, no meanning to have transposition
+            else:
+                # uses not equal length blocks, transposed compressed data
+                dz_zip_type = 1
+
+            for counter, (n_record_chunk, chunk_size) in enumerate(self['chunks']):
+                DZ = DZBlock()
+                DZ['block_start'] = _calculate_block_start(pointer)
+                DZ['dz_org_block_type'] = b'DV'
+                DZ['dz_zip_type'] = dz_zip_type
+                dl_data[counter] = DZ['block_start']
+                pointer = DZ.write(fid, data[data_pointer: data_pointer + chunk_size], self['record_length'])
+                data_pointer += chunk_size
+                if invalid_data is not None:
+                    DZ = DZBlock()
+                    DZ['block_start'] = _calculate_block_start(pointer)
+                    DZ['dz_org_block_type'] = b'DI'
+                    DZ['dz_zip_type'] = dz_zip_type
+                    dl_invalid_data[counter] = DZ['block_start']
+                    pointer = DZ.write(fid, invalid_data[data_pointer: data_pointer + chunk_size],
+                                       self['record_length'])
+        else:
+            for counter, (n_record_chunk, chunk_size) in enumerate(self['chunks']):
+                DV = DVBlock()
+                DV.load(self['record_length'], self['n_records'], pointer)
+                dl_data[counter] = DV['pointer']
+                pointer = DV.write(fid, data[data_pointer: data_pointer + chunk_size])
+                data_pointer += chunk_size
+                if invalid_data is not None:
+                    DI = DIBlock()
+                    DI.load(self['record_length'], self['n_records'], pointer)
+                    dl_invalid_data[counter] = DI['pointer']
+                    pointer = DI.write(fid, invalid_data[data_pointer: data_pointer + chunk_size])
+
+        # writes links to all Blocks
+        # write dl_data
+        fid.seek(self['block_start'] + 32)
+        fid.write(dl_data.tobytes())
+        if invalid_data is not None:
+            fid.write(dl_invalid_data.tobytes())
+        fid.seek(pointer)
+        return _calculate_block_start(pointer)
 
 
 class DLBlock(dict):
@@ -1465,8 +1537,7 @@ class DLBlock(dict):
             self['distance_values'] = unpack('<{}Q'.format(self['count']),
                                              fid.read(8 * self['count']))
 
-    def write(self, fid, chunks, position):
-        self['block_start'] = position
+    def write(self, fid, chunks):
         number_dl = len(chunks)
         self['block_length'] = 40 + 16 * number_dl
         dl_offset = zeros(shape=number_dl, dtype='<u8')
@@ -1569,10 +1640,9 @@ class HLBlock(dict):
          self['hl_zip_type'],
          hl_reserved) = _HLStruct.unpack(fid.read(16))
 
-    def load(self, record_byte_offset, n_records, position, column_oriented_flag=False):
+    def load(self, record_byte_offset, n_records, position):
         self['record_length'] = record_byte_offset
         self['block_start'] = position
-        self['column_oriented_flag'] = column_oriented_flag
         self['block_length'] = 40
         # calculate data chunks
         n_chunks = (record_byte_offset * n_records) // chunk_size_writing + 1
@@ -1585,18 +1655,14 @@ class HLBlock(dict):
 
     def write(self, fid, data):
         fid.write(_HeaderStruct.pack(b'##HL', 0, self['block_length'], 1))
-        if self['column_oriented_flag']:
-            DL = LDBlock()
-            dz_org_block_type = b'DV'
-            dz_zip_type = 0  # for a column oriented channel, no meanning to have transposition
-        else:
-            # uses not equal length blocks, transposed compressed data
-            DL = DLBlock()
-            dz_org_block_type = b'DT'
-            dz_zip_type = 1
+        # uses not equal length blocks, transposed compressed data
+        DL = DLBlock()
+        dz_org_block_type = b'DT'
+        dz_zip_type = 1
         fid.write(_HLStruct.pack(self['block_start'] + self['block_length'], 0, dz_zip_type, b'\x00' * 5))
         pointer = self['block_start'] + self['block_length']
-        DL.write(fid, self['chunks'], pointer)
+        DL['block_start'] = pointer
+        DL.write(fid, self['chunks'])
         pointer += DL['block_length']
         dl_data = zeros(shape=len(self['chunks']), dtype='<u8')
         data_pointer = 0

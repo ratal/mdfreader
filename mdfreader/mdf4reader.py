@@ -1980,6 +1980,10 @@ class Mdf4(MdfSkeleton):
 
         # write channels
         data = self.get_channel_data(channel)
+        if self.get_invalid_channel(channel) is not None or isinstance(data, MaskedArray):
+            invalid_channel = True
+        else:
+            invalid_channel = False
         # no interest to write invalid bytes as channel, should be processed if needed before writing
         if data is not None and len(data) > 0:
             byte_count = data.dtype.itemsize
@@ -2088,8 +2092,8 @@ class Mdf4(MdfSkeleton):
 
             # data pointer in data group
             dg['data'] = pointer
-            if compression:
-                data_blocks = HLBlock()
+            if compression or invalid_channel:
+                data_blocks = LDBlock()
                 data_blocks.load(record_byte_offset, cg_cycle_count, pointer, column_oriented_flag=True)
                 dg_start_position = fid.tell()
                 dg['DG'] = 0
@@ -2105,8 +2109,20 @@ class Mdf4(MdfSkeleton):
                 block.write(fid)
 
             # data block writing
-            pointer = data_blocks.write(fid, data.tobytes())
-            if compression:
+            if not invalid_channel:
+                if compression:
+                    pointer = data_blocks.write(fid, data.tobytes())
+                else:
+                    pointer = data_blocks.write(fid, data.tobytes(), compression_flag=True)
+            else:
+                if isinstance(data, MaskedArray):
+                    pointer = data_blocks.write(fid, data.tobytes(),
+                                                invalid_data=data.mask, compression_flag=compression)
+                else:
+                    pointer = data_blocks.write(fid, data.tobytes(),
+                                                invalid_data=self.get_invalid_mask(channel),
+                                                compression_flag=compression)
+            if compression or invalid_channel:
                 # next DG position is not predictable due to DZ Blocks unknown length
                 fid.seek(dg_start_position + 24)
                 fid.write(pack('<Q', pointer))
@@ -2123,19 +2139,24 @@ class Mdf4(MdfSkeleton):
             Name of channel
         """
         try:
-            invalid_bit_pos = self.get_invalid_bit(channel_name)
-            if isinstance(invalid_bit_pos, int):  # invalid bit existing
-                mask = self._get_channel_data4(self.get_invalid_channel(channel_name))
-                data = self._get_channel_data4(channel_name)
-                data = data.view(MaskedArray)
-                invalid_byte = invalid_bit_pos >> 3
-                data.mask = bitwise_and(mask[:, invalid_byte], invalid_bit_pos & 0x07)
-                self.set_channel_data(channel_name, data)
-                self._remove_channel_field(channel_name, invalidPosField)
-                self._remove_channel_field(channel_name, invalidChannel)
+            data = self._get_channel_data4(channel_name)
+            data = data.view(MaskedArray)
+            data.mask = self.get_invalid_mask(channel_name)
+            self.set_channel_data(channel_name, data)
+            self._remove_channel_field(channel_name, invalidPosField)
+            self._remove_channel_field(channel_name, invalidChannel)
         except KeyError:
             pass
             # warn('no invalid data found for channel ')
+
+    def get_invalid_mask(self, channel_name):
+        invalid_channel = self._get_channel_data4(self.get_invalid_channel(channel_name))
+        invalid_bit_pos = self.get_invalid_bit(channel_name)
+        if isinstance(invalid_bit_pos, int):  # invalid bit existing
+            invalid_byte = invalid_bit_pos >> 3
+            return bitwise_and(invalid_channel[:, invalid_byte], invalid_bit_pos & 0x07)
+        else:
+            return None
 
     def apply_all_invalid_bit(self):
         """Mask data of all channels based on its invalid bit definition if there is
