@@ -933,14 +933,14 @@ class CGBlock(dict):
                           0, self['CN'], 0, 0, 0, 0, self['cg_cg_master'], 0,
                           self['cg_cycle_count'], 8, 0,
                           b'\0' * 4,
-                          self['cg_data_bytes'], 0)
+                          self['cg_data_bytes'], self['cg_inval_bytes'])
             fid.write(pack('<4sI2Q9Q2H4s2I', *data_bytes))
         else:
             data_bytes = (b'##CG', 0, self['length'], 6,
                           0, self['CN'], 0, 0, 0, 0, 0,
                           self['cg_cycle_count'], 0, 0,
                           b'\0' * 4,
-                          self['cg_data_bytes'], 0)
+                          self['cg_data_bytes'], self['cg_inval_bytes'])
             fid.write(pack('<4sI2Q8Q2H4s2I', *data_bytes))
 
 
@@ -1398,13 +1398,13 @@ class LDBlock(dict):
         # block header is already read
         self['next'] = unpack('<Q', fid.read(8))[0]
         self['list_data'] = {}
-        self['list_data'][0] = unpack('<{}Q'.format(link_count - 1),
-                                    fid.read(8 * (link_count - 1)))
+        self['list_data'][0] = list(unpack('<{}Q'.format(link_count - 1),
+                                        fid.read(8 * (link_count - 1))))
         (self['flags'],
          self['count']) = unpack('<2I', fid.read(8))
         if self['flags']:  # flags existing
             if self['flags'] & (1 << 31):  # invalid data present
-                self['inval_data'] = [self['list_data'].pop(i) for i in range(int(link_count/2), link_count)]
+                self['inval_data'] = [self['list_data'][0].pop(i) for i in range((link_count - 1)//2, link_count - 1)]
             if self['flags'] & 0b1:  # equal length data list
                 self['equal_sample_count'] = unpack('<Q', fid.read(8))[0]
             else:  # data list defined by byte offset
@@ -1450,7 +1450,7 @@ class LDBlock(dict):
             for counter in range(1, number_ld):
                 (n_record_chunk, chunk_size) = self['chunks'][counter]
                 ld_offset[counter] = ld_offset[counter - 1] + chunk_size
-        data_bytes = (b'##LD', 0, self['block_length'], number_ld + 1, 0)
+        data_bytes = (b'##LD', 0, self['block_length'], number_ld + number_invalid_ld + 1, 0)
         fid.write(pack('<4sI3Q', *data_bytes))
         fid.write(pack('{0}Q'.format(number_ld), *zeros(shape=number_ld, dtype='<u8')))
         if invalid_data is not None:
