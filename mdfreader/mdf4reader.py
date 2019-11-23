@@ -408,11 +408,11 @@ class Data(dict):
         temps = defaultdict()
         # block header
         temps.update(_load_header(self.fid, self.pointer_to_data))
-        if temps['id'] in ('##DV', b'##DV'):
+        if temps['id'] in (b'##DV', '##DV'):
             # to be optimised by using unpack in case of column oriented storage (only one channel)
             temps['data'] = record.read_sorted_record(self.fid, info, channel_set=name_list)
-        elif temps['id'] in ('##DL', b'##DL', '##LD', b'##LD'):  # data list block
-            if temps['id'] in ('##DL', b'##DL'):
+        elif temps['id'] in (b'##DL', b'##LD', '##DL', '##LD'):  # data list block
+            if temps['id'] in (b'##DL', '##DL'):
                 temp = DLBlock()
                 temp.read_dl(self.fid, temps['link_count'])
             else:
@@ -442,7 +442,7 @@ class Data(dict):
                             data_block.update(_load_header(self.fid, pointer))
                             if data_block['id'] in ('##SD', b'##SD'):
                                 data_block['data'].extend(self.fid.read(data_block['length'] - 24))
-                            elif data_block['id'] in ('##DZ', b'##DZ'):
+                            elif data_block['id'] in (b'##DZ', '##DZ'):
                                 temp = DZBlock()
                                 temp.read_dz(self.fid)
                                 data_block.update(temp)
@@ -465,7 +465,7 @@ class Data(dict):
                             if data_block['id'] in (b'##DT', b'##DV', b'##RD', b'##DI', b'##RV', b'##RI',
                                                     '##DT', '##DV', '##RD', '##DI', '##RV', '##RI',):
                                 data_block['data'].extend(self.fid.read(data_block['length'] - 24))
-                            elif data_block['id'] in ('##DZ', b'##DZ'):
+                            elif data_block['id'] in (b'##DZ', '##DZ'):
                                 temp = DZBlock()
                                 temp.read_dz(self.fid)
                                 data_block.update(temp)
@@ -498,25 +498,25 @@ class Data(dict):
                                 data_block['data'] = bytearray()  # flush
             else:  # empty datalist
                 temps['data'] = None
-        elif temps['id'] in ('##HL', b'##HL'):  # header list block for DZBlock
+        elif temps['id'] in (b'##HL', '##HL'):  # header list block for DZBlock
             # link section
             temp = HLBlock()
             temp.read_hl(self.fid)
             temps.update(temp)
             self.pointer_to_data = temps['hl_dl_first']
             temps['data'] = self.load(record, info, name_list=name_list, sorted_flag=sorted_flag, vlsd=vlsd)
-        elif temps['id'] in ('##DT', '##RD', b'##DT', b'##RD'):
+        elif temps['id'] in (b'##DT', b'##RD', '##DT', '##RD'):
             if sorted_flag:  # normal sorted data block, direct read
                 temps['data'] = record.read_sorted_record(self.fid, info, channel_set=name_list)
             else:  # VLSD_CG
                 temps['data'] = self.fid.read(temps['length'] - 24)
                 temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,
                                             sorted_flag=sorted_flag)
-        elif temps['id'] in ('##SD', b'##SD'):  # VLSD, not CG
+        elif temps['id'] in (b'##SD', '##SD'):  # VLSD, not CG
             temps['data'] = self.fid.read(temps['length'] - 24)
             temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,
                                         sorted_flag=sorted_flag)
-        elif temps['id'] in ('##DZ', b'##DZ'):  # zipped data block
+        elif temps['id'] in (b'##DZ', '##DZ'):  # zipped data block
             temp = DZBlock()
             temp.read_dz(self.fid)
             temps.update(temp)
@@ -1752,6 +1752,7 @@ class Mdf4(MdfSkeleton):
             blocks['CG']['block_start'] = pointer
             pointer = blocks['CG']['block_start'] + blocks['CG']['length']
             blocks['CG']['CN'] = pointer  # First CN link
+            blocks['CG']['cg_inval_bytes'] = 0  # no invalidation bytes
 
             master_channel_data = self._get_channel_data4(masterChannel)
             if master_channel_data is not None:
@@ -1980,10 +1981,12 @@ class Mdf4(MdfSkeleton):
 
         # write channels
         data = self.get_channel_data(channel)
-        if self.get_invalid_channel(channel) is not None or isinstance(data, MaskedArray):
+        if self.get_invalid_channel(channel) or isinstance(data, MaskedArray):
             invalid_channel = True
+            blocks['CG']['cg_inval_bytes'] = 1  # as column oriented, only one byte for DIBlock
         else:
             invalid_channel = False
+            blocks['CG']['cg_inval_bytes'] = 0
         # no interest to write invalid bytes as channel, should be processed if needed before writing
         if data is not None and len(data) > 0:
             byte_count = data.dtype.itemsize
@@ -2004,14 +2007,17 @@ class Mdf4(MdfSkeleton):
                 record_byte_offset += byte_count
 
             blocks['CN'] = CNBlock()
-            if issubdtype(data.dtype, numpy_number):  # is numeric
+            blocks['CN']['cn_flags'] = 0
+            if issubdtype(data.dtype, numpy_number) and not invalid_channel:  # is numeric
                 blocks['CN']['cn_val_range_min'] = npmin(data)
                 blocks['CN']['cn_val_range_max'] = npmax(data)
-                blocks['CN']['cn_flags'] = 8  # only Bit 3: Limit range valid flag
+                blocks['CN']['cn_flags'] |= (1 << 3)  # only Bit 3: Limit range valid flag
             else:
                 blocks['CN']['cn_val_range_min'] = 0
                 blocks['CN']['cn_val_range_max'] = 0
-                blocks['CN']['cn_flags'] = 0
+            if invalid_channel:
+                blocks['CN']['cn_flags'] |= (1 << 1)
+
             if not master_channel_flag:
                 blocks['CN']['cn_type'] = 0
                 blocks['CN']['cn_sync_type'] = 0
@@ -2111,9 +2117,9 @@ class Mdf4(MdfSkeleton):
             # data block writing
             if not invalid_channel:
                 if compression:
-                    pointer = data_blocks.write(fid, data.tobytes())
-                else:
                     pointer = data_blocks.write(fid, data.tobytes(), compression_flag=True)
+                else:
+                    pointer = data_blocks.write(fid, data.tobytes())
             else:
                 if isinstance(data, MaskedArray):
                     pointer = data_blocks.write(fid, data.tobytes(),
