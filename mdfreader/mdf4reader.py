@@ -103,9 +103,13 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
                     record.byte_aligned:  # No channel list and length of records corresponds to C datatypes
                 # for debugging purpose
                 # print(n_records, record.numpyDataRecordFormat, record.dataRecordName)
-                return fromstring(parent_block['data'], dtype={'names': record.dataRecordName,
-                                                               'formats': record.numpyDataRecordFormat},
-                                  shape=n_records)
+                if info['DG'][record.dataGroup]['unique_channel_in_DG']and parent_block['id'] in (b'##DV', '##DV'):
+                    return frombuffer(parent_block['data'], dtype={'names': record.dataRecordName,
+                                                                   'formats': record.numpyDataRecordFormat})
+                else:
+                    return fromstring(parent_block['data'], dtype={'names': record.dataRecordName,
+                                                                   'formats': record.numpyDataRecordFormat},
+                                      shape=n_records)
             else:  # record is not byte aligned or channelSet not None
                 return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
@@ -134,6 +138,9 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
             return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
             return _read_unsorted(record, info, parent_block, channel_set)
+    elif parent_block['id'] in (b'##DI', '##DI'):  # Invalid data block
+        return frombuffer(parent_block['data'], dtype={'names': [record.invalid_channel.name],
+                                                       'formats': [record.invalid_channel.data_format(info)]})
 
 
 def _read_unsorted(record, info, parent_block, channel_set=None):
@@ -365,7 +372,9 @@ class Data(dict):
         if len(self) == 1:  # sorted dataGroup
             recordID = list(self.keys())[0]
             record = self[recordID]['record']
-            self[recordID]['data'] = self.load(record, info, name_list=channel_set, sorted_flag=True)
+            self[recordID]['data'], self[recordID]['invalid_data'] = self.load(record,
+                                                                               info, name_list=channel_set,
+                                                                               sorted_flag=True)
             for cn in record.VLSD:  # VLSD channels
                 if channel_set is None or record[cn].name in channel_set:
                     temp = Data(self.fid, record[cn].data(info))  # all channels
@@ -406,6 +415,7 @@ class Data(dict):
         numpy recarray of data
         """
         temps = defaultdict()
+        temps['invalid_data'] = None
         # block header
         temps.update(_load_header(self.fid, self.pointer_to_data))
         if temps['id'] in (b'##DV', '##DV'):
@@ -432,10 +442,9 @@ class Data(dict):
                 index += 1
             if temps['count']:
                 # read and concatenate raw blocks
-                previous_index = 0
-                data_block = defaultdict()
-                data_block['data'] = bytearray()
                 if vlsd:  # need to load all blocks as variable length, cannot process block by block
+                    data_block = defaultdict()
+                    data_block['data'] = bytearray()
                     for DL in temps['list_data']:
                         for pointer in temps['list_data'][DL]:
                             # read fist data blocks linked by DLBlock to identify data block type
@@ -458,44 +467,16 @@ class Data(dict):
                     temps['data'] = _data_block(record, info, parent_block=data_block, channel_set=name_list,
                                                 n_records=None, sorted_flag=sorted_flag, vlsd=vlsd)
                 else:
-                    for DL in temps['list_data']:
-                        for pointer in temps['list_data'][DL]:
-                            # read fist data blocks linked by DLBlock to identify data block type
-                            data_block.update(_load_header(self.fid, pointer))
-                            if data_block['id'] in (b'##DT', b'##DV', b'##RD', b'##DI', b'##RV', b'##RI',
-                                                    '##DT', '##DV', '##RD', '##DI', '##RV', '##RI',):
-                                data_block['data'].extend(self.fid.read(data_block['length'] - 24))
-                            elif data_block['id'] in (b'##DZ', '##DZ'):
-                                temp = DZBlock()
-                                temp.read_dz(self.fid)
-                                data_block.update(temp)
-                                data_block['data'].extend(DZBlock.decompress_data_block(
-                                                          self.fid.read(data_block['dz_data_length']),
-                                                          data_block['dz_zip_type'],
-                                                          data_block['dz_zip_parameter'],
-                                                          data_block['dz_org_data_length']))
-                                if isinstance(data_block['dz_org_block_type'], str):
-                                    data_block['id'] = '##{}'.format(data_block['dz_org_block_type'])
-                                else:
-                                    data_block['id'] = '##{}'.format(data_block['dz_org_block_type'].decode('ASCII'))
-                            nrecord_chunk = len(data_block['data']) // record.CGrecordLength
-                            nremain = len(data_block['data']) % record.CGrecordLength
-                            if nremain:
-                                remain = data_block['data'][-nremain:]
-                                del data_block['data'][-nremain:]
-                            if previous_index + nrecord_chunk > record.numberOfRecords:
-                                # there could be more data than needed for the expected number of records
-                                nrecord_chunk = record.numberOfRecords - previous_index
-                            tmp = _data_block(record, info, parent_block=data_block, channel_set=name_list,
-                                              n_records=nrecord_chunk, sorted_flag=sorted_flag, vlsd=vlsd)
-                            if 'data' not in temps:  # initialise recarray
-                                temps['data'] = recarray(record.numberOfRecords, dtype=tmp.dtype)
-                            temps['data'][previous_index: previous_index + nrecord_chunk] = tmp
-                            previous_index += nrecord_chunk
-                            if nremain:
-                                data_block['data'] = remain
-                            else:
-                                data_block['data'] = bytearray()  # flush
+                    temps['data'] = self.read_data_list('list_data', record.CGrecordLength, temps, record, info,
+                                                        name_list, sorted_flag, vlsd)
+                    if temps['id'] in (b'##LD', '##LD'):
+                        try:  # invalid bytes in DIBlock
+                            temps['invalid_data'] = self.read_data_list('inval_data',
+                                                                        record.invalid_channel.nBytes_aligned,
+                                                                        temps, record, info,
+                                                                        name_list, sorted_flag, vlsd)
+                        except (KeyError, AttributeError):
+                            pass
             else:  # empty datalist
                 temps['data'] = None
         elif temps['id'] in (b'##HL', '##HL'):  # header list block for DZBlock
@@ -504,7 +485,8 @@ class Data(dict):
             temp.read_hl(self.fid)
             temps.update(temp)
             self.pointer_to_data = temps['hl_dl_first']
-            temps['data'] = self.load(record, info, name_list=name_list, sorted_flag=sorted_flag, vlsd=vlsd)
+            temps['data'], temps['invalid_data'] = self.load(record, info, name_list=name_list,
+                                                             sorted_flag=sorted_flag, vlsd=vlsd)
         elif temps['id'] in (b'##DT', b'##RD', '##DT', '##RD'):
             if sorted_flag:  # normal sorted data block, direct read
                 temps['data'] = record.read_sorted_record(self.fid, info, channel_set=name_list)
@@ -525,7 +507,7 @@ class Data(dict):
                                         sorted_flag=sorted_flag, vlsd=vlsd)
         else:
             raise Exception('unknown data block')
-        return temps['data']
+        return temps['data'], temps['invalid_data']
 
     def read_record(self, record_id, info, buf):
         """ read record from a buffer
@@ -540,6 +522,50 @@ class Data(dict):
             buffer of data from file to be converted to channel raw data
         """
         return self[record_id]['record'].read_record_buf(buf, info)
+
+    def read_data_list(self, field, nBytes, temps, record, info, name_list, sorted_flag, vlsd):
+        previous_index = 0
+        data_block = defaultdict()
+        data_block['data'] = bytearray()
+        for DL in temps[field]:
+            for pointer in temps[field][DL]:
+                # read fist data blocks linked by DLBlock to identify data block type
+                data_block.update(_load_header(self.fid, pointer))
+                if data_block['id'] in (b'##DT', b'##DV', b'##RD', b'##DI', b'##RV', b'##RI',
+                                        '##DT', '##DV', '##RD', '##DI', '##RV', '##RI',):
+                    data_block['data'].extend(self.fid.read(data_block['length'] - 24))
+                elif data_block['id'] in (b'##DZ', '##DZ'):
+                    temp = DZBlock()
+                    temp.read_dz(self.fid)
+                    data_block.update(temp)
+                    data_block['data'].extend(DZBlock.decompress_data_block(
+                        self.fid.read(data_block['dz_data_length']),
+                        data_block['dz_zip_type'],
+                        data_block['dz_zip_parameter'],
+                        data_block['dz_org_data_length']))
+                    if isinstance(data_block['dz_org_block_type'], str):
+                        data_block['id'] = '##{}'.format(data_block['dz_org_block_type'])
+                    else:
+                        data_block['id'] = '##{}'.format(data_block['dz_org_block_type'].decode('ASCII'))
+                nrecord_chunk = len(data_block['data']) // nBytes
+                nremain = len(data_block['data']) % nBytes
+                if nremain:
+                    remain = data_block['data'][-nremain:]
+                    del data_block['data'][-nremain:]
+                if previous_index + nrecord_chunk > record.numberOfRecords:
+                    # there could be more data than needed for the expected number of records
+                    nrecord_chunk = record.numberOfRecords - previous_index
+                tmp = _data_block(record, info, parent_block=data_block, channel_set=name_list,
+                                  n_records=nrecord_chunk, sorted_flag=sorted_flag, vlsd=vlsd)
+                if not previous_index:  # initialise recarray
+                    data = recarray(record.numberOfRecords, dtype=tmp.dtype)
+                data[previous_index: previous_index + nrecord_chunk] = tmp
+                previous_index += nrecord_chunk
+                if nremain:
+                    data_block['data'] = remain
+                else:
+                    data_block['data'] = bytearray()  # flush
+        return data
 
 
 class Record(list):
@@ -800,8 +826,6 @@ class Record(list):
                 self.recordToChannelMatching[channel.name] = channel.name
 
         if info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']:  # invalid bytes existing
-            self.CGrecordLength += info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
-            self.recordLength += info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
             invalid_bytes = Channel4()
             invalid_bytes.set_invalid_bytes(info, self.dataGroup, self.channelGroup, channelNumber + 1)
             self.invalid_channel = invalid_bytes
@@ -809,8 +833,13 @@ class Record(list):
             self.channelNames.add(self.invalid_channel.name)
             self.recordToChannelMatching[self.invalid_channel.name] = \
                 self.invalid_channel.name
-            self.numpyDataRecordFormat.append(self.invalid_channel.data_format(info))
-            self.dataRecordName.append(self.invalid_channel.name)
+            if info['DG'][self.dataGroup]['data_block_header']['id'] not in (b'##LD', '##LD'):
+                # with LDBlock, invalid bytes not in record but in DIBlock
+                self.CGrecordLength += info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
+                self.recordLength += info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']
+                self.numpyDataRecordFormat.append(self.invalid_channel.data_format(info))
+                self.dataRecordName.append(self.invalid_channel.name)
+
         # check for hidden bytes
         if self.CGrecordLength > self.recordLength:
             self.hiddenBytes = True
@@ -1451,17 +1480,28 @@ class Mdf4(MdfSkeleton):
                                             if chan.channel_type(info) == 4:  # sync channel
                                                 # attach stream to be synchronised
                                                 self.set_channel_attachment(chan.name, chan.attachment(info.fid, info))
-                                            if chan.has_invalid_bit(info):  # has invalid bit
+                                            if chan.has_invalid_bit(info) and \
+                                                    not info['DG'][dataGroup]['unique_channel_in_DG']:
+                                                # has invalid bit
                                                 self.set_invalid_bit(chan.name, chan.invalid_bit(info))
                                                 self.set_invalid_channel(chan.name, 'invalid_bytes{}'.format(dataGroup))
-                                    else:
-                                        # invalid bytes channel
-                                        data = buf[record_id]['data'].__getattribute__(chan.name)
-                                        data = frombuffer(data.tobytes(), dtype='u1').reshape(len(data),
-                                                                                              data.dtype.itemsize)
-                                        self.add_channel(chan.name, data, master_channel, master_type=0, unit='',
-                                                         description='', info=None, compression=compression,
-                                                         identifier=None)
+                                    else:  # invalid bytes channel
+                                        if buf[record_id]['invalid_data'] is None:
+                                            invalid_data = buf[record_id]['data'].__getattribute__(chan.name)
+                                        else:
+                                            invalid_data = buf[record_id]['invalid_data']
+                                        if not info['DG'][dataGroup]['unique_channel_in_DG']:
+                                            invalid_data = frombuffer(invalid_data.tobytes(),
+                                                                      dtype='u1').reshape(len(invalid_data),
+                                                                                              invalid_data.dtype.itemsize)
+                                            self.add_channel(chan.name, invalid_data, master_channel,
+                                                             master_type=0, unit='', description='', info=None,
+                                                             compression=compression, identifier=None)
+                                        else:  # unique channel in DG, applying easily maskarray
+                                            data = self._get_channel_data4(channels[0].name)
+                                            data = data.view(MaskedArray)
+                                            data.mask = invalid_data
+                                            self.set_channel_data(channels[0].name, data)
                             buf[record_id].pop('data', None)
                     del buf
                 if minimal > 1:
@@ -2100,7 +2140,8 @@ class Mdf4(MdfSkeleton):
             dg['data'] = pointer
             if compression or invalid_channel:
                 data_blocks = LDBlock()
-                data_blocks.load(record_byte_offset, cg_cycle_count, pointer, column_oriented_flag=True)
+                data_blocks.load(record_byte_offset, cg_cycle_count, pointer,
+                                 invalid_bytes=blocks['CG']['cg_inval_bytes'], column_oriented_flag=True)
                 dg_start_position = fid.tell()
                 dg['DG'] = 0
             else:

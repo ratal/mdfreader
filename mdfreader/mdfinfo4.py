@@ -852,6 +852,7 @@ class DGBlock(dict):
          self['dg_md_comment'],
          self['dg_rec_id_size'],
          dg_reserved) = _DGStruct.unpack(fid.read(64))
+        self['data_block_header'] = _load_header(fid, self['dg_data'])
         if self['dg_md_comment']:  # comments exist
             self['Comment'] = {}
             comment = CommentBlock()
@@ -1357,6 +1358,7 @@ class DTBlock(dict):
         self['end_position'] = _calculate_block_start(self['pointer'] + self['datablocks_length'])
 
     def write(self, fid, data):
+        fid.seek(self['pointer'])
         fid.write(_HeaderStruct.pack(b'##DT', 0, self['datablocks_length'], 0))
         # dumps data
         fid.write(data)
@@ -1370,6 +1372,7 @@ class DVBlock(dict):
         self['end_position'] = _calculate_block_start(self['pointer'] + self['datablocks_length'])
 
     def write(self, fid, data):
+        fid.seek(self['pointer'])
         fid.write(_HeaderStruct.pack(b'##DV', 0, self['datablocks_length'], 0))
         # dumps data
         fid.write(data)
@@ -1377,12 +1380,13 @@ class DVBlock(dict):
 
 
 class DIBlock(dict):
-    def load(self, record_byte_offset, nRecords, pointer):
-        self['datablocks_length'] = 24 + record_byte_offset * nRecords
+    def load(self, invalid_bytes, nRecords, pointer):
+        self['datablocks_length'] = 24 + invalid_bytes * nRecords
         self['pointer'] = pointer
         self['end_position'] = _calculate_block_start(self['pointer'] + self['datablocks_length'])
 
     def write(self, fid, data):
+        fid.seek(self['pointer'])
         fid.write(_HeaderStruct.pack(b'##DI', 0, self['datablocks_length'], 0))
         # dumps data
         fid.write(data)
@@ -1404,7 +1408,8 @@ class LDBlock(dict):
          self['count']) = unpack('<2I', fid.read(8))
         if self['flags']:  # flags existing
             if self['flags'] & (1 << 31):  # invalid data present
-                self['inval_data'] = [self['list_data'][0].pop(i) for i in range((link_count - 1)//2, link_count - 1)]
+                self['inval_data'] = {}
+                self['inval_data'][0] = [self['list_data'][0].pop(i) for i in range((link_count - 1)//2, link_count - 1)]
             if self['flags'] & 0b1:  # equal length data list
                 self['equal_sample_count'] = unpack('<Q', fid.read(8))[0]
             else:  # data list defined by byte offset
@@ -1420,8 +1425,9 @@ class LDBlock(dict):
                 self['distance_values'] = unpack('<{}Q'.format(self['count']),
                                                  fid.read(8 * self['count']))
 
-    def load(self, record_byte_offset, n_records, position, column_oriented_flag=False):
+    def load(self, record_byte_offset, n_records, position, invalid_bytes=0, column_oriented_flag=False):
         self['record_length'] = record_byte_offset
+        self['invalid_bytes'] = invalid_bytes
         self['n_records'] = n_records
         self['block_start'] = position
         self['column_oriented_flag'] = column_oriented_flag
@@ -1476,7 +1482,6 @@ class LDBlock(dict):
                 DZ['dz_zip_type'] = dz_zip_type
                 dl_data[counter] = DZ['block_start']
                 pointer = DZ.write(fid, data[data_pointer: data_pointer + chunk_size], self['record_length'])
-                data_pointer += chunk_size
                 if invalid_data is not None:
                     DZ = DZBlock()
                     DZ['block_start'] = _calculate_block_start(pointer)
@@ -1485,18 +1490,19 @@ class LDBlock(dict):
                     dl_invalid_data[counter] = DZ['block_start']
                     pointer = DZ.write(fid, invalid_data[data_pointer: data_pointer + chunk_size],
                                        self['record_length'])
+                data_pointer += chunk_size
         else:
             for counter, (n_record_chunk, chunk_size) in enumerate(self['chunks']):
                 DV = DVBlock()
                 DV.load(self['record_length'], self['n_records'], pointer)
                 dl_data[counter] = DV['pointer']
                 pointer = DV.write(fid, data[data_pointer: data_pointer + chunk_size])
-                data_pointer += chunk_size
                 if invalid_data is not None:
                     DI = DIBlock()
-                    DI.load(self['record_length'], self['n_records'], pointer)
+                    DI.load(self['invalid_bytes'], self['n_records'], pointer)
                     dl_invalid_data[counter] = DI['pointer']
                     pointer = DI.write(fid, invalid_data[data_pointer: data_pointer + chunk_size])
+                data_pointer += chunk_size
 
         # writes links to all Blocks
         # write dl_data
@@ -1876,7 +1882,7 @@ class Info4(dict):
                 vlsd_cg_block.append(cg)
 
             if self['CN'][dg][cg] and self['CN'][dg][cg][0]['unique_channel_in_CG'] and \
-                    not self['CG'][dg][cg]['cg_cg_next'] and not self['CG'][dg][cg]['cg_invalid_bytes']:
+                    not self['CG'][dg][cg]['cg_cg_next']:
                 # unique channel in data group
                 self['DG'][dg]['unique_channel_in_DG'] = True
             else:
