@@ -378,14 +378,14 @@ class Data(dict):
             for cn in record.VLSD:  # VLSD channels
                 if channel_set is None or record[cn].name in channel_set:
                     temp = Data(self.fid, record[cn].data(info))  # all channels
-                    temp = temp.load(record, info, name_list=channel_set, sorted_flag=True, vlsd=True)
+                    temp, invalid = temp.load(record, info, name_list=channel_set, sorted_flag=True, vlsd=True)
                     self[recordID]['data'] = rename_fields(self[recordID]['data'],
                                                            {record[cn].name: '{}_offset'.format(record[cn].name)})
                     self[recordID]['data'] = rec_append_fields(self[recordID]['data'],
                                                                record[cn].name, temp)
         else:  # unsorted DataGroup
             self.type = 'unsorted'
-            data = self.load(self, info, name_list=channel_set, sorted_flag=False)
+            data, invalid = self.load(self, info, name_list=channel_set, sorted_flag=False)
             for recordID in self:
                 self[recordID]['data'] = {}
                 for channel in self[recordID]['record']:
