@@ -87,11 +87,11 @@ Command example in ipython:
     # you can print file content in ipython with a simple:
     yop
     # alternatively, for max speed and smaller memory footprint, read only few channels
-    yop=mdfreader.Mdf('NameOfFile', channelList=['channel1', 'channel2'], convertAfterRead=False)
+    yop=mdfreader.Mdf('NameOfFile', channel_list=['channel1', 'channel2'], convert_after_read=False)
     # also possible to keep data compressed for small memory footprint, using Blosc module
     yop=mdfreader.Mdf('NameOfFile', compression=True)
     # for interactive file exploration, possible to read the file but not its data to save memory
-    yop=mdfreader.Mdf('NameOfFile', noDataLoading=True) # channel data will be loaded from file if needed
+    yop=mdfreader.Mdf('NameOfFile', no_data_loading=True) # channel data will be loaded from file if needed
     # parsing xml metadata from mdf4.x for many channels can take more than just reading data.
     # You can reduce to minimum metadata reading with below argument (no source information, attachment, etc.) 
     yop=mdfreader.Mdf('NameOfFile', metadata=0)  # 0: full, 2: minimal
