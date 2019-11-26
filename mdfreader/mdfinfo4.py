@@ -1432,6 +1432,7 @@ class LDBlock(dict):
         self['block_start'] = position
         self['column_oriented_flag'] = column_oriented_flag
         self['block_length'] = 40
+
         # calculate data chunks
         n_chunks = (record_byte_offset * n_records) // chunk_size_writing + 1
         chunk_length = (record_byte_offset * n_records) // n_chunks
@@ -1468,41 +1469,44 @@ class LDBlock(dict):
         pointer = self['block_start'] + self['block_length']
         dl_data = zeros(shape=len(self['chunks']), dtype='<u8')
         data_pointer = 0
+        data_invalid_pointer = 0
         if compression_flag:
             if self['column_oriented_flag']:
-                dz_zip_type = 0  # for a column oriented channel, no meanning to have transposition
+                dz_zip_type = 0  # for a column oriented channel, no meaning to have transposition
             else:
                 # uses not equal length blocks, transposed compressed data
                 dz_zip_type = 1
 
             for counter, (n_record_chunk, chunk_size) in enumerate(self['chunks']):
-                DZ = DZBlock()
-                DZ['block_start'] = _calculate_block_start(pointer)
-                DZ['dz_org_block_type'] = b'DV'
-                DZ['dz_zip_type'] = dz_zip_type
-                dl_data[counter] = DZ['block_start']
-                pointer = DZ.write(fid, data[data_pointer: data_pointer + chunk_size], self['record_length'])
+                position, dl_data = self.write_DZ(fid, pointer, data, dl_data, counter, data_pointer,
+                                                  self['record_length'], chunk_size, dz_zip_type, b'DV')
+                if position is not None:
+                    pointer = position
+                else:  # no compression
+                    pointer, dl_data = self.write_DIV(fid, pointer, DVBlock(), data, dl_data,
+                                                      counter, data_pointer, self['record_length'], chunk_size)
                 if invalid_data is not None:
-                    DZ = DZBlock()
-                    DZ['block_start'] = _calculate_block_start(pointer)
-                    DZ['dz_org_block_type'] = b'DI'
-                    DZ['dz_zip_type'] = dz_zip_type
-                    dl_invalid_data[counter] = DZ['block_start']
-                    pointer = DZ.write(fid, invalid_data[data_pointer: data_pointer + chunk_size],
-                                       self['record_length'])
+                    position, dl_invalid_data = self.write_DZ(fid, pointer, invalid_data, dl_invalid_data,
+                                                              counter, data_invalid_pointer, self['invalid_bytes'],
+                                                              n_record_chunk, dz_zip_type, b'DI')
+                    if position is not None:
+                        pointer = position
+                    else:  # no compression
+                        pointer, dl_invalid_data = self.write_DIV(fid, pointer, DIBlock(), invalid_data,
+                                                                  dl_invalid_data, counter, data_invalid_pointer,
+                                                                  self['invalid_bytes'], n_record_chunk)
                 data_pointer += chunk_size
+                data_invalid_pointer += n_record_chunk
         else:
             for counter, (n_record_chunk, chunk_size) in enumerate(self['chunks']):
-                DV = DVBlock()
-                DV.load(self['record_length'], self['n_records'], pointer)
-                dl_data[counter] = DV['pointer']
-                pointer = DV.write(fid, data[data_pointer: data_pointer + chunk_size])
+                pointer, dl_data = self.write_DIV(fid, pointer, DVBlock(), data, dl_data,
+                                                  counter, data_pointer, self['record_length'], chunk_size)
                 if invalid_data is not None:
-                    DI = DIBlock()
-                    DI.load(self['invalid_bytes'], self['n_records'], pointer)
-                    dl_invalid_data[counter] = DI['pointer']
-                    pointer = DI.write(fid, invalid_data[data_pointer: data_pointer + chunk_size])
+                    pointer, dl_invalid_data = self.write_DIV(fid, pointer, DIBlock(), invalid_data,
+                                                              dl_invalid_data, counter, data_invalid_pointer,
+                                                              self['invalid_bytes'], n_record_chunk)
                 data_pointer += chunk_size
+                data_invalid_pointer += n_record_chunk
 
         # writes links to all Blocks
         # write dl_data
@@ -1512,6 +1516,22 @@ class LDBlock(dict):
             fid.write(dl_invalid_data.tobytes())
         fid.seek(pointer)
         return _calculate_block_start(pointer)
+
+    def write_DIV(self, fid, pointer, block, data, dl_data, counter, data_pointer, record_length, chunk_size):
+        block.load(record_length, self['n_records'], pointer)
+        dl_data[counter] = block['pointer']
+        position = block.write(fid, data[data_pointer: data_pointer + chunk_size])
+        return position, dl_data
+
+    def write_DZ(self, fid, pointer, data, dl_data, counter, data_pointer, record_length, chunk_size,
+                 dz_zip_type, dz_org_block_type):
+        DZ = DZBlock()
+        DZ['block_start'] = _calculate_block_start(pointer)
+        DZ['dz_org_block_type'] = dz_org_block_type
+        DZ['dz_zip_type'] = dz_zip_type
+        dl_data[counter] = DZ['block_start']
+        position = DZ.write(fid, data[data_pointer: data_pointer + chunk_size], record_length)
+        return position, dl_data
 
 
 class DLBlock(dict):
@@ -1624,16 +1644,19 @@ class DZBlock(dict):
             compressed_data = compress(data)
             record_length = 0
         dz_data_length = len(compressed_data)
-        self['DZBlock_length'] = 48 + dz_data_length
-        # writes header
-        fid.write(_HeaderStruct.pack(b'##DZ', 0, self['DZBlock_length'], 0))
-        data_bytes = (self['dz_org_block_type'], self['dz_zip_type'], 0,
-                      record_length, org_data_length, dz_data_length)
-        fid.write(_DZStruct.pack(*data_bytes))
-        # writes compressed data
-        fid.write(compressed_data)
-        return self['block_start'] + self['DZBlock_length']
-
+        if org_data_length > dz_data_length + 24:
+            self['DZBlock_length'] = 48 + dz_data_length
+            # writes header
+            fid.write(_HeaderStruct.pack(b'##DZ', 0, self['DZBlock_length'], 0))
+            data_bytes = (self['dz_org_block_type'], self['dz_zip_type'], 0,
+                          record_length, org_data_length, dz_data_length)
+            fid.write(_DZStruct.pack(*data_bytes))
+            # writes compressed data
+            fid.write(compressed_data)
+            return self['block_start'] + self['DZBlock_length']
+        else:
+            # not enough data to compress
+            return None
 
 class HLBlock(dict):
 
@@ -1678,7 +1701,14 @@ class HLBlock(dict):
             DZ['dz_org_block_type'] = dz_org_block_type
             DZ['dz_zip_type'] = dz_zip_type
             dl_data[counter] = DZ['block_start']
-            pointer = DZ.write(fid, data[data_pointer: data_pointer + chunk_size], self['record_length'])
+            position = DZ.write(fid, data[data_pointer: data_pointer + chunk_size], self['record_length'])
+            if position is not None:
+                pointer = position
+            else:  # not enough data to be compressed, back to normal DTBlock
+                DT = DTBlock()
+                DT.load(self['record_length'], n_record_chunk, pointer)
+                dl_data[counter] = DT['pointer']
+                pointer = DT.write(fid, data[data_pointer: data_pointer + chunk_size])
             data_pointer += chunk_size
         # writes links to all DZBlocks
         # write dl_data

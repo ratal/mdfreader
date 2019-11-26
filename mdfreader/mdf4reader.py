@@ -1497,7 +1497,8 @@ class Mdf4(MdfSkeleton):
                                             self.add_channel(chan.name, invalid_data, master_channel,
                                                              master_type=0, unit='', description='', info=None,
                                                              compression=compression, identifier=None)
-                                        else:  # unique channel in DG, applying easily maskarray
+                                        else:
+                                            # unique channel in DG, applying easily maskarray
                                             data = self._get_channel_data4(channels[0].name)
                                             data = data.view(MaskedArray)
                                             data.mask = invalid_data
@@ -2157,18 +2158,18 @@ class Mdf4(MdfSkeleton):
 
             # data block writing
             if not invalid_channel:
-                if compression:
-                    pointer = data_blocks.write(fid, data.tobytes(), compression_flag=True)
-                else:
-                    pointer = data_blocks.write(fid, data.tobytes())
-            else:
+                inval_data = None
+            else:  # must be 1 byte length, boolean
                 if isinstance(data, MaskedArray):
-                    pointer = data_blocks.write(fid, data.tobytes(),
-                                                invalid_data=data.mask, compression_flag=compression)
+                    inval_data = data.mask.tobytes()
                 else:
-                    pointer = data_blocks.write(fid, data.tobytes(),
-                                                invalid_data=self.get_invalid_mask(channel),
-                                                compression_flag=compression)
+                    inval_data = self.get_invalid_mask(channel).astype(bool).tobytes()
+            if not invalid_channel and not compression:
+                pointer = data_blocks.write(fid, data.tobytes())
+            else:
+                pointer = data_blocks.write(fid, data.tobytes(),
+                                            invalid_data=inval_data, compression_flag=compression)
+
             if compression or invalid_channel:
                 # next DG position is not predictable due to DZ Blocks unknown length
                 fid.seek(dg_start_position + 24)
