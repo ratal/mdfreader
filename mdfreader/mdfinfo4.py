@@ -1493,8 +1493,9 @@ class LDBlock(dict):
                         pointer = position
                     else:  # no compression
                         pointer, dl_invalid_data = self.write_DIV(fid, pointer, DIBlock(), invalid_data,
-                                                                  dl_invalid_data, counter, data_invalid_pointer,
-                                                                  self['invalid_bytes'], n_record_chunk)
+                                                                  dl_invalid_data, counter,
+                                                                  data_invalid_pointer, self['invalid_bytes'],
+                                                                  n_record_chunk * self['invalid_bytes'])
                 data_pointer += chunk_size
                 data_invalid_pointer += n_record_chunk
         else:
@@ -1504,7 +1505,8 @@ class LDBlock(dict):
                 if invalid_data is not None:
                     pointer, dl_invalid_data = self.write_DIV(fid, pointer, DIBlock(), invalid_data,
                                                               dl_invalid_data, counter, data_invalid_pointer,
-                                                              self['invalid_bytes'], n_record_chunk)
+                                                              self['invalid_bytes'],
+                                                              n_record_chunk * self['invalid_bytes'])
                 data_pointer += chunk_size
                 data_invalid_pointer += n_record_chunk
 
@@ -1657,6 +1659,7 @@ class DZBlock(dict):
         else:
             # not enough data to compress
             return None
+
 
 class HLBlock(dict):
 
