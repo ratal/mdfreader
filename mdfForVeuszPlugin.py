@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-''' Veusz data plugin for mdf format
+""" Veusz data plugin for mdf format
 
 Created on 18 nov. 2010
 
@@ -12,10 +12,11 @@ Installation instructions :
 1. copy or link mdfForVeuszPlugin.py into the plugins directory of Veusz
 2. link mdfreader.py in root or plugin directory of Veusz
 3. Go in Veusz ; Edit / Preferences / Plugins tab and add mdfForVeuszPlugins.py
-'''
+"""
 from veusz.plugins import *
 from veusz.plugins.datasetplugin import Dataset1D as ImportDataset1D
 from veusz.plugins.field import FieldFloat as ImportFieldFloat
+
 try:
     from mdfreader import Mdf
     from mdfreader import MdfInfo
@@ -27,8 +28,9 @@ except ImportError:
         import sys
         import os
         import os.path
+
         sys.path.append(os.getcwdu())
-        print(os.path.join(os.getcwdu(), 'plugins'))
+        print(os.path.join(os.getcwdu(), "plugins"))
         from mdfreader import Mdf
         from mdfreader import MdfInfo
 
@@ -41,11 +43,11 @@ class ImportPlugin(MdfInfo):
     register the class by adding to the importpluginregistry list
     """
 
-    name = 'Import plugin'
-    author = 'Aymeric Rateau'
-    description = 'Import MDF files'
-    promote_tab = 'MDF'
-    file_extensions = set(['.dat', '.mf4', '.mdf'])
+    name = "Import plugin"
+    author = "Aymeric Rateau"
+    description = "Import MDF files"
+    promote_tab = "MDF"
+    file_extensions = set([".dat", ".mf4", ".mdf"])
 
     def __init__(self):
         """Override this to declare a list of input fields if required."""
@@ -61,32 +63,33 @@ class ImportPlugin(MdfInfo):
         info = MdfInfo()
 
         if info.mdfversion < 400:
-            f = ''
-            f += 'Time: ' + info['HDBlock']['Date'] + ' '
-            f += info['HDBlock']['Time'] + '\n'
-            f += 'Author: ' + info['HDBlock']['Author'] + '\n'
-            f += 'Organisation: ' + info['HDBlock']['Organization'] + '\n'
-            f += 'Project Name: ' + info['HDBlock']['ProjectName'] + '\n'
-            f += 'Subject: ' + info['HDBlock']['Subject'] + '\n' + 'Channel List:\n'
+            f = ""
+            f += "Time: " + info["HDBlock"]["Date"] + " "
+            f += info["HDBlock"]["Time"] + "\n"
+            f += "Author: " + info["HDBlock"]["Author"] + "\n"
+            f += "Organisation: " + info["HDBlock"]["Organization"] + "\n"
+            f += "Project Name: " + info["HDBlock"]["ProjectName"] + "\n"
+            f += "Subject: " + info["HDBlock"]["Subject"] + "\n" + "Channel List:\n"
         else:
             from time import gmtime, strftime
-            fileDateTime = gmtime(info['HDBlock']['hd_start_time_ns'] / 1000000000)
-            date = strftime('%Y-%m-%d', fileDateTime)
-            time = strftime('%H:%M:%S', fileDateTime)
-            f = ''
-            f += 'Date Time: ' + date + '  ' + time + '\n'
-            if 'Comment' in info['HDBlock']:
-                Comment = info['HDBlock']['Comment']
-                if 'author' in Comment:
-                    f += 'Author: ' + Comment['author'] + '\n'
-                if 'department' in Comment:
-                    f += 'Organisation: ' + Comment['department'] + '\n'
-                if 'project' in Comment:
-                    f += 'Project Name: ' + Comment['project'] + '\n'
-                if 'subject' in Comment:
-                    f += 'Subject: ' + Comment['subject'] + '\n' + 'Channel List:\n'
+
+            fileDateTime = gmtime(info["HDBlock"]["hd_start_time_ns"] / 1000000000)
+            date = strftime("%Y-%m-%d", fileDateTime)
+            time = strftime("%H:%M:%S", fileDateTime)
+            f = ""
+            f += "Date Time: " + date + "  " + time + "\n"
+            if "Comment" in info["HDBlock"]:
+                Comment = info["HDBlock"]["Comment"]
+                if "author" in Comment:
+                    f += "Author: " + Comment["author"] + "\n"
+                if "department" in Comment:
+                    f += "Organisation: " + Comment["department"] + "\n"
+                if "project" in Comment:
+                    f += "Project Name: " + Comment["project"] + "\n"
+                if "subject" in Comment:
+                    f += "Subject: " + Comment["subject"] + "\n" + "Channel List:\n"
         for channelName in info.list_channels():
-            f += '   ' + channelName + '\n'
+            f += "   " + channelName + "\n"
         return f, True
 
     def doImport(self, params):
@@ -116,12 +119,15 @@ class MdfImportPlugin(ImportPlugin, Mdf):
         """
 
         data = Mdf(params.filename)
-        data.resample(sampling_time=params.field_results['mult'])
+        data.resample(sampling_time=params.field_results["mult"])
         List = []
         for channelName in list(data.keys()):
-            if len(data[channelName]['data']) > 0 and not data[channelName]['data'].dtype.kind in ['S', 'U']:
+            if len(data[channelName]["data"]) > 0 and not data[channelName][
+                "data"
+            ].dtype.kind in ["S", "U"]:
                 # print( data[channelName]['data'].dtype )
-                List.append(ImportDataset1D(channelName, data[channelName]['data']))
+                List.append(ImportDataset1D(channelName, data[channelName]["data"]))
         return List
+
 
 importpluginregistry.append(MdfImportPlugin())

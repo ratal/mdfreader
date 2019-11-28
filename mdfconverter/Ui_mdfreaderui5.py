@@ -8,6 +8,7 @@
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
+
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
@@ -22,7 +23,9 @@ class Ui_MainWindow(object):
         font.setBold(True)
         font.setWeight(75)
         self.label_2.setFont(font)
-        self.label_2.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
+        self.label_2.setLocale(
+            QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium)
+        )
         self.label_2.setObjectName("label_2")
         self.gridLayout.addWidget(self.label_2, 0, 0, 1, 1)
         self.label = QtWidgets.QLabel(self.TopLayout)
@@ -31,7 +34,9 @@ class Ui_MainWindow(object):
         font.setBold(True)
         font.setWeight(75)
         self.label.setFont(font)
-        self.label.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
+        self.label.setLocale(
+            QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium)
+        )
         self.label.setObjectName("label")
         self.gridLayout.addWidget(self.label, 0, 1, 1, 1)
         self.label_3 = QtWidgets.QLabel(self.TopLayout)
@@ -40,7 +45,9 @@ class Ui_MainWindow(object):
         font.setBold(True)
         font.setWeight(75)
         self.label_3.setFont(font)
-        self.label_3.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
+        self.label_3.setLocale(
+            QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium)
+        )
         self.label_3.setObjectName("label_3")
         self.gridLayout.addWidget(self.label_3, 0, 2, 1, 1)
         self.Lists = QtWidgets.QSplitter(self.TopLayout)
@@ -48,7 +55,9 @@ class Ui_MainWindow(object):
         self.Lists.setObjectName("Lists")
         self.FileList = QtWidgets.QListWidget(self.Lists)
         self.FileList.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-        self.FileList.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
+        self.FileList.setLocale(
+            QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium)
+        )
         self.FileList.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.FileList.setDragEnabled(True)
         self.FileList.setDragDropMode(QtWidgets.QAbstractItemView.DragDrop)
@@ -61,7 +70,9 @@ class Ui_MainWindow(object):
         self.channelList = QtWidgets.QListWidget(self.Lists)
         self.channelList.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
         self.channelList.setAcceptDrops(True)
-        self.channelList.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
+        self.channelList.setLocale(
+            QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium)
+        )
         self.channelList.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.channelList.setDragEnabled(True)
         self.channelList.setDragDropMode(QtWidgets.QAbstractItemView.DragDrop)
@@ -72,18 +83,28 @@ class Ui_MainWindow(object):
         self.SelectedChannelList = QtWidgets.QListWidget(self.Lists)
         self.SelectedChannelList.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
         self.SelectedChannelList.setAcceptDrops(True)
-        self.SelectedChannelList.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
-        self.SelectedChannelList.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        self.SelectedChannelList.setLocale(
+            QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium)
+        )
+        self.SelectedChannelList.setEditTriggers(
+            QtWidgets.QAbstractItemView.NoEditTriggers
+        )
         self.SelectedChannelList.setDragEnabled(True)
         self.SelectedChannelList.setDragDropMode(QtWidgets.QAbstractItemView.DragDrop)
         self.SelectedChannelList.setDefaultDropAction(QtCore.Qt.MoveAction)
         self.SelectedChannelList.setAlternatingRowColors(True)
-        self.SelectedChannelList.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        self.SelectedChannelList.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectItems)
+        self.SelectedChannelList.setSelectionMode(
+            QtWidgets.QAbstractItemView.ExtendedSelection
+        )
+        self.SelectedChannelList.setSelectionBehavior(
+            QtWidgets.QAbstractItemView.SelectItems
+        )
         self.SelectedChannelList.setObjectName("SelectedChannelList")
         self.gridLayout.addWidget(self.Lists, 1, 0, 4, 3)
         self.browse = QtWidgets.QPushButton(self.TopLayout)
-        self.browse.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
+        self.browse.setLocale(
+            QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium)
+        )
         self.browse.setAutoDefault(False)
         self.browse.setDefault(False)
         self.browse.setObjectName("browse")
@@ -92,7 +113,9 @@ class Ui_MainWindow(object):
         self.Options.setOrientation(QtCore.Qt.Vertical)
         self.Options.setObjectName("Options")
         self.splitter = QtWidgets.QSplitter(self.Options)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy = QtWidgets.QSizePolicy(
+            QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Expanding
+        )
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.splitter.sizePolicy().hasHeightForWidth())
@@ -134,13 +157,17 @@ class Ui_MainWindow(object):
         self.Resample.setContentsMargins(0, 0, 0, 0)
         self.Resample.setObjectName("Resample")
         self.resample = QtWidgets.QCheckBox(self.horizontalLayoutWidget)
-        self.resample.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
+        self.resample.setLocale(
+            QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium)
+        )
         self.resample.setChecked(True)
         self.resample.setObjectName("resample")
         self.Resample.addWidget(self.resample)
         self.resampleValue = QtWidgets.QLineEdit(self.horizontalLayoutWidget)
         self.resampleValue.setEnabled(True)
-        self.resampleValue.setInputMethodHints(QtCore.Qt.ImhFormattedNumbersOnly|QtCore.Qt.ImhPreferNumbers)
+        self.resampleValue.setInputMethodHints(
+            QtCore.Qt.ImhFormattedNumbersOnly | QtCore.Qt.ImhPreferNumbers
+        )
         self.resampleValue.setObjectName("resampleValue")
         self.Resample.addWidget(self.resampleValue)
         self.layoutWidget = QtWidgets.QWidget(self.splitter)
@@ -149,7 +176,9 @@ class Ui_MainWindow(object):
         self.LabFile_2.setContentsMargins(0, 0, 0, 0)
         self.LabFile_2.setObjectName("LabFile_2")
         self.LabFileBrowse = QtWidgets.QPushButton(self.layoutWidget)
-        self.LabFileBrowse.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
+        self.LabFileBrowse.setLocale(
+            QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium)
+        )
         self.LabFileBrowse.setObjectName("LabFileBrowse")
         self.LabFile_2.addWidget(self.LabFileBrowse)
         self.LabFile = QtWidgets.QLineEdit(self.layoutWidget)
@@ -158,15 +187,21 @@ class Ui_MainWindow(object):
         self.LabFile_2.addWidget(self.LabFile)
         self.MergeFiles = QtWidgets.QCheckBox(self.Options)
         self.MergeFiles.setEnabled(True)
-        self.MergeFiles.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
+        self.MergeFiles.setLocale(
+            QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium)
+        )
         self.MergeFiles.setChecked(True)
         self.MergeFiles.setObjectName("MergeFiles")
         self.gridLayout.addWidget(self.Options, 2, 3, 1, 1)
         self.Convert = QtWidgets.QPushButton(self.TopLayout)
-        self.Convert.setLocale(QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium))
+        self.Convert.setLocale(
+            QtCore.QLocale(QtCore.QLocale.English, QtCore.QLocale.Belgium)
+        )
         self.Convert.setObjectName("Convert")
         self.gridLayout.addWidget(self.Convert, 3, 3, 1, 1)
-        spacerItem = QtWidgets.QSpacerItem(113, 20, QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
+        spacerItem = QtWidgets.QSpacerItem(
+            113, 20, QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum
+        )
         self.gridLayout.addItem(spacerItem, 4, 3, 1, 1)
         MainWindow.setCentralWidget(self.TopLayout)
         self.label_2.setBuddy(self.FileList)
@@ -182,14 +217,24 @@ class Ui_MainWindow(object):
         self.label_2.setText(_translate("MainWindow", "File List"))
         self.label.setText(_translate("MainWindow", "File Channel List"))
         self.label_3.setText(_translate("MainWindow", "Selected Channel List"))
-        self.FileList.setWhatsThis(_translate("MainWindow", "File list to be converted"))
+        self.FileList.setWhatsThis(
+            _translate("MainWindow", "File list to be converted")
+        )
         self.FileList.setSortingEnabled(False)
-        self.channelList.setWhatsThis(_translate("MainWindow", "Channel list inside the selected file"))
+        self.channelList.setWhatsThis(
+            _translate("MainWindow", "Channel list inside the selected file")
+        )
         self.channelList.setSortingEnabled(True)
-        self.SelectedChannelList.setWhatsThis(_translate("MainWindow", "Selected channel list to be exported"))
+        self.SelectedChannelList.setWhatsThis(
+            _translate("MainWindow", "Selected channel list to be exported")
+        )
         self.SelectedChannelList.setSortingEnabled(True)
-        self.browse.setToolTip(_translate("MainWindow", "Click and select MDF file for conversion"))
-        self.browse.setWhatsThis(_translate("MainWindow", "Click to browse for MDF files to be converted"))
+        self.browse.setToolTip(
+            _translate("MainWindow", "Click and select MDF file for conversion")
+        )
+        self.browse.setWhatsThis(
+            _translate("MainWindow", "Click to browse for MDF files to be converted")
+        )
         self.browse.setText(_translate("MainWindow", "Browse"))
         self.matlab.setText(_translate("MainWindow", "Matlab .mat"))
         self.netcdf.setText(_translate("MainWindow", "netCDF"))
@@ -198,19 +243,35 @@ class Ui_MainWindow(object):
         self.excel.setText(_translate("MainWindow", "Excel 2003"))
         self.excel2010.setText(_translate("MainWindow", "Excel 2010"))
         self.mdf3.setText(_translate("MainWindow", "MDF3.3"))
-        self.resample.setWhatsThis(_translate("MainWindow", "Click to resample according to below sampling time in seconds"))
+        self.resample.setWhatsThis(
+            _translate(
+                "MainWindow",
+                "Click to resample according to below sampling time in seconds",
+            )
+        )
         self.resample.setText(_translate("MainWindow", "Resample"))
-        self.resampleValue.setWhatsThis(_translate("MainWindow", "Resampling time in seconds"))
+        self.resampleValue.setWhatsThis(
+            _translate("MainWindow", "Resampling time in seconds")
+        )
         self.resampleValue.setText(_translate("MainWindow", "1.0"))
-        self.LabFileBrowse.setWhatsThis(_translate("MainWindow", "Click to selected file containing channel list"))
+        self.LabFileBrowse.setWhatsThis(
+            _translate("MainWindow", "Click to selected file containing channel list")
+        )
         self.LabFileBrowse.setText(_translate("MainWindow", "Lab file"))
         self.LabFile.setWhatsThis(_translate("MainWindow", "Chosen lab file"))
         self.MergeFiles.setText(_translate("MainWindow", "MergeFiles"))
-        self.Convert.setWhatsThis(_translate("MainWindow", "Click to convert all files according your selected options"))
+        self.Convert.setWhatsThis(
+            _translate(
+                "MainWindow",
+                "Click to convert all files according your selected options",
+            )
+        )
         self.Convert.setText(_translate("MainWindow", "Convert"))
+
 
 if __name__ == "__main__":
     import sys
+
     app = QtGui.QApplication(sys.argv)
     MainWindow = QtGui.QMainWindow()
     ui = Ui_MainWindow()

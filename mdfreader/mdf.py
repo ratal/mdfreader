@@ -26,10 +26,11 @@ from sys import version_info
 from collections import OrderedDict, defaultdict
 from warnings import warn
 from numpy import array_repr, set_printoptions, recarray, fromstring
+
 try:
     from pandas import set_option
 except ImportError:
-    warn('Pandas export will not be possible', ImportWarning)
+    warn("Pandas export will not be possible", ImportWarning)
 set_printoptions(threshold=100, edgeitems=1)
 _notAllowedChannelNames = set(dir(recarray))
 try:
@@ -41,23 +42,35 @@ except ImportError:
 PythonVersion = version_info
 PythonVersion = PythonVersion[0]
 
-descriptionField = 'description'
-unitField = 'unit'
-dataField = 'data'
-masterField = 'master'
-masterTypeField = 'masterType'
-conversionField = 'conversion'
-attachmentField = 'attachment'
-idField = 'id'
-invalidPosField = 'invalid_bit'
-invalidChannel = 'invalid_channel'
+descriptionField = "description"
+unitField = "unit"
+dataField = "data"
+masterField = "master"
+masterTypeField = "masterType"
+conversionField = "conversion"
+attachmentField = "attachment"
+idField = "id"
+invalidPosField = "invalid_bit"
+invalidChannel = "invalid_channel"
 
 
 class MdfSkeleton(dict):
-    __slots__ = ['masterChannelList', 'fileName', 'MDFVersionNumber', 'multiProc',
-                 'convertAfterRead', 'filterChannelNames', 'fileMetadata', 'convertTables',
-                 '_pandasframe', 'info', '_compression_level', '_noDataLoading',
-                 'fid', 'zipfile']
+    __slots__ = [
+        "masterChannelList",
+        "fileName",
+        "MDFVersionNumber",
+        "multiProc",
+        "convertAfterRead",
+        "filterChannelNames",
+        "fileMetadata",
+        "convertTables",
+        "_pandasframe",
+        "info",
+        "_compression_level",
+        "_noDataLoading",
+        "fid",
+        "zipfile",
+    ]
     """ MdfSkeleton class
 
     Attributes
@@ -93,9 +106,17 @@ class MdfSkeleton(dict):
         adds basic metadata from file
     """
 
-    def __init__(self, file_name=None, channel_list=None, convert_after_read=True,
-                 filter_channel_names=False, no_data_loading=False,
-                 compression=False, convert_tables=False, metadata=2):
+    def __init__(
+        self,
+        file_name=None,
+        channel_list=None,
+        convert_after_read=True,
+        filter_channel_names=False,
+        no_data_loading=False,
+        compression=False,
+        convert_tables=False,
+        metadata=2,
+    ):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -133,13 +154,13 @@ class MdfSkeleton(dict):
         # giving priority to mdfconverter
         self.multiProc = False
         self.fileMetadata = dict()
-        self.fileMetadata['author'] = ''
-        self.fileMetadata['organisation'] = ''
-        self.fileMetadata['project'] = ''
-        self.fileMetadata['subject'] = ''
-        self.fileMetadata['comment'] = ''
-        self.fileMetadata['time'] = ''
-        self.fileMetadata['date'] = ''
+        self.fileMetadata["author"] = ""
+        self.fileMetadata["organisation"] = ""
+        self.fileMetadata["project"] = ""
+        self.fileMetadata["subject"] = ""
+        self.fileMetadata["comment"] = ""
+        self.fileMetadata["time"] = ""
+        self.fileMetadata["date"] = ""
         self.MDFVersionNumber = 300
         self.filterChannelNames = filter_channel_names
         # by default, do not convert table conversion types, taking lot of time and memory
@@ -152,15 +173,29 @@ class MdfSkeleton(dict):
         self.clear()
         self.fileName = file_name
         if file_name is not None:
-            self.read(file_name, channel_list=channel_list,
-                      convert_after_read=convert_after_read,
-                      filter_channel_names=filter_channel_names,
-                      no_data_loading=no_data_loading,
-                      compression=compression,
-                      metadata=metadata)
+            self.read(
+                file_name,
+                channel_list=channel_list,
+                convert_after_read=convert_after_read,
+                filter_channel_names=filter_channel_names,
+                no_data_loading=no_data_loading,
+                compression=compression,
+                metadata=metadata,
+            )
 
-    def add_channel(self, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None,
-                    info=None, compression=False, identifier=None):
+    def add_channel(
+        self,
+        channel_name,
+        data,
+        master_channel,
+        master_type=1,
+        unit="",
+        description="",
+        conversion=None,
+        info=None,
+        compression=False,
+        identifier=None,
+    ):
         """ adds channel to mdf dict.
 
         Parameters
@@ -203,41 +238,51 @@ class MdfSkeleton(dict):
                 self.set_channel_master_type(channel_name, master_type)
         self.set_channel_data(channel_name, data, compression)
         if conversion is not None:
-            self[channel_name]['conversion'] = {}
-            self[channel_name]['conversion']['type'] = conversion['cc_type']
-            self[channel_name]['conversion']['parameters'] = {}
+            self[channel_name]["conversion"] = {}
+            self[channel_name]["conversion"]["type"] = conversion["cc_type"]
+            self[channel_name]["conversion"]["parameters"] = {}
             if self.MDFVersionNumber < 400:  # mdf3
-                if 'conversion' in conversion:
-                    self[channel_name]['conversion']['parameters'] = \
-                        conversion['conversion']
-                if conversion['cc_type'] == 0 and \
-                        'P2' in self[channel_name]['conversion']['parameters'] and \
-                        (self[channel_name]['conversion']['parameters']['P2'] == 1.0 and
-                         self[channel_name]['conversion']['parameters']['P1'] in (0.0, -0.0)):
-                    self[channel_name].pop('conversion')
+                if "conversion" in conversion:
+                    self[channel_name]["conversion"]["parameters"] = conversion[
+                        "conversion"
+                    ]
+                if (
+                    conversion["cc_type"] == 0
+                    and "P2" in self[channel_name]["conversion"]["parameters"]
+                    and (
+                        self[channel_name]["conversion"]["parameters"]["P2"] == 1.0
+                        and self[channel_name]["conversion"]["parameters"]["P1"]
+                        in (0.0, -0.0)
+                    )
+                ):
+                    self[channel_name].pop("conversion")
             else:  # mdf4
-                if 'cc_val' in conversion:
-                    self[channel_name]['conversion']['parameters']['cc_val'] = \
-                        conversion['cc_val']
-                if 'cc_ref' in conversion:
-                    self[channel_name]['conversion']['parameters']['cc_ref'] = \
-                        conversion['cc_ref']
+                if "cc_val" in conversion:
+                    self[channel_name]["conversion"]["parameters"][
+                        "cc_val"
+                    ] = conversion["cc_val"]
+                if "cc_ref" in conversion:
+                    self[channel_name]["conversion"]["parameters"][
+                        "cc_ref"
+                    ] = conversion["cc_ref"]
         if info is not None:  # axis from CABlock
             ca_block = info
             axis = []
-            while 'CABlock' in ca_block:
-                ca_block = ca_block['CABlock']
-                if 'ca_axis_value' in ca_block:
-                    if type(ca_block['ca_dim_size']) is list:
+            while "CABlock" in ca_block:
+                ca_block = ca_block["CABlock"]
+                if "ca_axis_value" in ca_block:
+                    if type(ca_block["ca_dim_size"]) is list:
                         index = 0
-                        for ndim in ca_block['ca_dim_size']:
-                            axis.append(tuple(ca_block['ca_axis_value'][index:index+ndim]))
+                        for ndim in ca_block["ca_dim_size"]:
+                            axis.append(
+                                tuple(ca_block["ca_axis_value"][index : index + ndim])
+                            )
                             index += ndim
                     else:
-                        axis = ca_block['ca_axis_value']
-            self[channel_name]['axis'] = axis
+                        axis = ca_block["ca_axis_value"]
+            self[channel_name]["axis"] = axis
         if identifier is not None:
-            self[channel_name]['id'] = identifier
+            self[channel_name]["id"] = identifier
 
     def remove_channel(self, channel_name):
         """ removes channel from mdf dict.
@@ -251,7 +296,9 @@ class MdfSkeleton(dict):
         -------
         value of mdf dict key=channel_name
         """
-        self.masterChannelList[self.get_channel_master(channel_name)].remove(channel_name)
+        self.masterChannelList[self.get_channel_master(channel_name)].remove(
+            channel_name
+        )
         return self.pop(channel_name)
 
     def rename_channel(self, channel_name, new_name):
@@ -266,9 +313,13 @@ class MdfSkeleton(dict):
         """
         if channel_name in self and new_name not in self:
             # add the new name to the same master
-            self.masterChannelList[self.get_channel_master(channel_name)].append(new_name)
+            self.masterChannelList[self.get_channel_master(channel_name)].append(
+                new_name
+            )
             # remove the old name
-            self.masterChannelList[self.get_channel_master(channel_name)].remove(channel_name)
+            self.masterChannelList[self.get_channel_master(channel_name)].remove(
+                channel_name
+            )
             self[new_name] = self.pop(channel_name)  # copy the data
             if channel_name in self.masterChannelList:  # it is a master channel
                 self.masterChannelList[new_name] = self.pop(channel_name)
@@ -326,9 +377,9 @@ class MdfSkeleton(dict):
         temp = self._get_channel_field(channel_name, field=unitField)
         if isinstance(temp, (dict, defaultdict)):
             try:
-                return temp['Comment']
+                return temp["Comment"]
             except KeyError:
-                return ''
+                return ""
         return temp
 
     def get_channel_desc(self, channel_name):
@@ -429,7 +480,7 @@ class MdfSkeleton(dict):
             try:
                 return channel[field]
             except KeyError:
-                return ''
+                return ""
         else:
             return None
 
@@ -557,7 +608,7 @@ class MdfSkeleton(dict):
         try:
             self[channel_name][field] = item
         except KeyError:
-            warn('Channel {} not in dictionary'.format(channel_name))
+            warn("Channel {} not in dictionary".format(channel_name))
 
     def _channel_in_mdf(self, channel_name):
         """Efficiently assess if channel is already in mdf
@@ -571,10 +622,21 @@ class MdfSkeleton(dict):
         -------
         bool
         """
-        return channel_name in self.masterChannelList[masterField] or channel_name in self.masterChannelList
+        return (
+            channel_name in self.masterChannelList[masterField]
+            or channel_name in self.masterChannelList
+        )
 
-    def add_metadata(self, author='', organisation='', project='',
-                     subject='', comment='', date='', time=''):
+    def add_metadata(
+        self,
+        author="",
+        organisation="",
+        project="",
+        subject="",
+        comment="",
+        date="",
+        time="",
+    ):
         """adds basic metadata to mdf class
 
         Parameters
@@ -593,13 +655,13 @@ class MdfSkeleton(dict):
         =====
         All fields are optional, default being empty string
         """
-        self.fileMetadata['author'] = author
-        self.fileMetadata['organisation'] = organisation
-        self.fileMetadata['project'] = project
-        self.fileMetadata['subject'] = subject
-        self.fileMetadata['comment'] = comment
-        self.fileMetadata['date'] = date
-        self.fileMetadata['time'] = time
+        self.fileMetadata["author"] = author
+        self.fileMetadata["organisation"] = organisation
+        self.fileMetadata["project"] = project
+        self.fileMetadata["subject"] = subject
+        self.fileMetadata["comment"] = comment
+        self.fileMetadata["date"] = date
+        self.fileMetadata["time"] = time
 
     def __str__(self):
         """representation a mdf_skeleton class data structure
@@ -613,43 +675,44 @@ class MdfSkeleton(dict):
         """
         output = list()
         if self.fileName is not None:
-            output.append('file name : {}\n'.format(self.fileName))
+            output.append("file name : {}\n".format(self.fileName))
         else:
-            output.append('')
+            output.append("")
         for m in self.fileMetadata.keys():
             if self.fileMetadata[m] is not None:
-                output.append('{} : {}\n'.format(m, self.fileMetadata[m]))
+                output.append("{} : {}\n".format(m, self.fileMetadata[m]))
         if not self._pandasframe:
-            output.append('\nchannels listed by data groups:\n')
+            output.append("\nchannels listed by data groups:\n")
             for d in self.masterChannelList.keys():
                 if d is not None:
-                    output.append('{}\n'.format(d))
+                    output.append("{}\n".format(d))
                 for c in self.masterChannelList[d]:
-                    output.append('  {} : '.format(c))
+                    output.append("  {} : ".format(c))
                     desc = self.get_channel_desc(c)
                     if desc is not None:
                         try:
                             output.append(str(desc))
                         except:
                             pass
-                    output.append('\n    ')
+                    output.append("\n    ")
                     data = self.get_channel_data(c)
                     # not byte, impossible to represent
-                    if data.dtype.kind != 'V':
-                        output.append(array_repr(data[:],
-                                      precision=3, suppress_small=True))
+                    if data.dtype.kind != "V":
+                        output.append(
+                            array_repr(data[:], precision=3, suppress_small=True)
+                        )
                     unit = self.get_channel_unit(c)
                     if unit is not None:
-                        output.append(' {}\n'.format(unit))
-            return ''.join(output)
+                        output.append(" {}\n".format(unit))
+            return "".join(output)
         else:
-            set_option('max_rows', 3)
-            set_option('expand_frame_repr', True)
-            set_option('max_colwidth', 6)
+            set_option("max_rows", 3)
+            set_option("expand_frame_repr", True)
+            set_option("max_colwidth", 6)
             for master in self.masterGroups:
                 output.append(master)
                 output.append(str(self[master]))
-            return ''.join(output)
+            return "".join(output)
 
     def copy(self):
         """copy a mdf class
@@ -687,24 +750,24 @@ def _open_mdf(file_name):
     """
 
     try:
-        fid = open(file_name, 'rb')
+        fid = open(file_name, "rb")
     except IOError:
-        raise Exception('Can not find file {}'.format(file_name))
+        raise Exception("Can not find file {}".format(file_name))
     zipfile = False
     # Check whether file is MDF file -- assumes that every MDF file starts
     # with the letters MDF
-    if fid.read(3) not in ('MDF', b'MDF'):
+    if fid.read(3) not in ("MDF", b"MDF"):
         if is_zipfile(file_name):
             # this is .mfxz file, compressed zip file
             zipfile = True
             fid.close()
-            zip_class = ZipFile(file_name, 'r')
+            zip_class = ZipFile(file_name, "r")
             zip_name = zip_class.namelist()[0]  # there should be only one file
             zip_name = zip_class.extract(zip_name)  # locally extracts file
-            fid = open(zip_name, 'rb')
+            fid = open(zip_name, "rb")
             file_name = zip_name
         else:
-            raise Exception('file {} is not an MDF file!'.format(file_name))
+            raise Exception("file {} is not an MDF file!".format(file_name))
     return (fid, file_name, zipfile)
 
 
@@ -734,7 +797,9 @@ def _bits_to_bytes_aligned(n_bits, numeric=True):
         elif n_bits <= 64:
             n_bytes = 8
         else:
-            warn('error converting bits into bytes for a numeric channel, too many bits')
+            warn(
+                "error converting bits into bytes for a numeric channel, too many bits"
+            )
             n_bytes = _bits_to_bytes_not_aligned(n_bits)
     else:
         n_bytes = _bits_to_bytes_not_aligned(n_bits)
@@ -765,7 +830,7 @@ def _convert_name(channel_name):
     """
 
     if PythonVersion < 3:  # python 2
-        channel_identifier = _sanitize_identifier(channel_name).encode('utf-8')
+        channel_identifier = _sanitize_identifier(channel_name).encode("utf-8")
     else:  # python 3
         if channel_name.isidentifier():
             return channel_name
@@ -774,10 +839,10 @@ def _convert_name(channel_name):
     # all characters of channel are not compliant to python
     if not channel_identifier:
         # generate random name for recarray
-        channel_identifier = ''.join([choice(ascii_letters) for n in range(32)])
+        channel_identifier = "".join([choice(ascii_letters) for n in range(32)])
     if channel_identifier in _notAllowedChannelNames:
         # limitation from recarray object attribute
-        channel_identifier = ''.join([channel_identifier, '_'])
+        channel_identifier = "".join([channel_identifier, "_"])
     return channel_identifier
 
 
@@ -786,7 +851,7 @@ def _gen_valid_identifier(seq):
     itr = iter(seq)
     # pull characters until we get a legal one for first in identifier
     for ch in itr:
-        if ch == '_' or ch.isalpha():
+        if ch == "_" or ch.isalpha():
             yield ch
             break
         elif ch.isdigit():
@@ -794,20 +859,21 @@ def _gen_valid_identifier(seq):
 
     # pull remaining characters and yield legal ones for identifier
     for ch in itr:
-        if ch == '_' or ch.isalpha() or ch.isdigit():
+        if ch == "_" or ch.isalpha() or ch.isdigit():
             yield ch
         else:
-            yield '_'
+            yield "_"
 
 
 def _sanitize_identifier(name):
-    return ''.join(_gen_valid_identifier(name))
+    return "".join(_gen_valid_identifier(name))
 
 
 class CompressedData:
-    __slots__ = ['data', 'dtype']
+    __slots__ = ["data", "dtype"]
     """ class to represent compressed data by blosc
     """
+
     def __init__(self):
         """ data compression method
 
