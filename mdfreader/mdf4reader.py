@@ -692,8 +692,8 @@ class Record(list):
         channel_number : int
             channel number in mdfinfo4.info4 class
         """
-        channel = Channel4()
-        self.append(channel.set(info, self.dataGroup, self.channelGroup, channel_number))
+        channel = Channel4(self.dataGroup, self.channelGroup, channel_number)
+        self.append(channel.set(info))
         self.channelNames.add(self[-1].name)
 
     def load_info(self, info):
@@ -735,8 +735,8 @@ class Record(list):
         self.unique_channel_in_DG = info['DG'][self.dataGroup]['unique_channel_in_DG']
         embedding_channel = None
         for channelNumber in info['CN'][self.dataGroup][self.channelGroup]:
-            channel = Channel4()
-            channel.set(info, self.dataGroup, self.channelGroup, channelNumber)
+            channel = Channel4(self.dataGroup, self.channelGroup, channelNumber)
+            channel.set(info)
             channel_type = channel.channel_type(info)
             data_format = channel.data_format(info)
             self.master = info['masters'][info['CN'][self.dataGroup][self.channelGroup][channelNumber]['masterCG']]['name']
@@ -744,8 +744,9 @@ class Record(list):
                 signal_data_type = channel.signal_data_type(info)
                 if signal_data_type == 13:
                     for name in ('ms', 'minute', 'hour', 'day', 'month', 'year'):
-                        channel = Channel4()  # new object otherwise only modified
-                        channel.set_CANOpen(info, self.dataGroup, self.channelGroup, channelNumber, name)
+                        # new object otherwise only modified
+                        channel = Channel4(self.dataGroup, self.channelGroup, channelNumber)
+                        channel.set_CANOpen(info, name)
                         self.append(channel)
                         self.channelNames.add(name)
                         self.dataRecordName.append(name)
@@ -756,8 +757,8 @@ class Record(list):
                     embedding_channel = None
                 elif signal_data_type == 14:
                     for name in ('ms', 'days'):
-                        channel = Channel4()
-                        channel.set_CANOpen(info, self.dataGroup, self.channelGroup, channelNumber, name)
+                        channel = Channel4(self.dataGroup, self.channelGroup, channelNumber)
+                        channel.set_CANOpen(info, name)
                         self.append(channel)
                         self.channelNames.add(name)
                         self.dataRecordName.append(name)
@@ -774,11 +775,10 @@ class Record(list):
                         # all channels are already ordered in record based on byte_offset
                         # and bit_offset so just comparing with previous channel
                         channel_pos_bit_end = channel.pos_bit_end(info)
-                        channel_pos_bit_beg = channel.pos_bit_beg(info)
                         prev_chan = self[-2]
                         prev_chan_byte_offset = prev_chan.byteOffset
                         prev_chan_n_bytes = prev_chan.nBytes_aligned
-                        prev_chan_includes_curr_chan = channel_pos_bit_beg >= 8 * prev_chan_byte_offset \
+                        prev_chan_includes_curr_chan = channel.pos_bit_beg >= 8 * prev_chan_byte_offset \
                             and channel_pos_bit_end <= 8 * (prev_chan_byte_offset + prev_chan_n_bytes)
                         if embedding_channel is not None:
                             embedding_channel_includes_curr_chan = \
@@ -786,7 +786,7 @@ class Record(list):
                         else:
                             embedding_channel_includes_curr_chan = False
                         if channel.byteOffset >= prev_chan_byte_offset and \
-                                channel_pos_bit_beg < 8 * (prev_chan_byte_offset +
+                                channel.pos_bit_beg < 8 * (prev_chan_byte_offset +
                                                            prev_chan_n_bytes) < channel_pos_bit_end:
                             # not byte aligned
                             self.byte_aligned = False
@@ -826,8 +826,8 @@ class Record(list):
                 self.recordToChannelMatching[channel.name] = channel.name
 
         if info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']:  # invalid bytes existing
-            invalid_bytes = Channel4()
-            invalid_bytes.set_invalid_bytes(info, self.dataGroup, self.channelGroup, channelNumber + 1)
+            invalid_bytes = Channel4(self.dataGroup, self.channelGroup, channelNumber + 1)
+            invalid_bytes.set_invalid_bytes(info)
             self.invalid_channel = invalid_bytes
             self.append(self.invalid_channel)
             self.channelNames.add(self.invalid_channel.name)
@@ -1154,7 +1154,7 @@ class Record(list):
                 signal_data_type = self[chan].signal_data_type(info)
                 n_bytes_estimated = self[chan].nBytes_aligned
                 if not self[chan].type in (1, 2):
-                    temp = [bit_array[self[chan].pos_bit_beg(info) + record_bit_size * i:
+                    temp = [bit_array[self[chan].pos_bit_beg + record_bit_size * i:
                             self[chan].pos_bit_end(info) + record_bit_size * i]
                             for i in range(n_records)]
                     n_bytes = len(temp[0].tobytes())
@@ -1174,8 +1174,8 @@ class Record(list):
                         trail_bits = bitarray(n_trail_bits, endian='little')
                         temp = signed_int(temp, trail_bits)
                 else:  # Channel Array
-                    temp = [bit_array[self[chan].pos_bit_beg(info) + record_bit_size * i:
-                                      self[chan].pos_bit_beg(info) + 8 * n_bytes_estimated + record_bit_size * i]
+                    temp = [bit_array[self[chan].pos_bit_beg + record_bit_size * i:
+                                      self[chan].pos_bit_beg + 8 * n_bytes_estimated + record_bit_size * i]
                             for i in range(n_records)]
                 if 's' not in self[chan].c_format(info):
                     c_structure = self[chan].c_format_structure(info)

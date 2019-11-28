@@ -26,7 +26,7 @@ CAN_open_offset = {'ms': 0, 'days': 4, 'minute': 2, 'hour': 3, 'day': 4, 'month'
 
 class Channel4(object):
     __slots__ = ['channelNumber', 'channelGroup', 'dataGroup',
-                 'type', 'name', 'VLSD_CG_Flag', 'nBytes_aligned', 'byteOffset']
+                 'type', 'name', 'VLSD_CG_Flag', 'nBytes_aligned', 'byteOffset', 'pos_bit_beg']
     """ channel class gathers all about channel structure in a record
 
     Attributes
@@ -126,8 +126,18 @@ class Channel4(object):
         False if channel needs bit masking
     """
 
-    def __init__(self):
+    def __init__(self, data_group, channel_group, channel_number):
         """ channel class constructor
+
+        Parameters
+        ------------
+
+        data_group : int
+            data group number in mdfinfo4.info4 class
+        channel_group : int
+            channel group number in mdfinfo4.info4 class
+        channel_number : int
+            channel number in mdfinfo4.info4 class
 
         Attributes
         --------------
@@ -149,16 +159,18 @@ class Channel4(object):
             number of bytes for this channel
         byteOffset : int, default
             position of channel in record, not including record ID
+        pos_bit_beg : int, default 0
+            bit position in record
         """
         self.name = ''
         self.type = 0
-        self.channelNumber = 0
-        self.dataGroup = 0
-        self.channelGroup = 0
+        self.channelNumber = channel_number
+        self.dataGroup = data_group
+        self.channelGroup = channel_group
         self.VLSD_CG_Flag = False
         self.nBytes_aligned = 0
         self.byteOffset = 0
-        # self.bit_masking_needed = True
+        self.pos_bit_beg = 0
 
     def __str__(self):
         """ channel object attributes print
@@ -689,7 +701,7 @@ class Channel4(object):
         """
         return self.pos_byte_beg(info) + self.nBytes_aligned
 
-    def pos_bit_beg(self, info):
+    def pos_bit_begin(self, info):
         """ channel data bit starting position in record
 
         Parameters
@@ -717,7 +729,7 @@ class Channel4(object):
         -----------
         integer, channel bit ending position
         """
-        return self.pos_bit_beg(info) + self.bit_count(info)
+        return self.pos_bit_beg + self.bit_count(info)
 
     def unit(self, info):
         """ channel unit
@@ -793,27 +805,19 @@ class Channel4(object):
         except KeyError:
             return None
 
-    def set(self, info, data_group, channel_group, channel_number):
+    def set(self, info):
         """ channel initialisation
 
         Parameters
         ------------
 
         info : mdfinfo4.info4 class
-        data_group : int
-            data group number in mdfinfo4.info4 class
-        channel_group : int
-            channel group number in mdfinfo4.info4 class
-        channel_number : int
-            channel number in mdfinfo4.info4 class
+
         """
-        self.name = info['CN'][data_group][channel_group][channel_number]['name']
-        self.channelNumber = channel_number
-        self.dataGroup = data_group
-        self.channelGroup = channel_group
+        self.name = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['name']
         self.type = 0
-        if info['CN'][data_group][channel_group][channel_number]['cn_composition'] and \
-                'CABlock' in info['CN'][data_group][channel_group][channel_number]:
+        if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_composition'] and \
+                'CABlock' in info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]:
             # channel array
             self.type = 1
             block = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
@@ -821,53 +825,42 @@ class Channel4(object):
                 self.type = 2
         self.nBytes_aligned = self.calc_bytes(info)
         self.byteOffset = self.calc_byte_offset(info)
+        self.pos_bit_beg = self.pos_bit_begin(info)
 
-    def set_CANOpen(self, info, data_group, channel_group, channel_number, name):
+    def set_CANOpen(self, info, name):
         """ CANOpen channel intialisation
 
         Parameters
         ------------
 
         info : mdfinfo4.info4 class
-        data_group : int
-            data group number in mdfinfo4.info4 class
-        channel_group : int
-            channel group number in mdfinfo4.info4 class
-        channel_number : int
-            channel number in mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
         name : str
             name of channel. Should be in ('ms', 'day', 'days', 'hour',
             'month', 'minute', 'year')
         """
         self.type = 3
         self.name = name
-        self.channelNumber = channel_number
-        self.dataGroup = data_group
-        self.channelGroup = channel_group
         self.nBytes_aligned = self.calc_bytes(info)
         self.byteOffset = self.calc_byte_offset(info)
+        self.pos_bit_beg = self.pos_bit_begin(info)
 
-    def set_invalid_bytes(self, info, data_group, channel_group, channel_number):
+    def set_invalid_bytes(self, info):
         """ invalid_bytes channel initialisation
 
         Parameters
-        ----------
+        ------------
 
         info : mdfinfo4.info4 class
-        data_group : int
-            data group number in mdfinfo4.info4 class
-        channel_group : int
-            channel group number in mdfinfo4.info4 class
-        channel_number : int
-            channel number in mdfinfo4.info4 class
+            info4 class containing all MDF Blocks
+
         """
         self.type = 4
-        self.name = 'invalid_bytes{}'.format(data_group)
-        self.channelNumber = channel_number
-        self.dataGroup = data_group
-        self.channelGroup = channel_group
+        self.name = 'invalid_bytes{}'.format(self.dataGroup)
         self.nBytes_aligned = self.calc_bytes(info)
         self.byteOffset = self.calc_byte_offset(info)
+        self.pos_bit_beg = self.pos_bit_begin(info)
 
     def invalid_bit(self, info):
         """ extracts from info4 the channels valid bits positions

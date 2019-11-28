@@ -399,9 +399,10 @@ class CommentBlock(dict):
         ----------
         fid:
             file identifier
+
+        Metadata block
+        removes normal 0 at end
         """
-        # Metadata block
-        # removes normal 0 at end
         try:
             xml_string = fid.read(self['length'] - 24).rstrip(b'\x00')
             xml_tree = objectify.fromstring(xml_string)
