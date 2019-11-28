@@ -1687,6 +1687,12 @@ class Mdf4(MdfSkeleton):
         fid = open(file_name, 'wb')  # buffering should automatically be set
         # IDBLock writing
         temp = IDBlock()
+        if column_oriented:
+            temp['id_vers'] = b'4.20    '
+            temp['id_ver'] = 420
+        else:
+            temp['id_vers'] = b'4.11    '
+            temp['id_ver'] = 411
         temp.write(fid)
 
         blocks = OrderedDict()

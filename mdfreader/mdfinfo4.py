@@ -212,12 +212,11 @@ class IDBlock(dict):
                 warn('Update of offset values for VLSD channel required '
                      'in case a VLSD CG block is used')
 
-    @staticmethod
-    def write(fid):
+    def write(self, fid):
         """ Writes IDBlock
         """
         # MDF versionTxt tool reserved version_int
-        head = (b'MDF     ', b'4.11    ', b'MDFreadr', b'\0' * 4, 411,
+        head = (b'MDF     ', self['id_vers'], b'MDFreadr', b'\0' * 4, self['id_ver'],
                 b'\0' * 30, 0, 0)
         fid.write(pack('<8s8s8s4sH30s2H', *head))
 
