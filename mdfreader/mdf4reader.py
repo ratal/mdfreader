@@ -388,7 +388,7 @@ class Data(dict):
             data, invalid = self.load(self, info, name_list=channel_set, sorted_flag=False)
             for recordID in self:
                 self[recordID]['data'] = {}
-                for channel in self[recordID]['record']:
+                for channel in self[recordID]['record'].values():
                     self[recordID]['data'][channel.name] = data[channel.name]
 
     def load(self, record, info, name_list=None, sorted_flag=True, vlsd=False):
@@ -568,7 +568,7 @@ class Data(dict):
         return data
 
 
-class Record(list):
+class Record(dict):
     __slots__ = ['CGrecordLength', 'recordLength', 'numberOfRecords', 'recordID',
                  'recordIDsize', 'recordIDCFormat', 'dataGroup', 'channelGroup',
                  'numpyDataRecordFormat', 'dataRecordName', 'master',
@@ -734,7 +734,7 @@ class Record(list):
             self.MLSD = info['MLSD']
         self.unique_channel_in_DG = info['DG'][self.dataGroup]['unique_channel_in_DG']
         embedding_channel = None
-        for channelNumber in info['CN'][self.dataGroup][self.channelGroup]:
+        for channelNumber in sorted(info['CN'][self.dataGroup][self.channelGroup].keys()):
             channel = Channel4(self.dataGroup, self.channelGroup, channelNumber)
             channel.set(info)
             channel_type = channel.channel_type(info)
@@ -747,7 +747,7 @@ class Record(list):
                         # new object otherwise only modified
                         channel = Channel4(self.dataGroup, self.channelGroup, channelNumber)
                         channel.set_CANOpen(info, name)
-                        self.append(channel)
+                        self[channelNumber] = channel
                         self.channelNames.add(name)
                         self.dataRecordName.append(name)
                         self.recordToChannelMatching[name] = name
@@ -759,7 +759,7 @@ class Record(list):
                     for name in ('ms', 'days'):
                         channel = Channel4(self.dataGroup, self.channelGroup, channelNumber)
                         channel.set_CANOpen(info, name)
-                        self.append(channel)
+                        self[channelNumber] = channel
                         self.channelNames.add(name)
                         self.dataRecordName.append(name)
                         self.recordToChannelMatching[name] = name
@@ -768,14 +768,13 @@ class Record(list):
                     self.CANOpen = 'time'
                     embedding_channel = None
                 else:
-                    self.append(channel)
+                    self[channelNumber] = channel
                     self.channelNames.add(channel.name)
                     # Checking if several channels are embedded in bytes
                     if len(self) > 1:
                         # all channels are already ordered in record based on byte_offset
                         # and bit_offset so just comparing with previous channel
                         channel_pos_bit_end = channel.pos_bit_end(info)
-                        prev_chan = self[-2]
                         prev_chan_byte_offset = prev_chan.byteOffset
                         prev_chan_n_bytes = prev_chan.nBytes_aligned
                         prev_chan_includes_curr_chan = channel.pos_bit_beg >= 8 * prev_chan_byte_offset \
@@ -816,20 +815,23 @@ class Record(list):
                                 self.VLSD_CG[recordID] = info['VLSD_CG'][recordID]
                                 self.VLSD_CG[recordID]['channel'] = channel
                                 self.VLSD_CG[recordID]['channelName'] = channel.name
-                                self[-1].VLSD_CG_Flag = True
+                                self[channelNumber].VLSD_CG_Flag = True
                                 break
                     if channel_type == 1:  # VLSD channel
-                        self.VLSD.append(channel.channelNumber)
+                        self.VLSD.append(channelNumber)
             elif channel_type in (3, 6):  # virtual channel
-                self.append(channel)  # channel calculated based on record index later in conversion function
+                self[channelNumber] = channel  # channel calculated based on record index later in conversion function
                 self.channelNames.add(channel.name)
                 self.recordToChannelMatching[channel.name] = channel.name
+            prev_chan = channel
 
         if info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']:  # invalid bytes existing
-            invalid_bytes = Channel4(self.dataGroup, self.channelGroup, channelNumber + 1)
+            cg_data_bytes = info['CG'][self.dataGroup][self.channelGroup]['cg_data_bytes']
+            # invalid bytes at the end of the data record
+            invalid_bytes = Channel4(self.dataGroup, self.channelGroup, cg_data_bytes)
             invalid_bytes.set_invalid_bytes(info)
             self.invalid_channel = invalid_bytes
-            self.append(self.invalid_channel)
+            self[cg_data_bytes] = self.invalid_channel
             self.channelNames.add(self.invalid_channel.name)
             self.recordToChannelMatching[self.invalid_channel.name] = \
                 self.invalid_channel.name
@@ -1007,7 +1009,7 @@ class Record(list):
         temp = {}
         if channel_set is None:
             channel_set = self.channelNames
-        for Channel in self:  # list of channel classes from channelSet
+        for Channel in self.values():  # list of channel classes from channelSet
             if Channel.name in channel_set and not Channel.VLSD_CG_Flag:
                 temp[Channel.name] = \
                     Channel.c_format_structure(info).unpack(buf[Channel.pos_byte_beg(info):Channel.pos_byte_end(info)])[0]
@@ -1039,7 +1041,7 @@ class Record(list):
             formats = []
             names = []
             channels_indexes = []
-            for chan in range(len(self)):
+            for chan in list(self.keys()):
                 if self[chan].name in channel_set and self[chan].channel_type(info) not in (3, 6):
                     # not virtual channel and part of channelSet
                     channels_indexes.append(chan)
@@ -1392,9 +1394,10 @@ class Mdf4(MdfSkeleton):
                         if 'record' in buf[record_id]:
                             master_channel = buf[record_id]['record'].master
 
-                            channels = buf[record_id]['record']
                             if self._noDataLoading and channel_list is not None:
-                                channels = [channels[self[channel][idField][0][2]] for channel in channel_list]
+                                channels = [buf[record_id]['record'][self[channel][idField][0][2]] for channel in channel_list]
+                            else:
+                                channels = list(buf[record_id]['record'].values())
                             for chan in channels:  # for each channel class
                                 if channel_set is None or chan.name in channel_set:
                                     if not chan.type == 4:  # normal channel

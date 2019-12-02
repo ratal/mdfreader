@@ -1882,9 +1882,9 @@ class Info4(dict):
         if self['DG'][dg]['dg_cg_first']:
             cg = 0
             self['CN'][dg] = {}
-            self['CN'][dg][cg] = {}
+            self['CN'][dg][cg] = dict()
             self['CC'][dg] = {}
-            self['CC'][dg][cg] = {}
+            self['CC'][dg][cg] = dict()
             self['CG'][dg] = {}
             self['CG'][dg][cg] = {}
             self['CG'][dg][cg].update(CGBlock(fid, self['DG'][dg]['dg_cg_first']))
@@ -1914,7 +1914,7 @@ class Info4(dict):
             else:
                 vlsd_cg_block.append(cg)
 
-            if self['CN'][dg][cg] and self['CN'][dg][cg][0]['unique_channel_in_CG'] and \
+            if self['CN'][dg][cg] and self['CG'][dg][cg]['unique_channel_in_CG'] and \
                     not self['CG'][dg][cg]['cg_cg_next']:
                 # unique channel in data group
                 self['DG'][dg]['unique_channel_in_DG'] = True
@@ -1926,8 +1926,8 @@ class Info4(dict):
                 vlsd = False  # flag for at least one VLSD channel in CG
                 self['CG'][dg][cg] = {}
                 self['CG'][dg][cg].update(CGBlock(fid, self['CG'][dg][cg - 1]['cg_cg_next']))
-                self['CN'][dg][cg] = {}
-                self['CC'][dg][cg] = {}
+                self['CN'][dg][cg] = dict()
+                self['CC'][dg][cg] = dict()
                 if not channel_name_list and not minimal:
                     # reads Source Information Block
                     temp = SIBlock()
@@ -1967,29 +1967,6 @@ class Info4(dict):
                                 self['VLSD_CG'][self['CG'][dg][VLSDcg]['cg_record_id']] = temp
                                 break
 
-            if not self['DG'][dg]['unique_channel_in_DG']:  # no need to order if unique in CG
-                # reorder channel blocks and related blocks(CC, SI, AT, CA) based on byte offset
-                # this reorder is meant to improve performance while parsing records using core.records.fromfile
-                # as it will not use cn_byte_offset
-                # first, calculate new mapping/order
-                n_channel = len(self['CN'][dg][cg])
-                Map = zeros(shape=n_channel, dtype=[('index', 'u4'), ('bit_offset', 'u4')])
-                for cn in range(n_channel):
-                    Map[cn] = (cn, self['CN'][dg][cg][cn]['cn_byte_offset'] * 8 + self['CN'][dg][cg][cn]['cn_bit_offset'])
-                ordered_map = sort(Map, order='bit_offset')
-
-                to_change_index = Map == ordered_map
-                for cn in range(n_channel):
-                    if not to_change_index[cn]:
-                        # offset all indexes of indexes to be moved
-                        self['CN'][dg][cg][cn + n_channel] = self['CN'][dg][cg].pop(cn)
-                        self['CC'][dg][cg][cn + n_channel] = self['CC'][dg][cg].pop(cn)
-                for cn in range(n_channel):
-                    if not to_change_index[cn]:
-                        # change to ordered index
-                        self['CN'][dg][cg][cn] = self['CN'][dg][cg].pop(ordered_map[cn][0] + n_channel)
-                        self['CC'][dg][cg][cn] = self['CC'][dg][cg].pop(ordered_map[cn][0] + n_channel)
-
     def read_cn_block(self, fid, dg, cg, channel_name_list=False, minimal=0):
         """reads Channel blocks
 
@@ -2006,19 +1983,19 @@ class Info4(dict):
         minimal: flag
             to activate minimum content reading for raw data fetching
         """
-        cn = 0
+
         vlsd = False
-        self['CN'][dg][cg][cn] = {}
-        self['CC'][dg][cg][cn] = {}
-        self['CN'][dg][cg][cn] = {}
         temp = CNBlock()
         temp.read_cn(fid=fid, pointer=self['CG'][dg][cg]['cg_cn_first'])
+        cn = temp['cn_byte_offset'] * 8 + temp['cn_bit_offset']
+        self['CN'][dg][cg][cn] = {}
+        self['CC'][dg][cg][cn] = {}
         if temp is not None:
             self['CN'][dg][cg][cn].update(temp)
         if not self['CN'][dg][cg][cn]['cn_cn_next']:  # only one channel in CGBlock
-            self['CN'][dg][cg][cn]['unique_channel_in_CG'] = True
+            self['CG'][dg][cg]['unique_channel_in_CG'] = True
         else:
-            self['CN'][dg][cg][cn]['unique_channel_in_CG'] = False
+            self['CG'][dg][cg]['unique_channel_in_CG'] = False
         mlsd_channels = []
         # check for MLSD
         if self['CN'][dg][cg][cn]['cn_type'] == 5:
@@ -2062,10 +2039,10 @@ class Info4(dict):
                         warn('unknown channel composition')
 
             while self['CN'][dg][cg][cn]['cn_cn_next']:
-                cn = cn + 1
-                self['CN'][dg][cg][cn] = {}
                 temp = CNBlock()
-                temp.read_cn(fid=fid, pointer=self['CN'][dg][cg][cn - 1]['cn_cn_next'])
+                temp.read_cn(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_cn_next'])
+                cn = temp['cn_byte_offset'] * 8 + temp['cn_bit_offset']
+                self['CN'][dg][cg][cn] = {}
                 self['CN'][dg][cg][cn].update(temp)
                 # check for MLSD
                 if self['CN'][dg][cg][cn]['cn_type'] == 5:
