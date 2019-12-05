@@ -1482,9 +1482,10 @@ class LDBlock(dict):
                                                   self['record_length'], chunk_size, dz_zip_type, b'DV')
                 if position is not None:
                     pointer = position
-                else:  # no compression
+                else:  # no compression, not enough data
                     pointer, dl_data = self.write_DIV(fid, pointer, DVBlock(), data, dl_data,
-                                                      counter, data_pointer, self['record_length'], chunk_size)
+                                                      counter, data_pointer, self['record_length'],
+                                                      chunk_size, n_record_chunk)
                 if invalid_data is not None:
                     position, dl_invalid_data = self.write_DZ(fid, pointer, invalid_data, dl_invalid_data,
                                                               counter, data_invalid_pointer, self['invalid_bytes'],
@@ -1495,18 +1496,21 @@ class LDBlock(dict):
                         pointer, dl_invalid_data = self.write_DIV(fid, pointer, DIBlock(), invalid_data,
                                                                   dl_invalid_data, counter,
                                                                   data_invalid_pointer, self['invalid_bytes'],
-                                                                  n_record_chunk * self['invalid_bytes'])
+                                                                  n_record_chunk * self['invalid_bytes'],
+                                                                  n_record_chunk)
                 data_pointer += chunk_size
                 data_invalid_pointer += n_record_chunk
         else:
             for counter, (n_record_chunk, chunk_size) in enumerate(self['chunks']):
                 pointer, dl_data = self.write_DIV(fid, pointer, DVBlock(), data, dl_data,
-                                                  counter, data_pointer, self['record_length'], chunk_size)
+                                                  counter, data_pointer, self['record_length'],
+                                                  chunk_size, n_record_chunk)
                 if invalid_data is not None:
                     pointer, dl_invalid_data = self.write_DIV(fid, pointer, DIBlock(), invalid_data,
                                                               dl_invalid_data, counter, data_invalid_pointer,
                                                               self['invalid_bytes'],
-                                                              n_record_chunk * self['invalid_bytes'])
+                                                              n_record_chunk * self['invalid_bytes'],
+                                                              n_record_chunk)
                 data_pointer += chunk_size
                 data_invalid_pointer += n_record_chunk
 
@@ -1519,8 +1523,9 @@ class LDBlock(dict):
         fid.seek(pointer)
         return _calculate_block_start(pointer)
 
-    def write_DIV(self, fid, pointer, block, data, dl_data, counter, data_pointer, record_length, chunk_size):
-        block.load(record_length, self['n_records'], pointer)
+    def write_DIV(self, fid, pointer, block, data, dl_data, counter, data_pointer,
+                  record_length, chunk_size, n_records):
+        block.load(record_length, n_records, pointer)
         dl_data[counter] = block['pointer']
         position = block.write(fid, data[data_pointer: data_pointer + chunk_size])
         return position, dl_data
