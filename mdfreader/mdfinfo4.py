@@ -1860,7 +1860,7 @@ class Info4(dict):
             self['ChannelNamesByDG'][dg] = set()
             if minimal < 2:
                 # reads Channel Group blocks
-                self.read_cg_block(fid, dg, channel_name_list, minimal)
+                self.read_cg_blocks(fid, dg, channel_name_list, minimal)
             while self['DG'][dg]['dg_dg_next']:
                 dg += 1
                 self['DG'][dg] = {}
@@ -1868,10 +1868,10 @@ class Info4(dict):
                 self['ChannelNamesByDG'][dg] = set()
                 if minimal < 2:
                     # reads Channel Group blocks
-                    self.read_cg_block(fid, dg, channel_name_list, minimal)
+                    self.read_cg_blocks(fid, dg, channel_name_list, minimal)
 
-    def read_cg_block(self, fid, dg, channel_name_list=False, minimal=0):
-        """reads Channel Group blocks
+    def read_cg_blocks(self, fid, dg, channel_name_list=False, minimal=0):
+        """reads Channel Group blocks linked to same Data Block dg
 
         Parameters
         ----------------
@@ -1891,33 +1891,11 @@ class Info4(dict):
             self['CC'][dg] = {}
             self['CC'][dg][cg] = dict()
             self['CG'][dg] = {}
-            self['CG'][dg][cg] = {}
-            self['CG'][dg][cg].update(CGBlock(fid, self['DG'][dg]['dg_cg_first']))
+
             vlsd_cg_block = []
-            vlsd = False  # flag for at least one VLSD channel in CG
 
-            if not channel_name_list and minimal:
-                # reads Source Information Block
-                temp = SIBlock()
-                temp.read_si(fid, self['CG'][dg][cg]['cg_si_acq_source'])
-                if temp is not None:
-                    self['CG'][dg][cg]['SI'] = dict()
-                    self['CG'][dg][cg]['SI'].update(temp)
-
-                # reads Sample Reduction Block
-                self['CG'][dg][cg]['SR'] = self.read_sr_block(fid, self['CG'][dg][cg]['cg_sr_first'])
-
-            if not self['CG'][dg][cg]['cg_flags'] & 0b1:  # if not a VLSD channel group
-                # reads Channel Block
-                vlsd = self.read_cn_block(fid, dg, cg, channel_name_list, minimal)
-                if vlsd:
-                    # VLSD needs to rename and append records but with python 2.x impossible,
-                    # convert name to compatible python identifier
-                    for cn in self['CN'][dg][cg]:
-                        self['CN'][dg][cg][cn]['name'] = _convert_name(
-                            self['CN'][dg][cg][cn]['name'].encode('latin-1', ' ignore'))
-            else:
-                vlsd_cg_block.append(cg)
+            vlsd_cg_block = self.read_cg_block(fid, dg, cg, self['DG'][dg]['dg_cg_first'],
+                                               vlsd_cg_block, channel_name_list=False, minimal=0)
 
             if self['CN'][dg][cg] and self['CG'][dg][cg]['unique_channel_in_CG'] and \
                     not self['CG'][dg][cg]['cg_cg_next']:
@@ -1928,35 +1906,13 @@ class Info4(dict):
 
             while self['CG'][dg][cg]['cg_cg_next']:
                 cg += 1
-                vlsd = False  # flag for at least one VLSD channel in CG
                 self['CG'][dg][cg] = {}
-                self['CG'][dg][cg].update(CGBlock(fid, self['CG'][dg][cg - 1]['cg_cg_next']))
                 self['CN'][dg][cg] = dict()
                 self['CC'][dg][cg] = dict()
-                if not channel_name_list and not minimal:
-                    # reads Source Information Block
-                    temp = SIBlock()
-                    temp.read_si(fid, self['CG'][dg][cg]['cg_si_acq_source'])
-                    if temp is not None:
-                        self['CG'][dg][cg]['SI'] = dict()
-                        self['CG'][dg][cg]['SI'].update(temp)
+                vlsd_cg_block = self.read_cg_block(fid, dg, cg, self['CG'][dg][cg - 1]['cg_cg_next'],
+                                                   vlsd_cg_block, channel_name_list=False, minimal=0)
 
-                    # reads Sample Reduction Block
-                    self['CG'][dg][cg]['SR'] = self.read_sr_block(fid, self['CG'][dg][cg]['cg_sr_first'])
-
-                if not self['CG'][dg][cg]['cg_flags'] & 0b1:  # if not a VLSD channel group
-                    # reads Channel Block
-                    vlsd = self.read_cn_block(fid, dg, cg, channel_name_list, minimal)
-                    if vlsd:
-                        # VLSD needs to rename and append records but with python 2.x impossible,
-                        # convert name to compatible python identifier
-                        for cn in self['CN'][dg][cg]:
-                            self['CN'][dg][cg][cn]['name'] = _convert_name(
-                                self['CN'][dg][cg][cn]['name'].encode('latin-1', ' ignore'))
-                else:
-                    vlsd_cg_block.append(cg)
-
-            if vlsd_cg_block:  # VLSD CG Block exiting
+            if vlsd_cg_block and 'VLSD_CG' not in self:  # VLSD CG Block exiting
                 self['VLSD_CG'] = {}
 
             # Matching VLSD CGBlock with corresponding channel
@@ -1967,13 +1923,58 @@ class Info4(dict):
                         for cn in self['CN'][dg][cg]:
                             if vlsd_cg_block_address == self['CN'][dg][cg][cn]['cn_data']:
                                 # found matching channel with VLSD CGBlock
-                                temp = {}
-                                temp['cg_cn'] = (cg, cn)
-                                self['VLSD_CG'][self['CG'][dg][VLSDcg]['cg_record_id']] = temp
+                                self['VLSD_CG'][self['CG'][dg][VLSDcg]['cg_record_id']] = {'cg_cn': (cg, cn)}
                                 break
 
-    def read_cn_block(self, fid, dg, cg, channel_name_list=False, minimal=0):
-        """reads Channel blocks
+    def read_cg_block(self, fid, dg, cg, pointer, vlsd_cg_block, channel_name_list=False, minimal=0):
+        """reads one Channel Group block
+
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        dg : int
+            data group number
+        cg : int
+            channel group number
+        channel_name_list : bool
+            Flag to reads only channel blocks for listChannels4 method
+        minimal: falg
+            to activate minimum content reading for raw data fetching
+
+        Returns
+        -----------
+        vlsd_cg_block : boolean
+        """
+        self['CG'][dg][cg] = {}
+        self['CG'][dg][cg].update(CGBlock(fid, pointer))
+        if not channel_name_list and minimal:
+            # reads Source Information Block
+            temp = SIBlock()
+            temp.read_si(fid, self['CG'][dg][cg]['cg_si_acq_source'])
+            if temp is not None:
+                self['CG'][dg][cg]['SI'] = dict()
+                self['CG'][dg][cg]['SI'].update(temp)
+
+            # reads Sample Reduction Block
+            self['CG'][dg][cg]['SR'] = self.read_sr_block(fid, self['CG'][dg][cg]['cg_sr_first'])
+
+        if not self['CG'][dg][cg]['cg_flags'] & 0b1:  # if not a VLSD channel group
+            # reads Channel Block
+            vlsd = self.read_cn_blocks(fid, dg, cg, channel_name_list, minimal)
+            if vlsd:
+                # VLSD needs to rename and append records but with python 2.x impossible,
+                # convert name to compatible python identifier
+                for cn in self['CN'][dg][cg]:
+                    self['CN'][dg][cg][cn]['name'] = _convert_name(
+                        self['CN'][dg][cg][cn]['name'].encode('latin-1', ' ignore'))
+        else:
+            vlsd_cg_block.append(cg)
+
+        return vlsd_cg_block
+
+    def read_cn_blocks(self, fid, dg, cg, channel_name_list=False, minimal=0):
+        """reads Channel blocks link to CG Block
 
         Parameters
         ----------------
@@ -1987,114 +1988,30 @@ class Info4(dict):
             Flag to reads only channel blocks for listChannels4 method
         minimal: flag
             to activate minimum content reading for raw data fetching
+
+        Returns
+        -----------
+        vlsd : boolean
         """
 
         vlsd = False
-        temp = CNBlock()
-        temp.read_cn(fid=fid, pointer=self['CG'][dg][cg]['cg_cn_first'])
-        cn = temp['cn_byte_offset'] * 8 + temp['cn_bit_offset']
-        self['CN'][dg][cg][cn] = {}
-        self['CC'][dg][cg][cn] = {}
-        if temp is not None:
-            self['CN'][dg][cg][cn].update(temp)
+        mlsd_channels = []
+        cn, mlsd_channels, vlsd = self.read_cn_block(fid, self['CG'][dg][cg]['cg_cn_first'],
+                                                     dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
         if not self['CN'][dg][cg][cn]['cn_cn_next']:  # only one channel in CGBlock
             self['CG'][dg][cg]['unique_channel_in_CG'] = True
         else:
             self['CG'][dg][cg]['unique_channel_in_CG'] = False
-        mlsd_channels = []
-        # check for MLSD
-        if self['CN'][dg][cg][cn]['cn_type'] == 5:
-            mlsd_channels.append(cn)
-        # keep original non unique channel name
-        self['CN'][dg][cg][cn]['orig_name'] = self['CN'][dg][cg][cn]['name']
-        # check if already existing channel name
-        self['CN'][dg][cg][cn]['name'] = self._unique_channel_name(fid, self['CN'][dg][cg][cn]['name'], dg, cg, cn)
-        if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
-            # VLSD needs to rename and append records but with python 2.x impossible,
-            # convert name to compatible python identifier
-            vlsd = True
 
-        if self['CG'][dg][cg]['cg_cn_first']:  # Can be NIL for VLSD
-            # reads Channel Conversion Block
-            self['CC'][dg][cg][cn] = CCBlock()
-            self['CC'][dg][cg][cn].read_cc(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
-            if not channel_name_list:
-                if not minimal:
-                    # reads Channel Source Information
-                    temp = SIBlock()
-                    temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                    if temp is not None:
-                        self['CN'][dg][cg][cn]['SI'] = dict()
-                        self['CN'][dg][cg][cn]['SI'].update(temp)
-
-                # reads Channel Array Block
-                if self['CN'][dg][cg][cn]['cn_composition']:
-                    # composition but can be either structure of channels or array
-                    fid.seek(self['CN'][dg][cg][cn]['cn_composition'])
-                    id = fid.read(4)
-                    if id in ('##CA', b'##CA'):
-                        self['CN'][dg][cg][cn]['CABlock'] = CABlock()
-                        self['CN'][dg][cg][cn]['CABlock'].read(fid, self['CN'][dg][cg][cn]['cn_composition'])
-                    elif id in ('##CN', b'##CN'):
-                        self['CN'][dg][cg][cn]['CN'] = {}
-                        temp = CNBlock()
-                        temp.read_cn(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
-                        self['CN'][dg][cg][cn]['CN'].update(temp)
-                    else:
-                        warn('unknown channel composition')
-
-            while self['CN'][dg][cg][cn]['cn_cn_next']:
-                temp = CNBlock()
-                temp.read_cn(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_cn_next'])
-                cn = temp['cn_byte_offset'] * 8 + temp['cn_bit_offset']
-                self['CN'][dg][cg][cn] = {}
-                self['CN'][dg][cg][cn].update(temp)
-                # check for MLSD
-                if self['CN'][dg][cg][cn]['cn_type'] == 5:
-                    mlsd_channels.append(cn)
-                # reads Channel Conversion Block
-                self['CC'][dg][cg][cn] = CCBlock()
-                self['CC'][dg][cg][cn].read_cc(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
-                if not channel_name_list:
-                    if not minimal:
-                        # reads Channel Source Information
-                        temp = SIBlock()
-                        temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                        if temp is not None:
-                            self['CN'][dg][cg][cn]['SI'] = dict()
-                            self['CN'][dg][cg][cn]['SI'].update(temp)
-
-                    # keep original non unique channel name
-                    self['CN'][dg][cg][cn]['orig_name'] = self['CN'][dg][cg][cn]['name']
-                    # check if already existing channel name
-                    self['CN'][dg][cg][cn]['name'] = \
-                        self._unique_channel_name(fid, self['CN'][dg][cg][cn]['name'], dg, cg, cn)
-                    if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
-                        # VLSD needs to rename and append records but with python 2.x impossible,
-                        # convert name to compatible python identifier
-                        vlsd = True
-
-                    # reads Channel Array Block
-                    if self['CN'][dg][cg][cn]['cn_composition']:
-                        # composition but can be either structure of channels or array
-                        fid.seek(self['CN'][dg][cg][cn]['cn_composition'])
-                        id = fid.read(4)
-                        if id in ('##CA', b'##CA'):
-                            self['CN'][dg][cg][cn]['CABlock'] = CABlock()
-                            self['CN'][dg][cg][cn]['CABlock'].read(fid, self['CN'][dg][cg][cn]['cn_composition'])
-                        elif id in ('##CN', b'##CN'):
-                            self['CN'][dg][cg][cn]['CN'] = {}
-                            temp = CNBlock()
-                            temp.read_cn(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
-                            self['CN'][dg][cg][cn]['CN'].update(temp)
-                        else:
-                            warn('unknown channel composition')
-
-        mlsd_channels = self.read_composition(fid, dg, cg, mlsd_channels)
+        while self['CN'][dg][cg][cn]['cn_cn_next']:
+            cn, mlsd_channels, vlsd = self.read_cn_block(fid, self['CN'][dg][cg][cn]['cn_cn_next'],
+                                                         dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
 
         if mlsd_channels:
-            self['MLSD'] = {}
-            self['MLSD'][dg] = {}
+            if 'MLSD' not in self:
+                self['MLSD'] = {}
+            if dg not in self['MLSD']:
+                self['MLSD'][dg] = {}
             self['MLSD'][dg][cg] = {}
         for MLSDcn in mlsd_channels:
             for cn in self['CN'][dg][cg]:
@@ -2102,6 +2019,117 @@ class Info4(dict):
                     self['MLSD'][dg][cg][MLSDcn] = cn
                     break
         return vlsd
+
+    def read_cn_block(self, fid, pointer, dg, cg, mlsd_channels, vlsd, minimal, channel_name_list):
+        """reads single Channel block
+
+        Parameters
+        ----------------
+        fid : float
+            file identifier
+        pointer : int
+            position in file
+        dg : int
+            data group number
+        cg : int
+            channel group number in data group
+        mlsd_channels : list of int
+            list of maximum length data channel numbers
+        minimal: flag
+            to activate minimum content reading for raw data fetching
+        channel_name_list : bool
+            Flag to reads only channel blocks for listChannels4 method
+
+        Returns
+        -----------
+        cn : integer
+            channel number
+        MLSDChannels list of appended Maximum Length Sampling Data channels
+        vlsd : boolean
+        """
+        temp = CNBlock()
+        temp.read_cn(fid=fid, pointer=pointer)
+        cn = temp['cn_byte_offset'] * 8 + temp['cn_bit_offset']
+        self['CN'][dg][cg][cn] = {}
+        self['CN'][dg][cg][cn].update(temp)
+        # check for MLSD
+        if self['CN'][dg][cg][cn]['cn_type'] == 5:
+            mlsd_channels.append(cn)
+        # reads Channel Conversion Block
+        self['CC'][dg][cg][cn] = CCBlock()
+        self['CC'][dg][cg][cn].read_cc(fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
+        if not channel_name_list:
+            if not minimal:
+                # reads Channel Source Information
+                temp = SIBlock()
+                temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
+                if temp is not None:
+                    self['CN'][dg][cg][cn]['SI'] = dict()
+                    self['CN'][dg][cg][cn]['SI'].update(temp)
+
+            # keep original non unique channel name
+            self['CN'][dg][cg][cn]['orig_name'] = self['CN'][dg][cg][cn]['name']
+            # check if already existing channel name
+            self['CN'][dg][cg][cn]['name'] = \
+                self._unique_channel_name(fid, self['CN'][dg][cg][cn]['name'], dg, cg, cn)
+            if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
+                # VLSD needs to rename and append records but with python 2.x impossible,
+                # convert name to compatible python identifier
+                vlsd = True
+
+            # reads Channel Array Block
+            if self['CN'][dg][cg][cn]['cn_composition']:
+                # composition but can be either structure of channels or array
+                fid.seek(self['CN'][dg][cg][cn]['cn_composition'])
+                id = fid.read(4)
+                if id in ('##CA', b'##CA'):
+                    self['CN'][dg][cg][cn]['CABlock'] = CABlock()
+                    self['CN'][dg][cg][cn]['CABlock'].read(fid, self['CN'][dg][cg][cn]['cn_composition'])
+                elif id in ('##CN', b'##CN'):
+                    # channel composition
+                    # stores minimal info from upper node channel
+                    cn_upper_node = cn
+                    cn_next_upper_node = self['CN'][dg][cg][cn]['cn_cn_next']
+                    cn, mlsd_channels, vlsd = self.read_cn_block(fid, self['CN'][dg][cg][cn]['cn_composition'],
+                                                                 dg, cg, mlsd_channels, vlsd,
+                                                                 minimal, channel_name_list)
+                    while self['CN'][dg][cg][cn]['cn_cn_next']:
+                        cn, mlsd_channels, vlsd = self.read_cn_block(fid, self['CN'][dg][cg][cn]['cn_cn_next'],
+                                                                     dg, cg, mlsd_channels, vlsd, minimal,
+                                                                     channel_name_list)
+                    # restores minimal info from upper node channel
+                    cn = cn_upper_node
+                    self['CN'][dg][cg][cn]['cn_cn_next'] = cn_next_upper_node
+                else:
+                    warn('unknown channel composition')
+
+            if self['CN'][dg][cg][cn]['cn_data']:  # channel type specific signal data
+                fid.seek(self['CN'][dg][cg][cn]['cn_data'])
+                id = fid.read(4)
+                if self['CN'][dg][cg][cn]['cn_type'] == 1:
+                    if id in ('##SD', b'##SD', '##DZ', b'##DZ', '##DL', b'##DL', '##HL', b'##HL'):
+                        # simple VLSD
+                        try:
+                            self['VLSD'][dg][cg].append(cn)
+                        except KeyError:
+                            if 'VLSD' not in self:
+                                self['VLSD'] = {}
+                            if dg not in self['VLSD']:
+                                self['VLSD'][dg] = {}
+                            if cg not in self['VLSD'][dg]:
+                                self['VLSD'][dg][cg] = []
+                            self['VLSD'][dg][cg].append(cn)
+                    elif id in ('##CG', b'##CG'):
+                        # VLSD CG Channel
+                        # need to wait all CG blocks are parsed with this Data Group to make the link
+                        pass
+                elif self['CN'][dg][cg][cn]['cn_type'] == 5:
+                    # MLSD Channel
+                    mlsd_channels.append(cn)
+                if not minimal and id in ('##EV', b'##EV'):
+                    # Event signal structure
+                    self['CN'][dg][cg][cn]['cn_data'] = self.read_ev_block(fid, self['CN'][dg][cg][cn]['cn_data'])
+        return cn, mlsd_channels, vlsd
 
     def clean_dg_info(self, dg):
         """ delete CN,CC and CG blocks related to data group
@@ -2123,65 +2151,6 @@ class Info4(dict):
             self['CA'][dg] = {}
         except KeyError:
             pass
-
-    def read_composition(self, fid, dg, cg, mlsd_channels):
-        """check for composition of channels, arrays or structures
-
-        Parameters
-        ----------------
-        fid : float
-            file identifier
-        dg : int
-            data group number
-        cg : int
-            channel group number in data group
-        mlsd_channels : list of int
-            channel numbers
-
-        Returns
-        -----------
-        MLSDChannels list of appended Maximum Length Sampling Data channels
-        """
-        chan = max(self['CN'][dg][cg].keys()) + 1
-        for cn in list(self['CN'][dg][cg].keys()):
-            if self['CN'][dg][cg][cn]['cn_composition']:
-                fid.seek(self['CN'][dg][cg][cn]['cn_composition'])
-                ID = unpack('4s', fid.read(4))[0]
-                if ID in ('##CN', b'##CN'):  # Structures
-                    self['CN'][dg][cg][chan] = CNBlock()
-                    self['CN'][dg][cg][chan].read_cn(fid=fid, pointer=self['CN'][dg][cg][cn]['cn_composition'])
-                    # keep original non unique channel name
-                    self['CN'][dg][cg][chan]['orig_name'] = self['CN'][dg][cg][chan]['name']
-                    # make sure channel name is unique
-                    self['CN'][dg][cg][chan]['name'] = \
-                        self._unique_channel_name(fid, self['CN'][dg][cg][chan]['name'], dg, cg, chan)
-
-                    self['CC'][dg][cg][chan] = CCBlock()
-                    self['CC'][dg][cg][chan].read_cc(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
-
-                    if self['CN'][dg][cg][chan]['cn_type'] == 5:
-                        mlsd_channels.append(chan)
-                    while self['CN'][dg][cg][chan]['cn_cn_next']:
-                        chan += 1
-                        self['CN'][dg][cg][chan] = CNBlock()
-                        self['CN'][dg][cg][chan].read_cn(fid=fid, pointer=self['CN'][dg][cg][chan - 1]['cn_cn_next'])
-                        # keep original non unique channel name
-                        self['CN'][dg][cg][chan]['orig_name'] = self['CN'][dg][cg][chan]['name']
-                        # make sure channel name is unique
-                        self['CN'][dg][cg][chan]['name'] = \
-                            self._unique_channel_name(fid, self['CN'][dg][cg][chan]['name'], dg, cg, chan)
-
-                        self['CC'][dg][cg][chan] = CCBlock()
-                        self['CC'][dg][cg][chan].read_cc(fid, self['CN'][dg][cg][chan]['cn_cc_conversion'])
-                        if self['CN'][dg][cg][chan]['cn_type'] == 5:
-                            mlsd_channels.append(chan)
-                    # makes the channel virtual
-                    self['CN'][dg][cg][cn]['cn_type'] = 6
-                elif ID in ('##CA', b'##CA'):  # arrays
-                    pass
-                else:
-                    warn('unknown channel composition')
-        return mlsd_channels
 
     @staticmethod
     def read_sr_block(fid, pointer):

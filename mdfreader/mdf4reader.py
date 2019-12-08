@@ -113,7 +113,7 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
             else:  # record is not byte aligned or channelSet not None
                 return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
-            return _read_unsorted(record, info, parent_block, channel_set)
+            return _read_unsorted(record, info, parent_block)
 
     elif parent_block['id'] in (b'##SD', '##SD'):
         return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
@@ -137,13 +137,13 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
         elif channel_set is not None and sorted_flag:  # sorted data but channel list requested
             return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
-            return _read_unsorted(record, info, parent_block, channel_set)
+            return _read_unsorted(record, info, parent_block)
     elif parent_block['id'] in (b'##DI', '##DI'):  # Invalid data block
         return frombuffer(parent_block['data'], dtype={'names': [record.invalid_channel.name],
                                                        'formats': [record.invalid_channel.data_format(info)]})
 
 
-def _read_unsorted(record, info, parent_block, channel_set=None):
+def _read_unsorted(record, info, parent_block):
     """ reads only the channels using offset functions, channel by channel within unsorted data
 
     Parameters
@@ -155,9 +155,6 @@ def _read_unsorted(record, info, parent_block, channel_set=None):
     channel_set : set of str, optional
         set of channel to read
     parent_block:
-        number of records
-    channel_set: set
-        set of channel names to be parsed
 
     Returns
     --------
@@ -252,7 +249,10 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length):
             buf.append(sd_block[pointer:pointer + VLSDLen])
             pointer += VLSDLen
         buf, max_len = _equalize_byte_length(buf)
-        buf = frombuffer(buf, dtype='V{}'.format(max_len))
+        if buf:
+            buf = frombuffer(buf, dtype='V{}'.format(max_len))
+        else:
+            warn('VLSD channel could not be properly read')
     return buf
 
 
@@ -445,12 +445,14 @@ class Data(dict):
                 if vlsd:  # need to load all blocks as variable length, cannot process block by block
                     data_block = defaultdict()
                     data_block['data'] = bytearray()
+                    data_block_length = 0
                     for DL in temps['list_data']:
                         for pointer in temps['list_data'][DL]:
                             # read fist data blocks linked by DLBlock to identify data block type
                             data_block.update(_load_header(self.fid, pointer))
                             if data_block['id'] in ('##SD', b'##SD'):
                                 data_block['data'].extend(self.fid.read(data_block['length'] - 24))
+                                data_block_length += data_block['length'] - 24
                             elif data_block['id'] in (b'##DZ', '##DZ'):
                                 temp = DZBlock()
                                 temp.read_dz(self.fid)
@@ -464,6 +466,8 @@ class Data(dict):
                                     data_block['id'] = '##{}'.format(data_block['dz_org_block_type'])
                                 else:
                                     data_block['id'] = '##{}'.format(data_block['dz_org_block_type'].decode('ASCII'))
+                                data_block_length += data_block['dz_org_data_length']
+                    data_block['length'] = data_block_length + 24
                     temps['data'] = _data_block(record, info, parent_block=data_block, channel_set=name_list,
                                                 n_records=None, sorted_flag=sorted_flag, vlsd=vlsd)
                 else:
@@ -740,7 +744,7 @@ class Record(dict):
             channel_type = channel.channel_type(info)
             data_format = channel.data_format(info)
             self.master = info['masters'][info['CN'][self.dataGroup][self.channelGroup][channelNumber]['masterCG']]['name']
-            if channel_type in (0, 1, 2, 4, 5):  # not virtual channel
+            if channel_type in (0, 2, 4, 5):  # not virtual channel
                 signal_data_type = channel.signal_data_type(info)
                 if signal_data_type == 13:
                     for name in ('ms', 'minute', 'hour', 'day', 'month', 'year'):
@@ -809,20 +813,23 @@ class Record(dict):
                         self.numpyDataRecordFormat.append(data_format)
                         self.dataRecordName.append(channel.name)
                         self.recordLength += channel.nBytes_aligned
-                    if 'VLSD_CG' in info:  # is there VLSD CG
-                        for recordID in info['VLSD_CG']:  # look for VLSD CG Channel
-                            if info['VLSD_CG'][recordID]['cg_cn'] == (self.channelGroup, channelNumber):
-                                self.VLSD_CG[recordID] = info['VLSD_CG'][recordID]
-                                self.VLSD_CG[recordID]['channel'] = channel
-                                self.VLSD_CG[recordID]['channelName'] = channel.name
-                                self[channelNumber].VLSD_CG_Flag = True
-                                break
-                    if channel_type == 1:  # VLSD channel
-                        self.VLSD.append(channelNumber)
+
             elif channel_type in (3, 6):  # virtual channel
                 self[channelNumber] = channel  # channel calculated based on record index later in conversion function
                 self.channelNames.add(channel.name)
                 self.recordToChannelMatching[channel.name] = channel.name
+            elif channel_type == 1:  # VLSD channel
+                self.VLSD.append(channelNumber)
+                self[channelNumber] = channel
+                self.channelNames.add(channel.name)
+                if 'VLSD_CG' in info:  # is there VLSD CG
+                    for recordID in info['VLSD_CG']:  # look for VLSD CG Channel
+                        if info['VLSD_CG'][recordID]['cg_cn'] == (self.channelGroup, channelNumber):
+                            self.VLSD_CG[recordID] = info['VLSD_CG'][recordID]
+                            self.VLSD_CG[recordID]['channel'] = channel
+                            self.VLSD_CG[recordID]['channelName'] = channel.name
+                            self[channelNumber].VLSD_CG_Flag = True
+                            break
             prev_chan = channel
 
         if info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']:  # invalid bytes existing
@@ -842,7 +849,7 @@ class Record(dict):
                 self.numpyDataRecordFormat.append(self.invalid_channel.data_format(info))
                 self.dataRecordName.append(self.invalid_channel.name)
 
-        # check for hidden bytes
+        # check for hidden bytes or VLSD within at least one channel
         if self.CGrecordLength > self.recordLength:
             self.hiddenBytes = True
         # check record length consistency
@@ -1353,7 +1360,7 @@ class Mdf4(MdfSkeleton):
                     (channel_set is None or
                      len(channel_set & info['ChannelNamesByDG'][dataGroup]) > 0):  # there is data block and channel in
                 if minimal > 1 and not self._noDataLoading:  # load CG, CN and CC block info
-                    info.read_cg_block(info.fid, dataGroup, channel_set, minimal=minimal)
+                    info.read_cg_blocks(info.fid, dataGroup, channel_set, minimal=minimal)
                 if info['CG'][dataGroup][0]['cg_cycle_count']:  # data exists
                     # Pointer to data block
                     pointer_to_data = info['DG'][dataGroup]['dg_data']
@@ -1444,8 +1451,6 @@ class Mdf4(MdfSkeleton):
                                             else:  # should not happen
                                                 warn('bit count and offset not applied to correct '
                                                      'data type {}'.format(chan.name))
-                                        else:  # data using full bytes
-                                            pass
 
                                         if temp is not None:  # channel contains data
                                             # string data decoding
