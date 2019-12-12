@@ -1826,16 +1826,15 @@ class Mdf4(MdfSkeleton):
             # write channels
             record_byte_offset = 0
             cn_flag = 0
-            number_of_channel = 0
             n_records = 0
             data_list = ()
             last_channel = 0
+            previous_n_channel = 0
             for n_channel, channel in enumerate(self.masterChannelList[masterChannel]):
                 data = self.get_channel_data(channel)
                 # no interest to write invalid bytes as channel, should be processed if needed before writing
                 if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
                     byte_count = data.dtype.itemsize
-                    number_of_channel += 1
                     blocks[n_channel] = CNBlock()
                     blocks[n_channel]['cn_byte_offset'] = record_byte_offset
 
@@ -1914,11 +1913,12 @@ class Mdf4(MdfSkeleton):
 
                     if cn_flag:
                         # Next DG
-                        blocks[n_channel-1]['CN'] = blocks[n_channel]['block_start']
+                        blocks[previous_n_channel]['CN'] = blocks[n_channel]['block_start']
                         blocks[n_channel]['CN'] = 0  # initialise 'CN' key
                     else:
                         cn_flag = blocks[n_channel]['block_start']
                         blocks[n_channel]['CN'] = 0  # creates first CN link, null for the moment
+                    previous_n_channel = n_channel
 
                     # write channel name
                     blocks[n_channel]['TX'] = pointer
@@ -1931,7 +1931,7 @@ class Mdf4(MdfSkeleton):
                     unit = self.get_channel_unit(channel)
                     if unit is not None and len(unit) > 0:
                         blocks[n_channel]['Unit'] = pointer
-                        unit_name = '{}{}{}'.format(channel, '_U_', n_channel)
+                        unit_name = u'{}{}{}'.format(channel, '_U_', n_channel)
                         blocks[unit_name] = CommentBlock()
                         blocks[unit_name]['block_start'] = pointer
                         blocks[unit_name].load(unit, 'TX')
@@ -2128,7 +2128,7 @@ class Mdf4(MdfSkeleton):
             unit = self.get_channel_unit(channel)
             if unit is not None and len(unit) > 0:
                 blocks['CN']['Unit'] = pointer
-                unit_name = '{}{}{}'.format(channel, '_U_', 'CN')
+                unit_name = u'{}{}{}'.format(channel, '_U_', 'CN')
                 blocks[unit_name] = CommentBlock()
                 blocks[unit_name]['block_start'] = pointer
                 blocks[unit_name].load(unit, 'TX')
