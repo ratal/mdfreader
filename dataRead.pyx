@@ -7,9 +7,6 @@ from libc.stdint cimport uint16_t, uint32_t, uint64_t
 from cpython.bytes cimport PyBytes_AsString
 from libc.string cimport memcpy
 
-cdef extern from "complex.h":
-    pass
-
 #@cython.boundscheck(False)
 #@cython.wraparound(False)
 def data_read(bytes tmp, unsigned short bit_count,
