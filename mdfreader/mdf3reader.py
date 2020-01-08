@@ -5,14 +5,6 @@
 
 Created on Sun Oct 10 12:57:28 2010
 
-
-Attributes
---------------
-PythonVersion : float
-    Python version currently running, needed for compatibility of both
-    python 2.6+ and 3.2+
-
-
 mdf3reader
 --------------------------
 """
@@ -27,8 +19,8 @@ from collections import defaultdict
 from math import log, exp
 from time import strftime, time, gmtime
 from struct import pack, Struct
-from io import open  # for python 3 and 2 consistency
-from sys import platform, exc_info, version_info
+from io import open
+from sys import platform, exc_info
 from warnings import warn
 import os
 from warnings import simplefilter
@@ -38,10 +30,6 @@ from .mdfinfo3 import Info3
 from .channel import Channel3
 if os.name == 'posix':
     from os import getlogin
-
-
-PythonVersion = version_info
-PythonVersion = PythonVersion[0]
 
 chunk_size_reading = 100000000  # reads by chunk of 100Mb, can be tuned for best performance
 

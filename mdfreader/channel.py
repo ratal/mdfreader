@@ -9,13 +9,12 @@ Attributes
 --------------
 PythonVersion : float
     Python version currently running, needed for compatibility of both
-    python 2.6+ and 3.4+
+    python 3.4+
 
 channel
 --------------------------
 
 """
-from __future__ import absolute_import  # for consistency between python 2 and 3
 from struct import Struct
 from warnings import warn
 from .mdfinfo4 import ATBlock

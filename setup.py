@@ -17,7 +17,7 @@ except ImportError:
 
 
 name = 'mdfreader'
-version = '3.3'
+version = '4.0'
 
 description = 'A Measured Data Format file parser'
 
@@ -52,13 +52,12 @@ classifiers = [
     # Pick your license as you wish (should match "license" above)
     'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
 
-    # Specify the Python versions you support here. In particular, ensure
-    # that you indicate whether you support Python 2, Python 3 or both.
-    'Programming Language :: Python :: 2.7',
+    # Specify the Python versions you support here.
     'Programming Language :: Python :: 3.4',
     'Programming Language :: Python :: 3.5',
     'Programming Language :: Python :: 3.6',
-    'Programming Language :: Python :: 3.7'
+    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.8'
 ]
 
 # What does your project relate to?
@@ -78,7 +77,7 @@ install_requires = ['numpy>=1.14', 'sympy', 'lxml']
 # You can install these using the following syntax, for example:
 # $ pip install -e .[dev,test]
 extras_require = {
-    'export': ['scipy', 'h5py', 'xlwt', 'xlwt3', 'openpyxl>2.0', 'pandas', 'fastparquet'],
+    'export': ['hdf5storage', 'h5py', 'scipy', 'xlwt', 'xlwt3', 'openpyxl>2.0', 'pandas', 'fastparquet'],
     'plot': ['matplotlib', 'mpldatacursor'],
     'converter': ['PyQt4'],
     'experimental': ['bitarray'],

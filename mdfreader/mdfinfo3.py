@@ -8,28 +8,16 @@ Created on Thu Dec 9 12:57:28 2014
 
 Dependencies
 -------------------
-- Python >2.6, >3.2 <http://www.python.org>
+- Python >3.4 <http://www.python.org>
 - Numpy >1.14 <http://numpy.scipy.org>
-
-
-Attributes
---------------
-PythonVersion : float
-    Python version currently running, needed for compatibility of both python 2.6+ and 3.2+
-
 
 mdfinfo3
 --------------------------
 """
-from __future__ import absolute_import  # for consistency between python 2 and 3
-from __future__ import print_function
-from sys import version_info
 from warnings import warn
 from numpy import sort, zeros
 from struct import unpack, Struct
 from .mdf import dataField, descriptionField, unitField, masterField, masterTypeField, idField
-PythonVersion = version_info
-PythonVersion = PythonVersion[0]
 
 cn_struct = Struct('<2sH5IH32s128s4H3d2IH')
 tx_struct = Struct('<2sH')

@@ -8,34 +8,24 @@ Created on Thu Dec 10 12:57:28 2013
 
 Dependencies
 -------------------
-- Python >2.6, >3.2 <http://www.python.org>
+- Python >3.4 <http://www.python.org>
 - Numpy >1.6 <http://numpy.scipy.org>
 - bitarray to parse bits in not aligned bytes
 - Sympy to convert channels with formula if needed
 - zlib to uncompress data block if needed
 
-
-Attributes
---------------
-PythonVersion : float
-    Python version currently running, needed for compatibility of both
-    python 2.6+ and 3.2+
-
-
 mdf4reader
 --------------------------
 
 """
-from __future__ import absolute_import  # for consistency between python 2 and 3
-from __future__ import print_function
 from struct import Struct
 from struct import pack, unpack as structunpack
 from math import pow
-from io import open  # for python 3 and 2 consistency
+from io import open
 from os.path import splitext
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
-from sys import version_info, byteorder
+from sys import byteorder
 from collections import defaultdict, OrderedDict
 from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
@@ -57,9 +47,6 @@ try:
 except ImportError:
     warn('dataRead cannot be imported, compile it with Cython', ImportWarning)
     dataRead_available = False
-
-PythonVersion = version_info
-PythonVersion = PythonVersion[0]
 
 chunk_size_reading = 100000000  # reads by chunk of 100Mb, can be tuned for best performance
 
@@ -2429,8 +2416,7 @@ def _value_to_text_conversion(vector, cc_val, cc_ref):
                                        modules='numpy', dummify=False)
             else:
                 warn('To implement missing conversion, please ask')
-        elif (PythonVersion > 3 and not isinstance(cc_ref[ref], str)) or \
-                (PythonVersion < 3 and not isinstance(cc_ref[ref], unicode)):  # identity, non conversion
+        elif not isinstance(cc_ref[ref], str):  # identity, non conversion
             cc_ref[ref] = lambdify(X, 'X', modules='numpy', dummify=False)
     key_index = where(vector[0] == cc_val)[0]  # look up for first value in vector
     if not len(key_index) == 0:  # value corresponding in cc_val

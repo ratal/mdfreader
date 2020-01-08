@@ -8,21 +8,18 @@ Created on Thu Sept 24 2015
 
 Dependencies
 -------------------
-- Python >2.6, >3.2 <http://www.python.org>
+- Python >3.4 <http://www.python.org>
 - Numpy >1.6 <http://numpy.scipy.org>
 
 
 mdf
 --------------------------
 """
-from __future__ import absolute_import  # for consistency between python 2 and 3
-from __future__ import print_function
 from io import open
 from zipfile import is_zipfile, ZipFile
 from itertools import chain
 from random import choice
 from string import ascii_letters
-from sys import version_info
 from collections import OrderedDict, defaultdict
 from warnings import warn
 from numpy import array_repr, set_printoptions, recarray, fromstring
@@ -38,8 +35,6 @@ try:
 except ImportError:
     # Cannot compress data, please install bcolz and blosc
     CompressionPossible = False
-PythonVersion = version_info
-PythonVersion = PythonVersion[0]
 
 descriptionField = 'description'
 unitField = 'unit'
@@ -616,12 +611,12 @@ class MdfSkeleton(dict):
             output.append('file name : {}\n'.format(self.fileName))
         else:
             output.append('')
-        for m in self.fileMetadata.keys():
+        for m in self.fileMetadata:
             if self.fileMetadata[m] is not None:
                 output.append('{} : {}\n'.format(m, self.fileMetadata[m]))
         if not self._pandasframe:
             output.append('\nchannels listed by data groups:\n')
-            for d in self.masterChannelList.keys():
+            for d in self.masterChannelList:
                 if d is not None:
                     output.append('{}\n'.format(d))
                 for c in self.masterChannelList[d]:
@@ -764,13 +759,10 @@ def _convert_name(channel_name):
     to be removed with next function if no more need
     """
 
-    if PythonVersion < 3:  # python 2
-        channel_identifier = _sanitize_identifier(channel_name).encode('utf-8')
-    else:  # python 3
-        if channel_name.isidentifier():
-            return channel_name
-        else:
-            channel_identifier = str(_sanitize_identifier(channel_name))
+    if channel_name.isidentifier():
+        return channel_name
+    else:
+        channel_identifier = str(_sanitize_identifier(channel_name))
     # all characters of channel are not compliant to python
     if not channel_identifier:
         # generate random name for recarray

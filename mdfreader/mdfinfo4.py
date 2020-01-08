@@ -5,24 +5,14 @@ Created on Sun Dec 15 12:57:28 2013
 
 :Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
 
-Attributes
---------------
-PythonVersion : float
-    Python version currently running, needed for compatibility of both
-    python 2.6+ and 3.2+
-
-
 mdfinfo4
 --------------------------
 """
-from __future__ import absolute_import  # for consistency between python 2 and 3
-from __future__ import print_function
 from struct import calcsize, unpack, pack, Struct
 from os import remove
-from sys import version_info
 from warnings import warn
 from zlib import compress, decompress
-from numpy import sort, zeros, array, append
+from numpy import zeros, array, append
 import time
 from collections import OrderedDict
 from xml.etree.ElementTree import Element, SubElement, \
@@ -30,9 +20,6 @@ from xml.etree.ElementTree import Element, SubElement, \
 from lxml import objectify
 from .mdf import _open_mdf, dataField, descriptionField, unitField, \
     masterField, masterTypeField, idField, _convert_name
-
-PythonVersion = version_info
-PythonVersion = PythonVersion[0]
 
 # datatypes
 _LINK = '<Q'
@@ -1619,10 +1606,8 @@ class DZBlock(dict):
         uncompressed raw data
         """
 
-        if PythonVersion > 3:  # decompress data
-            block = decompress(block)
-        else:
-            block = decompress(bytes(block))  # decompress data
+        # decompress data
+        block = decompress(block)
         if zip_type == 1:  # data bytes transposed
             M = org_data_length // zip_parameter
             temp = array(memoryview(block[:M * zip_parameter]))
@@ -2072,10 +2057,6 @@ class Info4(dict):
             # check if already existing channel name
             self['CN'][dg][cg][cn]['name'] = \
                 self._unique_channel_name(fid, self['CN'][dg][cg][cn]['name'], dg, cg, cn)
-            if self['CN'][dg][cg][cn]['cn_type'] == 1 and PythonVersion < 3:
-                # VLSD needs to rename and append records but with python 2.x impossible,
-                # convert name to compatible python identifier
-                vlsd = True
 
             # reads Channel Array Block
             if self['CN'][dg][cg][cn]['cn_composition']:
