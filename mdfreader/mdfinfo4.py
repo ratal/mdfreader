@@ -422,8 +422,8 @@ class CommentBlock(dict):
                     pass  # optional
                 try:
                     tmp = xml_tree.common_properties
-                    for t in range(tmp.countchildren()):
-                        self[tmp.e[t].attrib.values()[0]] = tmp.e[t].text
+                    for t in tmp.e:
+                        self[t.attrib.values()[0]] = t.text
                 except AttributeError:
                     pass  # optional
             elif self['id'] in ('##TX', b'##TX'):
