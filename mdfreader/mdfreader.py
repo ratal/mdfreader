@@ -555,28 +555,112 @@ class Mdf(Mdf3, Mdf4):
             except:
                 warn(Name)
 
-    def resample(self, sampling_time=None, master_channel=None):
-        """ Resamples all data groups into one data group having defined
-        sampling interval or sharing same master channel
+    def resample(self, sampling=None, channel=None, master_channel=None):
+        """ Resamples as much as possible all data groups into one data group having defined
+        sampling interval or sharing same defined master channel
 
         Parameters
         ----------------
-        sampling_time : float, optional
-            resampling interval, None by default. If None, will merge all datagroups
-            into a unique datagroup having the highest sampling rate from all datagroups
-        **or**
+        sampling : float, optional
+            resampling interval, None by default. If None, will rely on channel or master_channel
+             parameters to define reference data group. If both are undefined, picking the first master
+        ** or | and **
+        channel : str, optional
+            channel name to be resampled
+        ** or | and **
         master_channel : str, optional
-            master channel name to be used for all channels
+            master channel name to be used as reference
 
         Notes
         --------
-        1. resampling is relatively safe for mdf3 as it contains only time series.
-        However, mdf4 can contain also distance, angle, etc. It might make not sense
-        to apply one resampling to several data groups that do not share same kind
-        of master channel (like time resampling to distance or angle data groups)
-        If several kind of data groups are used, you should better use pandas to resample
+        1. resampling will be applied only to master channels that have same type as the one
+        given by channel or master_channel parameters (applicable only to mdf4)
 
         2. resampling will convert all your channels so be careful for big files
+        and memory consumption
+        """
+        if self:  # mdf contains data
+            # must make sure all channels are converted
+            self.convert_all_channels()
+
+            if channel is not None and master_channel is None:
+                master_channel_name = self.get_channel_master(channel)
+                master_channel_type = self.get_channel_master_type(master_channel_name)
+            elif channel is None and master_channel is None:
+                # pick the first master
+                master_channel_name = list(self.masterChannelList.keys())[0]
+                master_channel_type = self.get_channel_master_type(master_channel_name)
+            else:
+                master_channel_name = master_channel
+                master_channel_type = self.get_channel_master_type(master_channel)
+            master_data = self.get_channel_data(master_channel_name)
+
+            if master_channel_name is None or \
+                    master_channel_name not in self.masterChannelList[master_channel_name]:
+                # No master channel in selected group, looking at other groups
+                min_master = []
+                max_master = []
+                length = []
+                master_channel_name = 'master'
+                for master in self.masterChannelList:
+                    if master is not None and master != '' and \
+                            master in self and self.masterChannelList[master] and \
+                            self.get_channel_master_type(master) == master_channel_type:
+                        master_data = self.get_channel_data(master)
+                        # consider groups having minimum size
+                        if master in self and len(master_data) > 5:
+                            min_master.append(master_data[0])
+                            max_master.append(master_data[-1])
+                            length.append(len(master_data))
+                            master_channel_name = master
+                if min_master:  # at least 1 datagroup has a master channel to be resampled
+                    if sampling is None:
+                        master_data = linspace(min(min_master), max(max_master), num=max(length))
+                    else:
+                        master_data = arange(min(min_master), max(max_master), sampling)
+                    self.add_channel(master_channel_name, master_data, master_channel_name,
+                                     master_type=self.get_channel_master_type(master),
+                                     unit=self.get_channel_unit(master),
+                                     description=self.get_channel_desc(master), conversion=None)
+                else:
+                    warn('no master channel existing')
+                    raise ValueError('Master Channel not existing')
+
+            # Interpolate channels
+            for master in list(self.masterChannelList.keys()):
+                if self.get_channel_master_type(master) == master_channel_type:
+                    self.resample_group(sampling, master, new_master_data=master_data)
+                    # remove old master channel
+                    if not master_channel_name == master:
+                        self.masterChannelList[master].remove(master)  # removing previous master from list
+                        for channel in self.masterChannelList[master]:
+                            # assigning new master to resampled channels
+                            self.set_channel_master(channel, master_channel_name)
+                        # merging channel lists
+                        self.masterChannelList[master_channel_name] += self.masterChannelList[master]
+                        # removing old master
+                        self.masterChannelList.pop(master)
+                        self.pop(master)
+        else:
+            warn('no data to be resampled')
+
+    def resample_group(self, sampling, channel, new_master_data=None):
+        """ Resamples one channel along with its dataGroup
+
+        Parameters
+        ----------------
+        sampling : float
+            resampling interval
+
+        channel : str
+            channel name to be resampled (could the master channel)
+
+        new_master_data : array, optional
+            master channel data to be applied to the group identified by channel
+
+        Notes
+        --------
+        Resampling will convert all channels so be careful for big files
         and memory consumption
         """
         def interpolate(new_x, x, y):
@@ -588,97 +672,32 @@ class Mdf(Mdf3, Mdf4):
                 idx = clip(idx, 0, idx[-1])
                 return y[idx]
 
-        if self:  # mdf contains data
-            # must make sure all channels are converted
-            self.convert_all_channels()
-            master_data = None
-            if master_channel is None:  # create master channel if not proposed
-                min_time = []
-                max_time = []
-                length = []
-                master_channel_name = 'master'
-                for master in self.masterChannelList:
-                    if master is not None and master != '' and \
-                            master in self and self.masterChannelList[master]:
-                        master_data = self.get_channel_data(master)
-                        # consider groups having minimum size
-                        if master in self and len(master_data) > 5:
-                            min_time.append(master_data[0])
-                            max_time.append(master_data[-1])
-                            length.append(len(master_data))
-                if min_time:  # at least 1 datagroup has a master channel to be resampled
-                    if sampling_time is None:
-                        master_data = linspace(min(min_time), max(max_time), num=max(length))
-                    else:
-                        master_data = arange(min(min_time), max(max_time), sampling_time)
-                    self.add_channel(master_channel_name, master_data, master_channel_name,
-                                     master_type=self.get_channel_master_type(master),
-                                     unit=self.get_channel_unit(master),
-                                     description=self.get_channel_desc(master), conversion=None)
+        master_channel = self.get_channel_master(channel)
+        old_master_data = self.get_channel_data(master_channel)
+        if new_master_data is None:
+            new_master_data = arange(old_master_data[0], old_master_data[-1], sampling)
+        for Name in self.masterChannelList[master_channel]:
+            if Name == master_channel:  # master channel
+                self.set_channel_data(Name, new_master_data)
             else:
-                master_channel_name = master_channel  # master channel defined in argument
-                if master_channel not in self.masterChannelList:
-                    warn('master channel name not in existing')
-                    raise ValueError('Master Channel not existing')
-
-            # resample all channels to one sampling time vector
-            if len(self.masterChannelList) > 1:  # Not yet resampled or only 1 datagroup
-                # create master channel if not proposed
-                if master_channel is None and master_data is not None:
-                    self.add_channel(master_channel_name, master_data, master_channel_name,
-                                     master_type=self.get_channel_master_type(master),
-                                     unit=self.get_channel_unit(master),
-                                     description=self.get_channel_desc(master), conversion=None)
-
-                # Interpolate channels
-                time_vect = []
-                if master_channel_name in self:
-                    master_data = self.get_channel_data(master_channel_name)
-                if master_data is None:  # no master channel, cannot resample
-                    return None
-                for Name in list(self.keys()):  # dictionary changing content
+                channel_data = self.get_channel_data(Name)
+                if channel_data.dtype.kind not in ('S', 'U', 'V'):
+                    # if channel not array of string
                     try:
-                        if Name not in self.masterChannelList:  # not a master channel
-                            time_vect = self.get_channel_data(self.get_channel_master(Name))
-                            if not self.get_channel_data(Name).dtype.kind in ('S', 'U', 'V'):
-                                # if channel not array of string
-                                self.set_channel_data(Name,
-                                                      interpolate(master_data, time_vect, self.get_channel_data(Name)))
-                                self.set_channel_master(Name, master_channel_name)
-                                self.set_channel_master_type(Name, self.get_channel_master_type(master))
-                                self.remove_channel_conversion(Name)
-                            else:  # can not interpolate strings, remove channel containing string
-                                self.remove_channel(Name)
+                        self.set_channel_data(Name, interpolate(new_master_data, old_master_data, channel_data))
                     except:
-                        if time_vect is not None and len(time_vect) != len(self.get_channel_data(Name)):
-                            warn('{} and master channel {} do not have same length'.
-                                 format(Name, self.get_channel_master(Name)))
-                        elif not all(diff(time_vect) > 0):
-                            master = self.get_channel_master(Name)
+                        if not all(diff(old_master_data) > 0):
                             warn('{} has non regularly increasing master channel {}.\n'
                                  ' Faulty samples will be dropped in related data group'.
-                                 format(Name, master))
-                            self._clean_uneven_master_data(master)
-                # remove time channels in masterChannelList
-                for ind in self.masterChannelList:
-                    if ind != master_channel_name and ind in self:
-                        self.remove_channel(ind)
-                self.masterChannelList = {}  # empty dict
-                self.masterChannelList[master_channel_name] = list(self.keys())
-            elif len(self.masterChannelList) == 1 and sampling_time is not None:
-                # resamples only 1 datagroup
-                master_data = self.get_channel_data(list(self.masterChannelList.keys())[0])
-                master_data = arange(master_data[0], master_data[-1], sampling_time)
-                for Name in list(self.keys()):  # dictionary changing content
-                    time_vect = self.get_channel_data(self.get_channel_master(Name))
-                    self.set_channel_data(Name, interpolate(master_data, time_vect, self.get_channel_data(Name)))
-                    self.set_channel_master(Name, master_channel_name)
-                    self.set_channel_master_type(Name, self.get_channel_master_type(master))
+                                 format(Name, master_channel))
+                            self._clean_uneven_master_data(master_channel)
+                            self.set_channel_data(Name, interpolate(new_master_data, old_master_data, channel_data))
+                        elif old_master_data is not None and len(old_master_data) != len(channel_data):
+                            warn('{} and master channel {} do not have same length'.
+                                 format(Name, master_channel))
                     self.remove_channel_conversion(Name)
-            elif sampling_time is None:
-                warn('Already resampled')
-        else:
-            warn('no data to be resampled')
+                else:  # can not interpolate strings, remove channel containing string
+                    self.remove_channel(Name)
 
     def _clean_uneven_master_data(self, master_channel_name):
         """ clean data group having non evenly increasing master
