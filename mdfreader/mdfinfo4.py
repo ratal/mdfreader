@@ -1811,7 +1811,7 @@ class Info4(dict):
             self['CH'] = self.read_ch_block(fid, self['HD']['hd_ch_first'])
 
         # reads Attachment block
-        if self['HD']['hd_at_first'] and not minimal:
+        if self['HD']['hd_at_first'] and not minimal == 1:
             self['AT'] = OrderedDict()
             pointer = self['HD']['hd_at_first']
             while pointer:
@@ -1819,7 +1819,7 @@ class Info4(dict):
                 pointer = self['AT'][pointer]['at_at_next']
 
         # reads Event Block
-        if self['HD']['hd_ev_first'] and not minimal:
+        if self['HD']['hd_ev_first'] and not minimal == 1:
             self['EV'] = self.read_ev_block(fid, self['HD']['hd_ev_first'])
 
         # reads Data Group Blocks and recursively the other related blocks
