@@ -716,11 +716,14 @@ class Mdf(Mdf3, Mdf4):
             data.mask = mask
             self.set_channel_data(channel, data.compressed())
 
-    def cut(self, begin=None, end=None):
+    def cut(self, master_channel, begin=None, end=None):
         """ Cut data
 
         Parameters
         ----------------
+        master_channel : str
+            channel to cut data (can be master channel)
+
         begin : float
             beginning value in master channel from which to start cutting in all channels
 
@@ -736,10 +739,14 @@ class Mdf(Mdf3, Mdf4):
         if begin is None and end is None:
             raise Exception('Please input at least one beginning or ending value to cut data')
 
+        master_channel = self.get_channel_master(master_channel)
+        master_channel_type = self.get_channel_master_type(master_channel)
         for master in self.masterChannelList:  # for each channel group
             # find corresponding indexes to cut
             master_data = self.get_channel_data(master)
-            if master_data is not None and len(master_data) > 0:  # not empty data
+            if master_data is not None and len(master_data) > 0 and \
+                    self.get_channel_master_type(master) == master_channel_type:
+                # not empty data and same master type
                 if begin is not None:
                     start_index = searchsorted(master_data, begin, side='left')
                 else:
