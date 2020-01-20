@@ -732,8 +732,7 @@ class Mdf(Mdf3, Mdf4):
 
         Notes
         ------
-        Use this method if whole data in mdf are using same physical or type of
-        master channel (for instance time).
+        Only the data groups with same master type as master_channel will be cut (only for mdf4)
 
         """
         if begin is None and end is None:
