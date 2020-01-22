@@ -776,8 +776,9 @@ class Mdf(Mdf3, Mdf4):
 
         Notes
         --------
-        Data saved in CSV fille be automatically resampled as it is difficult to save in this format
-        data not sharing same master channel
+        Data saved in CSV file be automatically resampled as it is difficult to save in this format
+        data not sharing same master channel -> not applicable for mdf4 in case there are master channels
+         with various types
         Warning: this can be slow for big data, CSV is text format after all
         """
         if self:  # data in mdf
@@ -827,7 +828,7 @@ class Mdf(Mdf3, Mdf4):
             file name. If no name defined, it will use original mdf name and path
 
         sampling : float, optional
-            sampling interval.
+            sampling interval
 
         Notes
         --------
