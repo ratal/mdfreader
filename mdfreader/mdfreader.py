@@ -623,8 +623,16 @@ class Mdf(Mdf3, Mdf4):
                                      unit=self.get_channel_unit(master),
                                      description=self.get_channel_desc(master), conversion=None)
                 else:
-                    warn('no master channel existing')
-                    raise ValueError('Master Channel not existing')
+                    warn('no master channel existing, considering first channel as master !')
+                    current_master = list(self.masterChannelList.keys())[0]
+                    # pick the first channel from the first data group to be master, maybe lucky
+                    master_channel_name = self.masterChannelList[current_master][0]
+                    # changing master to first channel
+                    self.masterChannelList[master_channel_name] = self.masterChannelList.pop(current_master)
+                    for channel in self:
+                        self.set_channel_master(channel, master_channel_name)
+                    master_channel_type = self.get_channel_master_type(master_channel_name)
+                    master_data = self.get_channel_data(master_channel_name)
 
             # Interpolate channels
             for master in list(self.masterChannelList.keys()):
