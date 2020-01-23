@@ -42,7 +42,7 @@ from .mdf import MdfSkeleton, _open_mdf, invalidChannel, dataField, \
     conversionField, idField, invalidPosField, CompressedData
 from .channel import Channel4
 try:
-    from dataRead import data_read
+    from dataRead import sorted_data_read
     dataRead_available = True
 except ImportError:
     warn('dataRead cannot be imported, compile it with Cython', ImportWarning)
@@ -139,18 +139,13 @@ def _read_unsorted(record, info, parent_block):
         record class
     info: class
         info class
-    channel_set : set of str, optional
-        set of channel to read
-    parent_block:
+    parent_block: class
+        MDFBlock class containing at least parent block header
 
     Returns
     --------
     buf : array
         data array
-
-    Notes
-    ------
-    channel_set is not used yet
     """
     buf = defaultdict(list)
     position = 0
@@ -163,7 +158,7 @@ def _read_unsorted(record, info, parent_block):
             buf[channelName] = []
     # read data
     while position < len(parent_block['data']):
-        record_id = record_id_c_format.unpack(parent_block['data'][position:position + record_id_size])[0]
+        (record_id,) = record_id_c_format.unpack(parent_block['data'][position:position + record_id_size])
         if not record[record_id]['record'].Flags & 0b1:  # not VLSD CG)
             temp = record.read_record(record_id, info, parent_block['data'][position:position + record[record_id][
                 'record'].CGrecordLength + 1])
@@ -172,7 +167,7 @@ def _read_unsorted(record, info, parent_block):
                 buf[channelName].append(temp[channelName])
         else:  # VLSD CG
             position += record_id_size
-            VLSDLen = VLSDStruct.unpack(parent_block['data'][position:position + 4])[0]  # VLSD length
+            (VLSDLen,) = VLSDStruct.unpack(parent_block['data'][position:position + 4])  # VLSD length
             position += 4
             temp = parent_block['data'][position:position + VLSDLen - 1]
             signal_data_type = record[record_id]['record'].VLSD_CG[record_id]['channel'].signal_data_type(info)
@@ -224,14 +219,14 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length):
             channel_format = 'utf-8'
             warn('signal_data_type should have fixed length')
         while pointer < sd_block_length:
-            VLSDLen = structunpack('I', sd_block[pointer:pointer + 4])[0]  # length of data
+            (VLSDLen, ) = structunpack('I', sd_block[pointer:pointer + 4])  # length of data
             pointer += 4
             buf.append(sd_block[pointer:pointer + VLSDLen].decode(channel_format).rstrip('\x00'))
             pointer += VLSDLen
         buf = array(_equalize_string_length(buf))
     else:  # byte arrays or mime types
         while pointer < sd_block_length:
-            VLSDLen = structunpack('I', sd_block[pointer:pointer + 4])[0]  # length of data
+            (VLSDLen, ) = structunpack('I', sd_block[pointer:pointer + 4])  # length of data
             pointer += 4
             buf.append(sd_block[pointer:pointer + VLSDLen])
             pointer += VLSDLen
@@ -1085,12 +1080,12 @@ class Record(dict):
                     else:
                         array_flag = 0
                     buf[self[chan].name] = \
-                        data_read(bytes_data, self[chan].bit_count(info),
-                                  self[chan].signal_data_type(info),
-                                  self[chan].native_data_format(info),
-                                  n_records, self.CGrecordLength,
-                                  self[chan].bit_offset(info), self[chan].pos_byte_beg(info),
-                                  self[chan].calc_bytes(info, aligned=False), array_flag)
+                        sorted_data_read(bytes_data, self[chan].bit_count(info),
+                                         self[chan].signal_data_type(info),
+                                         self[chan].native_data_format(info),
+                                         n_records, self.CGrecordLength,
+                                         self[chan].bit_offset(info), self[chan].pos_byte_beg(info),
+                                         self[chan].calc_bytes(info, aligned=False), array_flag)
                 return buf
             else:
                 return self.read_channels_from_bytes_fallback(bit_stream, info, channel_set, n_records, dtype)
