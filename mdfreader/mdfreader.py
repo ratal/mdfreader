@@ -594,6 +594,8 @@ class Mdf(Mdf3, Mdf4):
                 master_channel_name = master_channel
                 master_channel_type = self.get_channel_master_type(master_channel)
             master_data = self.get_channel_data(master_channel_name)
+            if sampling is not None:
+                master_data = arange(master_data[0], master_data[-1], sampling)
 
             if master_channel_name is None or \
                     master_channel_name not in self.masterChannelList[master_channel_name]:
