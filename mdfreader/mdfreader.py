@@ -635,6 +635,8 @@ class Mdf(Mdf3, Mdf4):
                         self.set_channel_master(channel, master_channel_name)
                     master_channel_type = self.get_channel_master_type(master_channel_name)
                     master_data = self.get_channel_data(master_channel_name)
+                    if sampling is not None:
+                        master_data = arange(master_data[0], master_data[-1], sampling)
 
             # Interpolate channels
             for master in list(self.masterChannelList.keys()):
