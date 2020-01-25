@@ -307,7 +307,7 @@ def processMDF(fileName, channelist, resampleFlag, resampleValue, convertFlag, c
     yop.read(fileName)  # reads complete file
     yop.keep_channels(channelist)  # removes unnecessary channels
     if resampleFlag:
-        yop.resample(resampleValue)
+        yop.resample(sampling=resampleValue)
     if convertFlag:
         if convertSelection == 'Matlab':
             yop.export_to_matlab()
