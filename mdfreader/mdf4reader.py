@@ -25,7 +25,7 @@ from io import open
 from os.path import splitext
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
-from sys import byteorder
+from sys import byteorder, exc_info
 from collections import defaultdict, OrderedDict
 from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
@@ -42,7 +42,7 @@ from .mdf import MdfSkeleton, _open_mdf, invalidChannel, dataField, \
     conversionField, idField, invalidPosField, CompressedData
 from .channel import Channel4
 try:
-    from dataRead import sorted_data_read
+    from dataRead import sorted_data_read, unsorted_data_read4, sd_data_read
     dataRead_available = True
 except ImportError:
     warn('dataRead cannot be imported, compile it with Cython', ImportWarning)
@@ -103,6 +103,13 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
             return _read_unsorted(record, info, parent_block)
 
     elif parent_block['id'] in (b'##SD', '##SD'):
+        if dataRead_available:
+            try:
+                return sd_data_read(record[record.VLSD[0]].signal_data_type(info),
+                                    memoryview(parent_block['data']).tobytes(),
+                                    parent_block['length'] - 24)
+            except:
+                warn(exc_info())
         return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
                               parent_block['length'] - 24)
 
@@ -112,6 +119,13 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
                                                              parent_block['dz_zip_parameter'],
                                                              parent_block['dz_org_data_length'])
         if vlsd:  # VLSD channel
+            if dataRead_available:
+                try:
+                    return sd_data_read(record[record.VLSD[0]].signal_data_type(info),
+                                        memoryview(parent_block['data']).tobytes(),
+                                        parent_block['dz_org_data_length'])
+                except:
+                    warn(exc_info())
             return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
                                   parent_block['dz_org_data_length'])
         if channel_set is None and sorted_flag:  # reads all blocks if sorted block and no channelSet defined

@@ -3,6 +3,7 @@ cimport numpy as np
 from sys import byteorder
 from libc.stdint cimport uint16_t, uint32_t, uint64_t
 from libc.stdio cimport printf
+from libc.stdlib cimport strtoul
 cimport cython
 
 from cpython.bytes cimport PyBytes_AsString
@@ -794,7 +795,7 @@ cdef inline read_array(const char* bit_stream, str record_format, unsigned long 
     else:
         return buf.byteswap()
 
-def unsorted_data_read(record, info, bytes tmp, unsigned short record_id_size):
+def unsorted_data_read4(record, info, bytes tmp, unsigned short record_id_size):
     """ reads only the channels using offset functions, channel by channel within unsorted data
 
     Parameters
@@ -814,17 +815,18 @@ def unsorted_data_read(record, info, bytes tmp, unsigned short record_id_size):
         data array
 
     """
-    cdef char* bit_stream = PyBytes_AsString(tmp)
-    cdef unsigned int position = 0
+    cdef const char* bit_stream = PyBytes_AsString(tmp)
+    cdef unsigned long long bit_stream_length = len(bit_stream)
+    cdef unsigned long long position = 0
     cdef unsigned long record_id
-    cdef unsigned int VLSDLen
+    cdef unsigned long VLSDLen
     buf = {}
     # initialise data structure
     for record_id in record:
         for channelName in record[record_id]['record'].dataRecordName:
             buf[channelName] = []
     # read data
-    while position < len(bit_stream):
+    while position < bit_stream_length:
         record_id = bit_stream[position:position + record_id_size]
         if not record[record_id]['record'].Flags & 0b1:  # not VLSD CG)
             temp = record.read_record(record_id, info, bit_stream[position:position + record[record_id][
@@ -834,7 +836,7 @@ def unsorted_data_read(record, info, bytes tmp, unsigned short record_id_size):
                 buf[channelName].append(temp[channelName])
         else:  # VLSD CG
             position += record_id_size
-            VLSDLen = bit_stream[position:position + 4]  # VLSD length
+            VLSDLen = strtoul(bit_stream[position:position + 4], NULL, 2)  # VLSD length
             position += 4
             temp = bit_stream[position:position + VLSDLen - 1]
             signal_data_type = record[record_id]['record'].VLSD_CG[record_id]['channel'].signal_data_type(info)
@@ -853,7 +855,7 @@ def unsorted_data_read(record, info, bytes tmp, unsigned short record_id_size):
         buf[chan] = np.array(buf[chan])
     return buf
 
-def sd_data_read(unsigned short signal_data_type, bytes sd_block, unsigned long sd_block_length):
+def sd_data_read(unsigned short signal_data_type, bytes sd_block, unsigned long long sd_block_length):
     """ Reads vlsd channel from its SD Block bytes
 
     Parameters
@@ -870,10 +872,10 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block, unsigned long 
     -----------
     array
     """
-    cdef char* bit_stream = PyBytes_AsString(sd_block)
-    cdef unsigned long pointer = 0
-    cdef unsigned int VLSDLen = 0
-    cdef unsigned int max_len = 0
+    cdef const char* bit_stream = PyBytes_AsString(sd_block)
+    cdef unsigned long long pointer = 0
+    cdef unsigned long VLSDLen = 0
+    cdef unsigned long max_len = 0
     cdef list buf = []
     if signal_data_type < 10:
         if signal_data_type == 6:
@@ -888,7 +890,7 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block, unsigned long 
             channel_format = 'utf-8'
             printf('signal_data_type should have fixed length')
         while pointer < sd_block_length:
-            VLSDLen = bit_stream[pointer:pointer + 4]  # length of data
+            VLSDLen = strtoul(bit_stream[pointer:pointer + 4], NULL, 2)  # length of data
             pointer += 4
             buf.append(bit_stream[pointer:pointer + VLSDLen].rstrip('\x00').decode(channel_format))
             pointer += VLSDLen
@@ -902,7 +904,7 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block, unsigned long 
             printf('VLSD channel could not be properly read')
     else:  # byte arrays or mime types
         while pointer < sd_block_length:
-            VLSDLen = bit_stream[pointer:pointer + 4]  # length of data
+            VLSDLen = strtoul(bit_stream[pointer:pointer + 4], NULL, 2)  # length of data
             pointer += 4
             buf.append(bit_stream[pointer:pointer + VLSDLen])
             pointer += VLSDLen

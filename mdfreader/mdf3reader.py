@@ -30,6 +30,12 @@ from .mdfinfo3 import Info3
 from .channel import Channel3
 if os.name == 'posix':
     from os import getlogin
+try:
+    from dataRead import sorted_data_read
+    dataRead_available = True
+except ImportError:
+    warn('dataRead cannot be imported, compile it with Cython', ImportWarning)
+    dataRead_available = False
 
 chunk_size_reading = 100000000  # reads by chunk of 100Mb, can be tuned for best performance
 
@@ -200,7 +206,7 @@ def _formula_conversion(data, conversion):  # 10 Text Formula
         return expr(data)
     except:
         warn('Failed to convert formulae ' + conversion['textFormula'] +
-             ' Sympy is correctly installed ?')
+             ' Sympy is correctly installed ?\n')
 
 
 def _text_table_conversion(data, conversion):  # 11 Text table
@@ -505,41 +511,42 @@ class Record(list):
                         numpy_data_record_format.append(channel.nativedataFormat)
                 rec = recarray(self.numberOfRecords, dtype={'names': data_record_name,
                                                             'formats': numpy_data_record_format})
-                try:  # use rather cython compiled code for performance
-                    from dataRead import sorted_data_read
-                    # converts data type from mdf 3.x to 4.x
-                    convertDataType3to4 = {0: 0, 1: 2, 2: 4, 3: 4,
-                                           7: 6, 8: 10,
-                                           9: 1, 10: 3, 11: 5, 12: 5,
-                                           13: 0, 14: 2, 15: 4, 16: 4}
-                    for n_record_chunk, chunk_size in chunks:
-                        bit_stream = fid.read(chunk_size)
-                        for id, chan in enumerate(rec_chan):
-                            rec[chan.name][previous_index: previous_index + n_record_chunk] = \
-                                sorted_data_read(bytes(bit_stream),
-                                                 chan.bitCount,
-                                                 convertDataType3to4[chan.signalDataType],
-                                                 chan.nativedataFormat,
-                                                 n_record_chunk,
-                                                 self.CGrecordLength,
-                                                 chan.bitOffset,
-                                                 chan.posByteBeg,
-                                                 chan.nBytes_not_aligned, 0)
-                            # masking already considered in dataRead
-                            self[rec_chan[id].channelNumber].bit_masking_needed = False
-                        previous_index += n_record_chunk
-                    return rec
-                except:
-                    warn('Unexpected error: {}'.format(exc_info()))
-                    warn('dataRead crashed, back to python data reading')
-                    record_length = self.recordIDnumber + self.CGrecordLength
-                    for r in range(self.numberOfRecords):  # for each record,
-                        buf = fid.read(record_length)
-                        for channel in rec_chan:
-                            rec[channel.name][r] = \
-                                channel.CFormat.unpack(buf[channel.posByteBeg:
-                                                           channel.posByteEnd])[0]
-                    return rec.view(recarray)
+                if dataRead_available:
+                    try:  # use rather cython compiled code for performance
+                        # converts data type from mdf 3.x to 4.x
+                        convertDataType3to4 = {0: 0, 1: 2, 2: 4, 3: 4,
+                                               7: 6, 8: 10,
+                                               9: 1, 10: 3, 11: 5, 12: 5,
+                                               13: 0, 14: 2, 15: 4, 16: 4}
+                        for n_record_chunk, chunk_size in chunks:
+                            bit_stream = fid.read(chunk_size)
+                            for id, chan in enumerate(rec_chan):
+                                rec[chan.name][previous_index: previous_index + n_record_chunk] = \
+                                    sorted_data_read(bytes(bit_stream),
+                                                     chan.bitCount,
+                                                     convertDataType3to4[chan.signalDataType],
+                                                     chan.nativedataFormat,
+                                                     n_record_chunk,
+                                                     self.CGrecordLength,
+                                                     chan.bitOffset,
+                                                     chan.posByteBeg,
+                                                     chan.nBytes_not_aligned, 0)
+                                # masking already considered in dataRead
+                                self[rec_chan[id].channelNumber].bit_masking_needed = False
+                            previous_index += n_record_chunk
+                        return rec
+                    except:
+                        warn('Unexpected error: {}'.format(exc_info()))
+                        warn('dataRead crashed, back to python data reading')
+
+                record_length = self.recordIDnumber + self.CGrecordLength
+                for r in range(self.numberOfRecords):  # for each record,
+                    buf = fid.read(record_length)
+                    for channel in rec_chan:
+                        rec[channel.name][r] = \
+                            channel.CFormat.unpack(buf[channel.posByteBeg:
+                                                       channel.posByteEnd])[0]
+                return rec.view(recarray)
 
     def read_record_buf(self, buf, channel_set=None):
         """ read stream of record bytes
@@ -874,7 +881,7 @@ class Mdf3(MdfSkeleton):
         if not self._noDataLoading:
             try:
                 comment = info['HDBlock']['TXBlock']
-            except:
+            except KeyError:
                 comment = ''
             # converts date to be compatible with ISO8601
             day, month, year = info['HDBlock']['Date'].split(':')
