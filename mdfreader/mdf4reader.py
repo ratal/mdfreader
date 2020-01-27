@@ -107,9 +107,10 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
             try:
                 return sd_data_read(record[record.VLSD[0]].signal_data_type(info),
                                     memoryview(parent_block['data']).tobytes(),
-                                    parent_block['length'] - 24)
-            except:
-                warn(exc_info())
+                                    parent_block['length'] - 24, n_records)
+            except Exception as e:
+                warn(e.args[0])
+                warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
         return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
                               parent_block['length'] - 24)
 
@@ -123,9 +124,10 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
                 try:
                     return sd_data_read(record[record.VLSD[0]].signal_data_type(info),
                                         memoryview(parent_block['data']).tobytes(),
-                                        parent_block['dz_org_data_length'])
-                except:
-                    warn(exc_info())
+                                        parent_block['dz_org_data_length'], n_records)
+                except Exception as e:
+                    warn(e.args[0])
+                    warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
             return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
                                   parent_block['dz_org_data_length'])
         if channel_set is None and sorted_flag:  # reads all blocks if sorted block and no channelSet defined
@@ -375,10 +377,11 @@ class Data(dict):
                 if channel_set is None or record[cn].name in channel_set:
                     temp = Data(self.fid, record[cn].data(info))  # all channels
                     temp, invalid = temp.load(record, info, name_list=channel_set, sorted_flag=True, vlsd=True)
-                    self[recordID]['data'] = rename_fields(self[recordID]['data'],
-                                                           {record[cn].name: '{}_offset'.format(record[cn].name)})
-                    self[recordID]['data'] = rec_append_fields(self[recordID]['data'],
-                                                               record[cn].name, temp)
+                    if temp is not None:
+                        self[recordID]['data'] = rename_fields(self[recordID]['data'],
+                                                               {record[cn].name: '{}_offset'.format(record[cn].name)})
+                        self[recordID]['data'] = rec_append_fields(self[recordID]['data'],
+                                                                   record[cn].name, temp)
         else:  # unsorted DataGroup
             self.type = 'unsorted'
             data, invalid = self.load(self, info, name_list=channel_set, sorted_flag=False)
