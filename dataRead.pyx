@@ -951,5 +951,5 @@ cdef inline equalize_string_length(const char* bit_stream, unsigned long *pointe
     cdef np.ndarray output = np.zeros((n_records, ), dtype='U{}'.format(max_len))
     cdef unsigned long rec = 0
     for rec from 0 <= rec < n_records by 1:  # resize string to same length, numpy constrain
-        output[rec] = bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]].rstrip(b'\x00').decode(channel_format)
+        output[rec] = bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]].decode(channel_format).rstrip('\x00')
     return output
