@@ -3,7 +3,7 @@ cimport numpy as np
 from sys import byteorder
 from libc.stdint cimport uint16_t, uint32_t, uint64_t
 from libc.stdio cimport printf
-from libc.stdlib cimport strtoul
+from cpython.mem cimport PyMem_Malloc, PyMem_Free
 cimport cython
 
 from cpython.bytes cimport PyBytes_AsString
@@ -795,7 +795,7 @@ cdef inline read_array(const char* bit_stream, str record_format, unsigned long 
     else:
         return buf.byteswap()
 
-def unsorted_data_read4(record, info, bytes tmp, unsigned short record_id_size):
+def unsorted_data_read4(record, info, bytes tmp, unsigned char record_id_size):
     """ reads only the channels using offset functions, channel by channel within unsorted data
 
     Parameters
@@ -816,46 +816,68 @@ def unsorted_data_read4(record, info, bytes tmp, unsigned short record_id_size):
 
     """
     cdef const char* bit_stream = PyBytes_AsString(tmp)
-    cdef unsigned long long bit_stream_length = len(bit_stream)
+    cdef unsigned long long bit_stream_length = len(bit_stream)  # to be transmitted by parameter
     cdef unsigned long long position = 0
-    cdef unsigned long record_id
-    cdef unsigned long VLSDLen
+    cdef unsigned char record_id_char
+    cdef unsigned short record_id_short
+    cdef unsigned long record_id_long
+    cdef unsigned long long record_id_long_long
     buf = {}
     # initialise data structure
     for record_id in record:
         for channelName in record[record_id]['record'].dataRecordName:
             buf[channelName] = []
     # read data
-    while position < bit_stream_length:
-        record_id = bit_stream[position:position + record_id_size]
-        if not record[record_id]['record'].Flags & 0b1:  # not VLSD CG)
-            temp = record.read_record(record_id, info, bit_stream[position:position + record[record_id][
-                'record'].CGrecordLength + 1])
-            position += record[record_id]['record'].CGrecordLength
-            for channelName in temp:
-                buf[channelName].append(temp[channelName])
-        else:  # VLSD CG
-            position += record_id_size
-            VLSDLen = strtoul(bit_stream[position:position + 4], NULL, 2)  # VLSD length
-            position += 4
-            temp = bit_stream[position:position + VLSDLen - 1]
-            signal_data_type = record[record_id]['record'].VLSD_CG[record_id]['channel'].signal_data_type(info)
-            if signal_data_type == 6:
-                temp = temp.decode('ISO8859')
-            elif signal_data_type == 7:
-                temp = temp.decode('utf-8')
-            elif signal_data_type == 8:
-                temp = temp.decode('<utf-16')
-            elif signal_data_type == 9:
-                temp = temp.decode('>utf-16')
-            buf[record[record_id]['record'].VLSD_CG[record_id]['channelName']].append(temp)
-            position += VLSDLen
+    if record_id_size == 1:
+        while position < bit_stream_length:
+            memcpy(&record_id_char, &bit_stream[position], 1)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id, 1, position, buf)
+    elif record_id_size == 2:
+        while position < bit_stream_length:
+            memcpy(&record_id_short, &bit_stream[position], 2)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id, 2, position, buf)
+    elif record_id_size == 3:
+        while position < bit_stream_length:
+            memcpy(&record_id_long, &bit_stream[position], 4)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id, 4, position, buf)
+    elif record_id_size == 4:
+        while position < bit_stream_length:
+            memcpy(&record_id_long_long, &bit_stream[position], 8)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id, 8, position, buf)
     # convert list to array
     for chan in buf:
         buf[chan] = np.array(buf[chan])
     return buf
 
-def sd_data_read(unsigned short signal_data_type, bytes sd_block, unsigned long long sd_block_length):
+cdef inline unsorted_read4(record, info, const char* bit_stream, record_id, unsigned char record_id_size, unsigned long long position, buf):
+    cdef unsigned long VLSDLen
+    if not record[record_id]['record'].Flags & 0b1:  # not VLSD CG)
+            temp = record.read_record(record_id, info, bit_stream[position:position + record[record_id][
+                'record'].CGrecordLength + 1])
+            position += record[record_id]['record'].CGrecordLength
+            for channelName in temp:
+                buf[channelName].append(temp[channelName])
+    else:  # VLSD CG
+        position += record_id_size
+        memcpy(&VLSDLen, &bit_stream[position], 4)  # VLSD length
+        position += 4
+        temp = bit_stream[position:position + VLSDLen - 1]
+        signal_data_type = record[record_id]['record'].VLSD_CG[record_id]['channel'].signal_data_type(info)
+        if signal_data_type == 6:
+            temp = temp.decode('ISO8859')
+        elif signal_data_type == 7:
+            temp = temp.decode('utf-8')
+        elif signal_data_type == 8:
+            temp = temp.decode('<utf-16')
+        elif signal_data_type == 9:
+            temp = temp.decode('>utf-16')
+        buf[record[record_id]['record'].VLSD_CG[record_id]['channelName']].append(temp)
+        position += VLSDLen
+    return position, buf
+
+
+def sd_data_read(unsigned short signal_data_type, bytes sd_block,
+                 unsigned long long sd_block_length, unsigned long n_records):
     """ Reads vlsd channel from its SD Block bytes
 
     Parameters
@@ -873,47 +895,61 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block, unsigned long 
     array
     """
     cdef const char* bit_stream = PyBytes_AsString(sd_block)
-    cdef unsigned long long pointer = 0
-    cdef unsigned long VLSDLen = 0
     cdef unsigned long max_len = 0
-    cdef list buf = []
-    if signal_data_type < 10:
-        if signal_data_type == 6:
-            channel_format = 'ISO8859'
-        elif signal_data_type == 7:
-            channel_format = 'utf-8'
-        elif signal_data_type == 8:
-            channel_format = '<utf-16'
-        elif signal_data_type == 9:
-            channel_format = '>utf-16'
+    cdef unsigned long vlsd_len = 0
+    cdef unsigned long *VLSDLen = <unsigned long *> PyMem_Malloc(n_records * sizeof(unsigned long))
+    cdef unsigned long *pointer = <unsigned long *> PyMem_Malloc(n_records * sizeof(unsigned long))
+    cdef unsigned long rec = 0
+    if not VLSDLen or not pointer:
+        raise MemoryError()
+    try:
+        pointer[0] = 0
+        VLSDLen[0] = 0
+        for rec from 0 <= rec < n_records - 1 by 1:
+            memcpy(&vlsd_len, &bit_stream[pointer[rec]], 4)
+            VLSDLen[rec] = vlsd_len
+            pointer[rec + 1] = VLSDLen[rec] + 4 + pointer[rec]
+            if VLSDLen[rec] > max_len:
+                    max_len = VLSDLen[rec]
+        memcpy(&vlsd_len, &bit_stream[pointer[rec]], 4)
+        VLSDLen[rec] = vlsd_len
+        if VLSDLen[rec] > max_len:
+            max_len = VLSDLen[rec]
+        if max_len != 0:
+            if signal_data_type < 10:
+                if signal_data_type == 6:
+                    channel_format = 'ISO8859'
+                elif signal_data_type == 7:
+                    channel_format = 'utf-8'
+                elif signal_data_type == 8:
+                    channel_format = '<utf-16'
+                elif signal_data_type == 9:
+                    channel_format = '>utf-16'
+                else:
+                    channel_format = 'utf-8'
+                    printf('signal_data_type should have fixed length')
+                return equalize_string_length(bit_stream, pointer, VLSDLen, max_len, n_records, channel_format)
+            else:  # byte arrays or mime types
+                return equalize_byte_length(bit_stream, pointer, VLSDLen, max_len, n_records)
         else:
-            channel_format = 'utf-8'
-            printf('signal_data_type should have fixed length')
-        while pointer < sd_block_length:
-            VLSDLen = strtoul(bit_stream[pointer:pointer + 4], NULL, 2)  # length of data
-            pointer += 4
-            buf.append(bit_stream[pointer:pointer + VLSDLen].rstrip('\x00').decode(channel_format))
-            pointer += VLSDLen
-            if VLSDLen > max_len:
-                max_len = VLSDLen
-        if buf:
-            for i, element in enumerate(buf):  # resize string to same length, numpy constrain
-                buf[i] = ''.join([element, ' ' * (max_len - len(element))])
-            return np.array(buf)
-        else:
-            printf('VLSD channel could not be properly read')
-    else:  # byte arrays or mime types
-        while pointer < sd_block_length:
-            VLSDLen = strtoul(bit_stream[pointer:pointer + 4], NULL, 2)  # length of data
-            pointer += 4
-            buf.append(bit_stream[pointer:pointer + VLSDLen])
-            pointer += VLSDLen
-            if VLSDLen > max_len:
-                max_len = VLSDLen
-        if buf:
-            output = bytearray()
-            for i, element in enumerate(buf):  # resize string to same length, numpy constrain
-                output.extend(bytearray(element).rjust(max_len,  b'\x00'))
-            return np.frombuffer(output, dtype='V{}'.format(max_len))
-        else:
-            printf('VLSD channel could not be properly read')
+            printf('VLSD channel could not be properly read\n')
+            return None
+    finally:
+        PyMem_Free(pointer)
+        PyMem_Free(VLSDLen)
+
+cdef inline equalize_byte_length(const char* bit_stream, unsigned long *pointer, unsigned long *VLSDLen,
+                                 unsigned long max_len, unsigned long n_records):
+    cdef np.ndarray output = np.zeros((n_records, ), dtype='V{}'.format(max_len))
+    cdef unsigned long rec = 0
+    for rec from 0 <= rec < n_records by 1:  # resize string to same length, numpy constrain
+        output[rec] = bytearray(bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]]).rjust(max_len,  b'\x00')
+    return output
+
+cdef inline equalize_string_length(const char* bit_stream, unsigned long *pointer, unsigned long *VLSDLen,
+                                 unsigned long max_len, unsigned long n_records, channel_format):
+    cdef np.ndarray output = np.zeros((n_records, ), dtype='U{}'.format(max_len))
+    cdef unsigned long rec = 0
+    for rec from 0 <= rec < n_records by 1:  # resize string to same length, numpy constrain
+        output[rec] = bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]].rstrip(b'\x00').decode(channel_format)
+    return output
