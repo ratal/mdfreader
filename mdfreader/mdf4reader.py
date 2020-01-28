@@ -32,7 +32,7 @@ from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
 from numpy import arange, right_shift, bitwise_and, all, diff, interp
 from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
-from numpy.lib.recfunctions import rec_append_fields, rename_fields
+from numpy.lib.recfunctions import rename_fields
 from numpy.ma import MaskedArray
 from warnings import simplefilter, warn
 from .mdfinfo4 import Info4, IDBlock, HDBlock, DGBlock, \
@@ -373,15 +373,17 @@ class Data(dict):
             self[recordID]['data'], self[recordID]['invalid_data'] = self.load(record,
                                                                                info, name_list=channel_set,
                                                                                sorted_flag=True)
-            for cn in record.VLSD:  # VLSD channels
-                if channel_set is None or record[cn].name in channel_set:
-                    temp = Data(self.fid, record[cn].data(info))  # all channels
-                    temp, invalid = temp.load(record, info, name_list=channel_set, sorted_flag=True, vlsd=True)
-                    if temp is not None:
-                        self[recordID]['data'] = rename_fields(self[recordID]['data'],
-                                                               {record[cn].name: '{}_offset'.format(record[cn].name)})
-                        self[recordID]['data'] = rec_append_fields(self[recordID]['data'],
-                                                                   record[cn].name, temp)
+            if record.VLSD:  # VLSD channels exist
+                self[recordID]['VLSD'] = {}
+                for cn in record.VLSD:  # VLSD channels
+                    if channel_set is None or record[cn].name in channel_set:
+                        temp = Data(self.fid, record[cn].data(info))  # all channels
+                        temp, invalid = temp.load(record, info, name_list=channel_set, sorted_flag=True, vlsd=True)
+                        if temp is not None:
+                            # change channel name by appending offset
+                            self[recordID]['data'] = rename_fields(self[recordID]['data'],
+                                                                   {record[cn].name: '{}_offset'.format(record[cn].name)})
+                            self[recordID]['VLSD'][record[cn].name] = temp
         else:  # unsorted DataGroup
             self.type = 'unsorted'
             data, invalid = self.load(self, info, name_list=channel_set, sorted_flag=False)
@@ -1414,10 +1416,11 @@ class Mdf4(MdfSkeleton):
                                                 record_name = buf[record_id]['record'].recordToChannelMatching[chan.name]
                                             else:
                                                 record_name = chan.name
-                                            if 'data' in buf[record_id] and \
-                                                    buf[record_id]['data'] is not None:  # no data in channel group
+                                            try:  # data in channel group
                                                 temp = buf[record_id]['data'][record_name]  # extract channel vector
-                                            else:
+                                            except (ValueError, IndexError):  # no sorted data but maybe VLSD data
+                                                temp = buf[record_id]['VLSD'][record_name]
+                                            except:
                                                 temp = None
                                         else:  # virtual channel
                                             temp = arange(buf[record_id]['record'].numberOfRecords)
