@@ -795,7 +795,7 @@ cdef inline read_array(const char* bit_stream, str record_format, unsigned long 
     else:
         return buf.byteswap()
 
-def unsorted_data_read4(record, info, bytes tmp, unsigned char record_id_size):
+def unsorted_data_read4(record, info, bytes tmp, unsigned short record_id_size):
     """ reads only the channels using offset functions, channel by channel within unsorted data
 
     Parameters
@@ -831,25 +831,26 @@ def unsorted_data_read4(record, info, bytes tmp, unsigned char record_id_size):
     if record_id_size == 1:
         while position < bit_stream_length:
             memcpy(&record_id_char, &bit_stream[position], 1)
-            position, buf = unsorted_read4(record, info, bit_stream, record_id, 1, position, buf)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id_char, 1, position, buf)
     elif record_id_size == 2:
         while position < bit_stream_length:
             memcpy(&record_id_short, &bit_stream[position], 2)
-            position, buf = unsorted_read4(record, info, bit_stream, record_id, 2, position, buf)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id_short, 2, position, buf)
     elif record_id_size == 3:
         while position < bit_stream_length:
             memcpy(&record_id_long, &bit_stream[position], 4)
-            position, buf = unsorted_read4(record, info, bit_stream, record_id, 4, position, buf)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id_long, 4, position, buf)
     elif record_id_size == 4:
         while position < bit_stream_length:
             memcpy(&record_id_long_long, &bit_stream[position], 8)
-            position, buf = unsorted_read4(record, info, bit_stream, record_id, 8, position, buf)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id_long_long, 8, position, buf)
     # convert list to array
     for chan in buf:
         buf[chan] = np.array(buf[chan])
     return buf
 
-cdef inline unsorted_read4(record, info, const char* bit_stream, record_id, unsigned char record_id_size, unsigned long long position, buf):
+cdef inline unsorted_read4(record, info, const char* bit_stream, record_id, 
+                           unsigned short record_id_size, unsigned long long position, buf):
     cdef unsigned long VLSDLen
     if not record[record_id]['record'].Flags & 0b1:  # not VLSD CG)
             temp = record.read_record(record_id, info, bit_stream[position:position + record[record_id][
@@ -877,7 +878,7 @@ cdef inline unsorted_read4(record, info, const char* bit_stream, record_id, unsi
 
 
 def sd_data_read(unsigned short signal_data_type, bytes sd_block,
-                 unsigned long long sd_block_length, unsigned long n_records):
+                 unsigned long long sd_block_length, unsigned long long n_records):
     """ Reads vlsd channel from its SD Block bytes
 
     Parameters
@@ -897,9 +898,9 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block,
     cdef const char* bit_stream = PyBytes_AsString(sd_block)
     cdef unsigned long max_len = 0
     cdef unsigned long vlsd_len = 0
-    cdef unsigned long *VLSDLen = <unsigned long *> PyMem_Malloc(n_records * sizeof(unsigned long))
-    cdef unsigned long *pointer = <unsigned long *> PyMem_Malloc(n_records * sizeof(unsigned long))
-    cdef unsigned long rec = 0
+    cdef unsigned long long *VLSDLen = <unsigned long long *> PyMem_Malloc(n_records * sizeof(unsigned long long))
+    cdef unsigned long long *pointer = <unsigned long long *> PyMem_Malloc(n_records * sizeof(unsigned long long))
+    cdef unsigned long long rec = 0
     if not VLSDLen or not pointer:
         raise MemoryError()
     try:
@@ -938,16 +939,16 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block,
         PyMem_Free(pointer)
         PyMem_Free(VLSDLen)
 
-cdef inline equalize_byte_length(const char* bit_stream, unsigned long *pointer, unsigned long *VLSDLen,
-                                 unsigned long max_len, unsigned long n_records):
+cdef inline equalize_byte_length(const char* bit_stream, unsigned long long *pointer, unsigned long long *VLSDLen,
+                                 unsigned long max_len, unsigned long long n_records):
     cdef np.ndarray output = np.zeros((n_records, ), dtype='V{}'.format(max_len))
     cdef unsigned long rec = 0
     for rec from 0 <= rec < n_records by 1:  # resize string to same length, numpy constrain
         output[rec] = bytearray(bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]]).rjust(max_len,  b'\x00')
     return output
 
-cdef inline equalize_string_length(const char* bit_stream, unsigned long *pointer, unsigned long *VLSDLen,
-                                 unsigned long max_len, unsigned long n_records, channel_format):
+cdef inline equalize_string_length(const char* bit_stream, unsigned long long *pointer, unsigned long long *VLSDLen,
+                                   unsigned long max_len, unsigned long long n_records, channel_format):
     cdef np.ndarray output = np.zeros((n_records, ), dtype='U{}'.format(max_len))
     cdef unsigned long rec = 0
     for rec from 0 <= rec < n_records by 1:  # resize string to same length, numpy constrain
