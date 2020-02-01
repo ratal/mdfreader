@@ -25,11 +25,11 @@ from io import open
 from os.path import splitext
 from time import gmtime, strftime
 from multiprocessing import Queue, Process
-from sys import byteorder, exc_info
+from sys import byteorder
 from collections import defaultdict, OrderedDict
 from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
-from numpy import arange, right_shift, bitwise_and, all, diff, interp
+from numpy import arange, right_shift, bitwise_and, all, diff, interp, zeros, concatenate
 from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
 from numpy.lib.recfunctions import rename_fields
@@ -104,7 +104,7 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
 
     elif parent_block['id'] in (b'##SD', '##SD'):
         return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
-                              parent_block['length'] - 24, n_records)
+                              parent_block['length'] - 24, n_records, vlsd)
 
     elif parent_block['id'] in (b'##DZ', '##DZ'):  # zipped data block
         # uncompress data
@@ -113,7 +113,7 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
                                                              parent_block['dz_org_data_length'])
         if vlsd is not None:  # VLSD channel
             return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
-                                  parent_block['dz_org_data_length'], n_records)
+                                  parent_block['dz_org_data_length'], n_records, vlsd)
         if channel_set is None and sorted_flag:  # reads all blocks if sorted block and no channelSet defined
             if record.byte_aligned and not record.hiddenBytes:
                 return fromstring(parent_block['data'], dtype={'names': record.dataRecordName,
@@ -194,7 +194,7 @@ def _read_unsorted(record, info, parent_block, record_id_size):
     return buf
 
 
-def _read_sd_block(signal_data_type, sd_block, sd_block_length, n_records):
+def _read_sd_block(signal_data_type, sd_block, sd_block_length, n_records, pointer):
     """ Reads vlsd channel from its SD Block bytes
 
     Parameters
@@ -204,11 +204,14 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length, n_records):
     sd_block : bytes
         SD Block bytes
 
-    sd_block_length: int
+    sd_block_length: uint64
         SD Block data length (header not included)
 
     n_records: int
         number of records
+
+    pointer: numpy array of uint
+        position of records in SD block
 
     Returns
     -----------
@@ -221,73 +224,36 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length, n_records):
         except Exception as e:
             warn(e.args[0])
             warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
-    pointer = 0
-    buf = []
-    if signal_data_type < 10:
-        if signal_data_type == 6:
-            channel_format = 'ISO8859'
-        elif signal_data_type == 7:
-            channel_format = 'utf-8'
-        elif signal_data_type == 8:
-            channel_format = '<utf-16'
-        elif signal_data_type == 9:
-            channel_format = '>utf-16'
-        else:
-            channel_format = 'utf-8'
-            warn('signal_data_type should have fixed length')
-        while pointer < sd_block_length:
-            (VLSDLen, ) = structunpack('I', sd_block[pointer:pointer + 4])  # length of data
-            pointer += 4
-            buf.append(sd_block[pointer:pointer + VLSDLen].decode(channel_format).rstrip('\x00'))
-            pointer += VLSDLen
-        buf = array(_equalize_string_length(buf))
-    else:  # byte arrays or mime types
-        while pointer < sd_block_length:
-            (VLSDLen, ) = structunpack('I', sd_block[pointer:pointer + 4])  # length of data
-            pointer += 4
-            buf.append(sd_block[pointer:pointer + VLSDLen])
-            pointer += VLSDLen
-        buf, max_len = _equalize_byte_length(buf)
-        if buf:
-            buf = frombuffer(buf, dtype='V{}'.format(max_len))
-        else:
-            warn('VLSD channel could not be properly read')
-    return buf
-
-
-def _equalize_string_length(buf):
-    """ Makes all strings in a list having same length by appending spaces strings.
-
-    Parameters
-    ----------------
-    buf : list of str
-
-    Returns
-    -----------
-    list of str elements all having same length
-    """
-    max_len = len(max(buf, key=len))
-    for i, element in enumerate(buf):  # resize string to same length, numpy constrain
-        buf[i] = ''.join([element, ' ' * (max_len - len(element))])
-    return buf
-
-
-def _equalize_byte_length(buf):
-    """ Makes all bytes in a list having same length by appending null bytes.
-
-    Parameters
-    ----------------
-    buf : list of bytes
-
-    Returns
-    -----------
-    list of bytes all having same length
-    """
-    max_len = len(max(buf, key=len))
-    output = bytearray()
-    for i, element in enumerate(buf):  # resize string to same length, numpy constrain
-        output.extend(bytearray(element).rjust(max_len,  b'\x00'))
-    return output, max_len
+    VLSDLen = diff(pointer) - 4
+    VLSDLen = concatenate((VLSDLen, array([sd_block_length - pointer[-1] - 4])
+                           .astype(dtype='<u{}'.format(pointer.dtype.itemsize))), axis=0)
+    max_len = int(max(VLSDLen))
+    if max_len > 0:
+        if signal_data_type < 10:
+            if signal_data_type == 6:
+                channel_format = 'ISO8859'
+            elif signal_data_type == 7:
+                channel_format = 'utf-8'
+            elif signal_data_type == 8:
+                channel_format = '<utf-16'
+            elif signal_data_type == 9:
+                channel_format = '>utf-16'
+            else:
+                channel_format = 'utf-8'
+                warn('signal_data_type should have fixed length')
+            output = zeros((n_records,), dtype="U{:d}".format(max_len))
+            for index, position in enumerate(pointer):
+                position = int(position + 4)
+                output[index] = sd_block[position:int(position + VLSDLen[index])].decode(channel_format).rstrip('\x00')
+        else:  # byte arrays or mime types
+            output = empty((n_records,), dtype="V{:d}".format(max_len))
+            for index, position in enumerate(pointer):
+                position = int(position + 4)
+                output[index] = bytearray(sd_block[position:int(position + VLSDLen[index])]).rjust(max_len,  b'\x00')
+        return output
+    else:
+        warn('VLSD channel is empty')
+        return None
 
 
 class Data(dict):
@@ -505,7 +471,7 @@ class Data(dict):
         elif temps['id'] in (b'##SD', '##SD'):  # VLSD, not CG
             temps['data'] = self.fid.read(temps['length'] - 24)
             temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,
-                                        sorted_flag=sorted_flag)
+                                        sorted_flag=sorted_flag, vlsd=vlsd)
         elif temps['id'] in (b'##DZ', '##DZ'):  # zipped data block
             temp = DZBlock()
             temp.read_dz(self.fid)
