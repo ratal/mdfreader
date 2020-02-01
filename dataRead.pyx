@@ -886,10 +886,13 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block,
     signal_data_type : int
 
     sd_block : bytes
-    SD Block bytes
+        SD Block bytes
 
     sd_block_length: int
-    SD Block data length (header not included)
+        SD Block data length (header not included)
+
+    n_records: int
+        number of records
 
     Returns
     -----------

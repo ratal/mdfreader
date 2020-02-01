@@ -51,7 +51,7 @@ except ImportError:
 chunk_size_reading = 100000000  # reads by chunk of 100Mb, can be tuned for best performance
 
 
-def _data_block(record, info, parent_block, channel_set=None, n_records=None, sorted_flag=True, vlsd=False):
+def _data_block(record, info, parent_block, channel_set=None, n_records=None, sorted_flag=True, vlsd=None):
     """ converts raw data into arrays
 
     Parameters
@@ -100,36 +100,20 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
             else:  # record is not byte aligned or channelSet not None
                 return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
-            return _read_unsorted(record, info, parent_block)
+            return _read_unsorted(record, info, parent_block, record[list(record.keys())[0]]['record'].recordIDsize)
 
     elif parent_block['id'] in (b'##SD', '##SD'):
-        if dataRead_available:
-            try:
-                return sd_data_read(record[record.VLSD[0]].signal_data_type(info),
-                                    memoryview(parent_block['data']).tobytes(),
-                                    parent_block['length'] - 24, n_records)
-            except Exception as e:
-                warn(e.args[0])
-                warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
         return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
-                              parent_block['length'] - 24)
+                              parent_block['length'] - 24, n_records)
 
     elif parent_block['id'] in (b'##DZ', '##DZ'):  # zipped data block
         # uncompress data
         parent_block['data'] = DZBlock.decompress_data_block(parent_block['data'], parent_block['dz_zip_type'],
                                                              parent_block['dz_zip_parameter'],
                                                              parent_block['dz_org_data_length'])
-        if vlsd:  # VLSD channel
-            if dataRead_available:
-                try:
-                    return sd_data_read(record[record.VLSD[0]].signal_data_type(info),
-                                        memoryview(parent_block['data']).tobytes(),
-                                        parent_block['dz_org_data_length'], n_records)
-                except Exception as e:
-                    warn(e.args[0])
-                    warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
+        if vlsd is not None:  # VLSD channel
             return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
-                                  parent_block['dz_org_data_length'])
+                                  parent_block['dz_org_data_length'], n_records)
         if channel_set is None and sorted_flag:  # reads all blocks if sorted block and no channelSet defined
             if record.byte_aligned and not record.hiddenBytes:
                 return fromstring(parent_block['data'], dtype={'names': record.dataRecordName,
@@ -140,13 +124,13 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
         elif channel_set is not None and sorted_flag:  # sorted data but channel list requested
             return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
-            return _read_unsorted(record, info, parent_block)
+            return _read_unsorted(record, info, parent_block, record[list(record.keys())[0]]['record'].recordIDsize)
     elif parent_block['id'] in (b'##DI', '##DI'):  # Invalid data block
         return frombuffer(parent_block['data'], dtype={'names': [record.invalid_channel.name],
                                                        'formats': [record.invalid_channel.data_format(info)]})
 
 
-def _read_unsorted(record, info, parent_block):
+def _read_unsorted(record, info, parent_block, record_id_size):
     """ reads only the channels using offset functions, channel by channel within unsorted data
 
     Parameters
@@ -157,16 +141,23 @@ def _read_unsorted(record, info, parent_block):
         info class
     parent_block: class
         MDFBlock class containing at least parent block header
+    record_id_size : int
+        Size of recordId
 
     Returns
     --------
     buf : array
         data array
     """
+    if dataRead_available:
+        try:
+            return unsorted_data_read4(record, info, parent_block['data'], record_id_size)
+        except Exception as e:
+            warn(e.args[0])
+            warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
     buf = defaultdict(list)
     position = 0
     record_id_c_format = record[list(record.keys())[0]]['record'].recordIDCFormat
-    record_id_size = record[list(record.keys())[0]]['record'].recordIDsize
     VLSDStruct = Struct('I')
     # initialise data structure
     for record_id in record:
@@ -203,7 +194,7 @@ def _read_unsorted(record, info, parent_block):
     return buf
 
 
-def _read_sd_block(signal_data_type, sd_block, sd_block_length):
+def _read_sd_block(signal_data_type, sd_block, sd_block_length, n_records):
     """ Reads vlsd channel from its SD Block bytes
 
     Parameters
@@ -211,15 +202,25 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length):
     signal_data_type : int
 
     sd_block : bytes
-    SD Block bytes
+        SD Block bytes
 
     sd_block_length: int
-    SD Block data length (header not included)
+        SD Block data length (header not included)
+
+    n_records: int
+        number of records
 
     Returns
     -----------
     array
     """
+    if dataRead_available:
+        try:
+            return sd_data_read(signal_data_type, memoryview(sd_block).tobytes(),
+                                sd_block_length, n_records)
+        except Exception as e:
+            warn(e.args[0])
+            warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
     pointer = 0
     buf = []
     if signal_data_type < 10:
@@ -378,7 +379,9 @@ class Data(dict):
                 for cn in record.VLSD:  # VLSD channels
                     if channel_set is None or record[cn].name in channel_set:
                         temp = Data(self.fid, record[cn].data(info))  # all channels
-                        temp, invalid = temp.load(record, info, name_list=channel_set, sorted_flag=True, vlsd=True)
+                        pointer = self[recordID]['data'][record[cn].name]  # vector of each record position
+                        temp, invalid = temp.load(record, info, name_list=channel_set, sorted_flag=True,
+                                                  vlsd=pointer.view(dtype='<u{}'.format(pointer.dtype.itemsize)))
                         if temp is not None:
                             # change channel name by appending offset
                             self[recordID]['data'] = rename_fields(self[recordID]['data'],
@@ -392,7 +395,7 @@ class Data(dict):
                 for channel in self[recordID]['record'].values():
                     self[recordID]['data'][channel.name] = data[channel.name]
 
-    def load(self, record, info, name_list=None, sorted_flag=True, vlsd=False):
+    def load(self, record, info, name_list=None, sorted_flag=True, vlsd=None):
         """Reads data block from record definition
 
         Parameters
@@ -408,7 +411,7 @@ class Data(dict):
             or unsorted (several Channel Groups identified by a recordID).
             As unsorted block can contain CG records in random order, block
             is processed iteratively, not in raw like sorted -> much slower reading
-        vlsd : bool
+        vlsd : array or None
             indicate a sd block, compressed (DZ) or not (SD)
 
         Returns
@@ -443,7 +446,7 @@ class Data(dict):
                 index += 1
             if temps['count']:
                 # read and concatenate raw blocks
-                if vlsd:  # need to load all blocks as variable length, cannot process block by block
+                if vlsd is not None:  # need to load all blocks as variable length, cannot process block by block
                     data_block = defaultdict()
                     data_block['data'] = bytearray()
                     data_block_length = 0
