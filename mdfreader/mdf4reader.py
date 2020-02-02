@@ -49,6 +49,7 @@ except ImportError:
     dataRead_available = False
 
 chunk_size_reading = 100000000  # reads by chunk of 100Mb, can be tuned for best performance
+_VLSDStruct = Struct('I')
 
 
 def _data_block(record, info, parent_block, channel_set=None, n_records=None, sorted_flag=True, vlsd=None):
@@ -149,32 +150,34 @@ def _read_unsorted(record, info, parent_block, record_id_size):
     buf : array
         data array
     """
+    data_block_length = parent_block['length'] - 24
     if dataRead_available:
         try:
-            return unsorted_data_read4(record, info, parent_block['data'], record_id_size)
+            return unsorted_data_read4(record, info, parent_block['data'], record_id_size, data_block_length)
         except Exception as e:
-            warn(e.args[0])
             warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
     buf = defaultdict(list)
     position = 0
     record_id_c_format = record[list(record.keys())[0]]['record'].recordIDCFormat
-    VLSDStruct = Struct('I')
     # initialise data structure
     for record_id in record:
         for channelName in record[record_id]['record'].dataRecordName:
             buf[channelName] = []
+        if record[record_id]['record'].Flags & 0b1:
+            buf[record[record_id]['record'].VLSD_CG[record_id]['channelName']] = []
     # read data
-    while position < len(parent_block['data']):
+    while position < data_block_length:
         (record_id,) = record_id_c_format.unpack(parent_block['data'][position:position + record_id_size])
-        if not record[record_id]['record'].Flags & 0b1:  # not VLSD CG)
-            temp = record.read_record(record_id, info, parent_block['data'][position:position + record[record_id][
-                'record'].CGrecordLength + 1])
+        if not record[record_id]['record'].Flags & 0b1:  # not VLSD CG
+            for Channel in record[record_id]['record'].values():  # list of channel classes from channelSet
+                if not Channel.VLSD_CG_Flag:
+                    buf[Channel.name].append(Channel.c_format_structure(info).
+                                             unpack(parent_block['data'][position + Channel.pos_byte_beg(info):
+                                                                         position + Channel.pos_byte_end(info)])[0])
             position += record[record_id]['record'].CGrecordLength
-            for channelName in temp:
-                buf[channelName].append(temp[channelName])
         else:  # VLSD CG
             position += record_id_size
-            (VLSDLen,) = VLSDStruct.unpack(parent_block['data'][position:position + 4])  # VLSD length
+            (VLSDLen,) = _VLSDStruct.unpack(parent_block['data'][position:position + 4])  # VLSD length
             position += 4
             temp = parent_block['data'][position:position + VLSDLen - 1]
             signal_data_type = record[record_id]['record'].VLSD_CG[record_id]['channel'].signal_data_type(info)
@@ -222,7 +225,6 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length, n_records, point
             return sd_data_read(signal_data_type, memoryview(sd_block).tobytes(),
                                 sd_block_length, n_records)
         except Exception as e:
-            warn(e.args[0])
             warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
     VLSDLen = diff(pointer) - 4
     VLSDLen = concatenate((VLSDLen, array([sd_block_length - pointer[-1] - 4])
