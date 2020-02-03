@@ -827,43 +827,50 @@ def unsorted_data_read4(record, info, bytes tmp,
     cdef unsigned long record_id_long
     cdef unsigned long long record_id_long_long
     buf = {}
+    index = {}
     # initialise data structure
     for record_id in record:
-        for channelName in record[record_id]['record'].dataRecordName:
-            buf[channelName] = []
+        for channel in record[record_id]['record'].values():
+            buf[channel.name] = np.empty((record[record_id]['record'].numberOfRecords, ), dtype=channel.data_format(info))
+            index[channel.name] = 0
         if record[record_id]['record'].Flags & 0b1:  # VLSD CG
             buf[record[record_id]['record'].VLSD_CG[record_id]['channelName']] = []
     # read data
     if record_id_size == 1:
         while position < data_block_length:
             memcpy(&record_id_char, &bit_stream[position], 1)
-            position, buf = unsorted_read4(record, info, bit_stream, record_id_char, 1, position, buf)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id_char, 1, position, buf, index)
     elif record_id_size == 2:
         while position < data_block_length:
             memcpy(&record_id_short, &bit_stream[position], 2)
-            position, buf = unsorted_read4(record, info, bit_stream, record_id_short, 2, position, buf)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id_short, 2, position, buf, index)
     elif record_id_size == 3:
         while position < data_block_length:
             memcpy(&record_id_long, &bit_stream[position], 4)
-            position, buf = unsorted_read4(record, info, bit_stream, record_id_long, 4, position, buf)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id_long, 4, position, buf, index)
     elif record_id_size == 4:
         while position < data_block_length:
             memcpy(&record_id_long_long, &bit_stream[position], 8)
-            position, buf = unsorted_read4(record, info, bit_stream, record_id_long_long, 8, position, buf)
+            position, buf = unsorted_read4(record, info, bit_stream, record_id_long_long, 8, position, buf, index)
     # convert list to array
-    for chan in buf:
-        buf[chan] = np.array(buf[chan])
+    for record_id in record:
+        if record[record_id]['record'].Flags & 0b1:  # converts list into array when VLSD
+            channel_name = record[record_id]['record'].VLSD_CG[record_id]['channelName']
+            buf[channel_name] = np.array(buf[channel_name])
     return buf
 
 cdef inline unsorted_read4(record, info, const char* bit_stream, record_id, 
-                           unsigned short record_id_size, unsigned long long position, buf):
+                           unsigned short record_id_size, unsigned long long position, buf, index):
     cdef unsigned long VLSDLen = 0
     if not record[record_id]['record'].Flags & 0b1:  # not VLSD CG)
         for Channel in record[record_id]['record'].values():  # list of channel classes
             if not Channel.VLSD_CG_Flag:
-                buf[Channel.name].append(Channel.c_format_structure(info).
-                                         unpack(bit_stream[position + Channel.pos_byte_beg(info):
-                                                           position + Channel.pos_byte_end(info)])[0])
+                pos_byte_beg = record_id_size + Channel.byteOffset
+                pos_byte_end = pos_byte_beg + Channel.nBytes_aligned
+                (buf[Channel.name][index[Channel.name]], ) = \
+                        Channel.c_format_structure(info).\
+                            unpack(bit_stream[position + pos_byte_beg:position + pos_byte_end])
+                index[Channel.name] += 1
         position += record[record_id]['record'].CGrecordLength
     else:  # VLSD CG
         position += <unsigned long long> record_id_size

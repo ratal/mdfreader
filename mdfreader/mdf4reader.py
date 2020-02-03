@@ -156,13 +156,15 @@ def _read_unsorted(record, info, parent_block, record_id_size):
             return unsorted_data_read4(record, info, parent_block['data'], record_id_size, data_block_length)
         except Exception as e:
             warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
-    buf = defaultdict(list)
+    buf = {}
+    index = {}
     position = 0
     record_id_c_format = record[list(record.keys())[0]]['record'].recordIDCFormat
     # initialise data structure
     for record_id in record:
-        for channelName in record[record_id]['record'].dataRecordName:
-            buf[channelName] = []
+        for channel in record[record_id]['record'].values():
+            buf[channel.name] = empty((record[record_id]['record'].numberOfRecords, ), dtype=channel.data_format(info))
+        index[record_id] = 0
         if record[record_id]['record'].Flags & 0b1:
             buf[record[record_id]['record'].VLSD_CG[record_id]['channelName']] = []
     # read data
@@ -171,9 +173,12 @@ def _read_unsorted(record, info, parent_block, record_id_size):
         if not record[record_id]['record'].Flags & 0b1:  # not VLSD CG
             for Channel in record[record_id]['record'].values():  # list of channel classes from channelSet
                 if not Channel.VLSD_CG_Flag:
-                    buf[Channel.name].append(Channel.c_format_structure(info).
-                                             unpack(parent_block['data'][position + Channel.pos_byte_beg(info):
-                                                                         position + Channel.pos_byte_end(info)])[0])
+                    pos_byte_beg = record_id_size + Channel.byteOffset
+                    pos_byte_end = pos_byte_beg + Channel.nBytes_aligned
+                    (buf[Channel.name][index[Channel.name]], ) = \
+                        Channel.c_format_structure(info).\
+                            unpack(parent_block['data'][position + pos_byte_beg:position + pos_byte_end])
+            index[record_id] += 1
             position += record[record_id]['record'].CGrecordLength
         else:  # VLSD CG
             position += record_id_size
@@ -192,8 +197,10 @@ def _read_unsorted(record, info, parent_block, record_id_size):
             buf[record[record_id]['record'].VLSD_CG[record_id]['channelName']].append(temp)
             position += VLSDLen
     # convert list to array
-    for chan in buf:
-        buf[chan] = array(buf[chan])
+    for record_id in record:
+        if record[record_id]['record'].Flags & 0b1:  # converts list into array when VLSD
+            channel_name = record[record_id]['record'].VLSD_CG[record_id]['channelName']
+            buf[channel_name] = array(buf[channel_name])
     return buf
 
 
