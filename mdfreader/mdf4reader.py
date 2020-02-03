@@ -175,7 +175,7 @@ def _read_unsorted(record, info, parent_block, record_id_size):
                 if not Channel.VLSD_CG_Flag:
                     pos_byte_beg = record_id_size + Channel.byteOffset
                     pos_byte_end = pos_byte_beg + Channel.nBytes_aligned
-                    (buf[Channel.name][index[Channel.name]], ) = \
+                    (buf[Channel.name][index[record_id]], ) = \
                         Channel.c_format_structure(info).\
                             unpack(parent_block['data'][position + pos_byte_beg:position + pos_byte_end])
             index[record_id] += 1
