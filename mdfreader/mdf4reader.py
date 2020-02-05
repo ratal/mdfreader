@@ -156,36 +156,55 @@ def _read_unsorted(record, info, parent_block, record_id_size):
             return unsorted_data_read4(record, info, parent_block['data'], record_id_size, data_block_length)
         except Exception as e:
             warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
+    # initialise data structure
+    # key is channel name
     buf = {}
+    VLSD = {}
+    pos_byte_beg = {}
+    pos_byte_end = {}
+    c_format = {}
+    # key is record id
     index = {}
+    CGrecordLength = {}
+    VLSD_flag = {}
+    VLSD_CG_name = {}
+    VLSD_CG_signal_data_type = {}
+    channel_name_set = {}
+    for record_id in record:
+        if record[record_id]['record'].Flags & 0b1:
+            VLSD_flag[record_id] = True
+            VLSD[record[record_id]['record'].VLSD_CG[record_id]['channelName']] = []
+            VLSD_CG_name[record_id] = record[record_id]['record'].VLSD_CG[record_id]['channelName']
+            VLSD_CG_signal_data_type[record_id] = record[record_id]['record'].VLSD_CG[record_id]['channel'].signal_data_type(info)
+        else:
+            VLSD_flag[record_id] = False
+            for Channel in record[record_id]['record'].values():
+                #if not Channel.VLSD_CG_Flag:
+                buf[Channel.name] = empty((record[record_id]['record'].numberOfRecords,), dtype=Channel.data_format(info))
+                c_format[Channel.name] = Channel.c_format_structure(info)
+                pos_byte_beg[Channel.name] = record_id_size + Channel.byteOffset
+                pos_byte_end[Channel.name] = pos_byte_beg[Channel.name] + Channel.nBytes_aligned
+            index[record_id] = 0
+            CGrecordLength[record_id] = record[record_id]['record'].CGrecordLength
+            channel_name_set[record_id] = record[record_id]['record'].channelNames
     position = 0
     record_id_c_format = record[list(record.keys())[0]]['record'].recordIDCFormat
-    # initialise data structure
-    for record_id in record:
-        for channel in record[record_id]['record'].values():
-            buf[channel.name] = empty((record[record_id]['record'].numberOfRecords, ), dtype=channel.data_format(info))
-        index[record_id] = 0
-        if record[record_id]['record'].Flags & 0b1:
-            buf[record[record_id]['record'].VLSD_CG[record_id]['channelName']] = []
     # read data
     while position < data_block_length:
         (record_id,) = record_id_c_format.unpack(parent_block['data'][position:position + record_id_size])
-        if not record[record_id]['record'].Flags & 0b1:  # not VLSD CG
-            for Channel in record[record_id]['record'].values():  # list of channel classes from channelSet
-                if not Channel.VLSD_CG_Flag:
-                    pos_byte_beg = record_id_size + Channel.byteOffset
-                    pos_byte_end = pos_byte_beg + Channel.nBytes_aligned
-                    (buf[Channel.name][index[record_id]], ) = \
-                        Channel.c_format_structure(info).\
-                            unpack(parent_block['data'][position + pos_byte_beg:position + pos_byte_end])
+        if not VLSD_flag[record_id]:  # not VLSD CG
+            for channel_name in channel_name_set[record_id]:  # list of channel classes from channelSet
+                (buf[channel_name][index[record_id]], ) = \
+                    c_format[channel_name].\
+                        unpack(parent_block['data'][position + pos_byte_beg[channel_name]:position + pos_byte_end[channel_name]])
             index[record_id] += 1
-            position += record[record_id]['record'].CGrecordLength
+            position += CGrecordLength[record_id]
         else:  # VLSD CG
             position += record_id_size
             (VLSDLen,) = _VLSDStruct.unpack(parent_block['data'][position:position + 4])  # VLSD length
             position += 4
             temp = parent_block['data'][position:position + VLSDLen - 1]
-            signal_data_type = record[record_id]['record'].VLSD_CG[record_id]['channel'].signal_data_type(info)
+            signal_data_type = VLSD_CG_signal_data_type[record_id]
             if signal_data_type == 6:
                 temp = temp.decode('ISO8859')
             elif signal_data_type == 7:
@@ -194,13 +213,13 @@ def _read_unsorted(record, info, parent_block, record_id_size):
                 temp = temp.decode('<utf-16')
             elif signal_data_type == 9:
                 temp = temp.decode('>utf-16')
-            buf[record[record_id]['record'].VLSD_CG[record_id]['channelName']].append(temp)
+            VLSD[VLSD_CG_name[record_id]].append(temp)
             position += VLSDLen
-    # convert list to array
-    for record_id in record:
-        if record[record_id]['record'].Flags & 0b1:  # converts list into array when VLSD
-            channel_name = record[record_id]['record'].VLSD_CG[record_id]['channelName']
-            buf[channel_name] = array(buf[channel_name])
+    # convert list to array for VLSD only
+    if VLSD:
+        for channel_name in VLSD:
+            VLSD[channel_name] = array(VLSD[channel_name])
+        buf.update(VLSD)
     return buf
 
 

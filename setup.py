@@ -1,8 +1,10 @@
+# distutils: language=c++
 from setuptools import setup, find_packages
 from codecs import open  # To use a consistent encoding
 from os import path
 from distutils.extension import Extension
 from warnings import warn
+# cython: language_level=3, boundscheck=False
 
 try:  # numpy and cython installed
     from Cython.Build import cythonize
