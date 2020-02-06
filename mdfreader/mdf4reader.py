@@ -432,7 +432,7 @@ class Data(dict):
             while temps['next']:  # reads pointers to all data blocks (DT, RD, SD, DZ)
                 temp = defaultdict()
                 temp.update(_load_header(self.fid, temps['next']))
-                temps['next'] = structunpack('<Q', self.fid.read(8))[0]
+                (temps['next'], ) = structunpack('<Q', self.fid.read(8))
                 temps['list_data'][index] = \
                     structunpack('<{}Q'.
                                  format(temp['link_count'] - 1),
@@ -440,7 +440,7 @@ class Data(dict):
                 index += 1
             if temps['count']:
                 # read and concatenate raw blocks
-                if vlsd is not None:  # need to load all blocks as variable length, cannot process block by block
+                if vlsd is not None or not sorted_flag:  # need to load all blocks as variable length, cannot process block by block
                     data_block = defaultdict()
                     data_block['data'] = bytearray()
                     data_block_length = 0
@@ -1359,7 +1359,12 @@ class Mdf4(MdfSkeleton):
                      len(channel_set & info['ChannelNamesByDG'][dataGroup]) > 0):  # there is data block and channel in
                 if minimal > 1 and not self._noDataLoading:  # load CG, CN and CC block info
                     info.read_cg_blocks(info.fid, dataGroup, channel_set, minimal=minimal)
-                if info['CG'][dataGroup][0]['cg_cycle_count']:  # data exists
+                data_existing_in_data_group =False
+                for dg in info['CG'][dataGroup]:
+                    if info['CG'][dataGroup][dg]['cg_cycle_count']:
+                        data_existing_in_data_group = True  # data existing
+                        break
+                if data_existing_in_data_group:
                     # Pointer to data block
                     pointer_to_data = info['DG'][dataGroup]['dg_data']
 
