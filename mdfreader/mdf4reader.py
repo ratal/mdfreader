@@ -196,7 +196,8 @@ def _read_unsorted(record, info, parent_block, record_id_size):
             for channel_name in channel_name_set[record_id]:  # list of channel classes from channelSet
                 (buf[channel_name][index[record_id]], ) = \
                     c_format[channel_name].\
-                        unpack(parent_block['data'][position + pos_byte_beg[channel_name]:position + pos_byte_end[channel_name]])
+                        unpack(parent_block['data'][position + pos_byte_beg[channel_name]:
+                                                    position + pos_byte_end[channel_name]])
             index[record_id] += 1
             position += CGrecordLength[record_id]
         else:  # VLSD CG
@@ -440,7 +441,8 @@ class Data(dict):
                 index += 1
             if temps['count']:
                 # read and concatenate raw blocks
-                if vlsd is not None or not sorted_flag:  # need to load all blocks as variable length, cannot process block by block
+                if vlsd is not None or not sorted_flag:
+                    # need to load all blocks as variable length, cannot process block by block
                     data_block = defaultdict()
                     data_block['data'] = bytearray()
                     data_block_length = 0
@@ -448,7 +450,7 @@ class Data(dict):
                         for pointer in temps['list_data'][DL]:
                             # read fist data blocks linked by DLBlock to identify data block type
                             data_block.update(_load_header(self.fid, pointer))
-                            if data_block['id'] in ('##SD', b'##SD'):
+                            if data_block['id'] in (b'##SD', b'##DT', '##SD', '##DT'):
                                 data_block['data'].extend(self.fid.read(data_block['length'] - 24))
                                 data_block_length += data_block['length'] - 24
                             elif data_block['id'] in (b'##DZ', '##DZ'):
@@ -716,17 +718,17 @@ class Record(dict):
                 self.CGrecordLength += 1
             elif self.recordIDsize == 2:
                 self.numpyDataRecordFormat.append('uint16')
-                self.recordIDCFormat = 'H'
+                self.recordIDCFormat = Struct('H')
                 self.recordLength += 2
                 self.CGrecordLength += 2
             elif self.recordIDsize == 3:
                 self.numpyDataRecordFormat.append('uint32')
-                self.recordIDCFormat = 'I'
+                self.recordIDCFormat = Struct('I')
                 self.recordLength += 3
                 self.CGrecordLength += 3
             elif self.recordIDsize == 4:
                 self.numpyDataRecordFormat.append('uint64')
-                self.recordIDCFormat = 'L'
+                self.recordIDCFormat = Struct('L')
                 self.recordLength += 4
                 self.CGrecordLength += 4
         self.recordID = info['CG'][self.dataGroup][self.channelGroup]['cg_record_id']
