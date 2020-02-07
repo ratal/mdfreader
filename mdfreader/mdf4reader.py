@@ -153,9 +153,9 @@ def _read_unsorted(record, info, parent_block, record_id_size):
     data_block_length = parent_block['length'] - 24
     if dataRead_available:
         try:
-            return unsorted_data_read4(record, info, parent_block['data'], record_id_size, data_block_length)
+            return unsorted_data_read4(record, info, bytes(parent_block['data']), record_id_size, data_block_length)
         except Exception as e:
-            warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
+            warn('data_read cython module - unsorted_data_read4 function crashed, using python based parsing backup')
     # initialise data structure
     # key is channel name
     buf = {}
