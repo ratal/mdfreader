@@ -227,7 +227,7 @@ class MdfInfo(dict):
             return _generate_dummy_mdf4(self, channel_list)
 
 
-class Mdf(Mdf3, Mdf4):
+class Mdf(Mdf4, Mdf3):
     """ Mdf class
 
     Attributes

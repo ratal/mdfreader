@@ -834,6 +834,7 @@ def unsorted_data_read4(record, info, bytes tmp,
     cdef dict pos_byte_end = {}
     cdef dict c_format_structure = {}
     cdef dict byte_length = {}
+    cdef dict numpy_format = {}
     # key is record id
     cdef dict index = {}
     cdef dict CGrecordLength = {}
@@ -852,9 +853,8 @@ def unsorted_data_read4(record, info, bytes tmp,
             for Channel in record[record_id]['record'].values():
                 #if not Channel.VLSD_CG_Flag:
                 buf[Channel.name] = np.empty((record[record_id]['record'].numberOfRecords,),
-                                             dtype=Channel.data_format(info), order ='C')
-                c_format_structure[Channel.name] = Channel.c_format_structure(info)
-                #byte_length[Channel.name] = Channel.nBytes_aligned
+                                             dtype='V{}'.format(Channel.nBytes_aligned), order ='C')
+                numpy_format[Channel.name] = Channel.data_format(info)
                 pos_byte_beg[Channel.name] = record_id_size + Channel.byteOffset
                 pos_byte_end[Channel.name] = pos_byte_beg[Channel.name] + Channel.nBytes_aligned
             index[record_id] = 0
@@ -864,31 +864,35 @@ def unsorted_data_read4(record, info, bytes tmp,
     if record_id_size == 1:
         while position < data_block_length:
             memcpy(&record_id_char, &bit_stream[position], 1)
-            position, buf, VLSD, index = unsorted_read4(bit_stream, record_id_char, 1,
+            position, buf, VLSD, index = unsorted_read4(bit_stream, tmp, record_id_char, 1,
                                                         position, buf, VLSD, pos_byte_beg, pos_byte_end,
                                                         c_format_structure, index, CGrecordLength,
                                                         VLSD_flag, VLSD_CG_name, VLSD_CG_signal_data_type, channel_name_set)
     elif record_id_size == 2:
         while position < data_block_length:
             memcpy(&record_id_short, &bit_stream[position], 2)
-            position, buf, VLSD, index = unsorted_read4(bit_stream, record_id_short, 2,
+            position, buf, VLSD, index = unsorted_read4(bit_stream, tmp, record_id_short, 2,
                                                         position, buf, VLSD, pos_byte_beg, pos_byte_end,
                                                         c_format_structure, index, CGrecordLength,
                                                         VLSD_flag, VLSD_CG_name, VLSD_CG_signal_data_type, channel_name_set)
     elif record_id_size == 3:
         while position < data_block_length:
             memcpy(&record_id_long, &bit_stream[position], 4)
-            position, buf, VLSD, index = unsorted_read4(bit_stream, record_id_long, 4,
+            position, buf, VLSD, index = unsorted_read4(bit_stream, tmp, record_id_long, 4,
                                                         position, buf, VLSD, pos_byte_beg, pos_byte_end,
                                                         c_format_structure, index, CGrecordLength,
                                                         VLSD_flag, VLSD_CG_name, VLSD_CG_signal_data_type, channel_name_set)
     elif record_id_size == 4:
         while position < data_block_length:
             memcpy(&record_id_long_long, &bit_stream[position], 8)
-            position, buf, VLSD, index = unsorted_read4(bit_stream, record_id_long_long, 8,
+            position, buf, VLSD, index = unsorted_read4(bit_stream, tmp, record_id_long_long, 8,
                                                         position, buf, VLSD, pos_byte_beg, pos_byte_end,
                                                         c_format_structure, index, CGrecordLength,
                                                         VLSD_flag, VLSD_CG_name, VLSD_CG_signal_data_type, channel_name_set)
+    # changing from bytes type to desired type
+    if buf:
+        for name in buf.keys():
+            buf[name] = buf[name].view(dtype=numpy_format[name])
     # convert list to array for VLSD only
     if VLSD:
         for channel_name in VLSD:
@@ -896,7 +900,7 @@ def unsorted_data_read4(record, info, bytes tmp,
         buf.update(VLSD)
     return buf
 
-cdef inline unsorted_read4(const char* bit_stream, record_id,
+cdef inline unsorted_read4(const char* bit_stream, bytes tmp, record_id,
                            unsigned short record_id_size, unsigned long long position,
                            buf, VLSD, pos_byte_beg, pos_byte_end, c_format_structure,
                            index, CGrecordLength, VLSD_flag, VLSD_CG_name, VLSD_CG_signal_data_type,
@@ -904,9 +908,8 @@ cdef inline unsorted_read4(const char* bit_stream, record_id,
     cdef unsigned long VLSDLen = 0
     if not VLSD_flag[record_id]:  # not VLSD CG)
         for channel_name in channel_name_set[record_id]:  # list of channel classes
-            (buf[channel_name][index[record_id]], ) = \
-                c_format_structure[channel_name].\
-                    unpack(bit_stream[position + pos_byte_beg[channel_name]:position + pos_byte_end[channel_name]])
+            buf[channel_name][index[record_id]] = \
+                   tmp[position + pos_byte_beg[channel_name]:position + pos_byte_end[channel_name]]
         index[record_id] += 1
         position += CGrecordLength[record_id]
     else:  # VLSD CG

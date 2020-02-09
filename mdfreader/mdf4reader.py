@@ -162,7 +162,7 @@ def _read_unsorted(record, info, parent_block, record_id_size):
     VLSD = {}
     pos_byte_beg = {}
     pos_byte_end = {}
-    c_format = {}
+    numpy_format = {}
     # key is record id
     index = {}
     CGrecordLength = {}
@@ -180,8 +180,9 @@ def _read_unsorted(record, info, parent_block, record_id_size):
             VLSD_flag[record_id] = False
             for Channel in record[record_id]['record'].values():
                 #if not Channel.VLSD_CG_Flag:
-                buf[Channel.name] = empty((record[record_id]['record'].numberOfRecords,), dtype=Channel.data_format(info))
-                c_format[Channel.name] = Channel.c_format_structure(info)
+                buf[Channel.name] = empty((record[record_id]['record'].numberOfRecords,),
+                                          dtype='V{}'.format(Channel.nBytes_aligned))
+                numpy_format[Channel.name] = Channel.data_format(info)
                 pos_byte_beg[Channel.name] = record_id_size + Channel.byteOffset
                 pos_byte_end[Channel.name] = pos_byte_beg[Channel.name] + Channel.nBytes_aligned
             index[record_id] = 0
@@ -194,10 +195,8 @@ def _read_unsorted(record, info, parent_block, record_id_size):
         (record_id,) = record_id_c_format.unpack(parent_block['data'][position:position + record_id_size])
         if not VLSD_flag[record_id]:  # not VLSD CG
             for channel_name in channel_name_set[record_id]:  # list of channel classes from channelSet
-                (buf[channel_name][index[record_id]], ) = \
-                    c_format[channel_name].\
-                        unpack(parent_block['data'][position + pos_byte_beg[channel_name]:
-                                                    position + pos_byte_end[channel_name]])
+                buf[channel_name][index[record_id]] = \
+                    parent_block['data'][position + pos_byte_beg[channel_name]:position + pos_byte_end[channel_name]]
             index[record_id] += 1
             position += CGrecordLength[record_id]
         else:  # VLSD CG
@@ -216,6 +215,10 @@ def _read_unsorted(record, info, parent_block, record_id_size):
                 temp = temp.decode('>utf-16')
             VLSD[VLSD_CG_name[record_id]].append(temp)
             position += VLSDLen
+    # changing from bytes type to desired type
+    if buf:
+        for name in buf.keys():
+            buf[name] = buf[name].view(dtype=numpy_format[name])
     # convert list to array for VLSD only
     if VLSD:
         for channel_name in VLSD:

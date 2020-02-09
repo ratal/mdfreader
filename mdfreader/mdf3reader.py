@@ -10,7 +10,7 @@ mdf3reader
 """
 from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
-from numpy import right_shift, bitwise_and, interp
+from numpy import right_shift, bitwise_and, interp, empty
 from numpy import max as npmax, min as npmin
 from numpy import asarray, recarray, array, searchsorted, vectorize
 from numpy import issubdtype, number as numpy_number
@@ -700,7 +700,7 @@ class DATA(dict):
             self[record_id]['data'] = \
                 self.load_sorted(self[record_id]['record'], name_list=channel_set)
         elif len(self) >= 2:  # unsorted DataGroup
-            data = self.load_unsorted(name_list=channel_set)
+            data = self.load_unsorted(name_set=channel_set)
             for record_id in list(self.keys()):
                 self[record_id]['data'] = {}
                 for channel in self[record_id]['record']:
@@ -724,48 +724,56 @@ class DATA(dict):
         """
         return record.read_sorted_record(self.fid, self.pointerToData, name_list)
 
-    def load_unsorted(self, name_list=None):
+    def load_unsorted(self, name_set=None):
         """Reads unsorted data block from record definition
 
         Parameters
         ----------------
-        name_list : set of str, optional
-            list of channel names
+        name_set : set of str, optional
+            set of channel names
 
         Returns
         -----------
         numpy recarray of data
         """
         self.fid.seek(self.pointerToData)
-        stream = self.fid.read(self.BlockLength)
         # reads only the channels using offset functions, channel by channel.
-        buf = defaultdict(list)
-        position = 0
+        buf = {}
+        record_position = self.pointerToData
+        index = {}
+        numpy_format = {}
+        pos_byte_beg = {}
+        nBytes = {}
+        channel_name_set = {}
         record_id_c_format = Struct('B')
         # initialise data structure
         for record_id in self:
-            for channelName in self[record_id]['record'].dataRecordName:
-                buf[channelName] = []
-            if self[record_id]['record'].hiddenBytes or not self[record_id]['record'].byte_aligned:
-                for ind, chan in enumerate(self[record_id]['record']):
-                    # will already extract bits, no need of masking later
-                    self[record_id]['record'][ind].bit_masking_needed = False
+            index[record_id] = 0
+            for Channel in self[record_id]['record']:
+                buf[Channel.name] = empty((self[record_id]['record'].numberOfRecords,),
+                                          dtype='V{}'.format(Channel.nBytes_aligned))
+                numpy_format[Channel.name] = Channel.dataFormat
+                pos_byte_beg[Channel.name] = Channel.posByteBeg
+                nBytes[Channel.name] = Channel.nBytes_aligned
+            channel_name_set[record_id] = self[record_id]['record'].channelNames
+            if name_set is not None:
+                channel_name_set[record_id] &= name_set
+                if channel_name_set[record_id]:  # make sure there is master
+                    channel_name_set[record_id].add(self[record_id]['record'].master['name'])
         # read data
-        while position < len(stream):
-            record_id = record_id_c_format.unpack(stream[position:position + 1])[0]
-            if not self[record_id]['record'].hiddenBytes and self[record_id]['record'].byte_aligned:
-                temp = self[record_id]['record'].read_record_buf(
-                    stream[position:position + self[record_id]['record'].CGrecordLength + 1], name_list)
-            else:  # do not read bytes but bits in record
-                temp = self[record_id]['record'].read_record_bits(
-                    stream[position:position + self[record_id]['record'].CGrecordLength + 1], name_list)
+        while record_position < self.BlockLength + self.pointerToData:
+            self.fid.seek(record_position)
+            (record_id,) = record_id_c_format.unpack(self.fid.read(1))
+            for channel_name in channel_name_set[record_id]:  # list of channel classes from channelSet
+                self.fid.seek(record_position + pos_byte_beg[channel_name])
+                buf[channel_name][index[record_id]] = self.fid.read(nBytes[channel_name])
             # recordId is only unit8
-            position += self[record_id]['record'].CGrecordLength + 1
-            for channelName in temp:
-                buf[channelName].append(temp[channelName])  # to remove append
-        # convert list to array
-        for chan in buf:
-            buf[chan] = array(buf[chan])
+            record_position += self[record_id]['record'].CGrecordLength + 1
+            index[record_id] += 1
+        # changing from bytes type to desired type
+        if buf:
+            for name in buf.keys():
+                buf[name] = buf[name].view(dtype=numpy_format[name])
         return buf
 
 
