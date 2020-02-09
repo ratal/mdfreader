@@ -701,12 +701,13 @@ class DATA(dict):
                 self.load_sorted(self[record_id]['record'], name_list=channel_set)
         elif len(self) >= 2:  # unsorted DataGroup
             data = self.load_unsorted(name_set=channel_set)
-            for record_id in list(self.keys()):
+            for record_id in self:
                 self[record_id]['data'] = {}
                 for channel in self[record_id]['record']:
-                    self[record_id]['data'][channel.name] = \
-                        data[self[record_id]['record'].
-                             recordToChannelMatching[channel.name]]
+                    if self[record_id]['record'].recordToChannelMatching[channel.name] in data:
+                        self[record_id]['data'][channel.name] = \
+                            data[self[record_id]['record'].
+                                 recordToChannelMatching[channel.name]]
 
     def load_sorted(self, record, name_list=None):  # reads sorted data
         """Reads sorted data block from record definition
@@ -749,17 +750,21 @@ class DATA(dict):
         # initialise data structure
         for record_id in self:
             index[record_id] = 0
-            for Channel in self[record_id]['record']:
-                buf[Channel.name] = empty((self[record_id]['record'].numberOfRecords,),
-                                          dtype='V{}'.format(Channel.nBytes_aligned))
-                numpy_format[Channel.name] = Channel.dataFormat
-                pos_byte_beg[Channel.name] = Channel.posByteBeg
-                nBytes[Channel.name] = Channel.nBytes_aligned
             channel_name_set[record_id] = self[record_id]['record'].channelNames
             if name_set is not None:
                 channel_name_set[record_id] &= name_set
                 if channel_name_set[record_id]:  # make sure there is master
                     channel_name_set[record_id].add(self[record_id]['record'].master['name'])
+                for channel_name in channel_name_set[record_id]:
+                    channel_name_set[record_id].add(self[record_id]['record'].recordToChannelMatching[channel_name])
+            for Channel in self[record_id]['record']:
+                if Channel.name in channel_name_set[record_id]:
+                    buf[Channel.name] = empty((self[record_id]['record'].numberOfRecords,),
+                                              dtype='V{}'.format(Channel.nBytes_aligned))
+                    numpy_format[Channel.name] = Channel.dataFormat
+                    pos_byte_beg[Channel.name] = Channel.posByteBeg
+                    nBytes[Channel.name] = Channel.nBytes_aligned
+
         # read data
         while record_position < self.BlockLength + self.pointerToData:
             self.fid.seek(record_position)
@@ -927,6 +932,12 @@ class Mdf3(MdfSkeleton):
                         self.info['DGBlock'][dataGroup]['dataClass'] = buf
                 else:
                     buf = self.info['DGBlock'][dataGroup]['dataClass']
+
+                if channel_set is not None:  # making sure there are also masters
+                    for recordID in buf:
+                        if buf[recordID]['record'].channelNames & channel_set and\
+                                buf[recordID]['record'].master['name'] not in channel_set:
+                            channel_set.add(buf[recordID]['record'].master['name'])
 
                 buf.read(channel_set, self.fileName)  # reads datablock potentially containing several channel groups
 
