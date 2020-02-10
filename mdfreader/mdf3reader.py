@@ -332,9 +332,7 @@ class Record(list):
         self.channelGroup = channel_group
         self.numpyDataRecordFormat = []
         self.dataRecordName = []
-        self.master = {}
-        self.master['name'] = 'master_{}'.format(data_group)
-        self.master['number'] = None
+        self.master = {'name': 'master_{}'.format(data_group), 'number': None}
         self.recordToChannelMatching = {}
         self.channelNames = set()
         self.hiddenBytes = False
@@ -449,7 +447,7 @@ class Record(list):
 
         Parameters
         ----------------
-        fid : float
+        fid :
             file identifier
         pointer
             position in file of data block beginning
@@ -481,8 +479,8 @@ class Record(list):
         previous_index = 0
         if channel_set is None and not self.hiddenBytes and self.byte_aligned:
             # reads all, quickest but memory consuming
-            buf = recarray(self.numberOfRecords, dtype={'names': self.dataRecordName,
-                                                        'formats': self.numpyDataRecordFormat})  # initialise array
+            buf = recarray((self.numberOfRecords,), dtype={'names': self.dataRecordName,
+                                                           'formats': self.numpyDataRecordFormat})  # initialise array
             simplefilter('ignore', FutureWarning)
             for n_record_chunk, chunk_size in chunks:
                 buf[previous_index: previous_index + n_record_chunk] = \
@@ -509,8 +507,8 @@ class Record(list):
                         rec_chan.append(channel)
                         data_record_name.append(channel.name)
                         numpy_data_record_format.append(channel.nativedataFormat)
-                rec = recarray(self.numberOfRecords, dtype={'names': data_record_name,
-                                                            'formats': numpy_data_record_format})
+                rec = recarray((self.numberOfRecords,), dtype={'names': data_record_name,
+                                                               'formats': numpy_data_record_format})
                 if dataRead_available:
                     try:  # use rather cython compiled code for performance
                         # converts data type from mdf 3.x to 4.x
@@ -543,9 +541,9 @@ class Record(list):
                 for r in range(self.numberOfRecords):  # for each record,
                     buf = fid.read(record_length)
                     for channel in rec_chan:
-                        rec[channel.name][r] = \
+                        (rec[channel.name][r],) = \
                             channel.CFormat.unpack(buf[channel.posByteBeg:
-                                                       channel.posByteEnd])[0]
+                                                       channel.posByteEnd])
                 return rec.view(recarray)
 
     def read_record_buf(self, buf, channel_set=None):
