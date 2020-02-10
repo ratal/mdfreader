@@ -688,7 +688,8 @@ class Mdf(Mdf4, Mdf3):
         old_master_data = self.get_channel_data(master_channel)
         if new_master_data is None:
             new_master_data = arange(old_master_data[0], old_master_data[-1], sampling)
-        for Name in self.masterChannelList[master_channel]:
+        for Name in list(self.masterChannelList[master_channel]):
+            # forces list() because masterChannelList is dynamic, channels can be removed
             if Name == master_channel:  # master channel
                 self.set_channel_data(Name, new_master_data)
             else:
