@@ -510,6 +510,7 @@ class Data(dict):
             temp.read_dz(self.fid)
             temps.update(temp)
             temps['data'] = self.fid.read(temps['dz_data_length'])
+            temps['length'] = temps['dz_org_data_length'] + 24
             temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,
                                         sorted_flag=sorted_flag, vlsd=vlsd)
         else:
