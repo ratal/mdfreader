@@ -954,7 +954,7 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block,
     cdef const char* bit_stream = PyBytes_AsString(sd_block)
     cdef unsigned long max_len = 0
     cdef unsigned long vlsd_len = 0
-    cdef unsigned long long *VLSDLen = <unsigned long long *> PyMem_Malloc(n_records * sizeof(unsigned long long))
+    cdef unsigned long *VLSDLen = <unsigned long *> PyMem_Malloc(n_records * sizeof(unsigned long))
     cdef unsigned long long *pointer = <unsigned long long *> PyMem_Malloc(n_records * sizeof(unsigned long long))
     cdef unsigned long long rec = 0
     if not VLSDLen or not pointer:
@@ -995,7 +995,7 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block,
         PyMem_Free(pointer)
         PyMem_Free(VLSDLen)
 
-cdef inline equalize_byte_length(const char* bit_stream, unsigned long long *pointer, unsigned long long *VLSDLen,
+cdef inline equalize_byte_length(const char* bit_stream, unsigned long long *pointer, unsigned long *VLSDLen,
                                  unsigned long max_len, unsigned long long n_records):
     cdef np.ndarray output = np.zeros((n_records, ), dtype='V{}'.format(max_len))
     cdef unsigned long rec = 0
@@ -1003,7 +1003,7 @@ cdef inline equalize_byte_length(const char* bit_stream, unsigned long long *poi
         output[rec] = bytearray(bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]]).rjust(max_len,  b'\x00')
     return output
 
-cdef inline equalize_string_length(const char* bit_stream, unsigned long long *pointer, unsigned long long *VLSDLen,
+cdef inline equalize_string_length(const char* bit_stream, unsigned long long *pointer, unsigned long *VLSDLen,
                                    unsigned long max_len, unsigned long long n_records, channel_format):
     cdef np.ndarray output = np.zeros((n_records, ), dtype='U{}'.format(max_len))
     cdef unsigned long rec = 0
