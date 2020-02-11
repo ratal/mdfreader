@@ -777,7 +777,7 @@ class Mdf(Mdf4, Mdf3):
                         self.set_channel_data(channel, data[start_index: end_index])
 
     def export_to_csv(self, file_name=None, sampling=None):
-        """Exports mdf data into CSV file
+        """ Exports mdf data into CSV file
 
         Parameters
         ----------------
@@ -793,6 +793,7 @@ class Mdf(Mdf4, Mdf3):
         data not sharing same master channel -> not applicable for mdf4 in case there are master channels
          with various types
         Warning: this can be slow for big data, CSV is text format after all
+
         """
         if self:  # data in mdf
             import csv
