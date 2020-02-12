@@ -5,20 +5,12 @@
 
 Created on Sun Oct 10 12:57:28 2010
 
-
-Attributes
---------------
-PythonVersion : float
-    Python version currently running, needed for compatibility of both
-    python 2.6+ and 3.2+
-
-
 mdf3reader
 --------------------------
 """
 from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
-from numpy import right_shift, bitwise_and, interp
+from numpy import right_shift, bitwise_and, interp, empty
 from numpy import max as npmax, min as npmin
 from numpy import asarray, recarray, array, searchsorted, vectorize
 from numpy import issubdtype, number as numpy_number
@@ -27,8 +19,8 @@ from collections import defaultdict
 from math import log, exp
 from time import strftime, time, gmtime
 from struct import pack, Struct
-from io import open  # for python 3 and 2 consistency
-from sys import platform, exc_info, version_info
+from io import open
+from sys import platform, exc_info
 from warnings import warn
 import os
 from warnings import simplefilter
@@ -38,10 +30,12 @@ from .mdfinfo3 import Info3
 from .channel import Channel3
 if os.name == 'posix':
     from os import getlogin
-
-
-PythonVersion = version_info
-PythonVersion = PythonVersion[0]
+try:
+    from dataRead import sorted_data_read
+    dataRead_available = True
+except ImportError:
+    warn('dataRead cannot be imported, compile it with Cython', ImportWarning)
+    dataRead_available = False
 
 chunk_size_reading = 100000000  # reads by chunk of 100Mb, can be tuned for best performance
 
@@ -212,7 +206,7 @@ def _formula_conversion(data, conversion):  # 10 Text Formula
         return expr(data)
     except:
         warn('Failed to convert formulae ' + conversion['textFormula'] +
-             ' Sympy is correctly installed ?')
+             ' Sympy is correctly installed ?\n')
 
 
 def _text_table_conversion(data, conversion):  # 11 Text table
@@ -338,9 +332,7 @@ class Record(list):
         self.channelGroup = channel_group
         self.numpyDataRecordFormat = []
         self.dataRecordName = []
-        self.master = {}
-        self.master['name'] = 'master_{}'.format(data_group)
-        self.master['number'] = None
+        self.master = {'name': 'master_{}'.format(data_group), 'number': None}
         self.recordToChannelMatching = {}
         self.channelNames = set()
         self.hiddenBytes = False
@@ -455,7 +447,7 @@ class Record(list):
 
         Parameters
         ----------------
-        fid : float
+        fid :
             file identifier
         pointer
             position in file of data block beginning
@@ -487,8 +479,8 @@ class Record(list):
         previous_index = 0
         if channel_set is None and not self.hiddenBytes and self.byte_aligned:
             # reads all, quickest but memory consuming
-            buf = recarray(self.numberOfRecords, dtype={'names': self.dataRecordName,
-                                                        'formats': self.numpyDataRecordFormat})  # initialise array
+            buf = recarray((self.numberOfRecords,), dtype={'names': self.dataRecordName,
+                                                           'formats': self.numpyDataRecordFormat})  # initialise array
             simplefilter('ignore', FutureWarning)
             for n_record_chunk, chunk_size in chunks:
                 buf[previous_index: previous_index + n_record_chunk] = \
@@ -515,43 +507,44 @@ class Record(list):
                         rec_chan.append(channel)
                         data_record_name.append(channel.name)
                         numpy_data_record_format.append(channel.nativedataFormat)
-                rec = recarray(self.numberOfRecords, dtype={'names': data_record_name,
-                                                            'formats': numpy_data_record_format})
-                try:  # use rather cython compiled code for performance
-                    from dataRead import data_read
-                    # converts data type from mdf 3.x to 4.x
-                    convertDataType3to4 = {0: 0, 1: 2, 2: 4, 3: 4,
-                                           7: 6, 8: 10,
-                                           9: 1, 10: 3, 11: 5, 12: 5,
-                                           13: 0, 14: 2, 15: 4, 16: 4}
-                    for n_record_chunk, chunk_size in chunks:
-                        bit_stream = fid.read(chunk_size)
-                        for id, chan in enumerate(rec_chan):
-                            rec[chan.name][previous_index: previous_index + n_record_chunk] = \
-                                data_read(bytes(bit_stream),
-                                          chan.bitCount,
-                                          convertDataType3to4[chan.signalDataType],
-                                          chan.nativedataFormat,
-                                          n_record_chunk,
-                                          self.CGrecordLength,
-                                          chan.bitOffset,
-                                          chan.posByteBeg,
-                                          chan.nBytes_not_aligned, 0)
-                            # masking already considered in dataRead
-                            self[rec_chan[id].channelNumber].bit_masking_needed = False
-                        previous_index += n_record_chunk
-                    return rec
-                except:
-                    warn('Unexpected error: {}'.format(exc_info()))
-                    warn('dataRead crashed, back to python data reading')
-                    record_length = self.recordIDnumber + self.CGrecordLength
-                    for r in range(self.numberOfRecords):  # for each record,
-                        buf = fid.read(record_length)
-                        for channel in rec_chan:
-                            rec[channel.name][r] = \
-                                channel.CFormat.unpack(buf[channel.posByteBeg:
-                                                           channel.posByteEnd])[0]
-                    return rec.view(recarray)
+                rec = recarray((self.numberOfRecords,), dtype={'names': data_record_name,
+                                                               'formats': numpy_data_record_format})
+                if dataRead_available:
+                    try:  # use rather cython compiled code for performance
+                        # converts data type from mdf 3.x to 4.x
+                        convertDataType3to4 = {0: 0, 1: 2, 2: 4, 3: 4,
+                                               7: 6, 8: 10,
+                                               9: 1, 10: 3, 11: 5, 12: 5,
+                                               13: 0, 14: 2, 15: 4, 16: 4}
+                        for n_record_chunk, chunk_size in chunks:
+                            bit_stream = fid.read(chunk_size)
+                            for id, chan in enumerate(rec_chan):
+                                rec[chan.name][previous_index: previous_index + n_record_chunk] = \
+                                    sorted_data_read(bytes(bit_stream),
+                                                     chan.bitCount,
+                                                     convertDataType3to4[chan.signalDataType],
+                                                     chan.nativedataFormat,
+                                                     n_record_chunk,
+                                                     self.CGrecordLength,
+                                                     chan.bitOffset,
+                                                     chan.posByteBeg,
+                                                     chan.nBytes_not_aligned, 0)
+                                # masking already considered in dataRead
+                                self[rec_chan[id].channelNumber].bit_masking_needed = False
+                            previous_index += n_record_chunk
+                        return rec
+                    except:
+                        warn('Unexpected error: {}'.format(exc_info()))
+                        warn('dataRead crashed, back to python data reading')
+
+                record_length = self.recordIDnumber + self.CGrecordLength
+                for r in range(self.numberOfRecords):  # for each record,
+                    buf = fid.read(record_length)
+                    for channel in rec_chan:
+                        (rec[channel.name][r],) = \
+                            channel.CFormat.unpack(buf[channel.posByteBeg:
+                                                       channel.posByteEnd])
+                return rec.view(recarray)
 
     def read_record_buf(self, buf, channel_set=None):
         """ read stream of record bytes
@@ -705,13 +698,14 @@ class DATA(dict):
             self[record_id]['data'] = \
                 self.load_sorted(self[record_id]['record'], name_list=channel_set)
         elif len(self) >= 2:  # unsorted DataGroup
-            data = self.load_unsorted(name_list=channel_set)
-            for record_id in list(self.keys()):
+            data = self.load_unsorted(name_set=channel_set)
+            for record_id in self:
                 self[record_id]['data'] = {}
                 for channel in self[record_id]['record']:
-                    self[record_id]['data'][channel.name] = \
-                        data[self[record_id]['record'].
-                             recordToChannelMatching[channel.name]]
+                    if self[record_id]['record'].recordToChannelMatching[channel.name] in data:
+                        self[record_id]['data'][channel.name] = \
+                            data[self[record_id]['record'].
+                                 recordToChannelMatching[channel.name]]
 
     def load_sorted(self, record, name_list=None):  # reads sorted data
         """Reads sorted data block from record definition
@@ -729,48 +723,60 @@ class DATA(dict):
         """
         return record.read_sorted_record(self.fid, self.pointerToData, name_list)
 
-    def load_unsorted(self, name_list=None):
+    def load_unsorted(self, name_set=None):
         """Reads unsorted data block from record definition
 
         Parameters
         ----------------
-        name_list : set of str, optional
-            list of channel names
+        name_set : set of str, optional
+            set of channel names
 
         Returns
         -----------
         numpy recarray of data
         """
         self.fid.seek(self.pointerToData)
-        stream = self.fid.read(self.BlockLength)
         # reads only the channels using offset functions, channel by channel.
-        buf = defaultdict(list)
-        position = 0
+        buf = {}
+        record_position = self.pointerToData
+        index = {}
+        numpy_format = {}
+        pos_byte_beg = {}
+        nBytes = {}
+        channel_name_set = {}
         record_id_c_format = Struct('B')
         # initialise data structure
         for record_id in self:
-            for channelName in self[record_id]['record'].dataRecordName:
-                buf[channelName] = []
-            if self[record_id]['record'].hiddenBytes or not self[record_id]['record'].byte_aligned:
-                for ind, chan in enumerate(self[record_id]['record']):
-                    # will already extract bits, no need of masking later
-                    self[record_id]['record'][ind].bit_masking_needed = False
+            index[record_id] = 0
+            channel_name_set[record_id] = self[record_id]['record'].channelNames
+            if name_set is not None:
+                channel_name_set[record_id] &= name_set
+                if channel_name_set[record_id]:  # make sure there is master
+                    channel_name_set[record_id].add(self[record_id]['record'].master['name'])
+                for channel_name in channel_name_set[record_id]:
+                    channel_name_set[record_id].add(self[record_id]['record'].recordToChannelMatching[channel_name])
+            for Channel in self[record_id]['record']:
+                if Channel.name in channel_name_set[record_id]:
+                    buf[Channel.name] = empty((self[record_id]['record'].numberOfRecords,),
+                                              dtype='V{}'.format(Channel.nBytes_aligned))
+                    numpy_format[Channel.name] = Channel.dataFormat
+                    pos_byte_beg[Channel.name] = Channel.posByteBeg
+                    nBytes[Channel.name] = Channel.nBytes_aligned
+
         # read data
-        while position < len(stream):
-            record_id = record_id_c_format.unpack(stream[position:position + 1])[0]
-            if not self[record_id]['record'].hiddenBytes and self[record_id]['record'].byte_aligned:
-                temp = self[record_id]['record'].read_record_buf(
-                    stream[position:position + self[record_id]['record'].CGrecordLength + 1], name_list)
-            else:  # do not read bytes but bits in record
-                temp = self[record_id]['record'].read_record_bits(
-                    stream[position:position + self[record_id]['record'].CGrecordLength + 1], name_list)
+        while record_position < self.BlockLength + self.pointerToData:
+            self.fid.seek(record_position)
+            (record_id,) = record_id_c_format.unpack(self.fid.read(1))
+            for channel_name in channel_name_set[record_id]:  # list of channel classes from channelSet
+                self.fid.seek(record_position + pos_byte_beg[channel_name])
+                buf[channel_name][index[record_id]] = self.fid.read(nBytes[channel_name])
             # recordId is only unit8
-            position += self[record_id]['record'].CGrecordLength + 1
-            for channelName in temp:
-                buf[channelName].append(temp[channelName])  # to remove append
-        # convert list to array
-        for chan in buf:
-            buf[chan] = array(buf[chan])
+            record_position += self[record_id]['record'].CGrecordLength + 1
+            index[record_id] += 1
+        # changing from bytes type to desired type
+        if buf:
+            for name in buf.keys():
+                buf[name] = buf[name].view(dtype=numpy_format[name])
         return buf
 
 
@@ -886,7 +892,7 @@ class Mdf3(MdfSkeleton):
         if not self._noDataLoading:
             try:
                 comment = info['HDBlock']['TXBlock']
-            except:
+            except KeyError:
                 comment = ''
             # converts date to be compatible with ISO8601
             day, month, year = info['HDBlock']['Date'].split(':')
@@ -924,6 +930,12 @@ class Mdf3(MdfSkeleton):
                         self.info['DGBlock'][dataGroup]['dataClass'] = buf
                 else:
                     buf = self.info['DGBlock'][dataGroup]['dataClass']
+
+                if channel_set is not None:  # making sure there are also masters
+                    for recordID in buf:
+                        if buf[recordID]['record'].channelNames & channel_set and\
+                                buf[recordID]['record'].master['name'] not in channel_set:
+                            channel_set.add(buf[recordID]['record'].master['name'])
 
                 buf.read(channel_set, self.fileName)  # reads datablock potentially containing several channel groups
 

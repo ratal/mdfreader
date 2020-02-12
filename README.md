@@ -30,13 +30,13 @@ It is also possible to export mdf data into:
 * HDF5 (needs h5py)
 * Excel 95 to 2003 (needs xlwt, extremely slooow, be careful about data size)
 * Excel 2007/2010 (needs openpyxl, can be also slow with big files)
-* Matlab .mat (needs scipy.io)
+* Matlab .mat (needs hdf5storage)
 * MDF file. It allows you to create, convert or modify data, units, description and save it again.
 * Pandas dataframe(s) (only in command line, not in mdfconverter). One dataframe per raster.
 
 Compatibility:
 ==============
-This code is compatible for both python 2.7 and python 3.4+
+This code is compatible for python 3.4+
 Evaluated for Windows and Linux platforms (x86 and AMD64)
 
 Requirements:
@@ -47,7 +47,7 @@ Reading channels defined by a formula will require sympy.
 
 Cython is strongly advised and allows to compile dataRead module for reading quickly exotic data (not byte aligned or containing hidden bytes) or only a list of channels. However, if cython compilation fails, bitarray becomes required (slower, pure python and maybe not so robust as not so much tested).
 
-Export requirements (optional): scipy, csv, h5py, xlwt(3), openpyxl, pandas
+Export requirements (optional): scipy, csv, h5py, hdf5storage, xlwt(3), openpyxl, pandas
 
 Blosc for data compression (optional)
 
