@@ -142,4 +142,5 @@ Command example in ipython:
     yop.write('NewNameOfFile')  # write in same version as original file after modifications
     yop.write4('NameOfFile', compression=True)  # write mdf version 4.1 file, data compressed
     yop.write3()  # write mdf version 3 file
+    yop.attachments  # to get attachments, embedded or paths to files 
 ```
