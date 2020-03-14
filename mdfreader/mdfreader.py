@@ -1069,7 +1069,7 @@ class Mdf(Mdf4, Mdf3):
         except ImportError:
             warn('hdf5storage module not found')
             try:
-                from scipy import savemat
+                from scipy.io import savemat
             except ImportError:
                 warn('scipy also module not found')
                 return
