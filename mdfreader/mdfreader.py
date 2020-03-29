@@ -82,6 +82,10 @@ def _convert_to_matlab_name(channel):
                 buf += c
         return buf
     channel_name = clean_name(channel_name)
+    # limit the variable length at 63 character, Matlab limitation
+    # if you use long names including modules names separated by a '.'
+    # you can use filter_channel_names=True parameter
+    channel_name= channel_name[:63]
     return channel_name
 
 
