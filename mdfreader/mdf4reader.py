@@ -1255,7 +1255,7 @@ class Mdf4(MdfSkeleton):
     """
 
     def read4(self, file_name=None, info=None, multi_processed=False, channel_list=None, convert_after_read=True,
-              compression=False, metadata=2):
+              filter_channel_names=False, compression=False, metadata=2):
         """ Reads mdf 4.x file data and stores it in dict
 
         Parameters
@@ -1280,6 +1280,9 @@ class Mdf4(MdfSkeleton):
             all data from channels will be kept raw, no conversion applied.
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .get_channel_data()
+
+        filter_channel_names : bool, optional
+            flag to filter long channel names from its module names separated by '.'
 
         compression : bool, optional
             flag to activate data compression with blosc
@@ -1311,7 +1314,8 @@ class Mdf4(MdfSkeleton):
         # Read information block from file
         if info is None:
             if self.info is None:
-                info = Info4(self.fileName, None, minimal=minimal)
+                info = Info4(self.fileName, None,
+                             filter_channel_names=filter_channel_names, minimal=minimal)
             else:
                 info = self.info
 

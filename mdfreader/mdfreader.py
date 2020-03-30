@@ -178,9 +178,9 @@ class MdfInfo(dict):
         mdf_version_number = unpack('<H', self.fid.read(2))
         self.mdfversion = mdf_version_number[0]
         if self.mdfversion < 400:  # up to version 3.x not compatible with version 4.x
-            self.update(Info3(None, self.fid, self.filterChannelNames))
+            self.update(Info3(None, self.fid, self.filterChannelNames, minimal))
         else:  # MDF version 4.x
-            self.update(Info4(None, self.fid, minimal))
+            self.update(Info4(None, self.fid, self.filterChannelNames, minimal))
             if self.zipfile and fid is None:  # not from mdfreader.read()
                 remove(self.fileName)
 
@@ -392,16 +392,18 @@ class Mdf(Mdf4, Mdf3):
                            convert_after_read, filter_channel_names, compression)
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
-                self.info = Info3(None, fid=self.fid, minimal=1)
+                self.info = Info3(None, fid=self.fid,
+                                  filter_channel_names=filter_channel_names, minimal=1)
                 (self.masterChannelList, mdf_dict) = _generate_dummy_mdf3(self.info, channel_list)
                 self.update(mdf_dict)
         else:  # MDF version 4.x
             if not no_data_loading:
                 self.read4(self.fileName, None, multi_processed, channel_list,
-                           convert_after_read, compression, metadata)
+                           convert_after_read, filter_channel_names, compression, metadata)
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
-                self.info = Info4(None, fid=self.fid, minimal=1)
+                self.info = Info4(None, fid=self.fid,
+                                  filter_channel_names=filter_channel_names, minimal=1)
                 (self.masterChannelList, mdf_dict) = _generate_dummy_mdf4(self.info, channel_list)
                 self.update(mdf_dict)
 

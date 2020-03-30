@@ -1712,7 +1712,7 @@ class HLBlock(dict):
 
 
 class Info4(dict):
-    __slots__ = ['fileName', 'fid', 'zipfile']
+    __slots__ = ['fileName', 'fid', 'filterChannelNames', 'zipfile']
     """ information block parser fo MDF file version 4.x
 
     Attributes
@@ -1740,7 +1740,7 @@ class Info4(dict):
     Channel conversion information
     - mdfinfo['CC'][dataGroup][channelGroup][channel]"""
 
-    def __init__(self, file_name=None, fid=None, minimal=0):
+    def __init__(self, file_name=None, fid=None, filter_channel_names=False, minimal=0):
         """ info4 class constructor
 
         Parameters
@@ -1749,6 +1749,8 @@ class Info4(dict):
             file name
         fid : float
             file identifier
+        filter_channel_names : bool, optional
+            flag to filter long channel names including module names separated by a '.'
         minimal : int
             0 will load every metadata
             1 will load DG, CG, CN and CC (for noDataLoading)
@@ -1769,6 +1771,7 @@ class Info4(dict):
         self['AT'] = {}  # Attachment block
         self['allChannelList'] = set()  # all channels
         self['masters'] = dict()  # channels grouped by master
+        self.filterChannelNames = filter_channel_names
         self.fileName = file_name
         self.fid = None
         if fid is None and file_name is not None:
@@ -2057,6 +2060,9 @@ class Info4(dict):
             # check if already existing channel name
             self['CN'][dg][cg][cn]['name'] = \
                 self._unique_channel_name(fid, self['CN'][dg][cg][cn]['name'], dg, cg, cn)
+            if self.filterChannelNames:
+                # filters channels modules
+                self['CN'][dg][cg][cn]['name'] = self['CN'][dg][cg][cn]['name'].split('.')[-1]
 
             # reads Channel Array Block
             if self['CN'][dg][cg][cn]['cn_composition']:

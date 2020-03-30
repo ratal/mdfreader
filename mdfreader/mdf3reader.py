@@ -878,7 +878,8 @@ class Mdf3(MdfSkeleton):
         # Read information block from file
         if info is None:
             if self.info is None:
-                info = Info3(self.fileName, fid=None, filter_channel_names=False, minimal=minimal)
+                info = Info3(self.fileName, fid=None,
+                             filter_channel_names=filter_channel_names, minimal=minimal)
             else:
                 info = self.info
 
