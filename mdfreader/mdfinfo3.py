@@ -431,7 +431,7 @@ def read_hd_block(fid, pointer, version=0):
              temp['TimeStamp'],
              temp['UTCTimeOffset'],
              temp['TimeQualityClass'],
-             temp['TimeIdentification']) = unpack('<2sH3IH10s8s32s32s32s32sQ2H32s', fid.read(208))
+             temp['TimeIdentification']) = unpack('<2sH3IH10s8s32s32s32s32sQhH32s', fid.read(208))
             temp['TimeIdentification'] = temp['TimeIdentification'].rstrip(b'\x00').decode('latin1', 'replace')
         temp['Date'] = temp['Date'].rstrip(b'\x00').decode('latin1', 'replace')
         temp['Time'] = temp['Time'].rstrip(b'\x00').decode('latin1', 'replace')

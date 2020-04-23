@@ -18,6 +18,7 @@ from numpy.core.records import fromstring, fromarrays
 from collections import defaultdict
 from math import log, exp
 from time import strftime, time, gmtime
+import datetime
 from struct import pack, Struct
 from io import open
 from sys import platform, exc_info
@@ -895,14 +896,19 @@ class Mdf3(MdfSkeleton):
                 comment = info['HDBlock']['TXBlock']
             except KeyError:
                 comment = ''
-            # converts date to be compatible with ISO8601
-            day, month, year = info['HDBlock']['Date'].split(':')
-            ddate = '-'.join([year, month, day])
+            try:
+                # time in nano seconds since epoch, converting in seconds floating
+                record_time = info['HDBlock']['TimeStamp'] / 1E9
+            except KeyError:
+                # converts date to be compatible with ISO8601
+                day, month, year = info['HDBlock']['Date'].split(':')
+                ddate = '-'.join([year, month, day])
+                record_time = datetime.fromisoformat(ddate + 'T' + info['HDBlock']['Time'])
             self.add_metadata(author=info['HDBlock']['Author'],
                               organisation=info['HDBlock']['Organization'],
                               project=info['HDBlock']['ProjectName'],
                               subject=info['HDBlock']['Subject'], comment=comment,
-                              date=ddate, time=info['HDBlock']['Time'])
+                              time=record_time)
 
         data_groups = info['DGBlock']  # parse all data groups
         if self._noDataLoading and channel_list is not None:
@@ -1172,12 +1178,12 @@ class Mdf3(MdfSkeleton):
         # first Data block pointer, pointer to TX Block file comment, pointer to PR Block
         # number of data groups, date, time
         # Time Stamp, UTC time offset, Time quality, Timer identification
-        time_offset = gmtime()
+        record_time = gmtime(self.fileMetadata['time'])
         head = (b'HD', 208, 272, 0, 0, n_data_group,
-                '{:\x00<10}'.format(strftime("%d:%m:%Y", time_offset)).encode('latin-1'),
-                '{:\x00<8}'.format(strftime("%H:%M:%S", time_offset)).encode('latin-1'),
+                '{:\x00<10}'.format(strftime("%d:%m:%Y", record_time)).encode('latin-1'),
+                '{:\x00<8}'.format(strftime("%H:%M:%S", record_time)).encode('latin-1'),
                 author, organization, project, subject,
-                int(time() * 1000000000), 1, 0,
+                int(self.fileMetadata['time'] * 1000000000), 1, 0,
                 b'Local PC Reference Time         ')
         fid.write(pack('<2sH3IH10s8s32s32s32s32sQhH32s', *head))
 

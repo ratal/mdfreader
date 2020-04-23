@@ -23,7 +23,7 @@ from struct import pack, unpack as structunpack
 from math import pow
 from io import open
 from os.path import splitext
-from time import gmtime, strftime
+from time import gmtime, localtime
 from multiprocessing import Queue, Process
 from sys import byteorder
 from collections import defaultdict, OrderedDict
@@ -1336,10 +1336,10 @@ class Mdf4(MdfSkeleton):
 
         # reads metadata
         if not self._noDataLoading:
-            file_date_time = gmtime(info['HD']['hd_start_time_ns'] / 1000000000)
-            ddate = strftime('%Y-%m-%d', file_date_time)
-            ttime = strftime('%H:%M:%S', file_date_time)
-
+            ttime = info['HD']['hd_start_time_ns'] / 1E9
+            if 1 << 1 & info['HD']['hd_time_flags']:
+                # timezone and daylight applicable
+                ttime = info['HD']['hd_tz_offset_min'] * 60 + info['HD']['hd_dst_offset_min'] * 60
             def returnField(obj, field):
                 try:
                     return obj[field]
@@ -1353,10 +1353,10 @@ class Mdf4(MdfSkeleton):
                 subject = returnField(Comment, 'subject')
                 comment = returnField(Comment, 'TX')
                 self.add_metadata(author=author, organisation=organisation,
-                                  project=project, subject=subject, comment=comment,
-                                  date=ddate, time=ttime)
+                                  project=project, subject=subject,
+                                  comment=comment, time=ttime)
             else:
-                self.add_metadata(date=ddate, time=ttime)
+                self.add_metadata(time=ttime)
 
         data_groups = info['DG']  # parse all data groups
         if self._noDataLoading and channel_list is not None:
@@ -1721,6 +1721,7 @@ class Mdf4(MdfSkeleton):
         pointer = 64
         # Header Block
         blocks['HD'] = HDBlock()
+        blocks['HD']['time'] = self.fileMetadata['time']
         blocks['HD']['block_start'] = pointer
         pointer += 104
 

@@ -13,7 +13,9 @@ from os import remove
 from warnings import warn
 from zlib import compress, decompress
 from numpy import zeros, array, append
-import time
+from math import isnan
+from time import time
+from sys import getsizeof
 from collections import OrderedDict
 from xml.etree.ElementTree import Element, SubElement, \
     tostring, register_namespace
@@ -214,6 +216,7 @@ class HDBlock(dict):
     """
 
     def __init__(self, fid=None):
+        self['time'] = time()
         if fid is not None:
             self.read(fid)
 
@@ -237,7 +240,7 @@ class HDBlock(dict):
          self['hd_flags'],
          hd_reserved,
          self['hd_start_angle_rad'],
-         self['hd_start_distance']) = unpack('<4sI9Q2h4B2Q', fid.read(104))
+         self['hd_start_distance']) = unpack('<4sI9Q2h4B2d', fid.read(104))
         if self['hd_md_comment']:  # if comments exist
             self['Comment'] = {}
             comment = CommentBlock()
@@ -256,11 +259,17 @@ class HDBlock(dict):
         # start distance in meters)
         data_bytes = (b'##HD', 0, 104, 6,
                       self['DG'], self['FH'], 0, 0, 0, 0,
-                      int(time.time()*1E9),
-                      int(time.timezone/60),
-                      int(time.daylight*60),
-                      2, 0, 0, b'\0', 0, 0)
-        fid.write(pack('<4sI2Q7Q2h3Bs2d', *data_bytes))
+                      int(self['time'] * 1E9),
+                      0, 0, 1, 0, 0, b'\0', 0, 0)
+        try:
+            fid.write(pack('<4sI2Q7Q2h3Bs2d', *data_bytes))
+        except:
+            warn('time is Nan or malformed')
+            data_bytes = (b'##HD', 0, 104, 6,
+                          self['DG'], self['FH'], 0, 0, 0, 0,
+                          int(time() * 1E9),
+                          0, 0, 1, 0, 0, b'\0', 0, 0)
+            fid.write(pack('<4sI2Q7Q2h3Bs2d', *data_bytes))
 
 
 class FHBlock(dict):
@@ -300,10 +309,8 @@ class FHBlock(dict):
         # time flags, reserved)
         data_bytes = (b'##FH', 0, 56, 2,
                       0, self['MD'],
-                      int(time.time()*1E9),
-                      int(time.timezone/60),
-                      int(time.daylight*60),
-                      2, b'\0' * 3)
+                      int(time()*1E9),
+                      0, 0, 1, b'\0' * 3)
         fid.write(pack('<4sI2Q3Q2hB3s', *data_bytes))
 
 

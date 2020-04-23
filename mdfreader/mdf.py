@@ -21,6 +21,7 @@ from itertools import chain
 from random import choice
 from string import ascii_letters
 from collections import OrderedDict, defaultdict
+from time import time
 from warnings import warn
 from numpy import array_repr, set_printoptions, recarray, fromstring
 try:
@@ -133,8 +134,7 @@ class MdfSkeleton(dict):
         self.fileMetadata['project'] = ''
         self.fileMetadata['subject'] = ''
         self.fileMetadata['comment'] = ''
-        self.fileMetadata['time'] = ''
-        self.fileMetadata['date'] = ''
+        self.fileMetadata['time'] = time()  # time in seconds since epoch, floating
         self.MDFVersionNumber = 300
         self.filterChannelNames = filter_channel_names
         # by default, do not convert table conversion types, taking lot of time and memory
@@ -569,7 +569,7 @@ class MdfSkeleton(dict):
         return channel_name in self.masterChannelList[masterField] or channel_name in self.masterChannelList
 
     def add_metadata(self, author='', organisation='', project='',
-                     subject='', comment='', date='', time=''):
+                     subject='', comment='', time=''):
         """adds basic metadata to mdf class
 
         Parameters
@@ -581,8 +581,7 @@ class MdfSkeleton(dict):
         project : str
         subject : str
         comment : str
-        date : str
-        time : str
+        time : float (epoch)
 
         Notes
         =====
@@ -593,7 +592,6 @@ class MdfSkeleton(dict):
         self.fileMetadata['project'] = project
         self.fileMetadata['subject'] = subject
         self.fileMetadata['comment'] = comment
-        self.fileMetadata['date'] = date
         self.fileMetadata['time'] = time
 
     def __str__(self):

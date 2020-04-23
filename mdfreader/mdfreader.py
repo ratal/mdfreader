@@ -884,8 +884,7 @@ class Mdf(Mdf4, Mdf3):
             file_name = splitext(self.fileName)[0]
             file_name = file_name + '.nc'
         f = netcdf.netcdf_file(file_name, 'w')
-        set_attribute(f, 'Date', self.fileMetadata['date'])
-        set_attribute(f, 'Time', self.fileMetadata['time'])
+        setattr(f, 'Time', self.fileMetadata['time'])
         set_attribute(f, 'Author', self.fileMetadata['author'])
         set_attribute(f, 'Organization', self.fileMetadata['organisation'])
         set_attribute(f, 'ProjectName', self.fileMetadata['project'])
@@ -997,10 +996,8 @@ class Mdf(Mdf4, Mdf3):
         f = h5py.File(file_name, 'w')  # create hdf5 file
         # create group in root associated to file
         file_group = f.create_group(os.path.basename(file_name))
+        file_group.attrs['Time'] = self.fileMetadata['time']
         set_attribute(file_group, 'Author', self.fileMetadata['author'])
-        set_attribute(file_group, 'Date', self.fileMetadata['date'])
-        set_attribute(file_group, 'Time', self.fileMetadata['time'])
-        set_attribute(file_group, 'Time', self.fileMetadata['time'])
         set_attribute(file_group, 'Organization', self.fileMetadata['organisation'])
         set_attribute(file_group, 'ProjectName', self.fileMetadata['project'])
         set_attribute(file_group, 'Subject', self.fileMetadata['subject'])
@@ -1347,14 +1344,9 @@ class Mdf(Mdf4, Mdf3):
                 if self.get_channel_master_type(master_channel_name) == 1:
                     # master channel exists and is time type
                     # convert time channel into timedelta
-                    if self.fileMetadata['date'] != '' and self.fileMetadata['time'] != '':
-                        date = self.fileMetadata['date'].replace(':', '-')
-                        time = self.fileMetadata['time']
-                        datetime_info = datetime64(date + 'T' + time)
-                    else:
-                        datetime_info = datetime64(datetime.now())
-                    time = datetime_info + array(self.get_channel_data(master_channel_name) * 1E6,
-                                                 dtype='timedelta64[us]')
+                    datetime_info = datetime64(int(self.fileMetadata['time'] * 1E9), 'ns')
+                    time = datetime_info + array(self.get_channel_data(master_channel_name) * 1E9,
+                                                 dtype='timedelta64[ns]')
                     temporary_dataframe = pd.DataFrame(index=time)
                 else:  # not time master channel
                     temporary_dataframe = pd.DataFrame(index=self.get_channel_data(master_channel_name))
