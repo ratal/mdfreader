@@ -903,12 +903,12 @@ class Mdf3(MdfSkeleton):
                 # converts date to be compatible with ISO8601
                 day, month, year = info['HDBlock']['Date'].split(':')
                 ddate = '-'.join([year, month, day])
-                record_time = datetime.fromisoformat(ddate + 'T' + info['HDBlock']['Time'])
+                record_time = datetime.fromisoformat(ddate + 'T' + info['HDBlock']['Time']).timestamp()
             self.add_metadata(author=info['HDBlock']['Author'],
                               organisation=info['HDBlock']['Organization'],
                               project=info['HDBlock']['ProjectName'],
                               subject=info['HDBlock']['Subject'], comment=comment,
-                              time=record_time.timestamp())
+                              time=record_time)
 
         data_groups = info['DGBlock']  # parse all data groups
         if self._noDataLoading and channel_list is not None:
