@@ -18,7 +18,7 @@ from numpy.core.records import fromstring, fromarrays
 from collections import defaultdict
 from math import log, exp
 from time import strftime, time, gmtime
-import datetime
+from datetime import datetime
 from struct import pack, Struct
 from io import open
 from sys import platform, exc_info
@@ -908,7 +908,7 @@ class Mdf3(MdfSkeleton):
                               organisation=info['HDBlock']['Organization'],
                               project=info['HDBlock']['ProjectName'],
                               subject=info['HDBlock']['Subject'], comment=comment,
-                              time=record_time)
+                              time=record_time.timestamp())
 
         data_groups = info['DGBlock']  # parse all data groups
         if self._noDataLoading and channel_list is not None:
