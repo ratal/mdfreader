@@ -1030,7 +1030,8 @@ class Mdf(Mdf4, Mdf3):
                     dset = grp[groups[group_name]].create_dataset(channel,
                                                                   data=channel_data,
                                                                   compression=compression,
-                                                                  compression_opts=compression_opts)
+                                                                  compression_opts=compression_opts,
+                                                                  chunks=True)
                     set_attribute(dset, unitField, self.get_channel_unit(channel))
                     if descriptionField in self[channel]:
                         set_attribute(dset, descriptionField, self.get_channel_desc(channel))
@@ -1044,7 +1045,8 @@ class Mdf(Mdf4, Mdf3):
                 if channel_data.dtype.kind not in ('U', 'O'):  # not supported type
                     dset = file_group.create_dataset(channel, data=channel_data,
                                                      compression=compression,
-                                                     compression_opts=compression_opts)
+                                                     compression_opts=compression_opts,
+                                                     chunks=True)
                     set_attribute(dset, unitField, self.get_channel_unit(channel))
                     if descriptionField in self[channel]:
                         set_attribute(dset, descriptionField, self.get_channel_desc(channel))
@@ -1109,7 +1111,7 @@ class Mdf(Mdf4, Mdf3):
                     warn(u'Could not export {}, name is not compatible with Matlab'.format(channel))
         try:
             savemat(file_name, temp,  format='7.3', long_field_names=True, oned_as='column',
-                    store_python_metadata=True, structured_numpy_ndarray_as_struct=True)
+                    structured_numpy_ndarray_as_struct=True)
         except:
             savemat(file_name, temp, long_field_names=True, format='5')
 
