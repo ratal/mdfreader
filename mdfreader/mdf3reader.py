@@ -749,12 +749,12 @@ class DATA(dict):
         # initialise data structure
         for record_id in self:
             index[record_id] = 0
-            channel_name_set[record_id] = self[record_id]['record'].channelNames
+            channel_name_set[record_id] = self[record_id]['record'].channelNames.copy()
             if name_set is not None:
                 channel_name_set[record_id] &= name_set
                 if channel_name_set[record_id]:  # make sure there is master
                     channel_name_set[record_id].add(self[record_id]['record'].master['name'])
-                for channel_name in channel_name_set[record_id]:
+                for channel_name in list(channel_name_set[record_id]):
                     channel_name_set[record_id].add(self[record_id]['record'].recordToChannelMatching[channel_name])
             for Channel in self[record_id]['record']:
                 if Channel.name in channel_name_set[record_id]:

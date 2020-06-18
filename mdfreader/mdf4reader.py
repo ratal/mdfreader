@@ -187,7 +187,7 @@ def _read_unsorted(record, info, parent_block, record_id_size):
                 pos_byte_end[Channel.name] = pos_byte_beg[Channel.name] + Channel.nBytes_aligned
             index[record_id] = 0
             CGrecordLength[record_id] = record[record_id]['record'].CGrecordLength
-            channel_name_set[record_id] = record[record_id]['record'].channelNames
+            channel_name_set[record_id] = record[record_id]['record'].channelNames.copy()
     position = 0
     record_id_c_format = record[list(record.keys())[0]]['record'].recordIDCFormat
     # read data
