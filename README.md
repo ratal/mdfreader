@@ -144,3 +144,7 @@ Command example in ipython:
     yop.write3()  # write mdf version 3 file
     yop.attachments  # to get attachments, embedded or paths to files 
 ```
+<a href="https://scan.coverity.com/projects/ratal-mdfreader">
+  <img alt="Coverity Scan Build Status"
+       src="https://scan.coverity.com/projects/21368/badge.svg"/>
+</a>
