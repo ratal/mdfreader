@@ -742,6 +742,7 @@ class Record(dict):
             self.MLSD = info['MLSD']
         self.unique_channel_in_DG = info['DG'][self.dataGroup]['unique_channel_in_DG']
         embedding_channel = None
+        prev_chan = None
         for channelNumber in sorted(info['CN'][self.dataGroup][self.channelGroup].keys()):
             channel = Channel4(self.dataGroup, self.channelGroup, channelNumber)
             channel.set(info)
