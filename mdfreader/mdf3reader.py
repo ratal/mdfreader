@@ -754,7 +754,7 @@ class DATA(dict):
                 channel_name_set[record_id] &= name_set
                 if channel_name_set[record_id]:  # make sure there is master
                     channel_name_set[record_id].add(self[record_id]['record'].master['name'])
-                for channel_name in list(channel_name_set[record_id]):
+                for channel_name in channel_name_set[record_id].copy():
                     channel_name_set[record_id].add(self[record_id]['record'].recordToChannelMatching[channel_name])
             for Channel in self[record_id]['record']:
                 if Channel.name in channel_name_set[record_id]:
@@ -771,7 +771,7 @@ class DATA(dict):
             for channel_name in channel_name_set[record_id]:  # list of channel classes from channelSet
                 self.fid.seek(record_position + pos_byte_beg[channel_name])
                 buf[channel_name][index[record_id]] = self.fid.read(nBytes[channel_name])
-            # recordId is only unit8
+            # recordId is only uint8
             record_position += self[record_id]['record'].CGrecordLength + 1
             index[record_id] += 1
         # changing from bytes type to desired type
@@ -1283,7 +1283,6 @@ class Mdf3(MdfSkeleton):
                     data_type = 7
                 else:
                     raise Exception('Not recognized dtype')
-                    return data.dtype
                 if data.dtype.kind not in ['S', 'U']:
                     data_type_list = ''.join([data_type_list, data.dtype.char])
                 else:
