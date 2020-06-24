@@ -349,6 +349,9 @@ class CommentBlock(dict):
     """ reads or writes Comment block and saves in class dict
     """
 
+    def __init__(self):
+        self = {}
+
     def read_tx(self, fid, pointer):
         """ reads TX block
 
@@ -948,6 +951,7 @@ class CNBlock(dict):
         if kargs['pointer'] != 0 and kargs['pointer'] is not None:
             self['pointer'] = kargs['pointer']
             kargs['fid'].seek(kargs['pointer'])
+            links = []
             (self['id'],
              reserved,
              self['length'],
@@ -1234,6 +1238,7 @@ class EVBlock(dict):
         # block header
         if pointer != 0 and pointer is not None:
             fid.seek(pointer)
+            links = []
             (self['id'],
              reserved,
              self['length'],
@@ -1312,6 +1317,9 @@ class SIBlock(dict):
 
     """ reads Source Information block and saves in class dict
     """
+
+    def __init__(self):
+        self = {}
 
     def read_si(self, fid, pointer):
         # block header
