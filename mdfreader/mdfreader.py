@@ -36,9 +36,10 @@ from os import name as osname
 from warnings import warn
 from datetime import datetime
 from argparse import ArgumentParser
+from random import choice
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, float32
 from numpy import nan, datetime64, array, searchsorted, clip, empty
-from numpy.ma import MaskedArray
+from numpy.ma import MaskedArray, masked, empty as ma_empty
 from .mdf3reader import Mdf3
 from .mdf4reader import Mdf4
 from .mdf import _open_mdf, dataField, descriptionField, unitField, masterField, masterTypeField
@@ -1253,44 +1254,163 @@ class Mdf(Mdf4, Mdf3):
             [self.pop(channel) for channel in remove_channels]
 
     def merge_mdf(self, mdf_class):
-        """Merges data of 2 mdf classes
+        """Concatenate data of 2 mdf classes one after the other in time.
 
         Parameters
         ----------------
         mdf_class : Mdf
-            mdf class instance to be merge with self
+            mdf class instance to be concatenated with self
 
         Notes
         --------
-        both classes must have been resampled, otherwise, impossible to know master channel to match
-        create union of both channel lists and fill with Nan for unknown sections in channels
+        It creates union of both channel lists and fills with Nan for unknown sections in channels
+        If one channel is not present in both classes, masked array is created
         """
-        self.convert_all_channels()  # make sure all channels are converted
-        if not len(self.masterChannelList) == 1:
-            raise Exception('Data not resampled')
-        unioned_list = list(mdf_class.keys()) and list(self.keys())
-        initial_time_size = len(self.get_channel_data('master'))
-        for channel in unioned_list:
-            if channel in mdf_class and channel in self:  # channel exists in both class
-                data = self.get_channel_data(channel)
-                mdf_data = mdf_class.get_channel_data(channel)
-                if not channel == 'master':
-                    self.set_channel_data(channel, hstack((data, mdf_data)))
-                else:
+        def test_invalid_bits(clas, channel_set):
+            try:
+                # if invalid channels present in raster,
+                # convert into masked array in order to concatenate
+                invalid_channel = clas[choice(tuple(channel_set))]['invalid_channel']
+                clas.apply_all_invalid_bit()
+                return invalid_channel
+            except KeyError:
+                return False
+
+        first_class_masters = set(self.masterChannelList.keys())
+        second_class_masters = set(mdf_class.masterChannelList.keys())
+        union_masters = first_class_masters | second_class_masters
+        # find max time of all masters from both classes
+        first_masters = {}
+        for master_channel_name in first_class_masters:
+            type = self.get_channel_master_type(master_channel_name)
+            data = self.get_channel_data(master_channel_name)
+            if type not in first_masters:
+                first_masters[type] = {}
+                first_masters[type]['max'] = data[-1]
+            # first_masters[type]['sampling'] = mean(diff(data))  # sampling
+            first_masters[type]['max'] = max([data[-1], first_masters[type]['max']])
+        second_masters = {}
+        for master_channel_name in second_class_masters:
+            type = mdf_class.get_channel_master_type(master_channel_name)
+            data = mdf_class.get_channel_data(master_channel_name)
+            if type not in  second_masters:
+                second_masters[type] = {}
+                second_masters[type]['max'] = data[-1]
+            # second_masters[type]['sampling'] = mean(diff(data))  # sampling
+            second_masters[type]['max'] = max([data[-1], second_masters[type]['max']])
+
+        for master_channel_name in union_masters:
+            if master_channel_name in first_class_masters and master_channel_name in second_class_masters:
+                # same master name in both classes
+                first_class_length = len(self.get_channel_data(master_channel_name))
+                first_class_channels = set(self.masterChannelList[master_channel_name])
+                second_class_channels = set(mdf_class.masterChannelList[master_channel_name])
+                invalid_channel = test_invalid_bits(self, first_class_channels)
+                if invalid_channel:
+                    # invalid bits present, converting to masked array
+                    # but invalid bit channels has been removed, updating channel sets
+                    first_class_channels.remove(invalid_channel)
+                invalid_channel = test_invalid_bits(mdf_class, second_class_channels)
+                if invalid_channel:
+                    second_class_channels.remove(invalid_channel)
+                unioned_set = first_class_channels | second_class_channels
+                second_class_length = len(mdf_class.get_channel_data(master_channel_name))
+                total_length = first_class_length + second_class_length
+                # remove master channel
+                unioned_set -=  {master_channel_name}
+                # merge master channels
+                data = self.get_channel_data(master_channel_name)
+                mdf_data = mdf_class.get_channel_data(master_channel_name)
+                temp = empty(total_length, dtype=data.dtype)
+                temp[:first_class_length] = data
+                if self.get_channel_master_type(master_channel_name) == 1:
+                    # master of type time
                     offset = mean(diff(mdf_data))  # sampling
-                    offset = data[-1] + offset  # time offset
-                    self.set_channel_data(channel, hstack((data, mdf_data + offset)))
-            elif channel in mdf_class:  # new channel for self from mdfClass
-                mdf_data = mdf_class.get_channel_data(channel)
-                self[channel] = mdf_class[channel]  # initialise all fields, units, descriptions, etc.
-                refill = empty(initial_time_size)
-                refill.fill(nan)  # fill with NANs
-                self.set_channel_data(channel, hstack((refill, mdf_data)))  # readjust against time
-            else:  # channel missing in mdfClass
-                data = self.get_channel_data(channel)
-                refill = empty(len(mdf_class.get_channel_data('master')))
-                refill.fill(nan)  # fill with NANs
-                self.set_channel_data(channel, hstack((data, refill)))
+                    offset = data[-1] + offset  # offset
+                    temp[first_class_length:] = mdf_data + offset
+                else:
+                    temp[first_class_length:] = mdf_data
+                self.set_channel_data(master_channel_name, temp)
+                for channel in unioned_set:
+                    if channel in first_class_channels and channel in second_class_channels:
+                        # channel exists in both classes
+                        data = self.get_channel_data(channel)
+                        if isinstance(data, MaskedArray):
+                            temp = ma_empty(total_length, dtype=data.dtype)
+                        else:
+                            temp = empty(total_length, dtype=data.dtype)
+                        temp[:first_class_length] = data
+                        temp[first_class_length:] = mdf_class.get_channel_data(channel)
+                        self.set_channel_data(channel, temp)
+                    elif channel in second_class_channels:
+                        self[channel] = mdf_class[channel]  # initialise all fields, units, descriptions, etc.
+                        # new channel for self from mdfClass
+                        data = self.get_channel_data(channel)
+                        if isinstance(data, MaskedArray):
+                            temp = ma_empty(total_length, dtype=data.dtype)
+                        else:
+                            temp = empty(total_length, dtype=data.dtype)
+                        temp[:first_class_length] = nan  # fill with NANs
+                        temp[first_class_length:] = data
+                        self.set_channel_data(channel, temp)
+                    else:  # channel missing in mdfClass
+                        data = self.get_channel_data(channel)
+                        if isinstance(data, MaskedArray):
+                            temp = ma_empty(total_length, dtype=data.dtype)
+                        else:
+                            temp = empty(total_length, dtype=data.dtype)
+                        temp[:first_class_length] = data
+                        temp[first_class_length:] = nan  # fill with NANs
+                        self.set_channel_data(channel, temp)
+            elif master_channel_name in first_class_masters:
+                first_class_channels = set(self.masterChannelList[master_channel_name])
+                invalid_channel = test_invalid_bits(self, first_class_channels)
+                if invalid_channel:
+                    # invalid bits present, converting to masked array
+                    # but invalid bit channels has been removed, updating channel sets
+                    first_class_channels.remove(invalid_channel)
+                master_type = self.get_channel_master_type(master_channel_name)
+                if master_type in second_masters:
+                    # same kind of master existing in both classes
+                    master_data = self.get_channel_data(master_channel_name)
+                    first_class_length = len(master_data)
+                    first_master_end = master_data[-1]
+                    total_length = first_class_length + 1
+                    # extend by 1 sample all channels and convert to masked array
+                    for channel in first_class_channels:
+                        data = self.get_channel_data(channel)
+                        temp = ma_empty(total_length, dtype=data.dtype)
+                        temp[:first_class_length] = data.view(MaskedArray)
+                        temp[-1] = masked  # mask last sample
+                        self.set_channel_data(channel, temp)
+                    master_data = self.get_channel_data(master_channel_name)
+                    # last master channel value adjusted and becomes valid
+                    master_data[-1] = first_master_end + second_masters[master_type]['max']
+                    self.set_channel_data(master_channel_name, master_data)
+            else:
+                second_class_channels = set(mdf_class.masterChannelList[master_channel_name])
+                invalid_channel = test_invalid_bits(mdf_class, second_class_channels)
+                if invalid_channel:
+                    second_class_channels.remove(invalid_channel)
+                master_type = mdf_class.get_channel_master_type(master_channel_name)
+                if master_type in first_masters:
+                    # same kind of master existing in both classes
+                    master_data = mdf_class.get_channel_data(master_channel_name)
+                    second_class_length = len(master_data)
+                    second_master_end = master_data[-1]
+                    total_length = second_class_length + 1
+                    for channel in second_class_channels:
+                        self[channel] = mdf_class[channel]
+                        data = self.get_channel_data(channel)
+                        temp = ma_empty(total_length, dtype=data.dtype)
+                        temp[1:] = data
+                        temp[0] = masked  # mask first sample
+                        self.set_channel_data(channel, temp)
+                    master_data = self.get_channel_data(master_channel_name)
+                    # first master channel value adjusted and becomes valid
+                    master_data += first_masters[master_type]['max']
+                    master_data[0] = 0
+                    self.set_channel_data(master_channel_name, master_data)
 
     def convert_to_pandas(self, sampling=None):
         """converts mdf data structure into pandas dataframe(s)
