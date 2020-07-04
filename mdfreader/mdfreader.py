@@ -36,13 +36,12 @@ from os import name as osname
 from warnings import warn
 from datetime import datetime
 from argparse import ArgumentParser
-from random import choice
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, float32
 from numpy import nan, datetime64, array, searchsorted, clip, empty
 from numpy.ma import MaskedArray, masked, empty as ma_empty
 from .mdf3reader import Mdf3
 from .mdf4reader import Mdf4
-from .mdf import _open_mdf, dataField, descriptionField, unitField, masterField, masterTypeField
+from .mdf import _open_mdf, dataField, descriptionField, unitField, masterField, masterTypeField, idField
 from .mdfinfo3 import Info3, _generate_dummy_mdf3
 from .mdfinfo4 import Info4, _generate_dummy_mdf4
 
@@ -1266,16 +1265,6 @@ class Mdf(Mdf4, Mdf3):
         It creates union of both channel lists and fills with Nan for unknown sections in channels
         If one channel is not present in both classes, masked array is created
         """
-        def test_invalid_bits(clas, channel_set):
-            try:
-                # if invalid channels present in raster,
-                # convert into masked array in order to concatenate
-                invalid_channel = clas[choice(tuple(channel_set))]['invalid_channel']
-                clas.apply_all_invalid_bit()
-                return invalid_channel
-            except KeyError:
-                return False
-
         first_class_masters = set(self.masterChannelList.keys())
         second_class_masters = set(mdf_class.masterChannelList.keys())
         union_masters = first_class_masters | second_class_masters
@@ -1305,19 +1294,23 @@ class Mdf(Mdf4, Mdf3):
                 first_class_length = len(self.get_channel_data(master_channel_name))
                 first_class_channels = set(self.masterChannelList[master_channel_name])
                 second_class_channels = set(mdf_class.masterChannelList[master_channel_name])
-                invalid_channel = test_invalid_bits(self, first_class_channels)
-                if invalid_channel:
+                first_class_group_number = self[master_channel_name][idField][0][0]
+                second_class_group_number = mdf_class[master_channel_name][idField][0][0]
+                invalid_channel = 'invalid_bytes{}'.format(first_class_group_number)
+                if invalid_channel in first_class_channels:
                     # invalid bits present, converting to masked array
-                    # but invalid bit channels has been removed, updating channel sets
+                    # but invalid bit channels should be removed, updating channel sets
+                    self.apply_all_invalid_bit()
                     first_class_channels.remove(invalid_channel)
-                invalid_channel = test_invalid_bits(mdf_class, second_class_channels)
-                if invalid_channel:
+                invalid_channel = 'invalid_bytes{}'.format(second_class_group_number)
+                if invalid_channel in second_class_channels:
+                    mdf_class.apply_all_invalid_bit()
                     second_class_channels.remove(invalid_channel)
                 unioned_set = first_class_channels | second_class_channels
                 second_class_length = len(mdf_class.get_channel_data(master_channel_name))
                 total_length = first_class_length + second_class_length
                 # remove master channel
-                unioned_set -=  {master_channel_name}
+                unioned_set.remove(master_channel_name)
                 # merge master channels
                 data = self.get_channel_data(master_channel_name)
                 mdf_data = mdf_class.get_channel_data(master_channel_name)
@@ -1364,10 +1357,12 @@ class Mdf(Mdf4, Mdf3):
                         self.set_channel_data(channel, temp)
             elif master_channel_name in first_class_masters:
                 first_class_channels = set(self.masterChannelList[master_channel_name])
-                invalid_channel = test_invalid_bits(self, first_class_channels)
-                if invalid_channel:
+                first_class_group_number = self[master_channel_name][idField][0][0]
+                invalid_channel = 'invalid_bytes{}'.format(first_class_group_number)
+                if invalid_channel in first_class_channels:
                     # invalid bits present, converting to masked array
                     # but invalid bit channels has been removed, updating channel sets
+                    self.apply_all_invalid_bit()
                     first_class_channels.remove(invalid_channel)
                 master_type = self.get_channel_master_type(master_channel_name)
                 if master_type in second_masters:
@@ -1389,8 +1384,10 @@ class Mdf(Mdf4, Mdf3):
                     self.set_channel_data(master_channel_name, master_data)
             else:
                 second_class_channels = set(mdf_class.masterChannelList[master_channel_name])
-                invalid_channel = test_invalid_bits(mdf_class, second_class_channels)
-                if invalid_channel:
+                second_class_group_number = mdf_class[master_channel_name][idField][0][0]
+                invalid_channel = 'invalid_bytes{}'.format(second_class_group_number)
+                if invalid_channel in second_class_channels:
+                    mdf_class.apply_all_invalid_bit()
                     second_class_channels.remove(invalid_channel)
                 master_type = mdf_class.get_channel_master_type(master_channel_name)
                 if master_type in first_masters:
