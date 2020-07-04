@@ -142,7 +142,7 @@ class MainWindow(QMainWindow, Ui_MainWindow, QFileDialog):
                     buffer.update(res[0])  # assigns next class to buffer
                     buffer.masterChannelList = res[1]
                     fileNameList.append(res[2])
-                    self.mdfClass.merge_mdf(buffer)  # merge buffer to merged class mdfClass
+                    self.mdfClass.concat_mdf(buffer)  # merge buffer to merged class mdfClass
                 # Export
                 if self.convertSelection == 'Matlab':
                     self.mdfClass.export_to_matlab()

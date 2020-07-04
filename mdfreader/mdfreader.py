@@ -1252,7 +1252,7 @@ class Mdf(Mdf4, Mdf3):
             [self.masterChannelList[self.get_channel_master(channel)].remove(channel) for channel in remove_channels]
             [self.pop(channel) for channel in remove_channels]
 
-    def merge_mdf(self, mdf_class):
+    def concat_mdf(self, mdf_class):
         """Concatenate data of 2 mdf classes one after the other in time.
 
         Parameters
