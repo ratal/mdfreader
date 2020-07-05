@@ -2241,8 +2241,16 @@ class Mdf4(MdfSkeleton):
 
                 """
         for master_channel in self.masterChannelList:
-            for channel_name in self.masterChannelList[master_channel]:
-                self.apply_invalid_bit(channel_name)
+            group_channels = set(self.masterChannelList[master_channel])
+            group_number = self[master_channel][idField][0][0]
+            invalid_channel = 'invalid_bytes{}'.format(group_number)
+            if invalid_channel in group_channels:
+                # invalid bytes channel present in this data group
+                for channel_name in self.masterChannelList[master_channel]:
+                    self.apply_invalid_bit(channel_name)
+                # remove invalid bytes channel, redundant
+                self.masterChannelList[master_channel].remove(invalid_channel)
+                self.pop(invalid_channel)
 
     def get_channel_name4(self, name, path):
         """finds mdf channel name from name and path
