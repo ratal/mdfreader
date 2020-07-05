@@ -1231,17 +1231,17 @@ class Mdf(Mdf4, Mdf3):
         warn('Writing file, please wait')
         wb.save(file_name)
 
-    def keep_channels(self, channel_list):
-        """ keeps only list of channels and removes the other channels
+    def keep_channels(self, channel_set):
+        """ keeps only a list or set of channels and removes the other channels
 
         Parameters
         ----------------
-        channel_list : list of str
-            list of channel names
+        channel_set : list or set of str
+            list or set of channel names
         """
-        channel_list = [channel for channel in channel_list]
+        if isinstance(channel_set, list):
+            channel_set = set(channel_set)
         remove_channels = []
-        channel_set = set(channel_list)
         master_channel_set = set(self.masterChannelList.keys())
         for channel in self:
             if channel not in channel_set and masterField not in channel \
@@ -1253,17 +1253,18 @@ class Mdf(Mdf4, Mdf3):
             [self.pop(channel) for channel in remove_channels]
 
     def concat_mdf(self, mdf_class):
-        """Concatenate data of 2 mdf classes one after the other in time.
+        """Concatenate data of input mdf class after the current one.
 
         Parameters
         ----------------
         mdf_class : Mdf
-            mdf class instance to be concatenated with self
+            mdf class instance to be concatenated after self
 
         Notes
         --------
         It creates union of both channel lists and fills with Nan for unknown sections in channels
         If one channel is not present in both classes, masked array is created
+        If invalid bytes are present, masked array are created
         """
         first_class_masters = set(self.masterChannelList.keys())
         second_class_masters = set(mdf_class.masterChannelList.keys())
@@ -1408,6 +1409,36 @@ class Mdf(Mdf4, Mdf3):
                     master_data += first_masters[master_type]['max']
                     master_data[0] = 0
                     self.set_channel_data(master_channel_name, master_data)
+
+    def merge_mdf(self, mdf_class):
+        """merge data of input mdf class with the current one.
+
+        Parameters
+        ----------------
+        mdf_class : Mdf
+            mdf class instance to be merged with self
+
+        Notes
+        --------
+        If there are common channel names between the 2 mdf, channels are renamed to make them unique
+        """
+        # apply eventual invalid bytes, most probably
+        self.apply_all_invalid_bit()
+        mdf_class.apply_all_invalid_bit()
+        # check for same channel names
+        first_channels = set(self.keys())
+        second_channels = set(mdf_class.keys())
+        common_channels = first_channels & second_channels
+        for channel in common_channels:
+            mdf_class.rename_channel(channel,
+                                     '{}_{}'.format(channel,
+                                                    mdf_class[channel][idField][0][0]))
+        # copy the data
+        for channel in mdf_class:
+            self[channel] = mdf_class[channel]
+        # merge the 2 masterChannelList
+        masterChannelList = {**self.masterChannelList, **mdf_class.masterChannelList}
+        self.masterChannelList = masterChannelList
 
     def convert_to_pandas(self, sampling=None):
         """converts mdf data structure into pandas dataframe(s)
