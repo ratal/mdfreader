@@ -266,7 +266,7 @@ class MdfSkeleton(dict):
             self.masterChannelList[self.get_channel_master(channel_name)].remove(channel_name)
             self[new_name] = self.pop(channel_name)  # copy the data
             if channel_name in self.masterChannelList:  # it is a master channel
-                self.masterChannelList[new_name] = self.pop(channel_name)
+                self.masterChannelList[new_name] = self.masterChannelList.pop(channel_name)
                 for channel in self.masterChannelList[new_name]:
                     self.set_channel_master(channel, new_name)
             return self[new_name]
