@@ -1297,16 +1297,18 @@ class Mdf(Mdf4, Mdf3):
                 second_class_channels = set(mdf_class.masterChannelList[master_channel_name])
                 first_class_group_number = self[master_channel_name][idField][0][0]
                 second_class_group_number = mdf_class[master_channel_name][idField][0][0]
-                invalid_channel = 'invalid_bytes{}'.format(first_class_group_number)
-                if invalid_channel in first_class_channels:
-                    # invalid bits present, converting to masked array
-                    # but invalid bit channels should be removed, updating channel sets
-                    self.apply_all_invalid_bit()
-                    first_class_channels.remove(invalid_channel)
-                invalid_channel = 'invalid_bytes{}'.format(second_class_group_number)
-                if invalid_channel in second_class_channels:
-                    mdf_class.apply_all_invalid_bit()
-                    second_class_channels.remove(invalid_channel)
+                if self.MDFVersionNumber >= 400:
+                    invalid_channel = 'invalid_bytes{}'.format(first_class_group_number)
+                    if invalid_channel in first_class_channels:
+                        # invalid bits present, converting to masked array
+                        # but invalid bit channels should be removed, updating channel sets
+                        self.apply_all_invalid_bit()
+                        first_class_channels.remove(invalid_channel)
+                if mdf_class.MDFVersionNumber >= 400:
+                    invalid_channel = 'invalid_bytes{}'.format(second_class_group_number)
+                    if invalid_channel in second_class_channels:
+                        mdf_class.apply_all_invalid_bit()
+                        second_class_channels.remove(invalid_channel)
                 unioned_set = first_class_channels | second_class_channels
                 second_class_length = len(mdf_class.get_channel_data(master_channel_name))
                 total_length = first_class_length + second_class_length
@@ -1359,12 +1361,13 @@ class Mdf(Mdf4, Mdf3):
             elif master_channel_name in first_class_masters:
                 first_class_channels = set(self.masterChannelList[master_channel_name])
                 first_class_group_number = self[master_channel_name][idField][0][0]
-                invalid_channel = 'invalid_bytes{}'.format(first_class_group_number)
-                if invalid_channel in first_class_channels:
-                    # invalid bits present, converting to masked array
-                    # but invalid bit channels has been removed, updating channel sets
-                    self.apply_all_invalid_bit()
-                    first_class_channels.remove(invalid_channel)
+                if self.MDFVersionNumber >= 400:
+                    invalid_channel = 'invalid_bytes{}'.format(first_class_group_number)
+                    if invalid_channel in first_class_channels:
+                        # invalid bits present, converting to masked array
+                        # but invalid bit channels has been removed, updating channel sets
+                        self.apply_all_invalid_bit()
+                        first_class_channels.remove(invalid_channel)
                 master_type = self.get_channel_master_type(master_channel_name)
                 if master_type in second_masters:
                     # same kind of master existing in both classes
@@ -1386,10 +1389,11 @@ class Mdf(Mdf4, Mdf3):
             else:
                 second_class_channels = set(mdf_class.masterChannelList[master_channel_name])
                 second_class_group_number = mdf_class[master_channel_name][idField][0][0]
-                invalid_channel = 'invalid_bytes{}'.format(second_class_group_number)
-                if invalid_channel in second_class_channels:
-                    mdf_class.apply_all_invalid_bit()
-                    second_class_channels.remove(invalid_channel)
+                if mdf_class.MDFVersionNumber >= 400:
+                    invalid_channel = 'invalid_bytes{}'.format(second_class_group_number)
+                    if invalid_channel in second_class_channels:
+                        mdf_class.apply_all_invalid_bit()
+                        second_class_channels.remove(invalid_channel)
                 master_type = mdf_class.get_channel_master_type(master_channel_name)
                 if master_type in first_masters:
                     # same kind of master existing in both classes
@@ -1423,8 +1427,10 @@ class Mdf(Mdf4, Mdf3):
         If there are common channel names between the 2 mdf, channels are renamed to make them unique
         """
         # apply eventual invalid bytes, most probably
-        self.apply_all_invalid_bit()
-        mdf_class.apply_all_invalid_bit()
+        if self.MDFVersionNumber >= 400:
+            self.apply_all_invalid_bit()
+        if mdf_class.MDFVersionNumber >= 400:
+            mdf_class.apply_all_invalid_bit()
         # check for same channel names
         first_channels = set(self.keys())
         second_channels = set(mdf_class.keys())
