@@ -89,6 +89,24 @@ def _convert_to_matlab_name(channel):
     return channel_name
 
 
+def _convert_to_hdf5_name(channel):
+    """Removes non allowed characters for a hdf5 variable name
+
+    Parameters
+    -----------------
+    channel : string
+        channel name
+
+    Returns
+    -----------
+    string
+        channel name compatible for hdf5
+    """
+    channel_name = channel.replace('/', '_fs_')
+    channel_name = channel_name.replace('\\', '_bs_')
+    return channel_name
+
+
 class MdfInfo(dict):
     __slots__ = ['fileName', 'fid', 'zipfile', 'mdfversion', 'filterChannelNames']
     """ MDFINFO is a class gathering information from block headers in a MDF (Measure Data Format) file.
@@ -1027,7 +1045,8 @@ class Mdf(Mdf4, Mdf3):
                 elif masterField in self[channel] and master_name in groups:
                     group_name = master_name
                 if channel_data.dtype.kind not in ('U', 'O'):  # not supported type
-                    dset = grp[groups[group_name]].create_dataset(channel,
+                    channel_name = _convert_to_hdf5_name(channel)
+                    dset = grp[groups[group_name]].create_dataset(channel_name,
                                                                   data=channel_data,
                                                                   compression=compression,
                                                                   compression_opts=compression_opts,
@@ -1043,7 +1062,8 @@ class Mdf(Mdf4, Mdf3):
             for channel in self:
                 channel_data = self.get_channel_data(channel)
                 if channel_data.dtype.kind not in ('U', 'O'):  # not supported type
-                    dset = file_group.create_dataset(channel, data=channel_data,
+                    channel_name = _convert_to_hdf5_name(channel)
+                    dset = file_group.create_dataset(channel_name, data=channel_data,
                                                      compression=compression,
                                                      compression_opts=compression_opts,
                                                      chunks=True)
