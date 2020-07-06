@@ -2239,7 +2239,7 @@ class Mdf4(MdfSkeleton):
     def apply_all_invalid_bit(self):
         """Mask data of all channels based on its invalid bit definition if there is
 
-                """
+        """
         for master_channel in self.masterChannelList:
             group_channels = set(self.masterChannelList[master_channel])
             group_number = self[master_channel][idField][0][0]
