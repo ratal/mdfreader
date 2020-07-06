@@ -122,8 +122,8 @@ def sorted_data_read(bytes tmp, unsigned short bit_count,
                 return read_unsigned_longlong(bit_stream, record_format, number_of_records,
                                          record_byte_size, pos_byte_beg, bit_count, bit_offset, n_bytes, 1)
         elif signal_data_type in (2, 3) and n_bytes <= 8:  # signed long long
-            if (byteorder == 'little' and signal_data_type == 0) or \
-                    (byteorder == 'big' and signal_data_type == 1):
+            if (byteorder == 'little' and signal_data_type == 2) or \
+                    (byteorder == 'big' and signal_data_type == 3):
                 return read_signed_longlong(bit_stream, record_format, number_of_records,
                                         record_byte_size, pos_byte_beg, bit_count, bit_offset, n_bytes, 0)
             else: #  swap bytes
