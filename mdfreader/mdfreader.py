@@ -819,6 +819,7 @@ class Mdf(Mdf4, Mdf3):
         Warning: this can be slow for big data, CSV is text format after all
 
         """
+
         if self:  # data in mdf
             import csv
             self.resample(sampling)

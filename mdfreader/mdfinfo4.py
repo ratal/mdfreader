@@ -1005,7 +1005,7 @@ class CNBlock(dict):
             if self['cn_md_unit']:  # comments exist
                 self['unit'] = CommentBlock()
                 self['unit'].read_cm_cn_unit(fid=kargs['fid'], pointer=self['cn_md_unit'])
-                if self['cn_sync_type'] and (self['unit'] is None or not self['unit']):
+                if self['cn_sync_type'] and not self['unit']:
                     # no units but already known by spec
                     if self['cn_sync_type'] == 1:
                         self['unit'] = 's'
@@ -1955,7 +1955,7 @@ class Info4(dict):
             # reads Source Information Block
             temp = SIBlock()
             temp.read_si(fid, self['CG'][dg][cg]['cg_si_acq_source'])
-            if temp is not None:
+            if temp:
                 self['CG'][dg][cg]['SI'] = dict()
                 self['CG'][dg][cg]['SI'].update(temp)
 
@@ -2066,7 +2066,7 @@ class Info4(dict):
                 # reads Channel Source Information
                 temp = SIBlock()
                 temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                if temp is not None:
+                if temp:
                     self['CN'][dg][cg][cn]['SI'] = dict()
                     self['CN'][dg][cg][cn]['SI'].update(temp)
 
