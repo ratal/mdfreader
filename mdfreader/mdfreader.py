@@ -39,6 +39,7 @@ from argparse import ArgumentParser
 from numpy import arange, linspace, interp, all, diff, mean, vstack, hstack, float64, float32
 from numpy import nan, datetime64, array, searchsorted, clip, empty
 from numpy.ma import MaskedArray, masked, empty as ma_empty
+from scipy.interpolate import interp1d
 from .mdf3reader import Mdf3
 from .mdf4reader import Mdf4
 from .mdf import _open_mdf, dataField, descriptionField, unitField, masterField, masterTypeField, idField
@@ -579,7 +580,7 @@ class Mdf(Mdf4, Mdf3):
             except:
                 warn(Name)
 
-    def resample(self, sampling=None, channel=None, master_channel=None):
+    def resample(self, sampling=None, channel=None, master_channel=None, interpolation_kind=None):
         """ Resamples as much as possible all data groups into one data group having defined
         sampling interval or sharing same defined master channel
 
@@ -588,6 +589,9 @@ class Mdf(Mdf4, Mdf3):
         sampling : float, optional
             resampling interval, None by default. If None, will rely on channel or master_channel
              parameters to define reference data group. If both are undefined, picking the first master
+        interpolation_kind : str, optional
+            interpolation type for floating data from scipy interp1d list (‘linear’, ‘nearest’, ‘zero’,
+             ‘slinear’, ‘quadratic’, ‘cubic’, ‘previous’, ‘next’)
         ** or | and **
         channel : str, optional
             channel name to be resampled
@@ -621,7 +625,7 @@ class Mdf(Mdf4, Mdf3):
             if sampling is not None:
                 master_data = arange(master_data[0], master_data[-1], sampling)
 
-            if master_channel_name is None or \
+            if master_channel_name is None or master_channel_name not in self.masterChannelList or\
                     master_channel_name not in self.masterChannelList[master_channel_name]:
                 # No master channel in selected group, looking at other groups
                 min_master = []
@@ -665,7 +669,8 @@ class Mdf(Mdf4, Mdf3):
             # Interpolate channels
             for master in list(self.masterChannelList.keys()):
                 if self.get_channel_master_type(master) == master_channel_type:
-                    self.resample_group(sampling, master, new_master_data=master_data)
+                    self.resample_group(sampling, master, new_master_data=master_data,
+                                        interpolation_kind=interpolation_kind)
                     # remove old master channel
                     if not master_channel_name == master:
                         self.masterChannelList[master].remove(master)  # removing previous master from list
@@ -680,7 +685,7 @@ class Mdf(Mdf4, Mdf3):
         else:
             warn('no data to be resampled')
 
-    def resample_group(self, sampling, channel, new_master_data=None):
+    def resample_group(self, sampling, channel, new_master_data=None, interpolation_kind=None):
         """ Resamples one channel along with its dataGroup
 
         Parameters
@@ -694,19 +699,40 @@ class Mdf(Mdf4, Mdf3):
         new_master_data : array, optional
             master channel data to be applied to the group identified by channel
 
+        interpolation_kind : str, optional
+            interpolation type for floating data from scipy interp1d list (‘linear’, ‘nearest’, ‘zero’,
+             ‘slinear’, ‘quadratic’, ‘cubic’, ‘previous’, ‘next’)
+
         Notes
         --------
         Resampling will convert all channels so be careful for big files
         and memory consumption
         """
-        def interpolate(new_x, x, y):
-            if y.dtype.kind == 'f':
-                return interp(new_x, x, y)
+        def interp_close_point(x, new_x, kind):
+            # interpolates with closest point at 'kind' side
+            idx = searchsorted(x, new_x, side=kind)
+            idx -= 1
+            idx = clip(idx, 0, idx[-1])
+            return idx
+
+        def interpolate(new_x, x, y, interpolation_kind):
+            # select right interpolation method depending of
+            # interpolation kind and data type
+            if interpolation_kind is None:
+                if y.dtype.kind == 'f':
+                    return interp(new_x, x, y)
+                else:
+                    return y[interp_close_point(x, new_x, 'right')]
             else:
-                idx = searchsorted(x, new_x, side='right')
-                idx -= 1
-                idx = clip(idx, 0, idx[-1])
-                return y[idx]
+                if interpolation_kind == 'previous':
+                    return y[interp_close_point(x, new_x, 'left')]
+                elif interpolation_kind == 'next':
+                    return y[interp_close_point(x, new_x, 'right')]
+                elif y.dtype.kind not in ('U', 'S'):
+                    f = interp1d(x, y, kind=interpolation_kind, fill_value="extrapolate")
+                    return f(new_x)
+                else:
+                    return y[interp_close_point(x, new_x, 'right')]
 
         master_channel = self.get_channel_master(channel)
         old_master_data = self.get_channel_data(master_channel)
@@ -721,14 +747,16 @@ class Mdf(Mdf4, Mdf3):
                 if channel_data.dtype.kind not in ('S', 'U', 'V'):
                     # if channel not array of string
                     try:
-                        self.set_channel_data(Name, interpolate(new_master_data, old_master_data, channel_data))
+                        self.set_channel_data(Name, interpolate(new_master_data, old_master_data,
+                                                                channel_data, interpolation_kind))
                     except:
                         if not all(diff(old_master_data) > 0):
                             warn('{} has non regularly increasing master channel {}.\n'
                                  ' Faulty samples will be dropped in related data group'.
                                  format(Name, master_channel))
                             self._clean_uneven_master_data(master_channel)
-                            self.set_channel_data(Name, interpolate(new_master_data, old_master_data, channel_data))
+                            self.set_channel_data(Name, interpolate(new_master_data, old_master_data,
+                                                                    channel_data,interpolation_kind))
                         elif old_master_data is not None and len(old_master_data) != len(channel_data):
                             warn('{} and master channel {} do not have same length'.
                                  format(Name, master_channel))
