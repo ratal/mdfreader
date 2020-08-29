@@ -744,7 +744,7 @@ class Mdf(Mdf4, Mdf3):
                 self.set_channel_data(Name, new_master_data)
             else:
                 channel_data = self.get_channel_data(Name)
-                if channel_data.dtype.kind not in ('S', 'U', 'V'):
+                if channel_data.dtype.kind not in ('S', 'U', 'V') and channel_data.ndim == 1:
                     # if channel not array of string
                     try:
                         self.set_channel_data(Name, interpolate(new_master_data, old_master_data,
