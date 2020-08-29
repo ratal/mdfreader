@@ -1857,21 +1857,22 @@ class Info4(dict):
         """
         self['ChannelNamesByDG'] = {}
         if self['HD']['hd_dg_first']:
-            dg = 0
-            self['DG'][dg] = {}
-            self['DG'][dg].update(DGBlock(fid, self['HD']['hd_dg_first']))
-            self['ChannelNamesByDG'][dg] = set()
+            next_dg = self['HD']['hd_dg_first']
+            self['DG'][next_dg] = {}
+            self['DG'][next_dg].update(DGBlock(fid, self['HD']['hd_dg_first']))
+            self['ChannelNamesByDG'][next_dg] = set()
             if minimal < 2:
                 # reads Channel Group blocks
-                self.read_cg_blocks(fid, dg, channel_name_list, minimal)
-            while self['DG'][dg]['dg_dg_next']:
-                dg += 1
-                self['DG'][dg] = {}
-                self['DG'][dg].update(DGBlock(fid, self['DG'][dg - 1]['dg_dg_next']))
-                self['ChannelNamesByDG'][dg] = set()
+                self.read_cg_blocks(fid, next_dg, channel_name_list, minimal)
+            while self['DG'][next_dg]['dg_dg_next']:
+                current_dg = next_dg
+                next_dg = self['DG'][next_dg]['dg_dg_next']
+                self['DG'][next_dg] = {}
+                self['DG'][next_dg].update(DGBlock(fid, self['DG'][current_dg]['dg_dg_next']))
+                self['ChannelNamesByDG'][next_dg] = set()
                 if minimal < 2:
                     # reads Channel Group blocks
-                    self.read_cg_blocks(fid, dg, channel_name_list, minimal)
+                    self.read_cg_blocks(fid, next_dg, channel_name_list, minimal)
 
     def read_cg_blocks(self, fid, dg, channel_name_list=False, minimal=0):
         """reads Channel Group blocks linked to same Data Block dg
@@ -1888,31 +1889,32 @@ class Info4(dict):
             to activate minimum content reading for raw data fetching
         """
         if self['DG'][dg]['dg_cg_first']:
-            cg = 0
+            next_cg = self['DG'][dg]['dg_cg_first']
             self['CN'][dg] = {}
-            self['CN'][dg][cg] = dict()
+            self['CN'][dg][next_cg] = dict()
             self['CC'][dg] = {}
-            self['CC'][dg][cg] = dict()
+            self['CC'][dg][next_cg] = dict()
             self['CG'][dg] = {}
 
             vlsd_cg_block = []
 
-            vlsd_cg_block = self.read_cg_block(fid, dg, cg, self['DG'][dg]['dg_cg_first'],
+            vlsd_cg_block = self.read_cg_block(fid, dg, next_cg, self['DG'][dg]['dg_cg_first'],
                                                vlsd_cg_block, channel_name_list=False, minimal=0)
 
-            if self['CN'][dg][cg] and self['CG'][dg][cg]['unique_channel_in_CG'] and \
-                    not self['CG'][dg][cg]['cg_cg_next']:
+            if self['CN'][dg][next_cg] and self['CG'][dg][next_cg]['unique_channel_in_CG'] and \
+                    not self['CG'][dg][next_cg]['cg_cg_next']:
                 # unique channel in data group
                 self['DG'][dg]['unique_channel_in_DG'] = True
             else:
                 self['DG'][dg]['unique_channel_in_DG'] = False
 
-            while self['CG'][dg][cg]['cg_cg_next']:
-                cg += 1
-                self['CG'][dg][cg] = {}
-                self['CN'][dg][cg] = dict()
-                self['CC'][dg][cg] = dict()
-                vlsd_cg_block = self.read_cg_block(fid, dg, cg, self['CG'][dg][cg - 1]['cg_cg_next'],
+            while self['CG'][dg][next_cg]['cg_cg_next']:
+                current_cg = next_cg
+                next_cg = self['CG'][dg][next_cg]['cg_cg_next']
+                self['CG'][dg][next_cg] = {}
+                self['CN'][dg][next_cg] = dict()
+                self['CC'][dg][next_cg] = dict()
+                vlsd_cg_block = self.read_cg_block(fid, dg, next_cg, self['CG'][dg][current_cg]['cg_cg_next'],
                                                    vlsd_cg_block, channel_name_list=False, minimal=0)
 
             if vlsd_cg_block and 'VLSD_CG' not in self:  # VLSD CG Block exiting
