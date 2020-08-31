@@ -91,7 +91,8 @@ class MdfSkeleton(dict):
 
     def __init__(self, file_name=None, channel_list=None, convert_after_read=True,
                  filter_channel_names=False, no_data_loading=False,
-                 compression=False, convert_tables=False, metadata=2):
+                 compression=False, convert_tables=False, metadata=2,
+                 finalization_writing_to_file=False, force_file_integrity_check=False):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -120,9 +121,21 @@ class MdfSkeleton(dict):
         compression : bool optional
             flag to compress data in memory.
 
-        convert_tables : bool, optional, default False
-            flag to convert or not only conversions with tables.
-            These conversions types take generally long time and memory.
+        metadata: int, optional, default = 2
+            Reading metadata has impact on performance, especially for mdf 4.x using xml.
+            2: minimal metadata reading (mostly channel blocks)
+            1: used for noDataLoading
+            0: all metadata reading, including Source Information, Attachment, etc..
+
+        finalization_writing_to_file : bool, optional, False by default
+            If file is detected not finalised (id_unfin_flags!=0), file is corrected
+            writing in the blocks if set to True, otherwise correction is done only
+            to file representation in memory. Valid from version MDF 4.11
+
+        force_file_integrity_check : bool, optional, False by default
+            Perform block sizes check for potentially corrupted file without finalization
+            flags (id_unfin_flags==0). Combined with finalization_writing_to_file is
+            very experimental and risky, correction should be tried in memory first.
         """
         self.masterChannelList = OrderedDict()
         # flag to control multiprocessing, default deactivate,
@@ -152,7 +165,9 @@ class MdfSkeleton(dict):
                       filter_channel_names=filter_channel_names,
                       no_data_loading=no_data_loading,
                       compression=compression,
-                      metadata=metadata)
+                      metadata=metadata,
+                      finalization_writing_to_file=finalization_writing_to_file,
+                      force_file_integrity_check=force_file_integrity_check)
 
     def add_channel(self, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None,
                     info=None, compression=False, identifier=None):

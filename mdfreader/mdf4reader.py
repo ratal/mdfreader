@@ -26,6 +26,7 @@ from os.path import splitext
 from time import gmtime, localtime
 from multiprocessing import Queue, Process
 from sys import byteorder
+import re
 from collections import defaultdict, OrderedDict
 from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
@@ -1256,21 +1257,22 @@ class Mdf4(MdfSkeleton):
     """
 
     def read4(self, file_name=None, info=None, multi_processed=False, channel_list=None, convert_after_read=True,
-              filter_channel_names=False, compression=False, metadata=2):
+              filter_channel_names=False, compression=False, metadata=2, finalization_writing_to_file=False,
+              force_file_integrity_check=False):
         """ Reads mdf 4.x file data and stores it in dict
 
         Parameters
         ----------------
-        file_name : str, optional
+        file_name : str, optional, None by default
             file name
 
-        info : mdfinfo4.info4 class
+        info : mdfinfo4.info4 class, optional, None by default
             info4 class containing all MDF Blocks
 
-        multi_processed : bool
+        multi_processed : bool, False by default
             flag to activate multiprocessing of channel data conversion
 
-        channel_list : list of str, optional
+        channel_list : list of str, optional, None by default
             list of channel names to be read
             If you use channelList, reading might be much slower but it will save you memory.
             Can be used to read big files
@@ -1282,7 +1284,7 @@ class Mdf4(MdfSkeleton):
             If many float are stored in file, you can gain from 3 to 4 times memory footprint
             To calculate value from channel, you can then use method .get_channel_data()
 
-        filter_channel_names : bool, optional
+        filter_channel_names : bool, optional, False by default
             flag to filter long channel names from its module names separated by '.'
 
         compression : bool, optional
@@ -1293,6 +1295,16 @@ class Mdf4(MdfSkeleton):
             2: minimal metadata reading (mostly channel blocks)
             1: used for noDataLoading
             0: all metadata reading, including Source Information, Attachment, etc..
+
+        finalization_writing_to_file : bool, optional, False by default
+            If file is detected not finalised (id_unfin_flags!=0), file is corrected
+            writing in the blocks if set to True, otherwise correction is done only
+            to file representation in memory.
+
+        force_file_integrity_check : bool, optional, False by default
+            Perform block sizes check for potentially corrupted file without finalization
+            flags (id_unfin_flags==0). Combined with finalization_writing_to_file is
+            very experimental and risky, correction should be tried in memory first.
 
         """
 
@@ -1319,6 +1331,10 @@ class Mdf4(MdfSkeleton):
                              filter_channel_names=filter_channel_names, minimal=minimal)
             else:
                 info = self.info
+
+        # check for eventual unfinalised file
+        info = file_finalization(self.MDFVersionNumber, info, self.fid,
+                                 finalization_writing_to_file, force_file_integrity_check)
 
         if info.fid is None or info.fid.closed:
             info.fid = open(self.fileName, 'rb')
@@ -2611,3 +2627,92 @@ def _bitfield_text_table_conversion(vector, cc_val, cc_ref):
                                                                         cc_ref[i]['cc_ref'])
         temp.append(assembled_string)
     return asarray(temp)
+
+def file_finalization(version, info, fid, finalization_writing_to_file,
+                      force_file_integrity_check):
+    """ check for eventual unfinalised flag and try to adjust info content
+
+        Parameters
+        ----------------
+        version : float
+            version number
+        info : class
+            info mdf class
+        fid:
+            file handler
+        finalization_writing : bool, optional, False by default
+            If file is detected not finalised (id_unfin_flags!=0), file is corrected
+            writing in the blocks if set to True, otherwise correction is done only
+            to file representation in memory.
+        force_file_integrity_check : bool, optional, False by default
+            Perform block sizes check for potentially corrupted file without finalization
+            flags (id_unfin_flags==0). Combined with finalization_writing_to_file is
+            very experimental and risky, correction should be tried in memory first.
+
+        Returns
+        -----------
+        info class
+    """
+    unfinalized_flags = info['ID']['id_unfi_flags']
+    if force_file_integrity_check:
+        unfinalized_flags = 21 # checks only for what is implemented
+        version = 420
+    if version >= 411 and unfinalized_flags>0:
+        # looking for all the block in file
+        pattern = re.compile(
+            rb"(?P<block>##(D[GVTZIL]|AT|C[AGHNC]|EV|FH|HL|LD|MD|R[DVI]|S[IRD]|TX))",
+            re.DOTALL | re.MULTILINE,
+        )
+
+        fid.seek(0)
+
+        addresses = []
+        btype_addresses = OrderedDict()
+
+        for match in re.finditer(pattern, fid.read()):
+            btype = match.group('block')
+            start = match.start()
+
+            btype_addresses[start] = btype
+            addresses.append(start)
+
+        if not info['CG']:
+            # minimal = 1 was used.
+            for dataGroup in info['DG']:
+                info.read_cg_blocks(fid, dataGroup)
+
+        # treatment of unfinalised file
+        if unfinalized_flags & (1 << 4):
+            warn('Update of last DL block in each chained list of '
+                 'DL blocks required')
+
+        if unfinalized_flags & (1 << 2):
+            warn('Update of length for last DT block required')
+
+        if unfinalized_flags & 1:
+            warn('Update of cycle counters for CG/CA blocks required')
+            for dg in info['CG']:
+                dg_rec_id_size = info['DG'][dg]['dg_rec_id_size']
+                data_block_position = info['DG'][dg]['dg_data']
+                data_size = 0
+                for cg in info['CG'][dg]:
+                    cg_cycle_count = info['CG'][dg][cg]['cg_cycle_count']
+                    cg_data_bytes = info['CG'][dg][cg]['cg_data_bytes']
+                    cg_invalid_bytes = info['CG'][dg][cg]['cg_invalid_bytes']
+                    data_size += cg_cycle_count * (dg_rec_id_size + cg_data_bytes + cg_invalid_bytes)
+                data_block_starting_position = info['DG'][dg]['dg_data']
+                data_block_ending_position = addresses[addresses.index(data_block_starting_position) + 1]
+                block_type = btype_addresses[data_block_starting_position]
+                data_block_size_in_file = data_block_ending_position - data_block_starting_position
+
+        if unfinalized_flags & (1 << 5):
+            warn('Update of cg_data_bytes and cg_inval_bytes in VLSD '
+                 'CG block required')
+        if unfinalized_flags & (1 << 6):
+            warn('Update of offset values for VLSD channel required '
+                 'in case a VLSD CG block is used')
+        if unfinalized_flags & (1 << 1):
+            warn('Update of cycle counters for SR blocks required')
+        if unfinalized_flags & (1 << 3):
+            warn('Update of length for last RD block required')
+    return info

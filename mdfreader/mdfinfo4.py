@@ -180,26 +180,6 @@ class IDBlock(dict):
          self['id_unfi_flags'],
          self['id_custom_unfi_flags']) = unpack('<8s8s8sIH30s2H',
                                                 fid.read(64))
-        # treatment of unfinalised file
-        if self['id_ver'] > 410 and b'UnFin' in self['id_file']:
-            warn('  ! unfinalised file')
-            if self['id_unfi_flags'] & 1:
-                warn('Update of cycle counters for CG/CA blocks required')
-            if self['id_unfi_flags'] & (1 << 1):
-                warn('Update of cycle counters for SR blocks required')
-            if self['id_unfi_flags'] & (1 << 2):
-                warn('Update of length for last DT block required')
-            if self['id_unfi_flags'] & (1 << 3):
-                warn('Update of length for last RD block required')
-            if self['id_unfi_flags'] & (1 << 4):
-                warn('Update of last DL block in each chained list of '
-                     'DL blocks required')
-            if self['id_unfi_flags'] & (1 << 5):
-                warn('Update of cg_data_bytes and cg_inval_bytes in VLSD '
-                     'CG block required')
-            if self['id_unfi_flags'] & (1 << 6):
-                warn('Update of offset values for VLSD channel required '
-                     'in case a VLSD CG block is used')
 
     def write(self, fid):
         """ Writes IDBlock

@@ -343,7 +343,8 @@ class Mdf(Mdf4, Mdf3):
     """
 
     def read(self, file_name=None, multi_processed=False, channel_list=None, convert_after_read=True,
-             filter_channel_names=False, no_data_loading=False, compression=False, metadata=2):
+             filter_channel_names=False, no_data_loading=False, compression=False, metadata=2,
+             finalization_writing_to_file=False, force_file_integrity_check=False):
         """ reads mdf file version 3.x and 4.x
 
         Parameters
@@ -383,6 +384,16 @@ class Mdf(Mdf4, Mdf3):
             1: used for noDataLoading.
             0: all metadata reading, including Source Information, Attachment, etc..
 
+        finalization_writing_to_file : bool, optional, False by default
+            If file is detected not finalised (id_unfin_flags!=0), file is corrected
+            writing in the blocks if set to True, otherwise correction is done only
+            to file representation in memory. Valid from version MDF 4.11
+
+        force_file_integrity_check : bool, optional, False by default
+            Perform block sizes check for potentially corrupted file without finalization
+            flags (id_unfin_flags==0). Combined with finalization_writing_to_file is
+            very experimental and risky, correction should be tried in memory first.
+
         Notes
         --------
         If you keep convertAfterRead to true, you can set attribute mdf.multiProc to activate channel conversion
@@ -418,7 +429,8 @@ class Mdf(Mdf4, Mdf3):
         else:  # MDF version 4.x
             if not no_data_loading:
                 self.read4(self.fileName, None, multi_processed, channel_list,
-                           convert_after_read, filter_channel_names, compression, metadata)
+                           convert_after_read, filter_channel_names, compression, metadata,
+                           finalization_writing_to_file, force_file_integrity_check)
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
                 self.info = Info4(None, fid=self.fid,
