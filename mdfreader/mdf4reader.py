@@ -35,6 +35,7 @@ from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
 from numpy.lib.recfunctions import rename_fields
 from numpy.ma import MaskedArray
+from zlib import decompress
 from warnings import simplefilter, warn
 from .mdfinfo4 import Info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _load_header, DLBlock, \
@@ -2667,14 +2668,20 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
         fid.seek(0)
 
         addresses = []
-        btype_addresses = OrderedDict()
+        blocks = {}
+        addresses_btype = OrderedDict()
 
         for match in re.finditer(pattern, fid.read()):
             btype = match.group('block')
             start = match.start()
 
-            btype_addresses[start] = btype
+            addresses_btype[start] = btype
+            btype_addresses = blocks.setdefault(btype, [])
+            btype_addresses.append(start)
             addresses.append(start)
+
+        fid.seek(0, 2)
+        eof_position = fid.tell()
 
         if not info['CG']:
             # minimal = 1 was used.
@@ -2685,34 +2692,152 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
         if unfinalized_flags & (1 << 4):
             warn('Update of last DL block in each chained list of '
                  'DL blocks required')
+            # check if all DL block are actually full and present
 
-        if unfinalized_flags & (1 << 2):
+
+        if unfinalized_flags & (1 << 2) and not force_file_integrity_check:
             warn('Update of length for last DT block required')
 
-        if unfinalized_flags & 1:
+        if unfinalized_flags & 1 and not force_file_integrity_check:
             warn('Update of cycle counters for CG/CA blocks required')
+
+        if (unfinalized_flags & 1) | (unfinalized_flags & (1 << 2)):
             for dg in info['CG']:
-                dg_rec_id_size = info['DG'][dg]['dg_rec_id_size']
-                data_block_position = info['DG'][dg]['dg_data']
-                data_size = 0
-                for cg in info['CG'][dg]:
-                    cg_cycle_count = info['CG'][dg][cg]['cg_cycle_count']
-                    cg_data_bytes = info['CG'][dg][cg]['cg_data_bytes']
-                    cg_invalid_bytes = info['CG'][dg][cg]['cg_invalid_bytes']
-                    data_size += cg_cycle_count * (dg_rec_id_size + cg_data_bytes + cg_invalid_bytes)
                 data_block_starting_position = info['DG'][dg]['dg_data']
-                data_block_ending_position = addresses[addresses.index(data_block_starting_position) + 1]
-                block_type = btype_addresses[data_block_starting_position]
-                data_block_size_in_file = data_block_ending_position - data_block_starting_position
+
+                if len(info['CG'][dg]) == 1 and data_block_starting_position:
+                    # not unsorted or empty data block
+                    cg = info['DG'][dg]['dg_cg_first']
+                    cg_cycle_count = info['CG'][dg][cg]['cg_cycle_count']
+                    record_size = info['DG'][dg]['dg_rec_id_size'] + \
+                                  info['CG'][dg][cg]['cg_data_bytes'] + \
+                                  info['CG'][dg][cg]['cg_invalid_bytes']
+                    expected_data_size = cg_cycle_count * record_size
+                    block_type = addresses_btype[data_block_starting_position]
+
+                    if block_type == (b'##DT', b'##DV'):
+                        try:
+                            data_block_ending_position = addresses[addresses.index(data_block_starting_position) + 1]
+                        except IndexError:  # last block at end of file
+                            data_block_ending_position  = eof_position
+                        data_size_in_file = data_block_ending_position \
+                                            - data_block_starting_position - 24
+                        dt = _load_header(fid, data_block_starting_position)
+                        if expected_data_size > data_size_in_file:
+                            warn(f'DT Block at position {data_block_starting_position} '
+                                 f'has a length of {data_size_in_file} '
+                                 f'while it is expected to be {expected_data_size}')
+                            corrected_data_size = data_size_in_file - data_size_in_file % 8
+                            info['CG'][dg][cg]['cg_cycle_count'] = corrected_data_size // record_size
+                            if finalization_writing_to_file:
+                                # write in cg
+                                fid.seek(info['CG'][dg][cg]['pointer'] + 88)
+                                fid.write(bytes(info['CG'][dg][cg]['cg_cycle_count']))
+                                fid.seek(dt['pointer'] + 8)
+                                fid.write(bytes(corrected_data_size + 24))
+
+                    elif block_type == b'##DL':
+                        dl = DLBlock()
+                        data_size_in_file = 0
+                        dl_position = data_block_starting_position
+                        while True:
+                            dl.update(_load_header(fid, dl_position))
+                            dl.read_dl(fid, dl['link_count'])
+                            for pointer in dl['list_data'][0]:
+                                dt = _load_header(fid, pointer)
+                                data_block_size_in_file = dt['length']
+                                data_size_in_file += data_block_size_in_file - 24
+                            if not dl['next']:
+                                # last DL block for this DG Block
+                                break
+                            dl_position = dl['next']
+                        data_size_in_file -= data_block_size_in_file - 24
+                        try:
+                            dt_ending_position = addresses[addresses.index(pointer) + 1]
+                        except IndexError:
+                            dt_ending_position = eof_position
+                        data_size_in_file += dt_ending_position - pointer -24
+
+                        if expected_data_size > data_size_in_file:
+                            warn(f'Data Blocks have a length of {data_size_in_file} '
+                                 f'while it is expected to be {expected_data_size}')
+                            corrected_block_data_size = data_block_size_in_file \
+                                                        - data_block_size_in_file % 8
+                            corrected_data_size = corrected_data_size \
+                                                  - data_block_size_in_file \
+                                                  + corrected_block_data_size
+                            info['CG'][dg][cg]['cg_cycle_count'] = corrected_data_size // record_size
+                            if finalization_writing_to_file:
+                                # write in cg
+                                fid.seek(info['CG'][dg][cg]['pointer'] + 88)
+                                fid.write(bytes(info['CG'][dg][cg]['cg_cycle_count']))
+                                fid.seek(dt['pointer'] + 8)
+                                fid.write(bytes(corrected_block_data_size + 24))
+
+                    elif block_type in (b'##HL', b'##DZ'):
+                        dz = DZBlock()
+                        data_size_in_file = 0
+                        if block_type == b'##HL':
+                            hl = HLBlock()
+                            fid.seek(data_block_starting_position + 24)
+                            hl.read_hl(fid)
+                            dl = DLBlock()
+                            data_size_in_file = 0
+                            dl_position = hl['hl_dl_first']
+                            while True:
+                                dl.update(_load_header(fid, dl_position))
+                                dl.read_dl(fid, dl['link_count'])
+                                for pointer in dl['list_data'][0]:
+                                    dz.read_dz(fid, pointer)
+                                    data_block_size_in_file = dz['dz_org_data_length']
+                                    data_size_in_file += data_block_size_in_file
+                                if not dl['next']:
+                                    # last DL block for this DG Block
+                                    break
+                                dl_position = dl['next']
+                            data_size_in_file -= data_block_size_in_file
+                        else:
+                            dz.update(_load_header(fid, data_block_starting_position))
+                            dz.read_dz(fid)
+                            data_block_size_in_file = dz['dz_org_data_length']
+
+                        try:
+                            dz_ending_position = addresses[addresses.index(dz['pointer']) + 1]
+                        except IndexError:
+                            dz_ending_position = eof_position
+                        dz_data_section_length = dz_ending_position - dz['pointer'] - 48
+                        data_size_in_file += len(decompress(fid.read(dz_data_section_length)))
+
+                        if expected_data_size > data_size_in_file:
+                            warn(f'Data Blocks have a length of {data_size_in_file} '
+                                 f'while it is expected to be {expected_data_size}')
+                            corrected_block_data_size = data_block_size_in_file \
+                                                        - data_block_size_in_file % 8
+                            corrected_data_size = corrected_data_size \
+                                                  - data_block_size_in_file \
+                                                  + corrected_block_data_size
+                            info['CG'][dg][cg]['cg_cycle_count'] = corrected_data_size // record_size
+                            if finalization_writing_to_file:
+                                # write in cg
+                                fid.seek(info['CG'][dg][cg]['pointer'] + 88)
+                                fid.write(bytes(info['CG'][dg][cg]['cg_cycle_count']))
+                                fid.seek(dz['pointer'] + 32)
+                                fid.write(bytes(corrected_block_data_size))
+                                fid.seek(dz['pointer'] + 40)
+                                fid.write(bytes(dz_data_section_length))
 
         if unfinalized_flags & (1 << 5):
             warn('Update of cg_data_bytes and cg_inval_bytes in VLSD '
                  'CG block required')
+            # No need to correct
         if unfinalized_flags & (1 << 6):
             warn('Update of offset values for VLSD channel required '
                  'in case a VLSD CG block is used')
+            # offset values not used to parse VLSD, no need
         if unfinalized_flags & (1 << 1):
             warn('Update of cycle counters for SR blocks required')
+            # SRBlocks not parsed
         if unfinalized_flags & (1 << 3):
             warn('Update of length for last RD block required')
+            # RDBlocks not parsed
     return info
