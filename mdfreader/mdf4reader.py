@@ -2693,7 +2693,26 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
             warn('Update of last DL block in each chained list of '
                  'DL blocks required')
             # check if all DL block are actually full and present
+            for dg in info['CG']:
+                data_block_starting_position = info['DG'][dg]['dg_data']
+                block_type = addresses_btype[data_block_starting_position]
 
+                if block_type in (b'##DL', b'##HL'):
+                    if block_type == b'##HL':
+                        hl = HLBlock()
+                        fid.seek(data_block_starting_position + 24)
+                        hl.read_hl(fid)
+                        dl_position = hl['hl_dl_first']
+                    dl = DLBlock()
+                    while True:
+                        dl.update(_load_header(fid, dl_position))
+                        dl.read_dl(fid, dl['link_count'])
+                        for pointer in dl['list_data'][0]:
+                            dt = _load_header(fid, pointer)
+                        if not dl['next']:
+                            # last DL block for this DG Block
+                            break
+                        dl_position = dl['next']
 
         if unfinalized_flags & (1 << 2) and not force_file_integrity_check:
             warn('Update of length for last DT block required')
