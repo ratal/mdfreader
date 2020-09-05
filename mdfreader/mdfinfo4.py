@@ -102,7 +102,7 @@ def _load_header(fid, pointer):
         fid.seek(pointer)
         temp = dict()
         (temp['id'],
-         reserved,
+         temp['reserved'],
          temp['length'],
          temp['link_count']) = _HeaderStruct.unpack(fid.read(24))
         temp['pointer'] = pointer
@@ -1535,7 +1535,7 @@ class DLBlock(dict):
         self['list_data'][0] = unpack('<{}Q'.format(link_count - 1),
                                     fid.read(8 * (link_count - 1)))
         (self['flags'],
-         dl_reserved,
+         self['dl_reserved'],
          self['count']) = unpack('<B3sI', fid.read(8))
         if self['flags'] & 0b1:  # equal length data list
             self['equal_length'] = unpack('<Q', fid.read(8))[0]
@@ -1543,13 +1543,13 @@ class DLBlock(dict):
             self['offset'] = unpack('<{}Q'.format(self['count']),
                                     fid.read(8 * self['count']))
         if self['flags'] & 0b10:  # time values
-            self['time_values'] = unpack('<{}Q'.format(self['count']),
+            self['time_values'] = unpack('<{}d'.format(self['count']),
                                          fid.read(8 * self['count']))
         if self['flags'] & 0b100:  # angle values
-            self['angle_values'] = unpack('<{}Q'.format(self['count']),
+            self['angle_values'] = unpack('<{}d'.format(self['count']),
                                           fid.read(8 * self['count']))
         if self['flags'] & 0b1000:  # distance values
-            self['distance_values'] = unpack('<{}Q'.format(self['count']),
+            self['distance_values'] = unpack('<{}d'.format(self['count']),
                                              fid.read(8 * self['count']))
 
     def write(self, fid, chunks):
@@ -1565,6 +1565,25 @@ class DLBlock(dict):
         fid.write(pack('{0}Q'.format(number_dl), *zeros(shape=number_dl, dtype='<u8')))
         fid.write(pack('<2I', 0, number_dl))
         fid.write(pack('{0}Q'.format(number_dl), *dl_offset))
+
+    def write_dl(self, fid, pointer)
+        fid.seek(pointer)
+        data_bytes = (temp['id'], self['reserved'], temp['length'],
+                      temp['link_count'], self['next'])
+        fid.write(pack('<4sI3Q', *data_bytes))
+        fid.write(pack('<{}Q'.format(dl['count']), *self['list_data'][0]))
+        data_bytes = (self['flags'], self['dl_reserved'], dl['count'])
+        fid.write(pack('<B3sI', *data_bytes)))
+        if not dl['flags'] & 0b1:  # offset list
+            fid.write(pack('<{}Q'.format(dl['count']), *self['offset']))
+        else:
+            fid.write(pack('<Q', self['equal_length']))
+        if dl['flags'] & 0b10:  # time values
+            fid.write(pack('<{}d'.format(dl['count']), *self['time_values']))
+        if dl['flags'] & 0b100:  # angle values
+            fid.write(pack('<{}d'.format(dl['count']), *self['angle_values']))
+        if dl['flags'] & 0b1000:  # distance values
+            fid.write(pack('<{}d'.format(dl['count']), *self['distance_values']))
 
 
 class DZBlock(dict):

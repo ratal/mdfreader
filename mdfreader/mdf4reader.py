@@ -2698,11 +2698,13 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                 block_type = addresses_btype[data_block_starting_position]
 
                 if block_type in (b'##DL', b'##HL'):
+                    dl_position = data_block_starting_position
                     if block_type == b'##HL':
                         hl = HLBlock()
                         fid.seek(data_block_starting_position + 24)
                         hl.read_hl(fid)
                         dl_position = hl['hl_dl_first']
+
                     dl = DLBlock()
                     while True:
                         dl.update(_load_header(fid, dl_position))
@@ -2713,6 +2715,33 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                             # last DL block for this DG Block
                             break
                         dl_position = dl['next']
+
+                    faulty_index = [index for index, f in enumerate(dl['list_data'][0]) if f == 0]
+                    if faulty_index:
+                        # some data blocks were not written
+                        n_faulty = len(faulty_index)
+                        dl['link_count'] -= n_faulty
+                        dl['count'] -= n_faulty
+                        [dl['list_data'][0].pop(f) for f in faulty_index]
+                        dl['length'] -= n_faulty * 8
+                        if not dl['flags'] & 0b1:  # offset list
+                            [dl['offset'].pop(f) for f in faulty_index]
+                            dl['link_count'] -= n_faulty
+                            dl['length'] -= n_faulty * 8
+                        if dl['flags'] & 0b10:  # time values
+                            [dl['time_values'].pop(f) for f in faulty_index]
+                            dl['link_count'] -= n_faulty
+                            dl['length'] -= n_faulty * 8
+                        if dl['flags'] & 0b100:  # angle values
+                            [dl['angle_values'].pop(f) for f in faulty_index]
+                            dl['link_count'] -= n_faulty
+                            dl['length'] -= n_faulty * 8
+                        if dl['flags'] & 0b1000:  # distance values
+                            [dl['distance_values'].pop(f) for f in faulty_index]
+                            dl['link_count'] -= n_faulty
+                            dl['length'] -= n_faulty * 8
+                        if finalization_writing_to_file:
+                            dl.write_dl(fid, data_block_starting_position)
 
         if unfinalized_flags & (1 << 2) and not force_file_integrity_check:
             warn('Update of length for last DT block required')
