@@ -1566,14 +1566,14 @@ class DLBlock(dict):
         fid.write(pack('<2I', 0, number_dl))
         fid.write(pack('{0}Q'.format(number_dl), *dl_offset))
 
-    def write_dl(self, fid, pointer)
+    def write_dl(self, fid, pointer):
         fid.seek(pointer)
         data_bytes = (temp['id'], self['reserved'], temp['length'],
                       temp['link_count'], self['next'])
         fid.write(pack('<4sI3Q', *data_bytes))
         fid.write(pack('<{}Q'.format(dl['count']), *self['list_data'][0]))
         data_bytes = (self['flags'], self['dl_reserved'], dl['count'])
-        fid.write(pack('<B3sI', *data_bytes)))
+        fid.write(pack('<B3sI', *data_bytes))
         if not dl['flags'] & 0b1:  # offset list
             fid.write(pack('<{}Q'.format(dl['count']), *self['offset']))
         else:
