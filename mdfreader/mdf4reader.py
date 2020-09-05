@@ -2722,21 +2722,26 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                         n_faulty = len(faulty_index)
                         dl['link_count'] -= n_faulty
                         dl['count'] -= n_faulty
+                        dl['list_data'][0] = list(dl['list_data'][0])# tuple to list
                         [dl['list_data'][0].pop(f) for f in faulty_index]
                         dl['length'] -= n_faulty * 8
                         if not dl['flags'] & 0b1:  # offset list
+                            dl['offset'] = list(dl['offset'])
                             [dl['offset'].pop(f) for f in faulty_index]
                             dl['link_count'] -= n_faulty
                             dl['length'] -= n_faulty * 8
                         if dl['flags'] & 0b10:  # time values
+                            dl['time_values'] = list(dl['time_values'])
                             [dl['time_values'].pop(f) for f in faulty_index]
                             dl['link_count'] -= n_faulty
                             dl['length'] -= n_faulty * 8
                         if dl['flags'] & 0b100:  # angle values
+                            dl['angle_values'] = list(dl['angle_values'])
                             [dl['angle_values'].pop(f) for f in faulty_index]
                             dl['link_count'] -= n_faulty
                             dl['length'] -= n_faulty * 8
                         if dl['flags'] & 0b1000:  # distance values
+                            dl['distance_values'] = list(dl['distance_values'])
                             [dl['distance_values'].pop(f) for f in faulty_index]
                             dl['link_count'] -= n_faulty
                             dl['length'] -= n_faulty * 8
