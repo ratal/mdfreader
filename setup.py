@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages
 from codecs import open  # To use a consistent encoding
 from os import path
-from distutils.extension import Extension
+from setuptools.extension import Extension
 from warnings import warn
 # cython: language_level=3, boundscheck=False
 
@@ -14,7 +14,6 @@ try:  # numpy and cython installed
 except ImportError:
     # If we couldn't import Cython, use the normal setuptools
     # and look for a pre-compiled .c file instead of a .pyx file
-    from setuptools.command.build_ext import build_ext
     ext_modules = [Extension("dataRead", ["dataRead.c"])]
 
 
