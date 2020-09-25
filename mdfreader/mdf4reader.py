@@ -2690,11 +2690,12 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
 
         # treatment of unfinalised file
         if unfinalized_flags & (1 << 4):
-            warn('Update of last DL block in each chained list of '
-                 'DL blocks required')
+            warn('Checking last DL block')
             # check if all DL block are actually full and present
             for dg in info['CG']:
                 data_block_starting_position = info['DG'][dg]['dg_data']
+                if data_block_starting_position == 0:
+                    break  # no data block
                 block_type = addresses_btype[data_block_starting_position]
 
                 if block_type in (b'##DL', b'##HL'):
@@ -2749,10 +2750,10 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                             dl.write_dl(fid, data_block_starting_position)
 
         if unfinalized_flags & (1 << 2) and not force_file_integrity_check:
-            warn('Update of length for last DT block required')
+            warn('Checking length for last DT block')
 
         if unfinalized_flags & 1 and not force_file_integrity_check:
-            warn('Update of cycle counters for CG/CA blocks required')
+            warn('Checking cycle counters for CG/CA blocks')
 
         if (unfinalized_flags & 1) | (unfinalized_flags & (1 << 2)):
             for dg in info['CG']:
@@ -2841,7 +2842,8 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                                 dl.update(_load_header(fid, dl_position))
                                 dl.read_dl(fid, dl['link_count'])
                                 for pointer in dl['list_data'][0]:
-                                    dz.read_dz(fid, pointer)
+                                    dz.update(_load_header(fid, pointer))
+                                    dz.read_dz(fid)
                                     data_block_size_in_file = dz['dz_org_data_length']
                                     data_size_in_file += data_block_size_in_file
                                 if not dl['next']:
