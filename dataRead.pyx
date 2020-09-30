@@ -177,8 +177,8 @@ cdef inline read_chalf(const char* bit_stream, str record_format, unsigned long 
     cdef uint16_t temp16_img = 0
     for i in range(number_of_records):
         memcpy(&temp16_real, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
-        memcpy(&temp16_img, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
-        buf[i] = <uint32_t>temp16_real<<32 | <uint32_t>temp16_img
+        memcpy(&temp16_img, &bit_stream[pos_byte_beg + record_byte_size * i + 2], 2)
+        buf[i] = <uint64_t>temp16_real<<32 | <uint64_t>temp16_img
     if swap == 0:
         return np.asarray(buf).view(dtype=np.complex_64)  # returning single instead of half precision complex
     else:
