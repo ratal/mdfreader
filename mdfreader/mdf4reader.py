@@ -2787,6 +2787,7 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                                 # write in cg
                                 fid.seek(info['CG'][dg][cg]['pointer'] + 88)
                                 fid.write(bytes(info['CG'][dg][cg]['cg_cycle_count']))
+                                # write in dt
                                 fid.seek(dt['pointer'] + 8)
                                 fid.write(bytes(corrected_data_size + 24))
 
@@ -2817,7 +2818,7 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                                  f'while it is expected to be {expected_data_size}')
                             corrected_block_data_size = data_block_size_in_file \
                                                         - data_block_size_in_file % 8
-                            corrected_data_size = corrected_data_size \
+                            corrected_data_size = data_size_in_file \
                                                   - data_block_size_in_file \
                                                   + corrected_block_data_size
                             info['CG'][dg][cg]['cg_cycle_count'] = corrected_data_size // record_size
@@ -2825,33 +2826,48 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                                 # write in cg
                                 fid.seek(info['CG'][dg][cg]['pointer'] + 88)
                                 fid.write(bytes(info['CG'][dg][cg]['cg_cycle_count']))
+                                # write in dt
                                 fid.seek(dt['pointer'] + 8)
                                 fid.write(bytes(corrected_block_data_size + 24))
 
                     elif block_type in (b'##HL', b'##DZ'):
                         dz = DZBlock()
                         data_size_in_file = 0
+                        data_block = bytearray()
+                        last_block_is_DT = False
                         if block_type == b'##HL':
                             hl = HLBlock()
                             fid.seek(data_block_starting_position + 24)
                             hl.read_hl(fid)
                             dl = DLBlock()
-                            data_size_in_file = 0
                             dl_position = hl['hl_dl_first']
                             while True:
                                 dl.update(_load_header(fid, dl_position))
                                 dl.read_dl(fid, dl['link_count'])
+                                dl['list_data'][0] = list(dl['list_data'][0])
+                                last_block_pointer = dl['list_data'][0].pop(-1)
                                 for pointer in dl['list_data'][0]:
                                     dz.update(_load_header(fid, pointer))
-                                    dz.read_dz(fid)
-                                    data_block_size_in_file = dz['dz_org_data_length']
-                                    data_size_in_file += data_block_size_in_file
+                                    if dz['id'] == b'##DZ':
+                                        dz.read_dz(fid)
+                                        data_block_size_in_file = dz['dz_org_data_length']
+                                        data_block.extend(fid.read(dz['dz_data_length']))
+                                    else:  # could be DT
+                                        header_size = dz['link_count'] * 8 + 24
+                                        fid.seek(pointer + header_size)
+                                        data_block.extend(fid.read(dz['length'] - header_size))
                                 if not dl['next']:
                                     # last DL block for this DG Block
                                     break
                                 dl_position = dl['next']
-                            data_size_in_file -= data_block_size_in_file
-                        else:
+                            dz.update(_load_header(fid, last_block_pointer))
+                            if dz['id'] == b'##DZ':
+                                dz.read_dz(fid)
+                                data_block_size_in_file = dz['dz_org_data_length']
+                            else:  # last block could be a small DT
+                                last_block_is_DT = True
+                                data_block_size_in_file = dz['length'] - 24
+                        else:  # single DZ block
                             dz.update(_load_header(fid, data_block_starting_position))
                             dz.read_dz(fid)
                             data_block_size_in_file = dz['dz_org_data_length']
@@ -2860,15 +2876,24 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                             dz_ending_position = addresses[addresses.index(dz['pointer']) + 1]
                         except IndexError:
                             dz_ending_position = eof_position
-                        dz_data_section_length = dz_ending_position - dz['pointer'] - 48
-                        data_size_in_file += len(decompress(fid.read(dz_data_section_length)))
+
+                        if last_block_is_DT:  # last block is DT
+                            if data_block:
+                                data_size_in_file = len(decompress(data_block))
+                            else:
+                                data_size_in_file = 0
+                            data_size_in_file +=  dz_ending_position - dz['pointer'] -24
+                        else:  # block to be uncompressed
+                            data_block.extend(fid.read(dz_data_section_length))
+                            data_size_in_file = len(decompress(data_block))
+                            dz_data_section_length = dz_ending_position - dz['pointer'] - 48
 
                         if expected_data_size > data_size_in_file:
                             warn(f'Data Blocks have a length of {data_size_in_file} '
                                  f'while it is expected to be {expected_data_size}')
                             corrected_block_data_size = data_block_size_in_file \
                                                         - data_block_size_in_file % 8
-                            corrected_data_size = corrected_data_size \
+                            corrected_data_size = data_size_in_file \
                                                   - data_block_size_in_file \
                                                   + corrected_block_data_size
                             info['CG'][dg][cg]['cg_cycle_count'] = corrected_data_size // record_size
@@ -2876,10 +2901,15 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                                 # write in cg
                                 fid.seek(info['CG'][dg][cg]['pointer'] + 88)
                                 fid.write(bytes(info['CG'][dg][cg]['cg_cycle_count']))
-                                fid.seek(dz['pointer'] + 32)
-                                fid.write(bytes(corrected_block_data_size))
-                                fid.seek(dz['pointer'] + 40)
-                                fid.write(bytes(dz_data_section_length))
+                                if last_block_is_DT:
+                                    fid.seek(dz['pointer'] + 8)
+                                    fid.write(bytes(corrected_block_data_size + 24))
+                                else:
+                                # write in dz
+                                    fid.seek(dz['pointer'] + 32)
+                                    fid.write(bytes(corrected_block_data_size))
+                                    fid.seek(dz['pointer'] + 40)
+                                    fid.write(bytes(dz_data_section_length))
 
         if unfinalized_flags & (1 << 5):
             warn('Update of cg_data_bytes and cg_inval_bytes in VLSD '
