@@ -2852,12 +2852,11 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                                     dz.update(_load_header(fid, pointer))
                                     if dz['id'] == b'##DZ':
                                         dz.read_dz(fid)
-                                        data_block_size_in_file = dz['dz_org_data_length']
-                                        data_block.extend(fid.read(dz['dz_data_length']))
+                                        data_size_in_file += dz['dz_org_data_length']
                                     else:  # could be DT
                                         header_size = dz['link_count'] * 8 + 24
                                         fid.seek(pointer + header_size)
-                                        data_block.extend(fid.read(dz['length'] - header_size))
+                                        data_size_in_file += dz['length'] - 24
                                 if not dl['next']:
                                     # last DL block for this DG Block
                                     break
@@ -2880,14 +2879,10 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                             dz_ending_position = eof_position
 
                         if last_block_is_DT:  # last block is DT
-                            if data_block:
-                                data_size_in_file = len(decompress(data_block))
-                            else:
-                                data_size_in_file = 0
                             data_size_in_file +=  dz_ending_position - dz['pointer'] -24
-                        else:  # block to be uncompressed
-                            data_block.extend(fid.read(dz['dz_data_length']))
-                            data_size_in_file = len(decompress(data_block))
+                        else:  # block to be uncompressed to know its length
+                            data_block = fid.read(dz['dz_data_length'])
+                            data_size_in_file += len(decompress(data_block))
                             dz_data_section_length = dz_ending_position - dz['pointer'] - 48
 
                         if expected_data_size > data_size_in_file:
