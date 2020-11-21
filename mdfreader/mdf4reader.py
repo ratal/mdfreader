@@ -2881,9 +2881,12 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                         if last_block_is_DT:  # last block is DT
                             data_size_in_file +=  dz_ending_position - dz['pointer'] -24
                         else:  # block to be uncompressed to know its length
-                            data_block = fid.read(dz['dz_data_length'])
-                            data_size_in_file += len(decompress(data_block))
                             dz_data_section_length = dz_ending_position - dz['pointer'] - 48
+                            if dz_data_section_length >= dz['dz_data_length']:
+                                data_size_in_file += dz['dz_org_data_length']
+                            else:  # block shorter than expected by block description
+                                data_block = fid.read(dz_data_section_length)
+                                data_size_in_file += len(decompress(data_block))
 
                         if expected_data_size > data_size_in_file:
                             warn(f'Data Blocks have a length of {data_size_in_file} '
