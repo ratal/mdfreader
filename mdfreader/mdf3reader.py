@@ -903,7 +903,11 @@ class Mdf3(MdfSkeleton):
                 # converts date to be compatible with ISO8601
                 day, month, year = info['HDBlock']['Date'].split(':')
                 ddate = '-'.join([year, month, day])
-                record_time = datetime.fromisoformat(ddate + 'T' + info['HDBlock']['Time']).timestamp()
+                try:
+                    # the timestamp() method may fail for a NULL stamp: 1970-01-01T00:00:00
+                    record_time = datetime.fromisoformat(ddate + 'T' + info['HDBlock']['Time']).timestamp()
+                except OSError:
+                    record_time = 0
             self.add_metadata(author=info['HDBlock']['Author'],
                               organisation=info['HDBlock']['Organization'],
                               project=info['HDBlock']['ProjectName'],
