@@ -91,7 +91,7 @@ class MdfSkeleton(dict):
 
     def __init__(self, file_name=None, channel_list=None, convert_after_read=True,
                  filter_channel_names=False, no_data_loading=False,
-                 compression=False, convert_tables=False, metadata=2):
+                 compression=False, convert_tables=False, metadata=2, source_list=None):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -123,6 +123,10 @@ class MdfSkeleton(dict):
         convert_tables : bool, optional, default False
             flag to convert or not only conversions with tables.
             These conversions types take generally long time and memory.
+
+        source_list: list, optional, default None
+            list containing the source messages to identify what device send the
+            different message.
         """
         self.masterChannelList = OrderedDict()
         # flag to control multiprocessing, default deactivate,
@@ -152,7 +156,8 @@ class MdfSkeleton(dict):
                       filter_channel_names=filter_channel_names,
                       no_data_loading=no_data_loading,
                       compression=compression,
-                      metadata=metadata)
+                      metadata=metadata,
+                      source_list=source_list)
 
     def add_channel(self, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None,
                     info=None, compression=False, identifier=None):
