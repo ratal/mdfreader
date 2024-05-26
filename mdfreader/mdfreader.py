@@ -1531,6 +1531,8 @@ class Mdf(Mdf4, Mdf3):
                 temporary_dataframe = pd.DataFrame()
             for channel in self.masterChannelList[master_channel_name]:
                 data = self.get_channel_data(channel)
+                if data.dtype.byteorder not in ['=', '|']:
+                    data = data.byteswap().newbyteorder()
                 if data.ndim == 1 and data.shape[0] == temporary_dataframe.shape[0] \
                         and not data.dtype.char == 'V':
                     temporary_dataframe[channel] = data
