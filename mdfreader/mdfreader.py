@@ -1530,13 +1530,13 @@ class Mdf(Mdf4, Mdf3):
             else:  # no master channel
                 temporary_dataframe = pd.DataFrame()
             channel_dict = {key: None for key in self.masterChannelList[master_channel_name]}
-            for key, value in channel_dict.items():
+            for key in channel_dict.keys():
                 data = self.get_channel_data(key)
                 if data.dtype.byteorder not in ['=', '|']:
                     data = data.byteswap().newbyteorder()
                 if data.ndim == 1 and data.shape[0] == temporary_dataframe.shape[0] \
                         and not data.dtype.char == 'V':
-                    value = data
+                    channel_dict[key] = data
             temporary_dataframe = pd.DataFrame(data=channel_dict, index=temporary_dataframe.index)
             return temporary_dataframe
         else:
