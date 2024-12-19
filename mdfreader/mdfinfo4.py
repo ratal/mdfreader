@@ -1727,7 +1727,7 @@ class HLBlock(dict):
 
 
 class Info4(dict):
-    __slots__ = ['fileName', 'fid', 'filterChannelNames', 'zipfile']
+    __slots__ = ['fileName', 'fid', 'filterChannelNames', 'zipfile', 'multi_sources']
     """ information block parser fo MDF file version 4.x
 
     Attributes
@@ -1738,6 +1738,10 @@ class Info4(dict):
         file identifier
     zipfile
         flag to indicate the mdf4 is packaged in a zip
+        
+    multisources : bool
+    0 will filter without source message information
+    1 will filter with source message information
 
     Notes
     --------
@@ -1755,7 +1759,7 @@ class Info4(dict):
     Channel conversion information
     - mdfinfo['CC'][dataGroup][channelGroup][channel]"""
 
-    def __init__(self, file_name=None, fid=None, filter_channel_names=False, minimal=0):
+    def __init__(self, file_name=None, fid=None, filter_channel_names=False, minimal=0, multi_sources=False):
         """ info4 class constructor
 
         Parameters
@@ -1770,6 +1774,10 @@ class Info4(dict):
             0 will load every metadata
             1 will load DG, CG, CN and CC (for noDataLoading)
             2 will load only DG (for normal reading)
+
+        multisources : bool, default false
+            0 will filter without source message information
+            1 will filter with source message information
 
         Notes
         ---------
@@ -1793,7 +1801,7 @@ class Info4(dict):
             # Open file
             (self.fid, self.fileName, self.zipfile) = _open_mdf(self.fileName)
         if self.fileName is not None and fid is None:
-            self.read_info(self.fid, minimal)
+            self.read_info(self.fid, minimal, multi_sources)
             # Close the file
             self.fid.close()
             if self.zipfile:  # temporary uncompressed file, to be removed
@@ -1802,7 +1810,7 @@ class Info4(dict):
             # called by mdfreader.mdfinfo
             self.read_info(fid, minimal)
 
-    def read_info(self, fid, minimal):
+    def read_info(self, fid, minimal, multi_sources=False):
         """ read all file blocks except data
 
         Parameters
@@ -1811,6 +1819,8 @@ class Info4(dict):
             file identifier
         minimal: flag
             to activate minimum content reading for raw data fetching
+        multi_sources: flag
+            to read same signal with same name from different source message
         """
         # reads IDBlock
         self['ID'].update(IDBlock(fid))
@@ -1841,9 +1851,9 @@ class Info4(dict):
             self['EV'] = self.read_ev_block(fid, self['HD']['hd_ev_first'])
 
         # reads Data Group Blocks and recursively the other related blocks
-        self.read_dg_block(fid, False, minimal)
+        self.read_dg_block(fid, False, minimal, multi_sources)
 
-    def read_dg_block(self, fid, channel_name_list=False, minimal=0):
+    def read_dg_block(self, fid, channel_name_list=False, minimal=0, multi_sources=False):
         """reads Data Group Blocks
 
         Parameters
@@ -1852,8 +1862,10 @@ class Info4(dict):
             file identifier
         channel_name_list : bool
             Flag to reads only channel blocks for listChannels4 method
-        minimal: falg
+        minimal: flag
             to activate minimum content reading for raw data fetching
+        multi_sources: flag
+            to read same signal with same name from different source message
         """
         self['ChannelNamesByDG'] = {}
         if self['HD']['hd_dg_first']:
@@ -1863,7 +1875,7 @@ class Info4(dict):
             self['ChannelNamesByDG'][dg] = set()
             if minimal < 2:
                 # reads Channel Group blocks
-                self.read_cg_blocks(fid, dg, channel_name_list, minimal)
+                self.read_cg_blocks(fid, dg, channel_name_list, minimal, multi_sources)
             while self['DG'][dg]['dg_dg_next']:
                 dg += 1
                 self['DG'][dg] = {}
@@ -1871,9 +1883,9 @@ class Info4(dict):
                 self['ChannelNamesByDG'][dg] = set()
                 if minimal < 2:
                     # reads Channel Group blocks
-                    self.read_cg_blocks(fid, dg, channel_name_list, minimal)
+                    self.read_cg_blocks(fid, dg, channel_name_list, minimal, multi_sources)
 
-    def read_cg_blocks(self, fid, dg, channel_name_list=False, minimal=0):
+    def read_cg_blocks(self, fid, dg, channel_name_list=False, minimal=0, multi_sources=False):
         """reads Channel Group blocks linked to same Data Block dg
 
         Parameters
@@ -1886,6 +1898,8 @@ class Info4(dict):
             Flag to reads only channel blocks for listChannels4 method
         minimal: falg
             to activate minimum content reading for raw data fetching
+        multi_sources: flag
+            to read same signal with same name from different source message
         """
         if self['DG'][dg]['dg_cg_first']:
             cg = 0
@@ -1898,7 +1912,7 @@ class Info4(dict):
             vlsd_cg_block = []
 
             vlsd_cg_block = self.read_cg_block(fid, dg, cg, self['DG'][dg]['dg_cg_first'],
-                                               vlsd_cg_block, channel_name_list=False, minimal=0)
+                                               vlsd_cg_block, channel_name_list=False, minimal=0, multi_sources= multi_sources)
 
             if self['CN'][dg][cg] and self['CG'][dg][cg]['unique_channel_in_CG'] and \
                     not self['CG'][dg][cg]['cg_cg_next']:
@@ -1913,7 +1927,7 @@ class Info4(dict):
                 self['CN'][dg][cg] = dict()
                 self['CC'][dg][cg] = dict()
                 vlsd_cg_block = self.read_cg_block(fid, dg, cg, self['CG'][dg][cg - 1]['cg_cg_next'],
-                                                   vlsd_cg_block, channel_name_list=False, minimal=0)
+                                                   vlsd_cg_block, channel_name_list=False, minimal=0, multi_sources= multi_sources)
 
             if vlsd_cg_block and 'VLSD_CG' not in self:  # VLSD CG Block exiting
                 self['VLSD_CG'] = {}
@@ -1929,7 +1943,7 @@ class Info4(dict):
                                 self['VLSD_CG'][self['CG'][dg][VLSDcg]['cg_record_id']] = {'cg_cn': (cg, cn)}
                                 break
 
-    def read_cg_block(self, fid, dg, cg, pointer, vlsd_cg_block, channel_name_list=False, minimal=0):
+    def read_cg_block(self, fid, dg, cg, pointer, vlsd_cg_block, channel_name_list=False, minimal=0, multi_sources=False):
         """reads one Channel Group block
 
         Parameters
@@ -1942,8 +1956,10 @@ class Info4(dict):
             channel group number
         channel_name_list : bool
             Flag to reads only channel blocks for listChannels4 method
-        minimal: falg
+        minimal: flag
             to activate minimum content reading for raw data fetching
+        multi_sources: flag
+            to read same signal with same name from different source message
 
         Returns
         -----------
@@ -1964,7 +1980,7 @@ class Info4(dict):
 
         if not self['CG'][dg][cg]['cg_flags'] & 0b1:  # if not a VLSD channel group
             # reads Channel Block
-            vlsd = self.read_cn_blocks(fid, dg, cg, channel_name_list, minimal)
+            vlsd = self.read_cn_blocks(fid, dg, cg, channel_name_list, minimal, multi_sources)
             if vlsd:
                 # VLSD needs to rename and append records but with python 2.x impossible,
                 # convert name to compatible python identifier
@@ -1976,7 +1992,7 @@ class Info4(dict):
 
         return vlsd_cg_block
 
-    def read_cn_blocks(self, fid, dg, cg, channel_name_list=False, minimal=0):
+    def read_cn_blocks(self, fid, dg, cg, channel_name_list=False, minimal=0, multi_sources=False):
         """reads Channel blocks link to CG Block
 
         Parameters
@@ -1991,6 +2007,8 @@ class Info4(dict):
             Flag to reads only channel blocks for listChannels4 method
         minimal: flag
             to activate minimum content reading for raw data fetching
+        multi_sources: flag
+            to read same signal with same name from different source message
 
         Returns
         -----------
@@ -2000,7 +2018,7 @@ class Info4(dict):
         vlsd = False
         mlsd_channels = []
         cn, mlsd_channels, vlsd = self.read_cn_block(fid, self['CG'][dg][cg]['cg_cn_first'],
-                                                     dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+                                                     dg, cg, mlsd_channels, vlsd, minimal, channel_name_list, multi_sources)
         if not self['CN'][dg][cg][cn]['cn_cn_next']:  # only one channel in CGBlock
             self['CG'][dg][cg]['unique_channel_in_CG'] = True
         else:
@@ -2008,7 +2026,7 @@ class Info4(dict):
 
         while self['CN'][dg][cg][cn]['cn_cn_next']:
             cn, mlsd_channels, vlsd = self.read_cn_block(fid, self['CN'][dg][cg][cn]['cn_cn_next'],
-                                                         dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+                                                         dg, cg, mlsd_channels, vlsd, minimal, channel_name_list, multi_sources)
 
         if mlsd_channels:
             if 'MLSD' not in self:
@@ -2023,7 +2041,7 @@ class Info4(dict):
                     break
         return vlsd
 
-    def read_cn_block(self, fid, pointer, dg, cg, mlsd_channels, vlsd, minimal, channel_name_list):
+    def read_cn_block(self, fid, pointer, dg, cg, mlsd_channels, vlsd, minimal, channel_name_list, multi_sources=False):
         """reads single Channel block
 
         Parameters
@@ -2042,6 +2060,8 @@ class Info4(dict):
             to activate minimum content reading for raw data fetching
         channel_name_list : bool
             Flag to reads only channel blocks for listChannels4 method
+        multi_sources: flag
+            to read same signal with same name from different source message
 
         Returns
         -----------
@@ -2074,7 +2094,7 @@ class Info4(dict):
             self['CN'][dg][cg][cn]['orig_name'] = self['CN'][dg][cg][cn]['name']
             # check if already existing channel name
             self['CN'][dg][cg][cn]['name'] = \
-                self._unique_channel_name(fid, self['CN'][dg][cg][cn]['name'], dg, cg, cn)
+                self._unique_channel_name(fid, self['CN'][dg][cg][cn]['name'], dg, cg, cn, multi_sources= multi_sources)
             if self.filterChannelNames:
                 # filters channels modules
                 self['CN'][dg][cg][cn]['name'] = self['CN'][dg][cg][cn]['name'].split('.')[-1]
@@ -2259,7 +2279,49 @@ class Info4(dict):
         fid.close()
         return channel_name_list
 
-    def _unique_channel_name(self, fid, name, dg, cg, cn):
+    def list_channels_sources4(self, file_name=None, fid=None):
+        """ Read MDF file and extract its complete structure
+
+        Parameters
+        ----------------
+        file_name : str
+            file name
+        fid
+
+        Returns
+        -----------
+        list of channel names and sources messages contained in file
+        """
+        if file_name is not None:
+            self.fileName = file_name
+        # Open file
+        if fid is None and file_name is not None:
+            # Open file
+            (fid, file_name, zipfile) = _open_mdf(self.fileName)
+        channel_name_sources_list = []
+        # reads Header HDBlock
+        self['HD'].update(HDBlock(fid))
+
+        # reads Data Group, channel groups and channel Blocks
+        # recursively but not the other metadata block
+        self.read_dg_block(fid, True)
+
+        for dg in self['DG']:
+            for cg in self['CG'][dg]:
+                for cn in self['CN'][dg][cg]:
+                    original_name = self['CN'][dg][cg][cn]['orig_name']
+                    if len(self['CG'][dg][cg]['acq_source']['source_path']) == 0:
+                        original_source = self['CG'][dg][cg]['acq_name']['Comment']
+                    else:
+                        original_source = self['CG'][dg][cg]['acq_source']['source_path']['Comment'] \
+                        + '.' + self['CG'][dg][cg]['acq_name']['Comment']
+                    channel_name_sources_list.append([original_name, original_source])
+
+        # CLose the file
+        fid.close()
+        return channel_name_sources_list
+
+    def _unique_channel_name(self, fid, name, dg, cg, cn, multi_sources=False):
         """ generate unique channel name
 
             Parameters
@@ -2279,6 +2341,9 @@ class Info4(dict):
             cn : int
                 channel number number
 
+            multi_sources: flag
+            to read same signal with same name from different source message
+
             Returns
             -----------
             channel name made unique
@@ -2294,7 +2359,10 @@ class Info4(dict):
                     source_name = cn
             else:
                 source_name = cn
-            name = u'{0}_{1}_{2}_{3}'.format(name, dg, cg, source_name)
+            if multi_sources:
+                name = u'{0}'.format(name, dg, source_name)
+            else:
+                name = u'{0}_{1}_{2}'.format(name, dg, source_name)
         elif name in self['allChannelList']:  # for sorted data
             if self['CN'][dg][cg][cn]['cn_si_source']:
                 temp = SIBlock()
@@ -2305,7 +2373,10 @@ class Info4(dict):
                     source_name = dg
             else:
                 source_name = dg
-            name = u'{0}_{1}_{2}'.format(name, dg, source_name)
+            if multi_sources and name != 't':
+                name = u'{0}'.format(name, dg, source_name)
+            else:
+                name = u'{0}_{1}_{2}'.format(name, dg, source_name)
         self['ChannelNamesByDG'][dg].add(name)
         self['allChannelList'].add(name)
 
@@ -2319,7 +2390,7 @@ class Info4(dict):
             self['CN'][dg][cg][cn]['masterCG'] = self['CG'][dg][cg]['cg_cg_master']
         else:
             try:
-                self['masters'][self['CG'][dg][cg]['pointer']]['channels'].add(name)
+                 self['masters'][self['CG'][dg][cg]['pointer']]['channels'].add(name)
             except KeyError:
                 self['masters'][self['CG'][dg][cg]['pointer']] = dict()
                 self['masters'][self['CG'][dg][cg]['pointer']]['channels'] = set()
