@@ -81,11 +81,12 @@ def _convert_to_matlab_name(channel):
             if c in allowed_str:
                 buf += c
         return buf
+
     channel_name = clean_name(channel_name)
     # limit the variable length at 63 character, Matlab limitation
     # if you use long names including modules names separated by a '.'
     # you can use filter_channel_names=True parameter
-    channel_name= channel_name[:63]
+    channel_name = channel_name[:63]
     return channel_name
 
 
@@ -235,6 +236,38 @@ class MdfInfo(dict):
                 remove(self.fileName)
         return name_list
 
+    def list_channels_sources(self, file_name=None):
+
+        """ Read MDF file blocks and returns a list of contained channels and
+        source message information
+
+
+        Parameters
+        ----------------
+        file_name : string
+            file name
+
+        Returns
+        -----------
+        nameList : list of string
+            list of channel names with source message information
+        """
+
+        if self.fileName is None or file_name is not None:
+            self.fileName = file_name
+        # Open file
+        (self.fid, self.fileName, zipfile) = _open_mdf(self.fileName)
+        # read Identifier block
+        self.fid.seek(28)
+        mdf_version_number = unpack('<H', self.fid.read(2))
+        self.mdfversion = mdf_version_number[0]
+        if self.mdfversion >= 400:  # up to version 4.x not compatible with version 3.x
+            channel_name_sources_list = Info4()
+            name_sources_list = channel_name_sources_list.list_channels_sources4(self.fileName, self.fid)
+            if zipfile:  # not from mdfreader.read()
+                remove(self.fileName)
+        return name_sources_list
+
     def _generate_dummy_mdf(self, channel_list=None):
         """ Parse MDF file structure and create a dummy mdf object structure
 
@@ -342,7 +375,7 @@ class Mdf(Mdf4, Mdf3):
     """
 
     def read(self, file_name=None, multi_processed=False, channel_list=None, convert_after_read=True,
-             filter_channel_names=False, no_data_loading=False, compression=False, metadata=2):
+             filter_channel_names=False, no_data_loading=False, compression=False, metadata=2, source_list=None):
         """ reads mdf file version 3.x and 4.x
 
         Parameters
@@ -382,6 +415,10 @@ class Mdf(Mdf4, Mdf3):
             1: used for noDataLoading.
             0: all metadata reading, including Source Information, Attachment, etc..
 
+        source_list: list, optional, default = None
+            list containing the source messages to identify what device send the
+            different message.
+
         Notes
         --------
         If you keep convertAfterRead to true, you can set attribute mdf.multiProc to activate channel conversion
@@ -417,7 +454,7 @@ class Mdf(Mdf4, Mdf3):
         else:  # MDF version 4.x
             if not no_data_loading:
                 self.read4(self.fileName, None, multi_processed, channel_list,
-                           convert_after_read, filter_channel_names, compression, metadata)
+                           convert_after_read, filter_channel_names, compression, metadata, source_list)
             else:  # populate minimum mdf structure
                 self._noDataLoading = True
                 self.info = Info4(None, fid=self.fid,
@@ -934,7 +971,7 @@ class Mdf(Mdf4, Mdf3):
                 # create variable
                 cleaned_name = clean_name(name)
                 if len(self.masterChannelList) == 1:  # mdf resampled
-                    var[name] = f.createVariable(cleaned_name, data_type, (list(self.masterChannelList.keys())[0], ))
+                    var[name] = f.createVariable(cleaned_name, data_type, (list(self.masterChannelList.keys())[0],))
                 else:  # not resampled
                     var[name] = f.createVariable(cleaned_name, data_type, (self.get_channel_master(name),))
                 # Create attributes
@@ -995,6 +1032,7 @@ class Mdf(Mdf4, Mdf3):
                     pass
             else:
                 pass
+
         if sampling is not None:
             self.resample(sampling)
         if file_name is None:
@@ -1037,7 +1075,7 @@ class Mdf(Mdf4, Mdf3):
                             and master_name is not None:
                         group_name = master_name
                     else:
-                        group_name = masterField+str(n_groups)
+                        group_name = masterField + str(n_groups)
                     groups[group_name] = n_groups
                     grp[n_groups] = file_group.create_group(group_name)
                     set_attribute(grp[n_groups], masterField, master_name)
@@ -1131,7 +1169,7 @@ class Mdf(Mdf4, Mdf3):
                 elif channel_name is not None:
                     warn(u'Could not export {}, name is not compatible with Matlab'.format(channel))
         try:
-            savemat(file_name, temp,  format='7.3', long_field_names=True, oned_as='column',
+            savemat(file_name, temp, format='7.3', long_field_names=True, oned_as='column',
                     structured_numpy_ndarray_as_struct=True)
         except:
             savemat(file_name, temp, long_field_names=True, format='5')
@@ -1304,7 +1342,7 @@ class Mdf(Mdf4, Mdf3):
         for master_channel_name in second_class_masters:
             type = mdf_class.get_channel_master_type(master_channel_name)
             data = mdf_class.get_channel_data(master_channel_name)
-            if type not in  second_masters:
+            if type not in second_masters:
                 second_masters[type] = {}
                 second_masters[type]['max'] = data[-1]
             # second_masters[type]['sampling'] = mean(diff(data))  # sampling
@@ -1491,7 +1529,8 @@ class Mdf(Mdf4, Mdf3):
             self[group + '_group'] = self.return_pandas_dataframe(group)
             # clean rest of self from data and time channel information
             [self[channel].pop(dataField) for channel in self.masterChannelList[group]]
-            [self[channel].pop(masterField) for channel in self.masterChannelList[group] if masterField in self[channel]]
+            [self[channel].pop(masterField) for channel in self.masterChannelList[group] if
+             masterField in self[channel]]
         self.masterGroups = []  # save time groups name in list
         [self.masterGroups.append(group + '_group') for group in self.masterChannelList]
         self.masterChannelList = {}
