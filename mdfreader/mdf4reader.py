@@ -2343,7 +2343,7 @@ def _formula_conversion(vector, formula):
     except:
         warn('Please install sympy to convert channel ')
     X = symbols('X')
-    expr = lambdify(X, formula, modules='numpy', dummify=False)
+    expr = lambdify(X, formula.upper(), modules='numpy', dummify=False)
     return expr(vector)
 
 
