@@ -14,7 +14,11 @@ from numpy import right_shift, bitwise_and, interp, empty
 from numpy import max as npmax, min as npmin
 from numpy import asarray, recarray, array, searchsorted, vectorize
 from numpy import issubdtype, number as numpy_number
-from numpy.core.records import fromstring, fromarrays
+import numpy as np
+if np.lib.NumpyVersion(np.__version__) >= '2.0.0b1':
+    from numpy.rec import fromstring, fromarrays
+else:
+    from numpy.core.records import fromstring, fromarrays
 from collections import defaultdict
 from math import log, exp
 from time import strftime, time, gmtime

@@ -659,7 +659,7 @@ class MdfSkeleton(dict):
         yop.fileMetadata = self.fileMetadata
         yop.MDFVersionNumber = self.MDFVersionNumber
         yop.filterChannelNames = self.filterChannelNames
-        yop.convertTables = self.convert_tables
+        yop.convertTables = self.convertTables
         for channel in self:
             yop[channel] = self[channel]
         return yop
