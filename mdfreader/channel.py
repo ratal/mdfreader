@@ -1027,25 +1027,25 @@ def array_format4(signal_data_type, number_of_bytes):
         endian = ''
     elif signal_data_type == 15:  # LE complex
         if number_of_bytes == 4:
-            data_type = 'c4'
-            warn('numpy does not support yet half precision complex')
+            data_type = '(2,)f2'  # half-precision: [real_f16, imag_f16]
         elif number_of_bytes == 8:
             data_type = 'c8'
         elif number_of_bytes == 16:
             data_type = 'c16'
         else:
             warn('Unsupported number of bytes for floating point {}'.format(number_of_bytes))
+            data_type = 'V{}'.format(number_of_bytes)
         endian = '<'
     elif signal_data_type == 16:  # BE complex
         if number_of_bytes == 4:
-            data_type = 'c4'
-            warn('numpy does not support yet half precision complex')
+            data_type = '(2,)f2'  # half-precision: [real_f16, imag_f16]
         elif number_of_bytes == 8:
             data_type = 'c8'
         elif number_of_bytes == 16:
             data_type = 'c16'
         else:
             warn('Unsupported number of bytes for floating point {}'.format(number_of_bytes))
+            data_type = 'V{}'.format(number_of_bytes)
         endian = '>'
     else:
         warn('Unsupported Signal Data Type {} {}'.format(signal_data_type, number_of_bytes))
