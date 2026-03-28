@@ -226,7 +226,7 @@ def _text_table_conversion(data, conversion):  # 11 Text table
     conversion_table = dict()
     for pair in conversion:
         conversion_table[conversion[pair]['int']] = conversion[pair]['text']
-    return vectorize(conversion_table.__getitem__)(data)
+    return vectorize(lambda x: conversion_table[int(x)])(data)
 
 
 def _text_range_table_conversion(data, conversion):  # 12 Text range table
@@ -484,11 +484,18 @@ class Record(list):
                                                            'formats': self.numpyDataRecordFormat})  # initialise array
             simplefilter('ignore', FutureWarning)
             for n_record_chunk, chunk_size in chunks:
-                buf[previous_index: previous_index + n_record_chunk] = \
-                    fromstring(fid.read(chunk_size),
-                               dtype={'names': self.dataRecordName,
-                                      'formats': self.numpyDataRecordFormat},
-                               shape=n_record_chunk)
+                raw = fid.read(chunk_size)
+                actual_records = len(raw) // self.CGrecordLength
+                if actual_records < n_record_chunk:
+                    # file shorter than expected (e.g. MDF 2.x / truncated)
+                    n_record_chunk = actual_records
+                    raw = raw[:self.CGrecordLength * actual_records]
+                if n_record_chunk > 0:
+                    buf[previous_index: previous_index + n_record_chunk] = \
+                        fromstring(raw,
+                                   dtype={'names': self.dataRecordName,
+                                          'formats': self.numpyDataRecordFormat},
+                                   shape=n_record_chunk)
                 previous_index += n_record_chunk
             return buf
         else:  # reads only some channels from a sorted data block
@@ -541,10 +548,14 @@ class Record(list):
                 record_length = self.recordIDnumber + self.CGrecordLength
                 for r in range(self.numberOfRecords):  # for each record,
                     buf = fid.read(record_length)
+                    if len(buf) < record_length:
+                        break  # truncated file
                     for channel in rec_chan:
+                        seg = buf[channel.posByteBeg:channel.posByteEnd]
+                        if len(seg) < channel.CFormat.size:
+                            break  # record shorter than expected
                         (rec[channel.name][r],) = \
-                            channel.CFormat.unpack(buf[channel.posByteBeg:
-                                                       channel.posByteEnd])
+                            channel.CFormat.unpack(seg)
                 return rec.view(recarray)
 
     def read_record_buf(self, buf, channel_set=None):
