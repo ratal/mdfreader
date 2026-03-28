@@ -598,8 +598,13 @@ def read_tx_block(fid, pointer):
     """ reads text block """
     if pointer != 0 and pointer is not None:
         fid.seek(pointer)
+        raw = fid.read(4)
+        if len(raw) < 4:
+            return None  # pointer outside file (e.g. MDF 2.x files)
         (block_type,
-         block_size) = tx_struct.unpack(fid.read(4))
+         block_size) = tx_struct.unpack(raw)
+        if block_size < 4:
+            return None
         text = unpack('{}s'.format(block_size - 4), fid.read(block_size - 4))[0]
 
         return text.rstrip(b'\x00').decode('latin1', 'replace')
