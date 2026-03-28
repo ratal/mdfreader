@@ -91,7 +91,7 @@ class MdfSkeleton(dict):
 
     def __init__(self, file_name=None, channel_list=None, convert_after_read=True,
                  filter_channel_names=False, no_data_loading=False,
-                 compression=False, convert_tables=False, metadata=2,
+                 compression=False, convert_tables=True, metadata=2,
                  finalization_writing_to_file=False, force_file_integrity_check=False):
         """ mdf_skeleton class constructor.
 
@@ -147,7 +147,8 @@ class MdfSkeleton(dict):
         self.fileMetadata['project'] = ''
         self.fileMetadata['subject'] = ''
         self.fileMetadata['comment'] = ''
-        self.fileMetadata['time'] = time()  # time in seconds since epoch, floating
+        # time in seconds since epoch, floating
+        self.fileMetadata['time'] = time()
         self.MDFVersionNumber = 300
         self.filterChannelNames = filter_channel_names
         # by default, do not convert table conversion types, taking lot of time and memory
@@ -241,7 +242,8 @@ class MdfSkeleton(dict):
                     if type(ca_block['ca_dim_size']) is list:
                         index = 0
                         for ndim in ca_block['ca_dim_size']:
-                            axis.append(tuple(ca_block['ca_axis_value'][index:index+ndim]))
+                            axis.append(
+                                tuple(ca_block['ca_axis_value'][index:index+ndim]))
                             index += ndim
                     else:
                         axis = ca_block['ca_axis_value']
@@ -261,7 +263,8 @@ class MdfSkeleton(dict):
         -------
         value of mdf dict key=channel_name
         """
-        self.masterChannelList[self.get_channel_master(channel_name)].remove(channel_name)
+        self.masterChannelList[self.get_channel_master(
+            channel_name)].remove(channel_name)
         return self.pop(channel_name)
 
     def rename_channel(self, channel_name, new_name):
@@ -276,12 +279,15 @@ class MdfSkeleton(dict):
         """
         if channel_name in self and new_name not in self:
             # add the new name to the same master
-            self.masterChannelList[self.get_channel_master(channel_name)].append(new_name)
+            self.masterChannelList[self.get_channel_master(
+                channel_name)].append(new_name)
             # remove the old name
-            self.masterChannelList[self.get_channel_master(channel_name)].remove(channel_name)
+            self.masterChannelList[self.get_channel_master(
+                channel_name)].remove(channel_name)
             self[new_name] = self.pop(channel_name)  # copy the data
             if channel_name in self.masterChannelList:  # it is a master channel
-                self.masterChannelList[new_name] = self.masterChannelList.pop(channel_name)
+                self.masterChannelList[new_name] = self.masterChannelList.pop(
+                    channel_name)
                 for channel in self.masterChannelList[new_name]:
                     self.set_channel_master(channel, new_name)
             return self[new_name]
@@ -645,7 +651,7 @@ class MdfSkeleton(dict):
                     # not byte, impossible to represent
                     if data.dtype.kind != 'V':
                         output.append(array_repr(data[:],
-                                      precision=3, suppress_small=True))
+                                                 precision=3, suppress_small=True))
                     unit = self.get_channel_unit(c)
                     if unit is not None:
                         output.append(' {}\n'.format(unit))
@@ -779,7 +785,8 @@ def _convert_name(channel_name):
     # all characters of channel are not compliant to python
     if not channel_identifier:
         # generate random name for recarray
-        channel_identifier = ''.join([choice(ascii_letters) for n in range(32)])
+        channel_identifier = ''.join(
+            [choice(ascii_letters) for n in range(32)])
     if channel_identifier in _notAllowedChannelNames:
         # limitation from recarray object attribute
         channel_identifier = ''.join([channel_identifier, '_'])
@@ -813,6 +820,7 @@ class CompressedData:
     __slots__ = ['data', 'dtype']
     """ class to represent compressed data by blosc
     """
+
     def __init__(self):
         """ data compression method
 

@@ -7,6 +7,7 @@ _eric4project/
 .ropeproject/
 _ropeproject/
 .directory/
+.idea
 *.pyc
 *.pyo
 *.orig
@@ -19,3 +20,13 @@ __pycache__/
 *.DS_Store
 /dist/
 /*.egg-info
+docs/build
+build
+.vscode
+cov-int
+cython_debug
+mdfconverter/platforms
+mdfreader/tests/mdf3
+mdfreader/tests/MDF4
+mdfconverter/Ui_mdfreaderui.py
+dataRead.so
