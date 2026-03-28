@@ -1533,7 +1533,7 @@ class Mdf(Mdf4, Mdf3):
             for key in channel_dict.keys():
                 data = self.get_channel_data(key)
                 if data.dtype.byteorder not in ['=', '|']:
-                    data = data.byteswap().newbyteorder()
+                    data = data.byteswap().view(data.dtype.newbyteorder())
                 if data.ndim == 1 and data.shape[0] == temporary_dataframe.shape[0] \
                         and not data.dtype.char == 'V':
                     channel_dict[key] = data
