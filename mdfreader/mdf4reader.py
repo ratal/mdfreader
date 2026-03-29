@@ -27,9 +27,9 @@ from multiprocessing import Queue, Process
 from sys import byteorder
 import re
 from collections import defaultdict, OrderedDict
-from numpy.core.records import fromstring, fromarrays
+from numpy.rec import fromstring, fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
-from numpy import arange, right_shift, bitwise_and, all, diff, interp, zeros, concatenate
+from numpy import arange, right_shift, bitwise_and, all, diff, interp, zeros, concatenate, maximum
 from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
 from numpy.lib.recfunctions import rename_fields
@@ -52,6 +52,15 @@ except ImportError:
 # reads by chunk of 100Mb, can be tuned for best performance
 chunk_size_reading = 100000000
 _VLSDStruct = Struct('I')
+
+# Module-level frozensets for O(1) block ID membership checks (used in hot paths)
+_DATA_BLOCK_IDS = frozenset((b'##DT', b'##DV', b'##RD', b'##DI', b'##RV', b'##RI',
+                              '##DT', '##DV', '##RD', '##DI', '##RV', '##RI'))
+_DV_BLOCK_IDS = frozenset((b'##DV', '##DV'))
+_SD_BLOCK_IDS = frozenset((b'##SD', '##SD'))
+_DZ_BLOCK_IDS = frozenset((b'##DZ', '##DZ'))
+_DI_BLOCK_IDS = frozenset((b'##DI', '##DI'))
+_DT_RD_DV_BLOCK_IDS = frozenset((b'##DT', b'##DV', b'##RD', '##DT', '##RD', '##DV'))
 
 
 def _data_block(record, info, parent_block, channel_set=None, n_records=None, sorted_flag=True, vlsd=None):
@@ -88,13 +97,13 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
     if n_records is None and hasattr(record, 'numberOfRecords'):
         n_records = record.numberOfRecords
     # normal data block
-    if parent_block['id'] in (b'##DT', b'##DV', b'##RD', '##DT', '##RD', '##DV'):
+    if parent_block['id'] in _DT_RD_DV_BLOCK_IDS:
         if sorted_flag:
             if channel_set is None and not record.hiddenBytes and\
                     record.byte_aligned:  # No channel list and length of records corresponds to C datatypes
                 # for debugging purpose
                 # print(n_records, record.numpyDataRecordFormat, record.dataRecordName)
-                if info['DG'][record.dataGroup]['unique_channel_in_DG'] and parent_block['id'] in (b'##DV', '##DV'):
+                if info['DG'][record.dataGroup]['unique_channel_in_DG'] and parent_block['id'] in _DV_BLOCK_IDS:
                     return frombuffer(parent_block['data'], dtype={'names': record.dataRecordName,
                                                                    'formats': record.numpyDataRecordFormat})
                 else:
@@ -104,13 +113,13 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
             else:  # record is not byte aligned or channelSet not None
                 return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
-            return _read_unsorted(record, info, parent_block, record[list(record.keys())[0]]['record'].recordIDsize)
+            return _read_unsorted(record, info, parent_block, record[next(iter(record))]['record'].recordIDsize)
 
-    elif parent_block['id'] in (b'##SD', '##SD'):
+    elif parent_block['id'] in _SD_BLOCK_IDS:
         return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
                               parent_block['length'] - 24, n_records, vlsd)
 
-    elif parent_block['id'] in (b'##DZ', '##DZ'):  # zipped data block
+    elif parent_block['id'] in _DZ_BLOCK_IDS:  # zipped data block
         # uncompress data
         parent_block['data'] = DZBlock.decompress_data_block(parent_block['data'], parent_block['dz_zip_type'],
                                                              parent_block['dz_zip_parameter'],
@@ -128,8 +137,8 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
         elif channel_set is not None and sorted_flag:  # sorted data but channel list requested
             return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
-            return _read_unsorted(record, info, parent_block, record[list(record.keys())[0]]['record'].recordIDsize)
-    elif parent_block['id'] in (b'##DI', '##DI'):  # Invalid data block
+            return _read_unsorted(record, info, parent_block, record[next(iter(record))]['record'].recordIDsize)
+    elif parent_block['id'] in _DI_BLOCK_IDS:  # Invalid data block
         return frombuffer(parent_block['data'], dtype={'names': [record.invalid_channel.name],
                                                        'formats': [record.invalid_channel.data_format(info)]})
 
@@ -174,7 +183,7 @@ def _read_unsorted(record, info, parent_block, record_id_size):
     VLSD_CG_signal_data_type = {}
     channel_name_set = {}
     for record_id in record:
-        if record[record_id]['record'].Flags & 0b1:
+        if record[record_id]['record'].Flags & 0b100001:  # VLSD (bit 0) or VLSC compact (bit 5)
             VLSD_flag[record_id] = True
             VLSD[record[record_id]['record'].VLSD_CG[record_id]['channelName']] = []
             VLSD_CG_name[record_id] = record[record_id]['record'].VLSD_CG[record_id]['channelName']
@@ -196,12 +205,13 @@ def _read_unsorted(record, info, parent_block, record_id_size):
             channel_name_set[record_id] = record[record_id]['record'].channelNames.copy(
             )
     position = 0
-    record_id_c_format = record[list(record.keys())[
-        0]]['record'].recordIDCFormat
+    record_id_c_format = record[next(iter(record))]['record'].recordIDCFormat
     # read data
     while position < data_block_length:
         (record_id,) = record_id_c_format.unpack(
             parent_block['data'][position:position + record_id_size])
+        if record_id not in VLSD_flag:  # unknown record_id, skip remaining
+            break
         if not VLSD_flag[record_id]:  # not VLSD CG
             # list of channel classes from channelSet
             for channel_name in channel_name_set[record_id]:
@@ -267,9 +277,10 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length, n_records, point
                                 sd_block_length, n_records)
         except Exception as e:
             warn('data_read cython module - sd_data_read function crashed, using python based parsing backup')
-    VLSDLen = diff(pointer) - 4
-    VLSDLen = concatenate((VLSDLen, array([sd_block_length - pointer[-1] - 4])
-                           .astype(dtype='<u{}'.format(pointer.dtype.itemsize))), axis=0)
+    VLSDLen = maximum(diff(pointer.astype('<i8')) - 4, 0)
+    last_len = max(0, int(sd_block_length) - int(pointer[-1]) - 4)
+    VLSDLen = concatenate((VLSDLen,
+                           array([last_len], dtype='<i8')), axis=0)
     max_len = int(max(VLSDLen))
     if max_len > 0:
         if signal_data_type < 10:
@@ -299,6 +310,80 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length, n_records, point
     else:
         warn('VLSD channel is empty')
         return None
+
+
+def _read_vd_block_data(fid, pointer):
+    """Read raw bytes from a VD/DT/DZ/DL/HL block at pointer."""
+    if not pointer:
+        return b''
+    h = _load_header(fid, pointer)
+    if not h:
+        return b''
+    block_id = h['id']
+    if block_id in (b'##VD', '##VD', b'##DT', '##DT'):
+        # raw data immediately after header (link_count should be 0)
+        return fid.read(h['length'] - 24)
+    elif block_id in _DZ_BLOCK_IDS:
+        dz = DZBlock()
+        dz.read_dz(fid)
+        raw = fid.read(dz['dz_data_length'])
+        return bytes(DZBlock.decompress_data_block(
+            raw, dz['dz_zip_type'], dz['dz_zip_parameter'], dz['dz_org_data_length']))
+    elif block_id in (b'##HL', '##HL'):
+        hl = HLBlock()
+        hl.read_hl(fid)
+        return _read_vd_block_data(fid, hl['hl_dl_first'])
+    elif block_id in frozenset((b'##DL', '##DL')):
+        result = bytearray()
+        next_ptr = structunpack('<Q', fid.read(8))[0]
+        data_ptrs = structunpack('<{}Q'.format(h['link_count'] - 1),
+                                 fid.read(8 * (h['link_count'] - 1)))
+        for ptr in data_ptrs:
+            if ptr:
+                result.extend(_read_vd_block_data(fid, ptr))
+        while next_ptr:
+            h2 = _load_header(fid, next_ptr)
+            if not h2:
+                break
+            next_ptr = structunpack('<Q', fid.read(8))[0]
+            data_ptrs2 = structunpack('<{}Q'.format(h2['link_count'] - 1),
+                                      fid.read(8 * (h2['link_count'] - 1)))
+            for ptr in data_ptrs2:
+                if ptr:
+                    result.extend(_read_vd_block_data(fid, ptr))
+        return bytes(result)
+    return b''
+
+
+def _decode_vlsc_data(vd_bytes, offsets, sizes, signal_data_type):
+    """Decode VLSC string data from VD block bytes using offset/size arrays."""
+    n_records = len(offsets)
+    if n_records == 0:
+        return None
+    if signal_data_type == 6:
+        encoding = 'ISO-8859-1'
+    elif signal_data_type == 7:
+        encoding = 'utf-8'
+    elif signal_data_type == 8:
+        encoding = 'utf-16-le'
+    elif signal_data_type == 9:
+        encoding = 'utf-16-be'
+    else:
+        encoding = 'utf-8'
+    max_len = int(max(sizes)) if len(sizes) > 0 else 0
+    if max_len == 0:
+        return None
+    output = zeros((n_records,), dtype='U{}'.format(max_len))
+    for i in range(n_records):
+        size = int(sizes[i])
+        if size > 0:
+            offset = int(offsets[i])
+            raw = vd_bytes[offset:offset + size]
+            try:
+                output[i] = raw.decode(encoding).rstrip('\x00')
+            except (UnicodeDecodeError, ValueError):
+                output[i] = raw.decode(encoding, errors='replace').rstrip('\x00')
+    return output
 
 
 class Data(dict):
@@ -380,7 +465,7 @@ class Data(dict):
         if self.fid is None or self.fid.closed:
             self.fid = open(filename, 'rb')
         if len(self) == 1:  # sorted dataGroup
-            recordID = list(self.keys())[0]
+            recordID = next(iter(self))
             record = self[recordID]['record']
             self[recordID]['data'], self[recordID]['invalid_data'] = self.load(record,
                                                                                info, name_list=channel_set,
@@ -397,6 +482,39 @@ class Data(dict):
                                                   vlsd=pointer.view(dtype='<u{}'.format(pointer.dtype.itemsize)))
                         if temp is not None:
                             # change channel name by appending offset
+                            self[recordID]['data'] = rename_fields(self[recordID]['data'],
+                                                                   {record[cn].name: '{}_offset'.format(record[cn].name)})
+                            self[recordID]['VLSD'][record[cn].name] = temp
+            if record.VLSC:  # VLSC channels exist (MDF 4.3)
+                self[recordID].setdefault('VLSD', {})
+                for cn in record.VLSC:  # VLSC channels
+                    if channel_set is None or record[cn].name in channel_set:
+                        cn_info = info['CN'][record[cn].dataGroup][record[cn].channelGroup][record[cn].channelNumber]
+                        vd_pointer = cn_info.get('cn_data', 0)
+                        cn_size_pointer = cn_info.get('cn_cn_size', 0)
+                        # find the size channel by matching its CN block pointer
+                        size_channel_name = None
+                        if cn_size_pointer:
+                            for other_cn_num in info['CN'][record[cn].dataGroup][record[cn].channelGroup]:
+                                if info['CN'][record[cn].dataGroup][record[cn].channelGroup][other_cn_num].get('pointer') == cn_size_pointer:
+                                    size_channel_name = info['CN'][record[cn].dataGroup][record[cn].channelGroup][other_cn_num]['name']
+                                    break
+                        if size_channel_name is None or self[recordID]['data'] is None:
+                            continue
+                        try:
+                            sizes = self[recordID]['data'][size_channel_name]
+                            offsets = self[recordID]['data'][record[cn].name]
+                        except (ValueError, IndexError, KeyError):
+                            continue
+                        # reinterpret byte-string field as uint64 offset
+                        if hasattr(offsets, 'view') and offsets.dtype.kind in ('S', 'V'):
+                            offsets = frombuffer(offsets.tobytes(), dtype='<u8')
+                        if hasattr(sizes, 'view') and sizes.dtype.kind in ('S', 'V'):
+                            sizes = frombuffer(sizes.tobytes(), dtype='<u8')
+                        vd_bytes = _read_vd_block_data(self.fid, vd_pointer)
+                        temp = _decode_vlsc_data(vd_bytes, offsets, sizes,
+                                                 record[cn].signal_data_type(info))
+                        if temp is not None:
                             self[recordID]['data'] = rename_fields(self[recordID]['data'],
                                                                    {record[cn].name: '{}_offset'.format(record[cn].name)})
                             self[recordID]['VLSD'][record[cn].name] = temp
@@ -436,12 +554,12 @@ class Data(dict):
         temps['invalid_data'] = None
         # block header
         temps.update(_load_header(self.fid, self.pointer_to_data))
-        if temps['id'] in (b'##DV', '##DV'):
+        if temps['id'] in _DV_BLOCK_IDS:
             # to be optimised by using unpack in case of column oriented storage (only one channel)
             temps['data'] = record.read_sorted_record(
                 self.fid, info, channel_set=name_list)
-        elif temps['id'] in (b'##DL', b'##LD', '##DL', '##LD'):  # data list block
-            if temps['id'] in (b'##DL', '##DL'):
+        elif temps['id'] in frozenset((b'##DL', b'##LD', '##DL', '##LD')):  # data list block
+            if temps['id'] in frozenset((b'##DL', '##DL')):
                 temp = DLBlock()
                 temp.read_dl(self.fid, temps['link_count'])
             else:
@@ -471,11 +589,11 @@ class Data(dict):
                         for pointer in temps['list_data'][DL]:
                             # read fist data blocks linked by DLBlock to identify data block type
                             data_block.update(_load_header(self.fid, pointer))
-                            if data_block['id'] in (b'##SD', b'##DT', '##SD', '##DT'):
+                            if data_block['id'] in frozenset((b'##SD', b'##DT', '##SD', '##DT')):
                                 data_block['data'].extend(
                                     self.fid.read(data_block['length'] - 24))
                                 data_block_length += data_block['length'] - 24
-                            elif data_block['id'] in (b'##DZ', '##DZ'):
+                            elif data_block['id'] in _DZ_BLOCK_IDS:
                                 temp = DZBlock()
                                 temp.read_dz(self.fid)
                                 data_block.update(temp)
@@ -516,7 +634,7 @@ class Data(dict):
             self.pointer_to_data = temps['hl_dl_first']
             temps['data'], temps['invalid_data'] = self.load(record, info, name_list=name_list,
                                                              sorted_flag=sorted_flag, vlsd=vlsd)
-        elif temps['id'] in (b'##DT', b'##RD', '##DT', '##RD'):
+        elif temps['id'] in frozenset((b'##DT', b'##RD', '##DT', '##RD')):
             if sorted_flag:  # normal sorted data block, direct read
                 temps['data'] = record.read_sorted_record(
                     self.fid, info, channel_set=name_list)
@@ -524,11 +642,11 @@ class Data(dict):
                 temps['data'] = self.fid.read(temps['length'] - 24)
                 temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,
                                             sorted_flag=sorted_flag)
-        elif temps['id'] in (b'##SD', '##SD'):  # VLSD, not CG
+        elif temps['id'] in _SD_BLOCK_IDS:  # VLSD, not CG
             temps['data'] = self.fid.read(temps['length'] - 24)
             temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,
                                         sorted_flag=sorted_flag, vlsd=vlsd)
-        elif temps['id'] in (b'##DZ', '##DZ'):  # zipped data block
+        elif temps['id'] in _DZ_BLOCK_IDS:  # zipped data block
             temp = DZBlock()
             temp.read_dz(self.fid)
             temps.update(temp)
@@ -536,6 +654,17 @@ class Data(dict):
             temps['length'] = temps['dz_org_data_length'] + 24
             temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,
                                         sorted_flag=sorted_flag, vlsd=vlsd)
+        elif temps['id'] in (b'##GD', '##GD'):  # guard block (MDF 4.3)
+            (gd_link,) = structunpack('<q', self.fid.read(8))  # pointer to guarded block
+            (gd_version,) = structunpack('<H', self.fid.read(2))  # minimum MDF version
+            if gd_version <= 430 and gd_link:
+                self.pointer_to_data = gd_link
+                temps['data'], temps['invalid_data'] = self.load(record, info,
+                                                                  name_list=name_list,
+                                                                  sorted_flag=sorted_flag,
+                                                                  vlsd=vlsd)
+            else:
+                temps['data'] = None
         else:
             raise Exception('unknown data block')
         return temps['data'], temps['invalid_data']
@@ -556,17 +685,17 @@ class Data(dict):
 
     def read_data_list(self, field, nBytes, temps, record, info, name_list, sorted_flag, vlsd):
         previous_index = 0
+        data = None
         data_block = defaultdict()
         data_block['data'] = bytearray()
         for DL in temps[field]:
             for pointer in temps[field][DL]:
                 # read fist data blocks linked by DLBlock to identify data block type
                 data_block.update(_load_header(self.fid, pointer))
-                if data_block['id'] in (b'##DT', b'##DV', b'##RD', b'##DI', b'##RV', b'##RI',
-                                        '##DT', '##DV', '##RD', '##DI', '##RV', '##RI',):
+                if data_block['id'] in _DATA_BLOCK_IDS:
                     data_block['data'].extend(
                         self.fid.read(data_block['length'] - 24))
-                elif data_block['id'] in (b'##DZ', '##DZ'):
+                elif data_block['id'] in _DZ_BLOCK_IDS:
                     temp = DZBlock()
                     temp.read_dz(self.fid)
                     data_block.update(temp)
@@ -591,6 +720,8 @@ class Data(dict):
                     nrecord_chunk = record.numberOfRecords - previous_index
                 tmp = _data_block(record, info, parent_block=data_block, channel_set=name_list,
                                   n_records=nrecord_chunk, sorted_flag=sorted_flag, vlsd=vlsd)
+                if tmp is None or not hasattr(tmp, 'dtype'):
+                    continue
                 if not previous_index:  # initialise recarray
                     data = recarray(record.numberOfRecords, dtype=tmp.dtype)
                 data[previous_index: previous_index + nrecord_chunk] = tmp
@@ -607,7 +738,7 @@ class Record(dict):
                  'recordIDsize', 'recordIDCFormat', 'dataGroup', 'channelGroup',
                  'numpyDataRecordFormat', 'dataRecordName', 'master',
                  'recordToChannelMatching', 'channelNames', 'Flags', 'VLSD_CG',
-                 'VLSD', 'MLSD', 'byte_aligned', 'hiddenBytes', 'invalid_channel',
+                 'VLSD', 'VLSC', 'MLSD', 'byte_aligned', 'hiddenBytes', 'invalid_channel',
                  'CANOpen', 'unique_channel_in_DG']
     """ Record class listing channel classes. It is representing a channel group
 
@@ -685,6 +816,7 @@ class Record(dict):
         self.Flags = 0
         self.VLSD_CG = {}
         self.VLSD = []
+        self.VLSC = []
         self.MLSD = {}
         self.recordToChannelMatching = {}
         self.channelNames = set()
@@ -864,6 +996,19 @@ class Record(dict):
                 self.channelNames.add(channel.name)
                 if 'VLSD_CG' in info:  # is there VLSD CG
                     for recordID in info['VLSD_CG']:  # look for VLSD CG Channel
+                        if info['VLSD_CG'][recordID]['cg_cn'] == (self.channelGroup, channelNumber):
+                            self.VLSD_CG[recordID] = info['VLSD_CG'][recordID]
+                            self.VLSD_CG[recordID]['channel'] = channel
+                            self.VLSD_CG[recordID]['channelName'] = channel.name
+                            self[channelNumber].VLSD_CG_Flag = True
+                            break
+            elif channel_type == 7:  # VLSC channel (MDF 4.3)
+                self.VLSC.append(channelNumber)
+                self[channelNumber] = channel
+                self.channelNames.add(channel.name)
+                # for compact VLSC structure, cn_data points to VLSC CG (like VLSD_CG)
+                if 'VLSD_CG' in info:
+                    for recordID in info['VLSD_CG']:
                         if info['VLSD_CG'][recordID]['cg_cn'] == (self.channelGroup, channelNumber):
                             self.VLSD_CG[recordID] = info['VLSD_CG'][recordID]
                             self.VLSD_CG[recordID]['channel'] = channel
@@ -1096,7 +1241,7 @@ class Record(dict):
             formats = []
             names = []
             channels_indexes = []
-            for chan in list(self.keys()):
+            for chan in self:
                 if self[chan].name in channel_set and self[chan].channel_type(info) not in (3, 6):
                     # not virtual channel and part of channelSet
                     channels_indexes.append(chan)
@@ -1242,18 +1387,49 @@ class Record(dict):
                     temp = [bit_array[self[chan].pos_bit_beg + record_bit_size * i:
                                       self[chan].pos_bit_beg + 8 * n_bytes_estimated + record_bit_size * i]
                             for i in range(n_records)]
-                if 's' not in self[chan].c_format(info):
-                    c_structure = self[chan].c_format_structure(info)
-                    if ('>' in self[chan].data_format(info) and byteorder == 'little') or \
-                       (byteorder == 'big' and '<' in self[chan].data_format(info)):
-                        temp = [c_structure.unpack(temp[i].tobytes())[0]
-                                for i in range(n_records)]
-                        temp = asarray(temp)
-                        temp = temp.byteswap().view(temp.dtype.newbyteorder())
+                is_ca = self[chan].type in (1, 2)
+                if is_ca:
+                    # For CA array channels: read raw bytes and interpret via element dtype
+                    raw = b''.join(t.tobytes() for t in temp)
+                    cn_info = info['CN'][self[chan].dataGroup][self[chan].channelGroup][self[chan].channelNumber]
+                    signal_data_type = self[chan].signal_data_type(info)
+                    n_bits = cn_info['cn_bit_count'] + cn_info['cn_bit_offset']
+                    n_elem_bytes = (n_bits + 7) // 8
+                    from mdfreader.channel import data_type_format4 as _dtf4
+                    endian, elem_fmt = _dtf4(signal_data_type, n_elem_bytes)
+                    elem_dtype = endian + elem_fmt
+                    # collect array dimensions from nested CA blocks
+                    ca_block = cn_info.get('CABlock')
+                    dims = []
+                    block = ca_block
+                    while block is not None:
+                        d = block['ca_dim_size']
+                        if hasattr(d, '__iter__'):
+                            dims.extend(int(x) for x in d)
+                        else:
+                            dims.append(int(d))
+                        block = block.get('CABlock')
+                    try:
+                        temp = frombuffer(raw, dtype=elem_dtype).reshape((n_records, *dims))
+                    except (ValueError, TypeError):
+                        temp = frombuffer(raw, dtype=elem_dtype)
+                elif 's' not in self[chan].c_format(info):
+                    sdt = self[chan].signal_data_type(info)
+                    if sdt in (15, 16):  # complex: use frombuffer with numpy dtype
+                        raw = b''.join(t.tobytes() for t in temp)
+                        fmt = self[chan].native_data_format(info)
+                        endian = '<' if sdt == 15 else '>'
+                        temp = frombuffer(raw, dtype=endian + fmt)
                     else:
-                        temp = [c_structure.unpack(temp[i].tobytes())[0]
-                                for i in range(n_records)]
-                        temp = asarray(temp)
+                        c_structure = self[chan].c_format_structure(info)
+                        if ('>' in self[chan].data_format(info) and byteorder == 'little') or \
+                           (byteorder == 'big' and '<' in self[chan].data_format(info)):
+                            temp = [c_structure.unpack(temp[i].tobytes())[0] for i in range(n_records)]
+                            temp = asarray(temp)
+                            temp = temp.byteswap().view(temp.dtype.newbyteorder())
+                        else:
+                            temp = [c_structure.unpack(temp[i].tobytes())[0] for i in range(n_records)]
+                            temp = asarray(temp)
                 else:
                     temp = [temp[i].tobytes()
                             for i in range(n_records)]
@@ -1539,7 +1715,7 @@ class Mdf4(MdfSkeleton):
                                                         temp, bit_offset)
                                                 # masks isBitUnit8
                                                 mask = int(
-                                                    pow(2, bit_count) - 1)
+                                                    (1 << bit_count) - 1)
                                                 temp = bitwise_and(temp, mask)
                                                 if signal_data_type in (2, 3):
                                                     # signed integer, moving bit sign of two's complement
@@ -1549,15 +1725,27 @@ class Mdf4(MdfSkeleton):
                                                         (1 << (temp.itemsize * 8 - bit_count)) - 1) << bit_count
                                                     sign_bit = bitwise_and(
                                                         temp, sign_bit_mask)
+                                                    temp_u = temp.view('u{}'.format(temp.itemsize))
                                                     for number, sign in enumerate(sign_bit):
                                                         # negative value, sign extend
                                                         if sign:
-                                                            temp[number] |= sign_extend
+                                                            temp_u[number] |= sign_extend
+                                                    temp = temp_u.view(temp.dtype)
                                             else:  # should not happen
                                                 warn('bit count and offset not applied to correct '
                                                      'data type {}'.format(chan.name))
 
                                         if temp is not None:  # channel contains data
+                                            # half-precision complex: (2,)f2 → complex64
+                                            if temp.ndim > 1 and temp.shape[-1] == 2 \
+                                                    and temp.dtype.kind == 'f' \
+                                                    and temp.dtype.itemsize == 2:
+                                                signal_data_type = chan.signal_data_type(info)
+                                                if signal_data_type == 16:  # BE: byteswap each f2
+                                                    temp = temp.byteswap().view(
+                                                        temp.dtype.newbyteorder())
+                                                temp = (temp[..., 0].astype('f4')
+                                                        + 1j * temp[..., 1].astype('f4'))
                                             # string data decoding
                                             if temp.dtype.kind == 'S':
                                                 signal_data_type = chan.signal_data_type(
@@ -2584,8 +2772,11 @@ def _value_to_text_conversion(vector, cc_val, cc_ref):
     -----------
     converted data to physical value
     """
-    maxlen = max([len(ref) for ref in cc_ref])
+    str_refs = [ref for ref in cc_ref if isinstance(ref, str)]
+    maxlen = max(len(ref) for ref in str_refs) if str_refs else 256
     # initialize empty array with max length
+    if len(vector) == 0 or vector.ndim > 1:
+        return vector  # can't apply value-to-text to empty or multi-dim data
     temp = empty(len(vector), dtype='U{}'.format(maxlen))
     # checks for scaling
     try:
@@ -2835,7 +3026,7 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                     break  # no data block
                 block_type = addresses_btype[data_block_starting_position]
 
-                if block_type in (b'##DL', b'##HL'):
+                if block_type in frozenset((b'##DL', b'##HL')):
                     dl_position = data_block_starting_position
                     if block_type == b'##HL':
                         hl = HLBlock()

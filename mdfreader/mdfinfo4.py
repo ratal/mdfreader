@@ -966,6 +966,8 @@ class CNBlock(dict):
             if self['link_count'] > 8:
                 links = _mdf_block_read(
                     kargs['fid'], _LINK, self['link_count'] - 8)
+                if not hasattr(links, '__len__'):
+                    links = [links]
             # data section
             (self['cn_type'],
              self['cn_sync_type'],
@@ -992,7 +994,7 @@ class CNBlock(dict):
                         self['attachment'][at] = \
                             ATBlock(kargs['fid'], self['cn_at_reference'][at])
                 else:
-                    self['cn_at_reference'] = links
+                    self['cn_at_reference'] = links[0]
                     self['attachment'][0] = \
                         ATBlock(kargs['fid'], self['cn_at_reference'])
             if self['link_count'] > (8 + self['cn_attachment_count']):
@@ -2018,7 +2020,7 @@ class Info4(dict):
             self['CG'][dg][cg]['SR'] = self.read_sr_block(
                 fid, self['CG'][dg][cg]['cg_sr_first'])
 
-        if not self['CG'][dg][cg]['cg_flags'] & 0b1:  # if not a VLSD channel group
+        if not self['CG'][dg][cg]['cg_flags'] & 0b100001:  # if not a VLSD or VLSC channel group
             # reads Channel Block
             vlsd = self.read_cn_blocks(fid, dg, cg, channel_name_list, minimal)
             if vlsd:
@@ -2055,6 +2057,9 @@ class Info4(dict):
 
         vlsd = False
         mlsd_channels = []
+        if not self['CG'][dg][cg]['cg_cn_first']:  # empty CG (no channels)
+            self['CG'][dg][cg]['unique_channel_in_CG'] = True
+            return vlsd
         cn, mlsd_channels, vlsd = self.read_cn_block(fid, self['CG'][dg][cg]['cg_cn_first'],
                                                      dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
         if not self['CN'][dg][cg][cn]['cn_cn_next']:  # only one channel in CGBlock
@@ -2188,6 +2193,13 @@ class Info4(dict):
                 elif self['CN'][dg][cg][cn]['cn_type'] == 5:
                     # MLSD Channel
                     mlsd_channels.append(cn)
+                elif self['CN'][dg][cg][cn]['cn_type'] == 7:
+                    # VLSC channel (MDF 4.3): first extra link is cn_cn_size
+                    extra_links = self['CN'][dg][cg][cn].get('cn_default_x')
+                    if extra_links:
+                        size_link = extra_links[0] if isinstance(extra_links, list) else extra_links
+                        self['CN'][dg][cg][cn]['cn_cn_size'] = size_link
+                    self['CN'][dg][cg][cn]['VLSC'] = True
                 if not minimal and id in ('##EV', b'##EV'):
                     # Event signal structure
                     self['CN'][dg][cg][cn]['cn_data'] = self.read_ev_block(
@@ -2475,7 +2487,7 @@ def _generate_dummy_mdf4(info, channel_list):
                         mdfdict[name][dataField] = None
                         mdfdict[name][descriptionField] = name
                         mdfdict[name][unitField] = name
-                        mdfdict[name][idField] = (dg, cg, cn)
+                        mdfdict[name][idField] = ((dg, cg, cn), (name, None, None), (None, None, None))
                 elif info['CN'][dg][cg][cn]['cn_data_type'] == 14:
                     for name in ('ms', 'days'):
                         channel_name_list.append(name)
@@ -2485,7 +2497,7 @@ def _generate_dummy_mdf4(info, channel_list):
                         mdfdict[name][dataField] = None
                         mdfdict[name][descriptionField] = name
                         mdfdict[name][unitField] = name
-                        mdfdict[name][idField] = (dg, cg, cn)
+                        mdfdict[name][idField] = ((dg, cg, cn), (name, None, None), (None, None, None))
                 else:
                     name = info['CN'][dg][cg][cn]['name']
                     if name in channel_names_by_dg:
