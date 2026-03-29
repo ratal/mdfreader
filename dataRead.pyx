@@ -46,7 +46,7 @@ def sorted_data_read(bytes tmp, unsigned short bit_count,
     ndarray of type record_format with number_of_records records.
     Byte order is swapped if necessary to match machine byte order before bits offset and masking
     """
-    cdef char* bit_stream = PyBytes_AsString(tmp)
+    cdef const char* bit_stream = PyBytes_AsString(tmp)
     if not array:
         if 'V' in record_format or 'S' in record_format or record_format is None:
             return read_byte(bit_stream, record_format, number_of_records,
@@ -130,8 +130,8 @@ def sorted_data_read(bytes tmp, unsigned short bit_count,
                 return read_signed_longlong(bit_stream, record_format, number_of_records,
                                         record_byte_size, pos_byte_beg, bit_count, bit_offset, n_bytes, 1)
         elif signal_data_type in (15, 16):  # complex
-            if (byteorder == 'little' and signal_data_type == 0) or \
-                    (byteorder == 'big' and signal_data_type == 1):
+            if (byteorder == 'little' and signal_data_type == 15) or \
+                    (byteorder == 'big' and signal_data_type == 16):
                 swap_flag = 0
             else: #  swap bytes
                 swap_flag = 1
@@ -144,6 +144,15 @@ def sorted_data_read(bytes tmp, unsigned short bit_count,
             elif n_bytes == 4:
                 return read_chalf(bit_stream, record_format, number_of_records,
                                       record_byte_size, pos_byte_beg, 0)
+        elif n_bytes <= 4:
+            # VLSD/VLSC channels: record stores a uint pointer/size (signal_data_type 6-12)
+            return read_unsigned_int(bit_stream, record_format, number_of_records,
+                                     record_byte_size, pos_byte_beg, n_bytes * 8, bit_offset, n_bytes,
+                                     0 if byteorder == 'little' else 1)
+        elif n_bytes <= 8:
+            return read_unsigned_longlong(bit_stream, record_format, number_of_records,
+                                          record_byte_size, pos_byte_beg, n_bytes * 8, bit_offset, n_bytes,
+                                          0 if byteorder == 'little' else 1)
         else:
             return read_byte(bit_stream, record_format, number_of_records,
                                 record_byte_size, pos_byte_beg, n_bytes, bit_count, bit_offset)
@@ -171,18 +180,16 @@ cdef inline read_half(const char* bit_stream, str record_format, unsigned long l
 
 cdef inline read_chalf(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
-    cdef uint64_t[:] buf = np.empty(number_of_records, dtype=np.uint32)  # complex_32 does not exist in numpy
+    # complex32 = real(f16) + imag(f16): return as (n_records, 2) float16 array
+    cdef np.ndarray[np.uint16_t, ndim=2] buf = np.empty((number_of_records, 2), dtype=np.uint16)
     cdef unsigned long long i
-    cdef uint16_t temp16_real = 0
-    cdef uint16_t temp16_img = 0
     for i in range(number_of_records):
-        memcpy(&temp16_real, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
-        memcpy(&temp16_img, &bit_stream[pos_byte_beg + record_byte_size * i + 2], 2)
-        buf[i] = <uint64_t>temp16_real<<32 | <uint64_t>temp16_img
+        memcpy(&buf[i, 0], &bit_stream[pos_byte_beg + record_byte_size * i], 2)
+        memcpy(&buf[i, 1], &bit_stream[pos_byte_beg + record_byte_size * i + 2], 2)
     if swap == 0:
-        return np.asarray(buf).view(dtype=np.complex_64)  # returning single instead of half precision complex
+        return buf.view(dtype=np.float16)
     else:
-        return np.asarray(buf).view(dtype=np.complex_64).byteswap()
+        return buf.view(dtype=np.float16).byteswap()
 
 cdef inline read_float(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
@@ -790,7 +797,7 @@ cdef inline read_array(const char* bit_stream, str record_format, unsigned long 
     cdef unsigned long long i
     cdef unsigned long pos_byte_end = pos_byte_beg + n_bytes
     for i in range(number_of_records):
-        buf[i] = np.fromstring(bit_stream[pos_byte_beg + record_byte_size * i:\
+        buf[i] = np.frombuffer(bit_stream[pos_byte_beg + record_byte_size * i:\
             pos_byte_end + record_byte_size * i], dtype=record_format)
     if swap == 0:
         return buf
@@ -844,7 +851,7 @@ def unsorted_data_read4(record, info, bytes tmp,
     cdef dict VLSD_CG_signal_data_type = {}
     cdef dict channel_name_set = {}
     for record_id in record:
-        if record[record_id]['record'].Flags & 0b1:
+        if record[record_id]['record'].Flags & 0b100001:  # VLSD (bit 0) or VLSC compact (bit 5)
             VLSD_flag[record_id] = True
             VLSD[record[record_id]['record'].VLSD_CG[record_id]['channelName']] = []
             VLSD_CG_name[record_id] = record[record_id]['record'].VLSD_CG[record_id]['channelName']
@@ -918,14 +925,15 @@ cdef inline unsorted_read4(const char* bit_stream, bytes tmp, record_id,
         memcpy(&VLSDLen, &bit_stream[position], 4)  # VLSD length
         position += 4
         signal_data_type = VLSD_CG_signal_data_type[record_id]
+        temp = bytes(bit_stream[position:position + VLSDLen - 1])  # default: raw bytes
         if signal_data_type == 6:
-            temp = bit_stream[position:position + VLSDLen - 1].decode('ISO8859')
+            temp = temp.decode('ISO8859')
         elif signal_data_type == 7:
-            temp = bit_stream[position:position + VLSDLen - 1].decode('utf-8')
+            temp = temp.decode('utf-8')
         elif signal_data_type == 8:
-            temp = bit_stream[position:position + VLSDLen - 1].decode('<utf-16')
+            temp = temp.decode('<utf-16')
         elif signal_data_type == 9:
-            temp = bit_stream[position:position + VLSDLen - 1].decode('>utf-16')
+            temp = temp.decode('>utf-16')
         VLSD[VLSD_CG_name[record_id]].append(temp)
         position += <unsigned long long> VLSDLen
     return position, buf, VLSD, index
