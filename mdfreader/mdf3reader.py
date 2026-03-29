@@ -226,7 +226,7 @@ def _text_table_conversion(data, conversion):  # 11 Text table
     conversion_table = dict()
     for pair in conversion:
         conversion_table[conversion[pair]['int']] = conversion[pair]['text']
-    return vectorize(lambda x: conversion_table[int(x)])(data)
+    return vectorize(lambda x: conversion_table.get(int(x), str(int(x))))(data)
 
 
 def _text_range_table_conversion(data, conversion):  # 12 Text range table
