@@ -528,8 +528,11 @@ class Channel4(object):
                 data_format = 'u1'
             endian = '<'
         else:  # not channel array
-            endian, data_format = array_format4(
-                info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'], self.nBytes_aligned)
+            if self.channel_type(info) in (1, 7):  # VLSD/VLSC: record stores uint offset, not string
+                endian, data_format = array_format4(0, self.nBytes_aligned)
+            else:
+                endian, data_format = array_format4(
+                    info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'], self.nBytes_aligned)
         return endian, data_format
 
     def data_format(self, info):
@@ -1049,6 +1052,8 @@ def array_format4(signal_data_type, number_of_bytes):
         endian = '>'
     else:
         warn('Unsupported Signal Data Type {} {}'.format(signal_data_type, number_of_bytes))
+        endian = ''
+        data_type = 'V{}'.format(number_of_bytes)
 
     return endian, data_type
 
@@ -1156,29 +1161,33 @@ def data_type_format4(signal_data_type, number_of_bytes):
         endian = '>'
 
     elif signal_data_type == 15:  # LE Complex
-        if number_of_bytes == 2:
-            data_type = '2e'
-        elif number_of_bytes == 4:
-            data_type = '2f'
+        if number_of_bytes == 4:
+            data_type = '2e'  # 4 bytes = 2×f16 (half-precision)
         elif number_of_bytes == 8:
-            data_type = '2d'
+            data_type = '2f'  # 8 bytes = 2×f32
+        elif number_of_bytes == 16:
+            data_type = '2d'  # 16 bytes = 2×f64
         else:
-            warn('Unsupported number of bytes for floating point {}'.format(signal_data_type))
+            warn('Unsupported number of bytes for complex {}'.format(number_of_bytes))
+            data_type = '{}s'.format(number_of_bytes)
         endian = '<'
 
     elif signal_data_type == 16:  # BE Complex
-        if number_of_bytes == 2:
-            data_type = '2e'
-        elif number_of_bytes == 4:
-            data_type = '2f'
+        if number_of_bytes == 4:
+            data_type = '2e'  # 4 bytes = 2×f16 (half-precision)
         elif number_of_bytes == 8:
-            data_type = '2d'
+            data_type = '2f'  # 8 bytes = 2×f32
+        elif number_of_bytes == 16:
+            data_type = '2d'  # 16 bytes = 2×f64
         else:
-            warn('Unsupported number of bytes for floating point {}'.format(signal_data_type))
+            warn('Unsupported number of bytes for complex {}'.format(number_of_bytes))
+            data_type = '{}s'.format(number_of_bytes)
         endian = '>'
 
     else:
         warn('Unsupported Signal Data Type {} {}'.format(signal_data_type, number_of_bytes))
+        endian = ''
+        data_type = '{}s'.format(number_of_bytes)
 
     return endian, data_type
 
