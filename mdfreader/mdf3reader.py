@@ -12,11 +12,10 @@ from __future__ import absolute_import  # for consistency between python 2 and 3
 from __future__ import print_function
 from numpy import right_shift, bitwise_and, interp, empty
 from numpy import max as npmax, min as npmin
-from numpy import asarray, recarray, array, searchsorted, vectorize
+from numpy import asarray, recarray, array, searchsorted, vectorize, exp, log
 from numpy import issubdtype, number as numpy_number
-from numpy.core.records import fromstring, fromarrays
+from numpy.rec import fromstring, fromarrays
 from collections import defaultdict
-from math import log, exp
 from time import strftime, time, gmtime
 from datetime import datetime
 from struct import pack, Struct
@@ -470,13 +469,14 @@ class Record(list):
 
         """
         fid.seek(pointer)
+        full_record_length = self.CGrecordLength + self.recordIDnumber
         n_chunks = self.dataBlockLength // chunk_size_reading + 1
         chunk_length = self.dataBlockLength // n_chunks
-        n_record_chunk = chunk_length // self.CGrecordLength
-        chunks = [(n_record_chunk, self.CGrecordLength * n_record_chunk)] * n_chunks
+        n_record_chunk = chunk_length // full_record_length
+        chunks = [(n_record_chunk, full_record_length * n_record_chunk)] * n_chunks
         n_record_chunk = self.numberOfRecords - n_record_chunk * n_chunks
         if n_record_chunk > 0:
-            chunks.append((n_record_chunk, self.CGrecordLength * n_record_chunk))
+            chunks.append((n_record_chunk, full_record_length * n_record_chunk))
         previous_index = 0
         if channel_set is None and not self.hiddenBytes and self.byte_aligned:
             # reads all, quickest but memory consuming
@@ -485,11 +485,11 @@ class Record(list):
             simplefilter('ignore', FutureWarning)
             for n_record_chunk, chunk_size in chunks:
                 raw = fid.read(chunk_size)
-                actual_records = len(raw) // self.CGrecordLength
+                actual_records = len(raw) // full_record_length
                 if actual_records < n_record_chunk:
                     # file shorter than expected (e.g. MDF 2.x / truncated)
                     n_record_chunk = actual_records
-                    raw = raw[:self.CGrecordLength * actual_records]
+                    raw = raw[:full_record_length * actual_records]
                 if n_record_chunk > 0:
                     buf[previous_index: previous_index + n_record_chunk] = \
                         fromstring(raw,
@@ -706,7 +706,7 @@ class DATA(dict):
         if self.fid is None or self.fid.closed:
             self.fid = open(file_name, 'rb')
         if len(self) == 1:  # sorted dataGroup
-            record_id = list(self.keys())[0]
+            record_id = next(iter(self))
             self[record_id]['data'] = \
                 self.load_sorted(self[record_id]['record'], name_list=channel_set)
         elif len(self) >= 2:  # unsorted DataGroup
@@ -990,7 +990,7 @@ class Mdf3(MdfSkeleton):
                                     if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
                                         if chan.embedding_channel_bitOffset > 0:
                                             temp = right_shift(temp, chan.embedding_channel_bitOffset)
-                                        mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
+                                        mask = (1 << chan.bitCount) - 1  # masks isBitUint8
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
                                         warn('bit count and offset not applied to correct data type')
@@ -1294,13 +1294,13 @@ class Mdf3(MdfSkeleton):
                     data_type = 7
                 else:
                     raise Exception('Not recognized dtype')
-                if data.dtype.kind not in ['S', 'U']:
+                if data.dtype.kind not in {'S', 'U'}:
                     data_type_list = ''.join([data_type_list, data.dtype.char])
                 else:
                     data_type_list = ''.join([data_type_list, '{}s'.format(data.dtype.itemsize)])
                     number_of_bits = 8 * data.dtype.itemsize
                 record_number_of_bits += number_of_bits
-                if data.dtype.kind not in ['S', 'U']:
+                if data.dtype.kind not in {'S', 'U'}:
                     value_range_valid = 1
                     if len(data) > 0 and issubdtype(data.dtype, numpy_number):
                         maximum = npmax(data)

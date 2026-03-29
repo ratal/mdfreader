@@ -549,12 +549,12 @@ class Mdf(Mdf4, Mdf3):
                 if channelName in self:
                     data = self.get_channel_data(channelName)
                     # if channel not a string
-                    if data.dtype.kind not in ['S', 'U']:
+                    if data.dtype.kind not in {'S', 'U'}:
                         # self.fig = plt.figure()  # could be needed
                         # plot using matplotlib the channel versus master channel
                         # Resampled signals or only one master
                         if len(self.masterChannelList) == 1:
-                            master_name = list(self.masterChannelList)[0]
+                            master_name = next(iter(self.masterChannelList))
                             if not master_name:  # resampled channels, only one time channel probably called 'master'
                                 master_name = 'master'
                             master_data = self.get_channel_data(master_name)
@@ -640,7 +640,7 @@ class Mdf(Mdf4, Mdf3):
                     master_channel_name)
             elif channel is None and master_channel is None:
                 # pick the first master
-                master_channel_name = list(self.masterChannelList.keys())[0]
+                master_channel_name = next(iter(self.masterChannelList))
                 master_channel_type = self.get_channel_master_type(
                     master_channel_name)
             else:
@@ -684,7 +684,7 @@ class Mdf(Mdf4, Mdf3):
                 else:
                     warn(
                         'no master channel existing, considering first channel as master !')
-                    current_master = list(self.masterChannelList.keys())[0]
+                    current_master = next(iter(self.masterChannelList))
                     # pick the first channel from the first data group to be master, maybe lucky
                     master_channel_name = self.masterChannelList[current_master][0]
                     # changing master to first channel
@@ -700,7 +700,7 @@ class Mdf(Mdf4, Mdf3):
                             master_data[0], master_data[-1], sampling)
 
             # Interpolate channels
-            for master in list(self.masterChannelList.keys()):
+            for master in self.masterChannelList:
                 if self.get_channel_master_type(master) == master_channel_type:
                     self.resample_group(sampling, master, new_master_data=master_data,
                                         interpolation_kind=interpolation_kind)
@@ -775,7 +775,7 @@ class Mdf(Mdf4, Mdf3):
         if new_master_data is None:
             new_master_data = arange(
                 old_master_data[0], old_master_data[-1], sampling)
-        for Name in list(self.masterChannelList[master_channel]):
+        for Name in self.masterChannelList[master_channel]:
             # forces list() because masterChannelList is dynamic, channels can be removed
             if Name == master_channel:  # master channel
                 self.set_channel_data(Name, new_master_data)
@@ -990,11 +990,11 @@ class Mdf(Mdf4, Mdf3):
                 data_type = 'd'
             elif data.dtype == 'float32':
                 data_type = 'f'
-            elif data.dtype in ['int8', 'int16', 'uint8', 'uint16']:
+            elif data.dtype in {'int8', 'int16', 'uint8', 'uint16'}:
                 data_type = 'h'
-            elif data.dtype in ['int32', 'uint32']:
+            elif data.dtype in {'int32', 'uint32'}:
                 data_type = 'i'
-            elif data.dtype.kind in ['S', 'U']:
+            elif data.dtype.kind in {'S', 'U'}:
                 data_type = 'c'
             else:
                 data_type = None
@@ -1005,7 +1005,7 @@ class Mdf(Mdf4, Mdf3):
                 cleaned_name = clean_name(name)
                 if len(self.masterChannelList) == 1:  # mdf resampled
                     var[name] = f.createVariable(
-                        cleaned_name, data_type, (list(self.masterChannelList.keys())[0], ))
+                        cleaned_name, data_type, (next(iter(self.masterChannelList)), ))
                 else:  # not resampled
                     var[name] = f.createVariable(
                         cleaned_name, data_type, (self.get_channel_master(name),))
@@ -1075,7 +1075,7 @@ class Mdf(Mdf4, Mdf3):
             file_name = file_name + '.hdf'
         if compression is not None:
             compression = compression.lower()
-            if compression not in ['gzip', 'lzf']:
+            if compression not in {'gzip', 'lzf'}:
                 compression = None
                 compression_opts = None
             elif compression == 'lzf':
@@ -1134,7 +1134,7 @@ class Mdf(Mdf4, Mdf3):
                         set_attribute(dset, descriptionField,
                                       self.get_channel_desc(channel))
         else:  # resampled or only one time for all channels : no groups
-            master_name = list(self.masterChannelList.keys())[0]
+            master_name = next(iter(self.masterChannelList))
             set_attribute(file_group, masterField, master_name)
             set_attribute(file_group, masterTypeField,
                           master_type_dict[self.get_channel_master_type(master_name)])
@@ -1272,14 +1272,14 @@ class Mdf(Mdf4, Mdf3):
                     channel_list[col])  # data vector
                 if not len(vector) > max_lines:
                     # if not a string or unicode
-                    if vector.dtype.kind not in ['S', 'U']:
+                    if vector.dtype.kind not in {'S', 'U'}:
                         [ws.row(row + 2).set_cell_number(col - workbook * max_cols, vector[row])
                          for row in list(range(len(vector)))]
                     else:  # it's a string, cannot write for the moment
                         [ws.row(row + 2).set_cell_text(col - workbook * max_cols, vector[row])
                          for row in list(range(len(vector)))]
                 else:  # channel too long, written until max Excel line limit
-                    if vector.dtype.kind not in ['S', 'U']:  # if not a string
+                    if vector.dtype.kind not in {'S', 'U'}:  # if not a string
                         [ws.row(row + 2).set_cell_number(col - workbook * max_cols, vector[row])
                          for row in list(range(max_lines))]
                     else:  # it's a string, cannot write for the moment
