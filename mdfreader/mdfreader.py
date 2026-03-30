@@ -700,7 +700,7 @@ class Mdf(Mdf4, Mdf3):
                             master_data[0], master_data[-1], sampling)
 
             # Interpolate channels
-            for master in self.masterChannelList:
+            for master in list(self.masterChannelList):
                 if self.get_channel_master_type(master) == master_channel_type:
                     self.resample_group(sampling, master, new_master_data=master_data,
                                         interpolation_kind=interpolation_kind)
@@ -747,6 +747,8 @@ class Mdf(Mdf4, Mdf3):
             # interpolates with closest point at 'kind' side
             idx = searchsorted(x, new_x, side=kind)
             idx -= 1
+            if len(idx) == 0:
+                return idx
             idx = clip(idx, 0, idx[-1])
             return idx
 
@@ -908,13 +910,16 @@ class Mdf(Mdf4, Mdf3):
                              for name in self
                              if self.get_channel_data(name).dtype.kind not in ('S', 'U', 'V')
                              and self.get_channel_data(name).ndim <= 1])  # writes units
-            # concatenate all channels
+            # concatenate all channels (1D numeric only, same length)
             temp = []
+            ref_len = None
             for name in self:
                 data = self.get_channel_data(name)
-                if data.dtype.kind not in ('S', 'U', 'V') \
-                        and data.ndim <= 1:
-                    temp.append(data.transpose())
+                if data.dtype.kind not in ('S', 'U', 'V') and data.ndim == 1:
+                    if ref_len is None:
+                        ref_len = len(data)
+                    if len(data) == ref_len:
+                        temp.append(data.transpose())
             if temp:
                 buf = vstack(temp)
                 buf = buf.transpose()
@@ -1389,6 +1394,8 @@ class Mdf(Mdf4, Mdf3):
         for master_channel_name in first_class_masters:
             type = self.get_channel_master_type(master_channel_name)
             data = self.get_channel_data(master_channel_name)
+            if data is None or len(data) == 0:
+                continue
             if type not in first_masters:
                 first_masters[type] = {}
                 first_masters[type]['max'] = data[-1]
@@ -1399,6 +1406,8 @@ class Mdf(Mdf4, Mdf3):
         for master_channel_name in second_class_masters:
             type = mdf_class.get_channel_master_type(master_channel_name)
             data = mdf_class.get_channel_data(master_channel_name)
+            if data is None or len(data) == 0:
+                continue
             if type not in second_masters:
                 second_masters[type] = {}
                 second_masters[type]['max'] = data[-1]
@@ -1409,15 +1418,16 @@ class Mdf(Mdf4, Mdf3):
         for master_channel_name in union_masters:
             if master_channel_name in first_class_masters and master_channel_name in second_class_masters:
                 # same master name in both classes
-                first_class_length = len(
-                    self.get_channel_data(master_channel_name))
+                _first_data = self.get_channel_data(master_channel_name)
+                if _first_data is None:
+                    continue
+                first_class_length = len(_first_data)
                 first_class_channels = set(
                     self.masterChannelList[master_channel_name])
                 second_class_channels = set(
                     mdf_class.masterChannelList[master_channel_name])
-                first_class_group_number = self[master_channel_name][idField][0][0]
-                second_class_group_number = mdf_class[master_channel_name][idField][0][0]
                 if self.MDFVersionNumber >= 400:
+                    first_class_group_number = self[master_channel_name].get(idField, [[None]])[0][0]
                     invalid_channel = 'invalid_bytes{}'.format(
                         first_class_group_number)
                     if invalid_channel in first_class_channels:
@@ -1426,6 +1436,7 @@ class Mdf(Mdf4, Mdf3):
                         self.apply_all_invalid_bit()
                         first_class_channels.remove(invalid_channel)
                 if mdf_class.MDFVersionNumber >= 400:
+                    second_class_group_number = mdf_class[master_channel_name].get(idField, [[None]])[0][0]
                     invalid_channel = 'invalid_bytes{}'.format(
                         second_class_group_number)
                     if invalid_channel in second_class_channels:
@@ -1444,8 +1455,8 @@ class Mdf(Mdf4, Mdf3):
                 temp[:first_class_length] = data
                 if self.get_channel_master_type(master_channel_name) == 1:
                     # master of type time
-                    offset = mean(diff(mdf_data))  # sampling
-                    offset = data[-1] + offset  # offset
+                    offset = mean(diff(mdf_data)) if len(mdf_data) > 1 else 0  # sampling
+                    offset = (data[-1] + offset) if len(data) > 0 else offset  # offset
                     temp[first_class_length:] = mdf_data + offset
                 else:
                     temp[first_class_length:] = mdf_data
@@ -1454,19 +1465,30 @@ class Mdf(Mdf4, Mdf3):
                     if channel in first_class_channels and channel in second_class_channels:
                         # channel exists in both classes
                         data = self.get_channel_data(channel)
-                        if isinstance(data, MaskedArray):
-                            temp = ma_empty(total_length, dtype=data.dtype)
+                        if data is None:
+                            continue
+                        mdf_data2 = mdf_class.get_channel_data(channel)
+                        if mdf_data2 is None:
+                            continue
+                        if data.ndim == 1:
+                            ch_total = len(data) + len(mdf_data2)
+                            if isinstance(data, MaskedArray):
+                                temp = ma_empty(ch_total, dtype=data.dtype)
+                            else:
+                                temp = empty(ch_total, dtype=data.dtype)
+                            temp[:len(data)] = data
+                            temp[len(data):] = mdf_data2
                         else:
-                            temp = empty(total_length, dtype=data.dtype)
-                        temp[:first_class_length] = data
-                        temp[first_class_length:] = mdf_class.get_channel_data(
-                            channel)
+                            from numpy import concatenate as np_concatenate
+                            temp = np_concatenate([data, mdf_data2], axis=0)
                         self.set_channel_data(channel, temp)
                     elif channel in second_class_channels:
                         # initialise all fields, units, descriptions, etc.
                         self[channel] = mdf_class[channel]
                         # new channel for self from mdfClass
                         data = self.get_channel_data(channel)
+                        if data is None or data.ndim != 1:
+                            continue  # skip non-1D channels for padding
                         if isinstance(data, MaskedArray):
                             temp = ma_empty(total_length, dtype=data.dtype)
                         else:
@@ -1476,6 +1498,8 @@ class Mdf(Mdf4, Mdf3):
                         self.set_channel_data(channel, temp)
                     else:  # channel missing in mdfClass
                         data = self.get_channel_data(channel)
+                        if data is None or data.ndim != 1:
+                            continue  # skip non-1D channels for padding
                         if isinstance(data, MaskedArray):
                             temp = ma_empty(total_length, dtype=data.dtype)
                         else:
@@ -1486,8 +1510,8 @@ class Mdf(Mdf4, Mdf3):
             elif master_channel_name in first_class_masters:
                 first_class_channels = set(
                     self.masterChannelList[master_channel_name])
-                first_class_group_number = self[master_channel_name][idField][0][0]
                 if self.MDFVersionNumber >= 400:
+                    first_class_group_number = self[master_channel_name].get(idField, [[None]])[0][0]
                     invalid_channel = 'invalid_bytes{}'.format(
                         first_class_group_number)
                     if invalid_channel in first_class_channels:
@@ -1517,8 +1541,8 @@ class Mdf(Mdf4, Mdf3):
             else:
                 second_class_channels = set(
                     mdf_class.masterChannelList[master_channel_name])
-                second_class_group_number = mdf_class[master_channel_name][idField][0][0]
                 if mdf_class.MDFVersionNumber >= 400:
+                    second_class_group_number = mdf_class[master_channel_name].get(idField, [[None]])[0][0]
                     invalid_channel = 'invalid_bytes{}'.format(
                         second_class_group_number)
                     if invalid_channel in second_class_channels:
@@ -1568,9 +1592,8 @@ class Mdf(Mdf4, Mdf3):
         second_channels = set(mdf_class.keys())
         common_channels = first_channels & second_channels
         for channel in common_channels:
-            mdf_class.rename_channel(channel,
-                                     '{}_{}'.format(channel,
-                                                    mdf_class[channel][idField][0][0]))
+            channel_id = mdf_class[channel].get(idField, [[channel]])[0][0]
+            mdf_class.rename_channel(channel, '{}_{}'.format(channel, channel_id))
         # copy the data
         for channel in mdf_class:
             self[channel] = mdf_class[channel]
