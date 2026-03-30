@@ -11,8 +11,20 @@ mdfinfo4
 from struct import calcsize, unpack, pack, Struct
 from os import remove
 from warnings import warn
-from zlib import compress, decompress
-from numpy import zeros, array, append
+from zlib import compress, decompress, decompressobj
+from numpy import zeros, array, append, frombuffer
+
+try:
+    from pyzstd import decompress as zstd_decompress
+    _ZSTD_AVAILABLE = True
+except ImportError:
+    _ZSTD_AVAILABLE = False
+
+try:
+    from lz4.frame import decompress as lz4_decompress
+    _LZ4_AVAILABLE = True
+except ImportError:
+    _LZ4_AVAILABLE = False
 from time import time
 from collections import OrderedDict
 from xml.etree.ElementTree import Element, SubElement, \
@@ -1656,9 +1668,10 @@ class DZBlock(dict):
         block : bytes
             raw data compressed
         zip_type : int
-            0 for non transposed, 1 for transposed data
+            0=Deflate, 1=Deflate+Transpose, 2=ZStd, 3=ZStd+Transpose,
+            4=LZ4, 5=LZ4+Transpose
         zip_parameter : int
-            first dimension of matrix to be transposed
+            record byte size (used for transpose)
         org_data_length : int
             uncompressed data length
 
@@ -1666,17 +1679,36 @@ class DZBlock(dict):
         ---------
         uncompressed raw data
         """
-
-        # decompress data
-        block = decompress(block)
-        if zip_type == 1:  # data bytes transposed
+        # Decompress
+        if zip_type in (0, 1):
+            try:
+                block = decompress(block)
+            except Exception:
+                d = decompressobj()
+                block = d.decompress(block) + d.flush()
+        elif zip_type in (2, 3):
+            if not _ZSTD_AVAILABLE:
+                raise ImportError('pyzstd is required for ZStandard compression (dz_zip_type=2/3). '
+                                   'Install with: pip install pyzstd')
+            block = zstd_decompress(block)
+        elif zip_type in (4, 5):
+            if not _LZ4_AVAILABLE:
+                raise ImportError('lz4 is required for LZ4 compression (dz_zip_type=4/5). '
+                                   'Install with: pip install lz4')
+            block = lz4_decompress(block)
+        elif zip_type != 0:
+            raise NotImplementedError(
+                f'DZ block uses unsupported compression type dz_zip_type={zip_type}. '
+                'Custom/vendor-proprietary compression (type 254) cannot be decoded.')
+        # Apply column-major transpose for odd zip_type (1, 3, 5)
+        if zip_type in (1, 3, 5):
             M = org_data_length // zip_parameter
-            temp = array(memoryview(block[:M * zip_parameter]))
-            tail = array(memoryview(block[M * zip_parameter:]))
-            temp = temp.reshape(zip_parameter, M).T.ravel()
-            if len(tail) > 0:
-                temp = append(temp, tail)
-            block = temp.tostring()
+            aligned = M * zip_parameter
+            tail = block[aligned:]
+            # frombuffer avoids a copy; .T.copy() materialises the transposed layout
+            transposed = frombuffer(block[:aligned], dtype='u1').reshape(zip_parameter, M).T.copy()
+            del block
+            block = (transposed.tobytes() + bytes(tail)) if tail else transposed.tobytes()
         return block
 
     def write(self, fid, data, record_length):
