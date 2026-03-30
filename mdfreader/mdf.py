@@ -15,6 +15,9 @@ Dependencies
 mdf
 --------------------------
 """
+import atexit
+import shutil
+import tempfile
 from copy import deepcopy
 from io import open
 from zipfile import is_zipfile, ZipFile
@@ -716,7 +719,9 @@ def _open_mdf(file_name):
             fid.close()
             zip_class = ZipFile(file_name, 'r')
             zip_name = zip_class.namelist()[0]  # there should be only one file
-            zip_name = zip_class.extract(zip_name)  # locally extracts file
+            _tmp_dir = tempfile.mkdtemp()
+            atexit.register(shutil.rmtree, _tmp_dir, True)
+            zip_name = zip_class.extract(zip_name, path=_tmp_dir)
             fid = open(zip_name, 'rb')
             file_name = zip_name
         else:
