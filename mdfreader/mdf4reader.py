@@ -43,7 +43,7 @@ from .mdf import MdfSkeleton, _open_mdf, invalidChannel, dataField, \
     conversionField, idField, invalidPosField, CompressedData
 from .channel import Channel4
 try:
-    from dataRead import sorted_data_read, unsorted_data_read4, sd_data_read
+    from dataRead import sorted_data_read, unsorted_data_read4, sd_data_read, vd_data_read
     dataRead_available = True
 except ImportError:
     warn('dataRead cannot be imported, compile it with Cython', ImportWarning)
@@ -360,6 +360,15 @@ def _decode_vlsc_data(vd_bytes, offsets, sizes, signal_data_type):
     n_records = len(offsets)
     if n_records == 0:
         return None
+    if dataRead_available:
+        try:
+            return vd_data_read(signal_data_type, vd_bytes, offsets.astype('<u8'),
+                                sizes.astype('<u8'), n_records)
+        except Exception:
+            pass
+    max_len = int(max(sizes)) if len(sizes) > 0 else 0
+    if max_len == 0:
+        return None
     if signal_data_type == 6:
         encoding = 'ISO-8859-1'
     elif signal_data_type == 7:
@@ -368,11 +377,26 @@ def _decode_vlsc_data(vd_bytes, offsets, sizes, signal_data_type):
         encoding = 'utf-16-le'
     elif signal_data_type == 9:
         encoding = 'utf-16-be'
+    elif signal_data_type == 17:
+        # BOM-per-value: detect encoding from each value's BOM
+        output = zeros((n_records,), dtype='U{}'.format(max_len))
+        for i in range(n_records):
+            size = int(sizes[i])
+            if size > 0:
+                offset = int(offsets[i])
+                raw = vd_bytes[offset:offset + size]
+                if len(raw) >= 3 and raw[:3] == b'\xef\xbb\xbf':
+                    s = raw[3:].decode('utf-8', errors='replace')
+                elif len(raw) >= 2 and raw[:2] == b'\xff\xfe':
+                    s = raw[2:].decode('utf-16-le', errors='replace')
+                elif len(raw) >= 2 and raw[:2] == b'\xfe\xff':
+                    s = raw[2:].decode('utf-16-be', errors='replace')
+                else:
+                    s = raw.decode('utf-8', errors='replace')
+                output[i] = s.rstrip('\x00')
+        return output
     else:
         encoding = 'utf-8'
-    max_len = int(max(sizes)) if len(sizes) > 0 else 0
-    if max_len == 0:
-        return None
     output = zeros((n_records,), dtype='U{}'.format(max_len))
     for i in range(n_records):
         size = int(sizes[i])
@@ -2215,6 +2239,8 @@ class Mdf4(MdfSkeleton):
                         data_type = 2  # LE
                     elif cn_numpy_kind == 'f':
                         data_type = 4  # LE
+                    elif cn_numpy_kind == 'c':
+                        data_type = 15  # complex LE
                     elif cn_numpy_kind == 'S':
                         data_type = 6
                     elif cn_numpy_kind == 'U':
@@ -2294,7 +2320,8 @@ class Mdf4(MdfSkeleton):
 
             if n_records == 0 and masterChannel is not self.masterChannelList[masterChannel]:
                 # No master channel in channel group
-                n_records = len(data_list[0])
+                if data_list:
+                    n_records = len(data_list[0])
 
             if last_channel in blocks:
                 blocks[last_channel]['CN'] = 0  # last CN link is null
@@ -2431,6 +2458,8 @@ class Mdf4(MdfSkeleton):
                 data_type = 2  # LE
             elif cn_numpy_kind == 'f':
                 data_type = 4  # LE
+            elif cn_numpy_kind == 'c':
+                data_type = 15  # complex LE
             elif cn_numpy_kind == 'S':
                 data_type = 6
             elif cn_numpy_kind == 'U':
@@ -3024,7 +3053,9 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                 data_block_starting_position = info['DG'][dg]['dg_data']
                 if data_block_starting_position == 0:
                     break  # no data block
-                block_type = addresses_btype[data_block_starting_position]
+                block_type = addresses_btype.get(data_block_starting_position, b'')
+                if not block_type:
+                    continue  # unknown block type, skip integrity check for this DG
 
                 if block_type in frozenset((b'##DL', b'##HL')):
                     dl_position = data_block_starting_position
