@@ -30,3 +30,5 @@ mdfreader/tests/mdf3
 mdfreader/tests/MDF4
 mdfconverter/Ui_mdfreaderui.py
 dataRead.so
+dataRead.c
+.pytest_tmp/

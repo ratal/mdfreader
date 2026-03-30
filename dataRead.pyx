@@ -982,7 +982,7 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block,
         if VLSDLen[rec] > max_len:
             max_len = VLSDLen[rec]
         if max_len != 0:
-            if signal_data_type < 10:
+            if signal_data_type < 10 or signal_data_type == 17:
                 if signal_data_type == 6:
                     channel_format = 'ISO8859'
                 elif signal_data_type == 7:
@@ -991,6 +991,8 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block,
                     channel_format = '<utf-16'
                 elif signal_data_type == 9:
                     channel_format = '>utf-16'
+                elif signal_data_type == 17:
+                    channel_format = 'bom'  # BOM-per-value detection
                 else:
                     channel_format = 'utf-8'
                     printf('signal_data_type should have fixed length')
@@ -1016,6 +1018,131 @@ cdef inline equalize_string_length(const char* bit_stream, unsigned long long *p
                                    unsigned long max_len, unsigned long long n_records, channel_format):
     cdef np.ndarray output = np.zeros((n_records, ), dtype='U{}'.format(max_len))
     cdef unsigned long rec = 0
-    for rec from 0 <= rec < n_records by 1:  # resize string to same length, numpy constrain
-        output[rec] = bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]].decode(channel_format).rstrip('\x00')
+    cdef bytes raw
+    if channel_format == 'bom':
+        # signal_data_type 17: detect BOM per value
+        for rec from 0 <= rec < n_records by 1:
+            raw = bytes(bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]])
+            if len(raw) >= 3 and raw[0] == 0xEF and raw[1] == 0xBB and raw[2] == 0xBF:
+                output[rec] = raw[3:].decode('utf-8', errors='replace').rstrip('\x00')
+            elif len(raw) >= 2 and raw[0] == 0xFF and raw[1] == 0xFE:
+                output[rec] = raw[2:].decode('utf-16-le', errors='replace').rstrip('\x00')
+            elif len(raw) >= 2 and raw[0] == 0xFE and raw[1] == 0xFF:
+                output[rec] = raw[2:].decode('utf-16-be', errors='replace').rstrip('\x00')
+            elif len(raw) > 0:
+                output[rec] = raw.decode('utf-8', errors='replace').rstrip('\x00')
+    else:
+        for rec from 0 <= rec < n_records by 1:  # resize string to same length, numpy constrain
+            output[rec] = bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]].decode(channel_format).rstrip('\x00')
+    return output
+
+
+def vd_data_read(unsigned short signal_data_type, bytes vd_block,
+                 object offsets_array, object sizes_array,
+                 unsigned long long n_records):
+    """Read VLSC channel data from raw VD block bytes.
+
+    Parameters
+    ----------------
+    signal_data_type : int
+        signal data type (6=ISO-8859-1, 7=UTF-8, 8=UTF-16-LE, 9=UTF-16-BE,
+        17=BOM, 10+=byte array)
+    vd_block : bytes
+        raw VD block data (no per-value length prefix, unlike SD blocks)
+    offsets_array : numpy uint64 array
+        byte offset of each value within vd_block
+    sizes_array : numpy uint64 array
+        byte size of each value
+    n_records : int
+        number of records
+
+    Returns
+    -------
+    numpy array of decoded strings (dtype U...) or byte arrays (dtype V...)
+    """
+    cdef const char* bit_stream = PyBytes_AsString(vd_block)
+    cdef unsigned long long i
+    cdef unsigned long long offset, size
+    cdef unsigned long max_len = 0
+
+    # Find max_len from sizes
+    for i in range(n_records):
+        size = <unsigned long long> sizes_array[i]
+        if size > max_len:
+            max_len = <unsigned long> size
+
+    if max_len == 0:
+        return None
+
+    if signal_data_type < 10 or signal_data_type == 17:
+        return vd_equalize_string(bit_stream, offsets_array, sizes_array,
+                                  max_len, n_records, signal_data_type)
+    else:
+        return vd_equalize_bytes(bit_stream, offsets_array, sizes_array,
+                                 max_len, n_records)
+
+
+cdef inline vd_equalize_string(const char* bit_stream, object offsets_array, object sizes_array,
+                                unsigned long max_len, unsigned long long n_records,
+                                unsigned short signal_data_type):
+    """Decode string values from VD block using offset/size pairs."""
+    cdef np.ndarray output = np.zeros((n_records,), dtype='U{}'.format(max_len))
+    cdef unsigned long long i
+    cdef unsigned long long offset
+    cdef unsigned long size
+    cdef bytes raw
+    if signal_data_type == 6:
+        for i in range(n_records):
+            size = <unsigned long> sizes_array[i]
+            if size > 0:
+                offset = <unsigned long long> offsets_array[i]
+                output[i] = bit_stream[offset:offset+size].decode('ISO-8859-1', errors='replace').rstrip('\x00')
+    elif signal_data_type == 7:
+        for i in range(n_records):
+            size = <unsigned long> sizes_array[i]
+            if size > 0:
+                offset = <unsigned long long> offsets_array[i]
+                output[i] = bit_stream[offset:offset+size].decode('utf-8', errors='replace').rstrip('\x00')
+    elif signal_data_type == 8:
+        for i in range(n_records):
+            size = <unsigned long> sizes_array[i]
+            if size > 0:
+                offset = <unsigned long long> offsets_array[i]
+                output[i] = bit_stream[offset:offset+size].decode('utf-16-le', errors='replace').rstrip('\x00')
+    elif signal_data_type == 9:
+        for i in range(n_records):
+            size = <unsigned long> sizes_array[i]
+            if size > 0:
+                offset = <unsigned long long> offsets_array[i]
+                output[i] = bit_stream[offset:offset+size].decode('utf-16-be', errors='replace').rstrip('\x00')
+    elif signal_data_type == 17:
+        # BOM-per-value: detect encoding from BOM bytes
+        for i in range(n_records):
+            size = <unsigned long> sizes_array[i]
+            if size > 0:
+                offset = <unsigned long long> offsets_array[i]
+                raw = bytes(bit_stream[offset:offset+size])
+                if size >= 3 and raw[0] == 0xEF and raw[1] == 0xBB and raw[2] == 0xBF:
+                    output[i] = raw[3:].decode('utf-8', errors='replace').rstrip('\x00')
+                elif size >= 2 and raw[0] == 0xFF and raw[1] == 0xFE:
+                    output[i] = raw[2:].decode('utf-16-le', errors='replace').rstrip('\x00')
+                elif size >= 2 and raw[0] == 0xFE and raw[1] == 0xFF:
+                    output[i] = raw[2:].decode('utf-16-be', errors='replace').rstrip('\x00')
+                else:
+                    output[i] = raw.decode('utf-8', errors='replace').rstrip('\x00')
+    return output
+
+
+cdef inline vd_equalize_bytes(const char* bit_stream, object offsets_array, object sizes_array,
+                               unsigned long max_len, unsigned long long n_records):
+    """Return byte-array values from VD block using offset/size pairs."""
+    cdef np.ndarray output = np.zeros((n_records,), dtype='V{}'.format(max_len))
+    cdef unsigned long long i
+    cdef unsigned long long offset
+    cdef unsigned long size
+    for i in range(n_records):
+        size = <unsigned long> sizes_array[i]
+        if size > 0:
+            offset = <unsigned long long> offsets_array[i]
+            output[i] = bytearray(bit_stream[offset:offset+size]).rjust(max_len, b'\x00')
     return output
