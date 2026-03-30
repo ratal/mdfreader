@@ -92,7 +92,12 @@ class Info3(dict):
                 self.fid = open(self.fileName, 'rb')
             except IOError:
                 raise IOError('Can not find file ' + self.fileName)
-            self.read_info3(self.fid, minimal)
+            try:
+                self.read_info3(self.fid, minimal)
+            except Exception:
+                if not self.fid.closed:
+                    self.fid.close()
+                raise
         elif file_name is None and fid is not None:
             self.read_info3(fid, minimal)
 
@@ -262,14 +267,14 @@ class Info3(dict):
                 Map[cn] = (cn, self['CNBlock'][dg][cg][cn]['numberOfTheFirstBits'])
             ordered_map = sort(Map, order='first_bit')
 
-            to_change_index = Map == ordered_map
+            to_change_index = Map['index'] != ordered_map['index']
             for cn in range(n_channel):
-                if not to_change_index[cn]:
+                if to_change_index[cn]:
                     # offset all indexes of indexes to be moved
                     self['CNBlock'][dg][cg][cn + n_channel] = self['CNBlock'][dg][cg].pop(cn)
                     self['CCBlock'][dg][cg][cn + n_channel] = self['CCBlock'][dg][cg].pop(cn)
             for cn in range(n_channel):
-                if not to_change_index[cn]:
+                if to_change_index[cn]:
                     # change to ordered index
                     self['CNBlock'][dg][cg][cn] = self['CNBlock'][dg][cg].pop(ordered_map[cn][0] + n_channel)
                     self['CCBlock'][dg][cg][cn] = self['CCBlock'][dg][cg].pop(ordered_map[cn][0] + n_channel)
@@ -579,7 +584,7 @@ def read_cc_block(fid, pointer):
                 # Read corresponding text
                 try:
                     temp['conversion'][pair]['Textrange'] = read_tx_block(fid, temp['conversion'][pair]['pointerToTXBlock'])
-                except:
+                except Exception:
                     temp['conversion'][pair]['Textrange'] = ""
 
         elif temp['cc_type'] == 65535:  # No conversion int=phys

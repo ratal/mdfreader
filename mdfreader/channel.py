@@ -201,7 +201,8 @@ class Channel4(object):
         try:
             return ATBlock(fid, info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data'])
         except KeyError:
-            print('No Attachment block for this channel')
+            warn('No Attachment block for this channel')
+            return None
 
     def data(self, info):
         """ returns data block pointer for VLSD, MLD or sync channels"""

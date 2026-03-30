@@ -8,13 +8,12 @@ Created on Sun Oct 10 12:57:28 2010
 mdf3reader
 --------------------------
 """
-from __future__ import absolute_import  # for consistency between python 2 and 3
-from __future__ import print_function
 from numpy import right_shift, bitwise_and, interp, empty
 from numpy import max as npmax, min as npmin
 from numpy import asarray, recarray, array, searchsorted, vectorize, exp, log
 from numpy import issubdtype, number as numpy_number
-from numpy.rec import fromstring, fromarrays
+from numpy import frombuffer
+from numpy.rec import fromarrays
 from collections import defaultdict
 from time import strftime, time, gmtime
 from datetime import datetime
@@ -204,7 +203,7 @@ def _formula_conversion(data, conversion):  # 10 Text Formula
         # formula to function for evaluation
         expr = lambdify(X, formula, modules='numpy', dummify=False)
         return expr(data)
-    except:
+    except Exception:
         warn('Failed to convert formulae ' + conversion['textFormula'] +
              ' Sympy is correctly installed ?\n')
 
@@ -269,10 +268,10 @@ def _text_range_table_conversion(data, conversion):  # 12 Text range table
             temp.append(value)
         try:
             temp = asarray(temp)  # try to convert to numpy
-        except:
+        except Exception:
             pass
         return temp
-    except:
+    except Exception:
         warn('Failed to convert text to range table')
 
 
@@ -492,10 +491,10 @@ class Record(list):
                     raw = raw[:full_record_length * actual_records]
                 if n_record_chunk > 0:
                     buf[previous_index: previous_index + n_record_chunk] = \
-                        fromstring(raw,
+                        frombuffer(raw,
                                    dtype={'names': self.dataRecordName,
                                           'formats': self.numpyDataRecordFormat},
-                                   shape=n_record_chunk)
+                                   count=n_record_chunk)
                 previous_index += n_record_chunk
             return buf
         else:  # reads only some channels from a sorted data block
@@ -541,7 +540,7 @@ class Record(list):
                                 self[rec_chan[id].channelNumber].bit_masking_needed = False
                             previous_index += n_record_chunk
                         return rec
-                    except:
+                    except Exception:
                         warn('Unexpected error: {}'.format(exc_info()))
                         warn('dataRead crashed, back to python data reading')
 
@@ -899,7 +898,7 @@ class Mdf3(MdfSkeleton):
             try:
                 info.fid = open(self.fileName, 'rb')
             except IOError:
-                raise Exception('Can not find file ' + self.fileName)
+                raise IOError('Can not find file ' + self.fileName)
 
         # reads metadata
         if not self._noDataLoading:
@@ -1325,7 +1324,7 @@ class Mdf3(MdfSkeleton):
                 # additional byte offset
                 try:
                     description = '{:\x00<128.127}'.format(desc).encode('latin-1')
-                except:
+                except Exception:
                     description = b'\x00' * 128
                 head = (b'CN', 228, 0, 0, 0, 0, 0, master_flag,
                         ('{:\x00<32.31}'.format(channel) + '\x00').encode('latin-1'),
@@ -1348,7 +1347,7 @@ class Mdf3(MdfSkeleton):
                 try:
                     unit = '{:\x00<20.19}'.format(self.get_channel_unit(channel))\
                                                   .encode('latin-1', 'replace')
-                except:
+                except Exception:
                     unit = b'\x00' * 20
                 head = (b'CC', 46, value_range_valid, minimum, maximum,
                         unit, 65535, 0)
@@ -1369,4 +1368,4 @@ class Mdf3(MdfSkeleton):
             data_group += 1
 
         # print(pointers, file=stderr)
-        fid.close()
+        fid.close()  # noqa: SIM115 — wrapping 200-line write body in try/finally would be impractical

@@ -15,6 +15,7 @@ Dependencies
 mdf
 --------------------------
 """
+from copy import deepcopy
 from io import open
 from zipfile import is_zipfile, ZipFile
 from itertools import chain
@@ -23,7 +24,7 @@ from string import ascii_letters
 from collections import OrderedDict, defaultdict
 from time import time
 from warnings import warn
-from numpy import array_repr, set_printoptions, recarray, fromstring
+from numpy import array_repr, set_printoptions, recarray, frombuffer
 try:
     from pandas import set_option
 except ImportError:
@@ -239,7 +240,7 @@ class MdfSkeleton(dict):
             while 'CABlock' in ca_block:
                 ca_block = ca_block['CABlock']
                 if 'ca_axis_value' in ca_block:
-                    if type(ca_block['ca_dim_size']) is list:
+                    if isinstance(ca_block['ca_dim_size'], list):
                         index = 0
                         for ndim in ca_block['ca_dim_size']:
                             axis.append(
@@ -263,8 +264,9 @@ class MdfSkeleton(dict):
         -------
         value of mdf dict key=channel_name
         """
-        self.masterChannelList[self.get_channel_master(
-            channel_name)].remove(channel_name)
+        master = self.get_channel_master(channel_name)
+        if master in self.masterChannelList:
+            self.masterChannelList[master].remove(channel_name)
         return self.pop(channel_name)
 
     def rename_channel(self, channel_name, new_name):
@@ -644,7 +646,7 @@ class MdfSkeleton(dict):
                     if desc is not None:
                         try:
                             output.append(str(desc))
-                        except:
+                        except Exception:
                             pass
                     output.append('\n    ')
                     data = self.get_channel_data(c)
@@ -676,8 +678,8 @@ class MdfSkeleton(dict):
         yop = MdfSkeleton()
         yop.multiProc = self.multiProc
         yop.fileName = self.fileName
-        yop.masterChannelList = self.masterChannelList
-        yop.fileMetadata = self.fileMetadata
+        yop.masterChannelList = deepcopy(self.masterChannelList)
+        yop.fileMetadata = deepcopy(self.fileMetadata)
         yop.MDFVersionNumber = self.MDFVersionNumber
         yop.filterChannelNames = self.filterChannelNames
         yop.convertTables = self.convertTables
@@ -852,7 +854,7 @@ class CompressedData:
         -------------
         uncompressed numpy array
         """
-        return fromstring(decompress(self.data), dtype=self.dtype)
+        return frombuffer(decompress(self.data), dtype=self.dtype)
 
     def __str__(self):
         """ prints compressed_data object content

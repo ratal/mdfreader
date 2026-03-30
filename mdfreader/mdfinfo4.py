@@ -257,7 +257,7 @@ class HDBlock(dict):
                       0, 0, 1, 0, 0, b'\0', 0, 0)
         try:
             fid.write(pack('<4sI2Q7Q2h3Bs2d', *data_bytes))
-        except:
+        except Exception:
             warn('time is Nan or malformed')
             data_bytes = (b'##HD', 0, 104, 6,
                           self['DG'], self['FH'], 0, 0, 0, 0,
@@ -398,7 +398,7 @@ class CommentBlock(dict):
         try:
             xml_string = fid.read(self['length'] - 24).rstrip(b'\x00')
             xml_tree = objectify.fromstring(xml_string)
-        except:
+        except Exception:
             warn('xml metadata malformed')
             xml_tree = None
         return xml_tree

@@ -27,7 +27,7 @@ from multiprocessing import Queue, Process
 from sys import byteorder
 import re
 from collections import defaultdict, OrderedDict
-from numpy.rec import fromstring, fromarrays
+from numpy.rec import fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
 from numpy import arange, right_shift, bitwise_and, all, diff, interp, zeros, concatenate, maximum
 from numpy import issubdtype, number as numpy_number
@@ -107,9 +107,9 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
                     return frombuffer(parent_block['data'], dtype={'names': record.dataRecordName,
                                                                    'formats': record.numpyDataRecordFormat})
                 else:
-                    return fromstring(parent_block['data'], dtype={'names': record.dataRecordName,
+                    return frombuffer(parent_block['data'], dtype={'names': record.dataRecordName,
                                                                    'formats': record.numpyDataRecordFormat},
-                                      shape=n_records)
+                                      count=n_records).view(recarray).copy()
             else:  # record is not byte aligned or channelSet not None
                 return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
@@ -129,9 +129,9 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
                                   parent_block['dz_org_data_length'], n_records, vlsd)
         if channel_set is None and sorted_flag:  # reads all blocks if sorted block and no channelSet defined
             if record.byte_aligned and not record.hiddenBytes:
-                return fromstring(parent_block['data'], dtype={'names': record.dataRecordName,
-                                                               'formats': record.numpyDataRecordFormat},
-                                  shape=n_records)
+                return frombuffer(parent_block['data'], dtype={'names': record.dataRecordName,
+                                                              'formats': record.numpyDataRecordFormat},
+                                   count=n_records).view(recarray).copy()
             else:
                 return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         elif channel_set is not None and sorted_flag:  # sorted data but channel list requested
@@ -1142,10 +1142,10 @@ class Record(dict):
         simplefilter('ignore', FutureWarning)
         for n_record_chunk, chunk_size in chunks:
             buf[previous_index: previous_index + n_record_chunk] = \
-                fromstring(fid.read(chunk_size),
+                frombuffer(fid.read(chunk_size),
                            dtype={'names': self.dataRecordName,
                                   'formats': self.numpyDataRecordFormat},
-                           shape=n_record_chunk)
+                           count=n_record_chunk)
             previous_index += n_record_chunk
         return buf
 
@@ -1713,7 +1713,7 @@ class Mdf4(MdfSkeleton):
                                             # no sorted data but maybe VLSD data
                                             except (ValueError, IndexError):
                                                 temp = buf[record_id]['VLSD'][record_name]
-                                            except:
+                                            except Exception:
                                                 temp = None
                                         else:  # virtual channel
                                             temp = arange(
@@ -1791,7 +1791,7 @@ class Mdf4(MdfSkeleton):
                                                         try:
                                                             temp2[t] = temp[t].decode(
                                                                 encoding, 'ignore')
-                                                        except:
+                                                        except Exception:
                                                             warn(
                                                                 'Cannot decode channel {}'.format(chan.name))
                                                             temp2[t] = ''
@@ -2347,7 +2347,10 @@ class Mdf4(MdfSkeleton):
                 block.write(fid)
 
             # data block writing
-            pointer = data.write(fid, fromarrays(data_list).tobytes(order='F'))
+            if not data_list:
+                pointer = data.write(fid, b'')
+            else:
+                pointer = data.write(fid, fromarrays(data_list).tobytes(order='F'))
             if compression:
                 # next DG position is not predictable due to DZ Blocks unknown length
                 fid.seek(dg_start_position + 24)
@@ -2701,8 +2704,9 @@ def _formula_conversion(vector, formula):
     """
     try:
         from sympy import lambdify, symbols
-    except:
+    except ImportError:
         warn('Please install sympy to convert channel ')
+        return vector
     X = symbols('X')
     expr = lambdify(X, formula, modules='numpy', dummify=False)
     return expr(vector)
@@ -2722,8 +2726,9 @@ def _value_to_value_table_without_interpolation_conversion(vector, cc_val):
     converted data to physical value
     """
     val_count = 2 * int(len(cc_val) / 2)
-    int_val = [cc_val[i] for i in range(0, val_count, 2)]
-    phys_val = [cc_val[i] for i in range(1, val_count, 2)]
+    val_array = array([cc_val[i] for i in range(val_count)])
+    int_val = val_array[::2]
+    phys_val = val_array[1::2]
     if all(diff(int_val) > 0):
         try:
             from scipy import interpolate
@@ -2751,8 +2756,9 @@ def _value_to_value_table_with_interpolation_conversion(vector, cc_val):
     converted data to physical value
     """
     val_count = 2 * int(len(cc_val) / 2)
-    int_val = [cc_val[i] for i in range(0, val_count, 2)]
-    phys_val = [cc_val[i] for i in range(1, val_count, 2)]
+    val_array = array([cc_val[i] for i in range(val_count)])
+    int_val = val_array[::2]
+    phys_val = val_array[1::2]
     if all(diff(int_val) > 0):
         return interp(vector, int_val, phys_val)  # with interpolation
     else:
@@ -2810,8 +2816,9 @@ def _value_to_text_conversion(vector, cc_val, cc_ref):
     # checks for scaling
     try:
         from sympy import lambdify, symbols
-    except:
+    except ImportError:
         warn('Please install sympy to convert channel ')
+        return vector
     X = symbols('X')
     for ref in range(len(cc_ref)):
         if isinstance(cc_ref[ref], CCBlock):
@@ -2871,8 +2878,9 @@ def _value_range_to_text_conversion(vector, cc_val, cc_ref):
     # checks for scaling
     try:
         from sympy import lambdify, symbols
-    except:
+    except ImportError:
         warn('Please install sympy to convert channel ')
+        return vector
     X = symbols('X')
     for ref in range(len(cc_ref)):
         if isinstance(cc_ref[ref], CCBlock):
@@ -3079,33 +3087,32 @@ def file_finalization(version, info, fid, finalization_writing_to_file,
                     faulty_index = [index for index, f in enumerate(
                         dl['list_data'][0]) if f == 0]
                     if faulty_index:
-                        # some data blocks were not written
+                        # some data blocks were not written — filter them out (O(n))
                         n_faulty = len(faulty_index)
+                        faulty_set = set(faulty_index)
                         dl['link_count'] -= n_faulty
                         dl['count'] -= n_faulty
-                        dl['list_data'][0] = list(
-                            dl['list_data'][0])  # tuple to list
-                        [dl['list_data'][0].pop(f) for f in faulty_index]
+                        dl['list_data'][0] = [v for i, v in enumerate(dl['list_data'][0])
+                                              if i not in faulty_set]
                         dl['length'] -= n_faulty * 8
                         if not dl['flags'] & 0b1:  # offset list
-                            dl['offset'] = list(dl['offset'])
-                            [dl['offset'].pop(f) for f in faulty_index]
+                            dl['offset'] = [v for i, v in enumerate(dl['offset'])
+                                            if i not in faulty_set]
                             dl['link_count'] -= n_faulty
                             dl['length'] -= n_faulty * 8
                         if dl['flags'] & 0b10:  # time values
-                            dl['time_values'] = list(dl['time_values'])
-                            [dl['time_values'].pop(f) for f in faulty_index]
+                            dl['time_values'] = [v for i, v in enumerate(dl['time_values'])
+                                                 if i not in faulty_set]
                             dl['link_count'] -= n_faulty
                             dl['length'] -= n_faulty * 8
                         if dl['flags'] & 0b100:  # angle values
-                            dl['angle_values'] = list(dl['angle_values'])
-                            [dl['angle_values'].pop(f) for f in faulty_index]
+                            dl['angle_values'] = [v for i, v in enumerate(dl['angle_values'])
+                                                  if i not in faulty_set]
                             dl['link_count'] -= n_faulty
                             dl['length'] -= n_faulty * 8
                         if dl['flags'] & 0b1000:  # distance values
-                            dl['distance_values'] = list(dl['distance_values'])
-                            [dl['distance_values'].pop(f)
-                             for f in faulty_index]
+                            dl['distance_values'] = [v for i, v in enumerate(dl['distance_values'])
+                                                     if i not in faulty_set]
                             dl['link_count'] -= n_faulty
                             dl['length'] -= n_faulty * 8
                         if finalization_writing_to_file:

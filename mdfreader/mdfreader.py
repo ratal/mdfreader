@@ -600,7 +600,7 @@ class Mdf(Mdf4, Mdf3):
         for Name in self:
             try:
                 self.plot(Name)
-            except:
+            except Exception:
                 warn(Name)
 
     def resample(self, sampling=None, channel=None, master_channel=None, interpolation_kind=None):
@@ -788,7 +788,7 @@ class Mdf(Mdf4, Mdf3):
                     try:
                         self.set_channel_data(Name, interpolate(new_master_data, old_master_data,
                                                                 channel_data, interpolation_kind))
-                    except:
+                    except Exception:
                         if not all(diff(old_master_data) > 0):
                             warn('{} has non regularly increasing master channel {}.\n'
                                  ' Faulty samples will be dropped in related data group'.
@@ -1069,7 +1069,7 @@ class Mdf(Mdf4, Mdf3):
                     if value is dict and 'name' in value:
                         value = value['name']
                     obj.attrs[name] = value
-                except:
+                except Exception:
                     pass
             else:
                 pass
@@ -1222,7 +1222,7 @@ class Mdf(Mdf4, Mdf3):
         try:
             savemat(file_name, temp,  format='7.3', long_field_names=True, oned_as='column',
                     structured_numpy_ndarray_as_struct=True)
-        except:
+        except Exception:
             savemat(file_name, temp, long_field_names=True, format='5')
 
     def export_to_excel(self, file_name=None):
