@@ -1724,7 +1724,7 @@ class DZBlock(dict):
             if len(tail) > 0:
                 temp = append(temp, tail)
             # compress transposed data
-            compressed_data = compress(temp.tostring())
+            compressed_data = compress(temp.tobytes())
         else:
             compressed_data = compress(data)
             record_length = 0
@@ -1760,6 +1760,9 @@ class HLBlock(dict):
         self['record_length'] = record_byte_offset
         self['block_start'] = position
         self['block_length'] = 40
+        if record_byte_offset == 0:
+            self['chunks'] = []
+            return
         # calculate data chunks
         n_chunks = (record_byte_offset * n_records) // chunk_size_writing + 1
         chunk_length = (record_byte_offset * n_records) // n_chunks
