@@ -1126,7 +1126,7 @@ class Mdf(Mdf4, Mdf3):
                 elif masterField in self[channel] and master_name in groups:
                     group_name = master_name
                 # not supported type
-                if channel_data.dtype.kind not in ('U', 'O'):
+                if channel_data.dtype.kind not in ('U', 'O') and channel_data.dtype.itemsize > 0:
                     channel_name = _convert_to_hdf5_name(channel)
                     dset = grp[groups[group_name]].create_dataset(channel_name,
                                                                   data=channel_data,
@@ -1146,7 +1146,7 @@ class Mdf(Mdf4, Mdf3):
             for channel in self:
                 channel_data = self.get_channel_data(channel)
                 # not supported type
-                if channel_data.dtype.kind not in ('U', 'O'):
+                if channel_data.dtype.kind not in ('U', 'O') and channel_data.dtype.itemsize > 0:
                     channel_name = _convert_to_hdf5_name(channel)
                     dset = file_group.create_dataset(channel_name, data=channel_data,
                                                      compression=compression,

@@ -1130,6 +1130,91 @@ class CCBlock(dict):
             self['cc_type'] = 0
 
 
+class DSBlock(dict):
+    """Reads Data Stream block (MDF 4.3, Section 6.25).
+    Header link_count = number of links (2 standard: composition, alignment_start; optional: data, comment).
+    """
+
+    def read(self, fid, pointer):
+        if not pointer:
+            return
+        fid.seek(pointer)
+        (self['id'], reserved,
+         self['length'], self['link_count']) = _HeaderStruct.unpack(fid.read(24))
+        self['pointer'] = pointer
+        n = self['link_count']
+        links = list(unpack('<{}q'.format(n), fid.read(n * 8))) if n > 0 else []
+        self['ds_cn_composition'] = links[0] if n > 0 else 0
+        self['ds_cn_alignment_start'] = links[1] if n > 1 else 0
+        self['ds_data'] = links[2] if n > 2 else 0
+        # data section immediately follows links
+        (self['ds_version'], self['ds_mode']) = unpack('<HB', fid.read(3))
+
+
+class CLBlock(dict):
+    """Reads Channel List block (MDF 4.3, Section 6.22).
+    link_count = 2: cl_composition, cl_cn_size.
+    """
+
+    def read(self, fid, pointer):
+        if not pointer:
+            return
+        fid.seek(pointer)
+        (self['id'], reserved,
+         self['length'], self['link_count']) = _HeaderStruct.unpack(fid.read(24))
+        self['pointer'] = pointer
+        n = self['link_count']
+        links = list(unpack('<{}q'.format(n), fid.read(n * 8))) if n > 0 else []
+        self['cl_composition'] = links[0] if n > 0 else 0
+        self['cl_cn_size'] = links[1] if n > 1 else 0
+        # data section: cl_flags(u16), cl_alignment(u8), cl_bit_offset(u8), cl_byte_offset(i32)
+        (self['cl_flags'],
+         self['cl_alignment'],
+         self['cl_bit_offset'],
+         self['cl_byte_offset']) = unpack('<HBBi', fid.read(8))
+
+
+class CVBlock(dict):
+    """Reads Channel Variant block (MDF 4.3, Section 6.23).
+    link_count = 1 + N: cv_cn_discriminator, then cv_cn_option[N].
+    """
+
+    def read(self, fid, pointer):
+        if not pointer:
+            return
+        fid.seek(pointer)
+        (self['id'], reserved,
+         self['length'], self['link_count']) = _HeaderStruct.unpack(fid.read(24))
+        self['pointer'] = pointer
+        n = self['link_count']
+        links = list(unpack('<{}q'.format(n), fid.read(n * 8))) if n > 0 else []
+        self['cv_cn_discriminator'] = links[0] if n > 0 else 0
+        self['cv_cn_option'] = links[1:] if n > 1 else []
+        # data section: cv_option_count(u32), reserved(4), cv_option_val[N](u64)
+        (self['cv_option_count'],) = unpack('<I', fid.read(4))
+        fid.read(4)  # reserved
+        m = self['cv_option_count']
+        self['cv_option_val'] = list(unpack('<{}Q'.format(m), fid.read(m * 8))) if m > 0 else []
+
+
+class CUBlock(dict):
+    """Reads Channel Union block (MDF 4.3, Section 6.24).
+    link_count = N: cu_cn_member[N].
+    """
+
+    def read(self, fid, pointer):
+        if not pointer:
+            return
+        fid.seek(pointer)
+        (self['id'], reserved,
+         self['length'], self['link_count']) = _HeaderStruct.unpack(fid.read(24))
+        self['pointer'] = pointer
+        n = self['link_count']
+        self['cu_cn_member'] = list(unpack('<{}q'.format(n), fid.read(n * 8))) if n > 0 else []
+        # data section: cu_member_count(u32), reserved(4)
+        (self['cu_member_count'],) = unpack('<I', fid.read(4))
+
+
 class CABlock(dict):
 
     """ reads Channel Array block and saves in class dict
@@ -1463,6 +1548,9 @@ class LDBlock(dict):
         self['block_length'] = 40
 
         # calculate data chunks
+        if record_byte_offset == 0:
+            self['chunks'] = [(n_records, 0)]
+            return
         n_chunks = (record_byte_offset * n_records) // chunk_size_writing + 1
         chunk_length = (record_byte_offset * n_records) // n_chunks
         n_record_chunk = chunk_length // record_byte_offset
@@ -2119,7 +2207,7 @@ class Info4(dict):
                     break
         return vlsd
 
-    def read_cn_block(self, fid, pointer, dg, cg, mlsd_channels, vlsd, minimal, channel_name_list):
+    def read_cn_block(self, fid, pointer, dg, cg, mlsd_channels, vlsd, minimal, channel_name_list, use_negative_key=False):
         """reads single Channel block
 
         Parameters
@@ -2148,7 +2236,11 @@ class Info4(dict):
         """
         temp = CNBlock()
         temp.read_cn(fid=fid, pointer=pointer)
-        cn = temp['cn_byte_offset'] * 8 + temp['cn_bit_offset']
+        if use_negative_key or temp.get('cn_flags', 0) & 0x20000:
+            # CN_F_DATA_STREAM_MODE (0x20000) or forced: use negative file position as key
+            cn = -pointer
+        else:
+            cn = temp['cn_byte_offset'] * 8 + temp['cn_bit_offset']
         self['CN'][dg][cg][cn] = {}
         self['CN'][dg][cg][cn].update(temp)
         # check for MLSD
@@ -2202,8 +2294,54 @@ class Info4(dict):
                     # restores minimal info from upper node channel
                     cn = cn_upper_node
                     self['CN'][dg][cg][cn]['cn_cn_next'] = cn_next_upper_node
+                elif id in (b'##DS',):
+                    block = DSBlock()
+                    block.read(fid, self['CN'][dg][cg][cn]['cn_composition'])
+                    self['CN'][dg][cg][cn]['DSBlock'] = block
+                    # Parse CN chain inside DS composition
+                    if block['ds_cn_composition']:
+                        cn_ds, mlsd_channels, vlsd = self.read_cn_block(
+                            fid, block['ds_cn_composition'], dg, cg,
+                            mlsd_channels, vlsd, minimal, channel_name_list)
+                        while self['CN'][dg][cg][cn_ds]['cn_cn_next']:
+                            cn_ds, mlsd_channels, vlsd = self.read_cn_block(
+                                fid, self['CN'][dg][cg][cn_ds]['cn_cn_next'],
+                                dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+                elif id in (b'##CL',):
+                    block = CLBlock()
+                    block.read(fid, self['CN'][dg][cg][cn]['cn_composition'])
+                    self['CN'][dg][cg][cn]['CLBlock'] = block
+                    # Parse element template CN chain
+                    if block['cl_composition']:
+                        cn_cl, mlsd_channels, vlsd = self.read_cn_block(
+                            fid, block['cl_composition'], dg, cg,
+                            mlsd_channels, vlsd, minimal, channel_name_list)
+                        while self['CN'][dg][cg][cn_cl]['cn_cn_next']:
+                            cn_cl, mlsd_channels, vlsd = self.read_cn_block(
+                                fid, self['CN'][dg][cg][cn_cl]['cn_cn_next'],
+                                dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+                elif id in (b'##CV',):
+                    block = CVBlock()
+                    block.read(fid, self['CN'][dg][cg][cn]['cn_composition'])
+                    self['CN'][dg][cg][cn]['CVBlock'] = block
+                    # Parse discriminator CN and option CNs (use negative key to avoid collision)
+                    for ptr in ([block['cv_cn_discriminator']] + block['cv_cn_option']):
+                        if ptr:
+                            self.read_cn_block(fid, ptr, dg, cg,
+                                               mlsd_channels, vlsd, minimal, channel_name_list,
+                                               use_negative_key=True)
+                elif id in (b'##CU',):
+                    block = CUBlock()
+                    block.read(fid, self['CN'][dg][cg][cn]['cn_composition'])
+                    self['CN'][dg][cg][cn]['CUBlock'] = block
+                    # Parse member CNs (use negative key to avoid collision)
+                    for ptr in block['cu_cn_member']:
+                        if ptr:
+                            self.read_cn_block(fid, ptr, dg, cg,
+                                               mlsd_channels, vlsd, minimal, channel_name_list,
+                                               use_negative_key=True)
                 else:
-                    warn('unknown channel composition')
+                    warn('unknown channel composition: {}'.format(id))
 
             if self['CN'][dg][cg][cn]['cn_data']:  # channel type specific signal data
                 fid.seek(self['CN'][dg][cg][cn]['cn_data'])

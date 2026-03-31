@@ -410,6 +410,89 @@ def _decode_vlsc_data(vd_bytes, offsets, sizes, signal_data_type):
     return output
 
 
+def _calculate_aligned_offset(current_bit_pos, alignment_offset, cn_alignment):
+    """MDF 4.3 Section 6.25.3 alignment calculation.
+
+    Find smallest byte offset >= ceil(current_bit_pos/8) where
+    (offset - alignment_offset) mod 2^cn_alignment == 0.
+
+    Returns byte offset (or bit position if cn_alignment == 255 for bit-packed).
+    """
+    if cn_alignment == 255:  # bit-packed: no byte alignment
+        return current_bit_pos
+    current_byte_pos = (current_bit_pos + 7) // 8
+    if cn_alignment == 0:  # 1-byte aligned (2^0 = 1)
+        return current_byte_pos
+    alignment_value = 1 << cn_alignment
+    if current_byte_pos <= alignment_offset:
+        return alignment_offset
+    relative = current_byte_pos - alignment_offset
+    remainder = relative % alignment_value
+    if remainder == 0:
+        return current_byte_pos
+    return current_byte_pos + (alignment_value - remainder)
+
+
+def _decode_datastream(data_bytes, ds_info, cn_info_map, cn_name_map, n_records):
+    """Decode inline data stream records using DS/CL composition hierarchy.
+
+    Parameters
+    ----------
+    data_bytes : bytes
+        Raw bytes for a single record's data stream blob.
+    ds_info : dict
+        DSBlock dict (from mdfinfo4). Must have 'ds_cn_composition' pointer.
+    cn_info_map : dict
+        {pointer: cn_dict} for all channels in the channel group.
+    cn_name_map : dict
+        {pointer: channel_name} for looking up resolved channel names.
+    n_records : int
+        Ignored here — caller iterates per-record (this decodes one blob).
+
+    Returns
+    -------
+    dict
+        {channel_name: decoded_value_bytes} for this record.
+    """
+    result = {}
+
+    def _decode_compo(data, state, compo_ptr):
+        """Recursively decode a composition starting at compo_ptr.
+        state is [bit_pos, align_offset] — mutable list to allow updates.
+        """
+        if not compo_ptr or compo_ptr not in cn_info_map:
+            return
+
+        cn = cn_info_map[compo_ptr]
+        name = cn_name_map.get(compo_ptr)
+
+        cn_flags = cn.get('cn_flags', 0)
+        if cn_flags & (1 << 18):  # CN_F_ALIGNMENT_RESET
+            state[1] = (state[0] + 7) // 8
+
+        cn_align = cn.get('cn_alignment', 0)
+        byte_off = _calculate_aligned_offset(state[0], state[1], cn_align)
+        final_byte = byte_off + cn.get('cn_byte_offset', 0)
+        bit_count = cn.get('cn_bit_count', 0)
+
+        if bit_count > 0:
+            byte_count = (bit_count + 7) // 8
+            if name and final_byte + byte_count <= len(data):
+                result[name] = data[final_byte:final_byte + byte_count]
+            state[0] = (final_byte + byte_count) * 8
+        # else: variable-length — skip for now (handled by VLSC path)
+
+        # Follow cn_cn_next chain
+        next_ptr = cn.get('cn_cn_next', 0)
+        if next_ptr:
+            _decode_compo(data, state, next_ptr)
+
+    ds_comp_ptr = ds_info.get('ds_cn_composition', 0)
+    if ds_comp_ptr:
+        _decode_compo(data_bytes, [0, 0], ds_comp_ptr)
+    return result
+
+
 class Data(dict):
     __slots__ = ['fid', 'pointer_to_data', 'type']
     """ Data class is organizing record classes itself made of channel class.
@@ -509,6 +592,79 @@ class Data(dict):
                             self[recordID]['data'] = rename_fields(self[recordID]['data'],
                                                                    {record[cn].name: '{}_offset'.format(record[cn].name)})
                             self[recordID]['VLSD'][record[cn].name] = temp
+            if record.DS:  # DS-composition channels (data stream mode, MDF 4.3)
+                # Build a map from file pointer to cn_info dict and to resolved name
+                dg = record.dataGroup
+                cg = record.channelGroup
+                cn_by_ptr = {info['CN'][dg][cg][k].get('pointer', 0): info['CN'][dg][cg][k]
+                             for k in info['CN'][dg][cg]}
+                name_by_ptr = {info['CN'][dg][cg][k].get('pointer', 0): info['CN'][dg][cg][k].get('name', '')
+                               for k in info['CN'][dg][cg]}
+                # Find the parent VLSD/VLSC channel whose composition block is a DSBlock
+                for parent_cn_num in info['CN'][dg][cg]:
+                    parent_info = info['CN'][dg][cg][parent_cn_num]
+                    if 'DSBlock' not in parent_info:
+                        continue
+                    ds_block = parent_info['DSBlock']
+                    # Read all VLSD blobs for this parent channel
+                    vd_data = _read_vd_block_data(self.fid, parent_info.get('cn_data', 0))
+                    if not vd_data:
+                        continue
+                    # VLSD: the fixed record stores the byte offset into vd_data per record
+                    parent_name = parent_info.get('name', '')
+                    if self[recordID]['data'] is None:
+                        continue
+                    try:
+                        offsets_field = parent_name + '_offset' if (parent_name + '_offset') in self[recordID]['data'].dtype.names else parent_name
+                        offsets_arr = self[recordID]['data'][offsets_field]
+                        if offsets_arr.dtype.kind in ('S', 'V'):
+                            offsets_arr = frombuffer(offsets_arr.tobytes(), dtype='<u8')
+                    except (KeyError, ValueError, AttributeError):
+                        continue
+                    # Also need sizes (from size channel or end-of-blob heuristic)
+                    n = len(offsets_arr)
+                    sizes_arr = None
+                    size_ptr = parent_info.get('cn_cn_size', 0)
+                    if size_ptr:
+                        for k in info['CN'][dg][cg]:
+                            if info['CN'][dg][cg][k].get('pointer') == size_ptr:
+                                sname = info['CN'][dg][cg][k].get('name', '')
+                                try:
+                                    sizes_arr = self[recordID]['data'][sname].astype('<u8')
+                                except (KeyError, ValueError):
+                                    pass
+                                break
+                    if sizes_arr is None and n > 0:
+                        # Estimate sizes from consecutive offsets
+                        sizes_arr = zeros(n, dtype='<u8')
+                        for i in range(n - 1):
+                            sizes_arr[i] = offsets_arr[i + 1] - offsets_arr[i]
+                        sizes_arr[n - 1] = len(vd_data) - offsets_arr[n - 1]
+                    if sizes_arr is None:
+                        continue
+                    # Decode each blob
+                    decoded_per_channel = {}  # {name: list_of_values}
+                    for i in range(n):
+                        off = int(offsets_arr[i])
+                        sz = int(sizes_arr[i])
+                        if sz <= 0 or off + sz > len(vd_data):
+                            # empty blob — append None/empty for each DS channel
+                            for ds_cn_num in record.DS:
+                                ch_name = record[ds_cn_num].name
+                                decoded_per_channel.setdefault(ch_name, []).append(None)
+                            continue
+                        blob = vd_data[off:off + sz]
+                        rec_result = _decode_datastream(blob, ds_block, cn_by_ptr, name_by_ptr, 1)
+                        for ds_cn_num in record.DS:
+                            ch_name = record[ds_cn_num].name
+                            val = rec_result.get(ch_name)
+                            decoded_per_channel.setdefault(ch_name, []).append(val)
+                    # Store decoded arrays in VLSD dict
+                    self[recordID].setdefault('VLSD', {})
+                    for ch_name, vals in decoded_per_channel.items():
+                        if any(v is not None for v in vals):
+                            self[recordID]['VLSD'][ch_name] = vals
+
             if record.VLSC:  # VLSC channels exist (MDF 4.3)
                 self[recordID].setdefault('VLSD', {})
                 for cn in record.VLSC:  # VLSC channels
@@ -762,7 +918,7 @@ class Record(dict):
                  'recordIDsize', 'recordIDCFormat', 'dataGroup', 'channelGroup',
                  'numpyDataRecordFormat', 'dataRecordName', 'master',
                  'recordToChannelMatching', 'channelNames', 'Flags', 'VLSD_CG',
-                 'VLSD', 'VLSC', 'MLSD', 'byte_aligned', 'hiddenBytes', 'invalid_channel',
+                 'VLSD', 'VLSC', 'DS', 'MLSD', 'byte_aligned', 'hiddenBytes', 'invalid_channel',
                  'CANOpen', 'unique_channel_in_DG']
     """ Record class listing channel classes. It is representing a channel group
 
@@ -841,6 +997,7 @@ class Record(dict):
         self.VLSD_CG = {}
         self.VLSD = []
         self.VLSC = []
+        self.DS = []
         self.MLSD = {}
         self.recordToChannelMatching = {}
         self.channelNames = set()
@@ -927,6 +1084,14 @@ class Record(dict):
         embedding_channel = None
         prev_chan = Channel4(self.dataGroup, self.channelGroup, 0)
         for channelNumber in sorted(info['CN'][self.dataGroup][self.channelGroup].keys()):
+            cn_info = info['CN'][self.dataGroup][self.channelGroup][channelNumber]
+            if cn_info.get('cn_flags', 0) & 0x20000:  # CN_F_DATA_STREAM_MODE: not in fixed record
+                self.DS.append(channelNumber)
+                channel = Channel4(self.dataGroup, self.channelGroup, channelNumber)
+                channel.set(info)
+                self[channelNumber] = channel
+                self.channelNames.add(channel.name)
+                continue
             channel = Channel4(
                 self.dataGroup, self.channelGroup, channelNumber)
             channel.set(info)
@@ -1166,8 +1331,11 @@ class Record(dict):
         """
         nbytes = info['CG'][self.dataGroup][self.channelGroup]['cg_data_bytes'] * \
             info['CG'][self.dataGroup][self.channelGroup]['cg_cycle_count']
-        return frombuffer(fid.read(nbytes), dtype={'names': self.dataRecordName,
-                                                   'formats': self.numpyDataRecordFormat})
+        dtype = {'names': self.dataRecordName, 'formats': self.numpyDataRecordFormat}
+        if nbytes == 0 or not self.dataRecordName:
+            fid.read(nbytes)
+            return frombuffer(b'', dtype=dtype)
+        return frombuffer(fid.read(nbytes), dtype=dtype)
 
     def read_not_all_channels_sorted_record(self, fid, info, channel_set):
         """ reads channels from file listed in channelSet
@@ -1266,8 +1434,9 @@ class Record(dict):
             names = []
             channels_indexes = []
             for chan in self:
-                if self[chan].name in channel_set and self[chan].channel_type(info) not in (3, 6):
-                    # not virtual channel and part of channelSet
+                if self[chan].name in channel_set and self[chan].channel_type(info) not in (3, 6) \
+                        and chan not in self.DS:
+                    # not virtual channel, not data stream channel, and part of channelSet
                     channels_indexes.append(chan)
                     formats.append(self[chan].native_data_format(info))
                     names.append(self[chan].name)
@@ -1711,8 +1880,11 @@ class Mdf4(MdfSkeleton):
                                                 # extract channel vector
                                                 temp = buf[record_id]['data'][record_name]
                                             # no sorted data but maybe VLSD data
-                                            except (ValueError, IndexError):
-                                                temp = buf[record_id]['VLSD'][record_name]
+                                            except (ValueError, IndexError, KeyError):
+                                                try:
+                                                    temp = buf[record_id]['VLSD'][record_name]
+                                                except (KeyError, TypeError):
+                                                    temp = None
                                             except Exception:
                                                 temp = None
                                         else:  # virtual channel
@@ -2109,6 +2281,10 @@ class Mdf4(MdfSkeleton):
                     for channel in self.masterChannelList[masterChannel]:
                         # not invalid bytes channel
                         if channel.find('invalid_bytes') == -1:
+                            # skip zero-size channels (e.g. DS composition containers with V0 data)
+                            ch_data = self._get_channel_data4(channel)
+                            if ch_data is not None and hasattr(ch_data, 'dtype') and ch_data.dtype.itemsize == 0:
+                                continue
                             # write other channels
                             if channel == masterChannel:
                                 cg_master_pointer = pointer + 64  # CG after DG at pointer
@@ -2188,7 +2364,8 @@ class Mdf4(MdfSkeleton):
             for n_channel, channel in enumerate(self.masterChannelList[masterChannel]):
                 data = self.get_channel_data(channel)
                 # no interest to write invalid bytes as channel, should be processed if needed before writing
-                if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0:
+                if channel.find('invalid_bytes') == -1 and data is not None and len(data) > 0 \
+                        and data.dtype.itemsize > 0:
                     byte_count = data.dtype.itemsize
                     blocks[n_channel] = CNBlock()
                     blocks[n_channel]['cn_byte_offset'] = record_byte_offset
@@ -2415,7 +2592,7 @@ class Mdf4(MdfSkeleton):
             invalid_channel = False
             blocks['CG']['cg_inval_bytes'] = 0
         # no interest to write invalid bytes as channel, should be processed if needed before writing
-        if data is not None and len(data) > 0:
+        if data is not None and len(data) > 0 and data.dtype.itemsize > 0:
             byte_count = data.dtype.itemsize
             data_ndim = data.ndim - 1
             if data_ndim:  # data contains arrays
