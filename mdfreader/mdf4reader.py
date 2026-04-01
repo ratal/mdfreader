@@ -282,6 +282,8 @@ def _read_sd_block(signal_data_type, sd_block, sd_block_length, n_records, point
     VLSDLen = concatenate((VLSDLen,
                            array([last_len], dtype='<i8')), axis=0)
     max_len = int(max(VLSDLen))
+    if max_len > sd_block_length:  # pointer values are out of range (e.g. variant/union overlap)
+        max_len = 0
     if max_len > 0:
         if signal_data_type < 10:
             if signal_data_type == 6:
@@ -2909,9 +2911,10 @@ def _value_to_value_table_without_interpolation_conversion(vector, cc_val):
     if all(diff(int_val) > 0):
         try:
             from scipy import interpolate
+            # MDF4 spec 6.17.7: below first key → value[0], above last key → value[n-1]
             f = interpolate.interp1d(
-                int_val, phys_val, kind='nearest', bounds_error=False)  # nearest
-            # fill with Nan out of bounds while should be bounds
+                int_val, phys_val, kind='nearest', bounds_error=False,
+                fill_value=(phys_val[0], phys_val[-1]))
             return f(vector)
         except ImportError:
             warn('Please install scipy to convert channel')
@@ -2956,17 +2959,29 @@ def _value_range_to_value_table_conversion(vector, cc_val):
     converted data to physical value
     """
     val_count = int(len(cc_val) / 3)
+    # cc_val layout: [lo_0,hi_0,val_0, lo_1,hi_1,val_1, ..., lo_{n-1},hi_{n-1},val_{n-1}, default]
+    # so cc_val has 3*n+1 elements; key_min[n] holds the default value
     key_min = [cc_val[i] for i in range(0, 3 * val_count + 1, 3)]
     key_max = [cc_val[i] for i in range(1, 3 * val_count + 1, 3)]
     value = [cc_val[i] for i in range(2, 3 * val_count + 1, 3)]
-    # look up in range keys
+    default_val = key_min[val_count]
+    # MDF4 spec 6.17.8: integer data uses [lo, hi] (inclusive upper);
+    # float data uses [lo, hi) (exclusive upper).
+    import numpy as np_inner
+    is_integer = np_inner.issubdtype(vector.dtype, np_inner.integer)
     for l_index in range(len(vector)):
-        key_index = 0  # default index if not found
+        result = default_val
+        x = vector[l_index]
         for i in range(val_count):
-            if key_min[i] < vector[l_index] < key_max[i]:
-                key_index = i
-                break
-        vector[l_index] = value[key_index]
+            if is_integer:
+                if key_min[i] <= x <= key_max[i]:
+                    result = value[i]
+                    break
+            else:
+                if key_min[i] <= x < key_max[i]:
+                    result = value[i]
+                    break
+        vector[l_index] = result
     return vector
 
 
