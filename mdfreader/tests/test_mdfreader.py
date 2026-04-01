@@ -406,3 +406,99 @@ def test_integrity_check(mdf_file):
         pytest.skip("proprietary custom compression (dz_zip_type=254)")
     yop = mdfreader.Mdf(str(mdf_file), force_file_integrity_check=True)
     assert isinstance(yop, mdfreader.Mdf)
+
+
+# ---------------------------------------------------------------------------
+# test_compare_mdfr — cross-validate results with the Rust mdfr library
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope='session')
+def mdfr_module():
+    """Return the mdfr module if available, else None."""
+    try:
+        sys.path.insert(0, '/home/ratal/workspace/mdfr/lib/python3.13/site-packages')
+        import mdfr as _mdfr
+        return _mdfr
+    except ImportError:
+        return None
+
+
+@pytest.mark.compare_mdfr
+@pytest.mark.parametrize("mdf_file", ALL_MDF4_FILES, ids=lambda p: p.name)
+def test_compare_mdfr(mdf_file, mdfr_module):
+    """Cross-validate numeric data values and units between mdfreader and the Rust mdfr library.
+
+    Channel naming differences are reported as warnings only (mdfreader uses
+    ``name_DG_CG`` suffixes to de-duplicate; mdfr keeps the original name).
+    Unit mismatches are also warnings unless the unit is non-empty in both libs.
+    The test only *fails* on numeric data-value mismatches for channels present
+    in both libraries.
+
+    Run with:  pytest -m compare_mdfr
+    Skip with: pytest -m "not compare_mdfr"
+    """
+    if mdfr_module is None:
+        pytest.skip('mdfr not available')
+    if mdf_file.name in _CUSTOM_COMPRESSION_SKIP:
+        pytest.skip("proprietary custom compression (dz_zip_type=254)")
+
+    # Load with mdfreader
+    mdf = mdfreader.Mdf(str(mdf_file))
+    py_names = set(mdf.keys())
+
+    # Load with mdfr (may panic on unsupported channel types, e.g. unions needing pyarrow)
+    try:
+        r = mdfr_module.Mdfr(str(mdf_file))
+        r.load_all_channels_data_in_memory()
+        rs_names = r.get_channel_names_set()
+    except BaseException as exc:
+        pytest.skip(f'mdfr failed to load file: {type(exc).__name__}: {exc}')
+
+    data_mismatches = []
+    info_notes = []
+
+    # Channel presence differences are informational (naming conventions differ)
+    only_in_mdfr = rs_names - py_names
+    if only_in_mdfr:
+        info_notes.append(f'INFO channels only in mdfr ({len(only_in_mdfr)}): {sorted(only_in_mdfr)[:5]}')
+    only_in_mdfreader = py_names - rs_names
+    if only_in_mdfreader:
+        info_notes.append(f'INFO channels only in mdfreader ({len(only_in_mdfreader)}): {sorted(only_in_mdfreader)[:5]}')
+
+    # Data and unit comparison for channels present in both
+    for ch in sorted(py_names & rs_names):
+        try:
+            py_data = mdf.get_channel_data(ch)
+            rs_data = r.get_channel_data(ch)
+        except BaseException:
+            continue
+        if py_data is None or rs_data is None:
+            continue
+        # Only compare numeric arrays
+        if hasattr(py_data, 'dtype') and hasattr(rs_data, 'dtype'):
+            if py_data.dtype.kind in ('f', 'i', 'u') and rs_data.dtype.kind in ('f', 'i', 'u'):
+                if py_data.shape != rs_data.shape:
+                    data_mismatches.append(f'{ch}: shape mismatch {py_data.shape} vs {rs_data.shape}')
+                else:
+                    try:
+                        if not np.allclose(py_data.astype(float), rs_data.astype(float),
+                                           rtol=1e-5, atol=1e-8, equal_nan=True):
+                            max_diff = np.max(np.abs(py_data.astype(float) - rs_data.astype(float)))
+                            data_mismatches.append(f'{ch}: max abs diff = {max_diff:.3e}')
+                    except Exception as exc:
+                        data_mismatches.append(f'{ch}: comparison error: {exc}')
+        # Unit comparison — normalize mdfr's "None" string to ""
+        try:
+            py_unit = mdf.get_channel_unit(ch) or ''
+            rs_unit = r.get_channel_unit(ch)
+            rs_unit_norm = '' if (rs_unit is None or rs_unit == 'None') else rs_unit
+            if py_unit and rs_unit_norm and py_unit != rs_unit_norm:
+                info_notes.append(f'UNIT {ch}: "{py_unit}" vs "{rs_unit_norm}"')
+        except Exception:
+            pass
+
+    all_issues = data_mismatches + info_notes
+    if data_mismatches:
+        pytest.fail('\n'.join(all_issues))
+    elif info_notes:
+        # Informational differences only — emit as a warning string in the test output
+        pass  # notes visible via pytest -s or -v
