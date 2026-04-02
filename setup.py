@@ -78,7 +78,7 @@ install_requires = ['numpy>=1.14', 'sympy', 'lxml']
 # You can install these using the following syntax, for example:
 # $ pip install -e .[dev,test]
 extras_require = {
-    'export': ['hdf5storage', 'h5py', 'scipy', 'xlwt', 'xlwt3', 'openpyxl>2.0', 'pandas', 'fastparquet'],
+    'export': ['hdf5storage', 'h5py', 'scipy', 'openpyxl>2.0', 'pandas', 'fastparquet'],
     'plot': ['matplotlib', 'mpldatacursor'],
     'converter': ['PyQt5'],
     'experimental': ['bitarray'],
