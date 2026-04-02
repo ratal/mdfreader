@@ -1669,13 +1669,15 @@ class Mdf(Mdf4, Mdf3):
                         index=self.get_channel_data(master_channel_name))
             else:  # no master channel
                 temporary_dataframe = pd.DataFrame()
-            for channel in self.masterChannelList[master_channel_name]:
-                data = self.get_channel_data(channel)
-                if data.dtype.byteorder not in ('=', '|'):
+            channel_dict = {key: None for key in self.masterChannelList[master_channel_name]}
+            for key in channel_dict.keys():
+                data = self.get_channel_data(key)
+                if data.dtype.byteorder not in ['=', '|']:
                     data = data.byteswap().view(data.dtype.newbyteorder())
                 if data.ndim == 1 and data.shape[0] == temporary_dataframe.shape[0] \
                         and not data.dtype.char == 'V':
-                    temporary_dataframe[channel] = data
+                    channel_dict[key] = data
+            temporary_dataframe = pd.DataFrame(data=channel_dict, index=temporary_dataframe.index)
             return temporary_dataframe
         else:
             warn('Master channel name not in mdf')

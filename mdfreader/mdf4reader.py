@@ -27,7 +27,11 @@ from multiprocessing import Queue, Process
 from sys import byteorder
 import re
 from collections import defaultdict, OrderedDict
-from numpy.rec import fromarrays
+import numpy as np
+if np.lib.NumpyVersion(np.__version__) >= '2.0.0b1':
+    from numpy.rec import fromstring, fromarrays
+else:
+    from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
 from numpy import arange, right_shift, bitwise_and, all, diff, interp, zeros, concatenate, maximum
 from numpy import issubdtype, number as numpy_number
