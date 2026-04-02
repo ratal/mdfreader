@@ -143,6 +143,49 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
                                                        'formats': [record.invalid_channel.data_format(info)]})
 
 
+def _apply_unsorted_bit_masking(buf, record, info):
+    """Apply bit-shift and masking for non-byte-aligned channels in unsorted data.
+
+    unsorted_data_read4 (and the Python fallback) copy raw bytes without any
+    bit-level manipulation.  Channels whose bit_count is not a multiple of 8
+    (e.g. 1-bit flags, 15-bit signals) or that have a non-zero bit_offset must
+    be right-shifted and masked after the raw bytes have been viewed as the
+    target dtype.
+    """
+    for record_id in record:
+        if record[record_id]['record'].Flags & 0b100001:  # VLSD / VLSC - no masking needed
+            continue
+        for Channel in record[record_id]['record'].values():
+            name = Channel.name
+            if name not in buf:
+                continue
+            sig_dt = Channel.signal_data_type(info)
+            if sig_dt not in (0, 1, 2, 3):  # only integer types need masking
+                continue
+            bit_count = Channel.bit_count(info)
+            bit_offset = Channel.bit_offset(info)
+            n_bytes_aligned = Channel.nBytes_aligned
+            if bit_offset == 0 and bit_count == n_bytes_aligned * 8:
+                continue  # already byte-aligned and fills all bytes — no masking needed
+            temp = buf[name]
+            if temp.dtype.kind not in ('u', 'i'):
+                continue
+            if bit_offset > 0:
+                temp = right_shift(temp, bit_offset)
+            mask = int((1 << bit_count) - 1)
+            temp = bitwise_and(temp, mask)
+            if sig_dt in (2, 3):  # signed: sign-extend from bit_count-1
+                sign_bit_mask = 1 << (bit_count - 1)
+                sign_extend = ((1 << (temp.itemsize * 8 - bit_count)) - 1) << bit_count
+                sign_bits = bitwise_and(temp, sign_bit_mask)
+                temp_u = temp.view('u{}'.format(temp.itemsize))
+                for idx, sign in enumerate(sign_bits):
+                    if sign:
+                        temp_u[idx] |= sign_extend
+                temp = temp_u.view(temp.dtype)
+            buf[name] = temp
+
+
 def _read_unsorted(record, info, parent_block, record_id_size):
     """ reads only the channels using offset functions, channel by channel within unsorted data
 
@@ -165,7 +208,9 @@ def _read_unsorted(record, info, parent_block, record_id_size):
     data_block_length = parent_block['length'] - 24
     if dataRead_available:
         try:
-            return unsorted_data_read4(record, info, bytes(parent_block['data']), record_id_size, data_block_length)
+            buf = unsorted_data_read4(record, info, bytes(parent_block['data']), record_id_size, data_block_length)
+            _apply_unsorted_bit_masking(buf, record, info)
+            return buf
         except Exception as e:
             warn('data_read cython module - unsorted_data_read4 function crashed, using python based parsing backup')
     # initialise data structure
