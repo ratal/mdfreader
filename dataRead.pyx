@@ -497,8 +497,9 @@ cdef inline read_signed_int(const char* bit_stream, str record_format, unsigned 
     else:  # on 3 bytes
         if swap == 0:
             for i in range(number_of_records):
+                temp4byte = 0  # must zero high byte: memcpy only writes n_bytes=3, and sign_extend may have set it to 0xFF
                 memcpy(&temp4byte, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                # right shift 
+                # right shift
                 if bit_offset > 0:
                     temp4byte = temp4byte >> bit_offset
                 # mask left part
