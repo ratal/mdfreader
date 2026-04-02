@@ -54,10 +54,11 @@ classifiers = [
     'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
 
     # Specify the Python versions you support here.
-    'Programming Language :: Python :: 3.5',
-    'Programming Language :: Python :: 3.6',
-    'Programming Language :: Python :: 3.7',
-    'Programming Language :: Python :: 3.8'
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.12',
+    'Programming Language :: Python :: 3.13',
 ]
 
 # What does your project relate to?
@@ -109,7 +110,8 @@ try:  # try compiling module with cython or c code with numpy and cython already
           long_description_content_type='text/markdown',
           url=url, author=author, author_email=author_email, license=license, classifiers=classifiers,
           keywords=keywords, packages=packages, install_requires=install_requires, extras_require=extras_require,
-          entry_points=entry_points, ext_modules=ext_modules, include_dirs=[numpy.get_include()])
+          entry_points=entry_points, ext_modules=ext_modules, include_dirs=[numpy.get_include()],
+          python_requires='>=3.9')
 except:  # could not compile extension dataRead
     import sys
     print("Unexpected error:", sys.exc_info())

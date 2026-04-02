@@ -32,3 +32,4 @@ mdfconverter/Ui_mdfreaderui.py
 dataRead.so
 dataRead.c
 .pytest_tmp/
+.claude/settings.json
