@@ -38,7 +38,6 @@ from argparse import ArgumentParser
 from numpy import arange, linspace, interp, all, diff, mean, vstack, float64, float32
 from numpy import nan, datetime64, array, searchsorted, clip, empty
 from numpy.ma import MaskedArray, masked, empty as ma_empty
-from scipy.interpolate import interp1d
 from .mdf3reader import Mdf3
 from .mdf4reader import Mdf4
 from .mdf import _open_mdf, dataField, descriptionField, unitField, masterField, masterTypeField, idField
@@ -766,6 +765,7 @@ class Mdf(Mdf4, Mdf3):
                 elif interpolation_kind == 'next':
                     return y[interp_close_point(x, new_x, 'right')]
                 elif y.dtype.kind not in ('U', 'S'):
+                    from scipy.interpolate import interp1d
                     f = interp1d(x, y, kind=interpolation_kind,
                                  fill_value="extrapolate")
                     return f(new_x)
