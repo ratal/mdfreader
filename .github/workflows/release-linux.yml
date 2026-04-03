@@ -39,7 +39,10 @@ jobs:
           pattern: wheel-linux-*
           merge-multiple: true
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_TOKEN }}
-          skip-existing: true
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          pip install twine
+          twine upload dist/* --skip-existing
