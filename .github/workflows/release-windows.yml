@@ -29,6 +29,22 @@ jobs:
         with:
           name: wheel-windows
           path: dist/
+      - name: Strip License-File from wheel metadata
+        run: |
+          python - <<'EOF'
+          import zipfile, os
+          for whl in os.listdir('dist'):
+              if not whl.endswith('.whl'): continue
+              path = os.path.join('dist', whl)
+              tmp = path + '.tmp'
+              with zipfile.ZipFile(path, 'r') as zin, zipfile.ZipFile(tmp, 'w', compression=zipfile.ZIP_DEFLATED) as zout:
+                  for item in zin.infolist():
+                      data = zin.read(item.filename)
+                      if item.filename.endswith('/METADATA') or item.filename.endswith('.dist-info/METADATA'):
+                          data = b'\n'.join(l for l in data.split(b'\n') if not l.lower().startswith(b'license-file:'))
+                      zout.writestr(item, data)
+              os.replace(tmp, path)
+          EOF
       - name: Publish to PyPI
         env:
           TWINE_USERNAME: __token__
