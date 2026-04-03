@@ -14,8 +14,6 @@ jobs:
         env:
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_ARCHS: x86_64 arm64
-          CIBW_BEFORE_BUILD: pip install setuptools numpy cython
-          CIBW_BUILD_FRONTEND: "pip; args: --no-build-isolation"
           CIBW_TEST_COMMAND: python -c "import mdfreader"
       - uses: actions/upload-artifact@v4
         with:
@@ -30,23 +28,6 @@ jobs:
         with:
           name: wheel-macos
           path: dist/
-      - name: Strip License-File from wheel metadata
-        run: |
-          pip install wheel
-          python - <<'EOF'
-          import zipfile, os, re, shutil
-          for whl in os.listdir('dist'):
-              if not whl.endswith('.whl'): continue
-              path = os.path.join('dist', whl)
-              tmp = path + '.tmp'
-              with zipfile.ZipFile(path, 'r') as zin, zipfile.ZipFile(tmp, 'w', compression=zipfile.ZIP_DEFLATED) as zout:
-                  for item in zin.infolist():
-                      data = zin.read(item.filename)
-                      if item.filename.endswith('/METADATA') or item.filename.endswith('.dist-info/METADATA'):
-                          data = b'\n'.join(l for l in data.split(b'\n') if not l.lower().startswith(b'license-file:'))
-                      zout.writestr(item, data)
-              os.replace(tmp, path)
-          EOF
       - name: Publish to PyPI
         env:
           TWINE_USERNAME: __token__
