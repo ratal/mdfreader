@@ -201,7 +201,8 @@ class Channel4(object):
         try:
             return ATBlock(fid, info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data'])
         except KeyError:
-            print('No Attachment block for this channel')
+            warn('No Attachment block for this channel')
+            return None
 
     def data(self, info):
         """ returns data block pointer for VLSD, MLD or sync channels"""
@@ -528,8 +529,11 @@ class Channel4(object):
                 data_format = 'u1'
             endian = '<'
         else:  # not channel array
-            endian, data_format = array_format4(
-                info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'], self.nBytes_aligned)
+            if self.channel_type(info) in (1, 7):  # VLSD/VLSC: record stores uint offset, not string
+                endian, data_format = array_format4(0, self.nBytes_aligned)
+            else:
+                endian, data_format = array_format4(
+                    info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'], self.nBytes_aligned)
         return endian, data_format
 
     def data_format(self, info):
@@ -568,10 +572,10 @@ class Channel4(object):
         signal_data_type = self.signal_data_type(info)
         if self.type == 0:  # standard channel
             if signal_data_type not in (13, 14):
-                if not self.channel_type(info) == 1:  # if not VSLD
-                    endian, data_type = data_type_format4(signal_data_type, self.nBytes_aligned)
-                else:  # VLSD
+                if self.channel_type(info) in (1, 7):  # VLSD or VLSC: record stores uint size
                     endian, data_type = data_type_format4(0, self.nBytes_aligned)
+                else:
+                    endian, data_type = data_type_format4(signal_data_type, self.nBytes_aligned)
                 return '{}{}'.format(endian, data_type)
         elif self.type in (1, 2):  # array channel
             ca = self.ca_block(info)
@@ -640,8 +644,8 @@ class Channel4(object):
         if self.type in (0, 1, 2):  # standard or channel array
             return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset']
         elif self.type == 3:  # CAN channel
-            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset'] \
-                   + self.CANOpen_offset() * 8
+            # byteOffset already includes CANOpen_offset(); only use cn_bit_offset here
+            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset']
         elif self.type == 4:  # Invalid bit channel
             return 0
         else:
@@ -1027,28 +1031,30 @@ def array_format4(signal_data_type, number_of_bytes):
         endian = ''
     elif signal_data_type == 15:  # LE complex
         if number_of_bytes == 4:
-            data_type = 'c4'
-            warn('numpy does not support yet half precision complex')
+            data_type = '(2,)f2'  # half-precision: [real_f16, imag_f16]
         elif number_of_bytes == 8:
             data_type = 'c8'
         elif number_of_bytes == 16:
             data_type = 'c16'
         else:
             warn('Unsupported number of bytes for floating point {}'.format(number_of_bytes))
+            data_type = 'V{}'.format(number_of_bytes)
         endian = '<'
     elif signal_data_type == 16:  # BE complex
         if number_of_bytes == 4:
-            data_type = 'c4'
-            warn('numpy does not support yet half precision complex')
+            data_type = '(2,)f2'  # half-precision: [real_f16, imag_f16]
         elif number_of_bytes == 8:
             data_type = 'c8'
         elif number_of_bytes == 16:
             data_type = 'c16'
         else:
             warn('Unsupported number of bytes for floating point {}'.format(number_of_bytes))
+            data_type = 'V{}'.format(number_of_bytes)
         endian = '>'
     else:
         warn('Unsupported Signal Data Type {} {}'.format(signal_data_type, number_of_bytes))
+        endian = ''
+        data_type = 'V{}'.format(number_of_bytes)
 
     return endian, data_type
 
@@ -1156,29 +1162,33 @@ def data_type_format4(signal_data_type, number_of_bytes):
         endian = '>'
 
     elif signal_data_type == 15:  # LE Complex
-        if number_of_bytes == 2:
-            data_type = '2e'
-        elif number_of_bytes == 4:
-            data_type = '2f'
+        if number_of_bytes == 4:
+            data_type = '2e'  # 4 bytes = 2×f16 (half-precision)
         elif number_of_bytes == 8:
-            data_type = '2d'
+            data_type = '2f'  # 8 bytes = 2×f32
+        elif number_of_bytes == 16:
+            data_type = '2d'  # 16 bytes = 2×f64
         else:
-            warn('Unsupported number of bytes for floating point {}'.format(signal_data_type))
+            warn('Unsupported number of bytes for complex {}'.format(number_of_bytes))
+            data_type = '{}s'.format(number_of_bytes)
         endian = '<'
 
     elif signal_data_type == 16:  # BE Complex
-        if number_of_bytes == 2:
-            data_type = '2e'
-        elif number_of_bytes == 4:
-            data_type = '2f'
+        if number_of_bytes == 4:
+            data_type = '2e'  # 4 bytes = 2×f16 (half-precision)
         elif number_of_bytes == 8:
-            data_type = '2d'
+            data_type = '2f'  # 8 bytes = 2×f32
+        elif number_of_bytes == 16:
+            data_type = '2d'  # 16 bytes = 2×f64
         else:
-            warn('Unsupported number of bytes for floating point {}'.format(signal_data_type))
+            warn('Unsupported number of bytes for complex {}'.format(number_of_bytes))
+            data_type = '{}s'.format(number_of_bytes)
         endian = '>'
 
     else:
         warn('Unsupported Signal Data Type {} {}'.format(signal_data_type, number_of_bytes))
+        endian = ''
+        data_type = '{}s'.format(number_of_bytes)
 
     return endian, data_type
 

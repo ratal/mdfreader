@@ -15,6 +15,10 @@ Dependencies
 mdf
 --------------------------
 """
+import atexit
+import shutil
+import tempfile
+from copy import deepcopy
 from io import open
 from zipfile import is_zipfile, ZipFile
 from itertools import chain
@@ -23,7 +27,7 @@ from string import ascii_letters
 from collections import OrderedDict, defaultdict
 from time import time
 from warnings import warn
-from numpy import array_repr, set_printoptions, recarray, fromstring
+from numpy import array_repr, set_printoptions, recarray, frombuffer
 try:
     from pandas import set_option
 except ImportError:
@@ -91,7 +95,8 @@ class MdfSkeleton(dict):
 
     def __init__(self, file_name=None, channel_list=None, convert_after_read=True,
                  filter_channel_names=False, no_data_loading=False,
-                 compression=False, convert_tables=False, metadata=2):
+                 compression=False, convert_tables=True, metadata=2,
+                 finalization_writing_to_file=False, force_file_integrity_check=False):
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -120,9 +125,21 @@ class MdfSkeleton(dict):
         compression : bool optional
             flag to compress data in memory.
 
-        convert_tables : bool, optional, default False
-            flag to convert or not only conversions with tables.
-            These conversions types take generally long time and memory.
+        metadata: int, optional, default = 2
+            Reading metadata has impact on performance, especially for mdf 4.x using xml.
+            2: minimal metadata reading (mostly channel blocks)
+            1: used for noDataLoading
+            0: all metadata reading, including Source Information, Attachment, etc..
+
+        finalization_writing_to_file : bool, optional, False by default
+            If file is detected not finalised (id_unfin_flags!=0), file is corrected
+            writing in the blocks if set to True, otherwise correction is done only
+            to file representation in memory. Valid from version MDF 4.11
+
+        force_file_integrity_check : bool, optional, False by default
+            Perform block sizes check for potentially corrupted file without finalization
+            flags (id_unfin_flags==0). Combined with finalization_writing_to_file is
+            very experimental and risky, correction should be tried in memory first.
         """
         self.masterChannelList = OrderedDict()
         # flag to control multiprocessing, default deactivate,
@@ -134,7 +151,8 @@ class MdfSkeleton(dict):
         self.fileMetadata['project'] = ''
         self.fileMetadata['subject'] = ''
         self.fileMetadata['comment'] = ''
-        self.fileMetadata['time'] = time()  # time in seconds since epoch, floating
+        # time in seconds since epoch, floating
+        self.fileMetadata['time'] = time()
         self.MDFVersionNumber = 300
         self.filterChannelNames = filter_channel_names
         # by default, do not convert table conversion types, taking lot of time and memory
@@ -152,7 +170,9 @@ class MdfSkeleton(dict):
                       filter_channel_names=filter_channel_names,
                       no_data_loading=no_data_loading,
                       compression=compression,
-                      metadata=metadata)
+                      metadata=metadata,
+                      finalization_writing_to_file=finalization_writing_to_file,
+                      force_file_integrity_check=force_file_integrity_check)
 
     def add_channel(self, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None,
                     info=None, compression=False, identifier=None):
@@ -223,10 +243,11 @@ class MdfSkeleton(dict):
             while 'CABlock' in ca_block:
                 ca_block = ca_block['CABlock']
                 if 'ca_axis_value' in ca_block:
-                    if type(ca_block['ca_dim_size']) is list:
+                    if isinstance(ca_block['ca_dim_size'], list):
                         index = 0
                         for ndim in ca_block['ca_dim_size']:
-                            axis.append(tuple(ca_block['ca_axis_value'][index:index+ndim]))
+                            axis.append(
+                                tuple(ca_block['ca_axis_value'][index:index+ndim]))
                             index += ndim
                     else:
                         axis = ca_block['ca_axis_value']
@@ -246,7 +267,9 @@ class MdfSkeleton(dict):
         -------
         value of mdf dict key=channel_name
         """
-        self.masterChannelList[self.get_channel_master(channel_name)].remove(channel_name)
+        master = self.get_channel_master(channel_name)
+        if master in self.masterChannelList:
+            self.masterChannelList[master].remove(channel_name)
         return self.pop(channel_name)
 
     def rename_channel(self, channel_name, new_name):
@@ -261,12 +284,15 @@ class MdfSkeleton(dict):
         """
         if channel_name in self and new_name not in self:
             # add the new name to the same master
-            self.masterChannelList[self.get_channel_master(channel_name)].append(new_name)
+            self.masterChannelList[self.get_channel_master(
+                channel_name)].append(new_name)
             # remove the old name
-            self.masterChannelList[self.get_channel_master(channel_name)].remove(channel_name)
+            self.masterChannelList[self.get_channel_master(
+                channel_name)].remove(channel_name)
             self[new_name] = self.pop(channel_name)  # copy the data
             if channel_name in self.masterChannelList:  # it is a master channel
-                self.masterChannelList[new_name] = self.masterChannelList.pop(channel_name)
+                self.masterChannelList[new_name] = self.masterChannelList.pop(
+                    channel_name)
                 for channel in self.masterChannelList[new_name]:
                     self.set_channel_master(channel, new_name)
             return self[new_name]
@@ -623,14 +649,14 @@ class MdfSkeleton(dict):
                     if desc is not None:
                         try:
                             output.append(str(desc))
-                        except:
+                        except Exception:
                             pass
                     output.append('\n    ')
                     data = self.get_channel_data(c)
                     # not byte, impossible to represent
                     if data.dtype.kind != 'V':
                         output.append(array_repr(data[:],
-                                      precision=3, suppress_small=True))
+                                                 precision=3, suppress_small=True))
                     unit = self.get_channel_unit(c)
                     if unit is not None:
                         output.append(' {}\n'.format(unit))
@@ -655,8 +681,8 @@ class MdfSkeleton(dict):
         yop = MdfSkeleton()
         yop.multiProc = self.multiProc
         yop.fileName = self.fileName
-        yop.masterChannelList = self.masterChannelList
-        yop.fileMetadata = self.fileMetadata
+        yop.masterChannelList = deepcopy(self.masterChannelList)
+        yop.fileMetadata = deepcopy(self.fileMetadata)
         yop.MDFVersionNumber = self.MDFVersionNumber
         yop.filterChannelNames = self.filterChannelNames
         yop.convertTables = self.convertTables
@@ -693,7 +719,9 @@ def _open_mdf(file_name):
             fid.close()
             zip_class = ZipFile(file_name, 'r')
             zip_name = zip_class.namelist()[0]  # there should be only one file
-            zip_name = zip_class.extract(zip_name)  # locally extracts file
+            _tmp_dir = tempfile.mkdtemp()
+            atexit.register(shutil.rmtree, _tmp_dir, True)
+            zip_name = zip_class.extract(zip_name, path=_tmp_dir)
             fid = open(zip_name, 'rb')
             file_name = zip_name
         else:
@@ -764,7 +792,8 @@ def _convert_name(channel_name):
     # all characters of channel are not compliant to python
     if not channel_identifier:
         # generate random name for recarray
-        channel_identifier = ''.join([choice(ascii_letters) for n in range(32)])
+        channel_identifier = ''.join(
+            [choice(ascii_letters) for n in range(32)])
     if channel_identifier in _notAllowedChannelNames:
         # limitation from recarray object attribute
         channel_identifier = ''.join([channel_identifier, '_'])
@@ -798,6 +827,7 @@ class CompressedData:
     __slots__ = ['data', 'dtype']
     """ class to represent compressed data by blosc
     """
+
     def __init__(self):
         """ data compression method
 
@@ -829,7 +859,7 @@ class CompressedData:
         -------------
         uncompressed numpy array
         """
-        return fromstring(decompress(self.data), dtype=self.dtype)
+        return frombuffer(decompress(self.data), dtype=self.dtype)
 
     def __str__(self):
         """ prints compressed_data object content

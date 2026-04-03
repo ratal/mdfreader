@@ -8,19 +8,17 @@ Created on Sun Oct 10 12:57:28 2010
 mdf3reader
 --------------------------
 """
-from __future__ import absolute_import  # for consistency between python 2 and 3
-from __future__ import print_function
 from numpy import right_shift, bitwise_and, interp, empty
 from numpy import max as npmax, min as npmin
-from numpy import asarray, recarray, array, searchsorted, vectorize
+from numpy import asarray, recarray, array, searchsorted, vectorize, exp, log
 from numpy import issubdtype, number as numpy_number
+from numpy import frombuffer
 import numpy as np
 if np.lib.NumpyVersion(np.__version__) >= '2.0.0b1':
     from numpy.rec import fromstring, fromarrays
 else:
     from numpy.core.records import fromstring, fromarrays
 from collections import defaultdict
-from math import log, exp
 from time import strftime, time, gmtime
 from datetime import datetime
 from struct import pack, Struct
@@ -209,7 +207,7 @@ def _formula_conversion(data, conversion):  # 10 Text Formula
         # formula to function for evaluation
         expr = lambdify(X, formula, modules='numpy', dummify=False)
         return expr(data)
-    except:
+    except Exception:
         warn('Failed to convert formulae ' + conversion['textFormula'] +
              ' Sympy is correctly installed ?\n')
 
@@ -230,7 +228,7 @@ def _text_table_conversion(data, conversion):  # 11 Text table
     conversion_table = dict()
     for pair in conversion:
         conversion_table[conversion[pair]['int']] = conversion[pair]['text']
-    return vectorize(conversion_table.__getitem__)(data)
+    return vectorize(lambda x: conversion_table.get(int(x), str(int(x))))(data)
 
 
 def _text_range_table_conversion(data, conversion):  # 12 Text range table
@@ -274,10 +272,10 @@ def _text_range_table_conversion(data, conversion):  # 12 Text range table
             temp.append(value)
         try:
             temp = asarray(temp)  # try to convert to numpy
-        except:
+        except Exception:
             pass
         return temp
-    except:
+    except Exception:
         warn('Failed to convert text to range table')
 
 
@@ -474,13 +472,14 @@ class Record(list):
 
         """
         fid.seek(pointer)
+        full_record_length = self.CGrecordLength + self.recordIDnumber
         n_chunks = self.dataBlockLength // chunk_size_reading + 1
         chunk_length = self.dataBlockLength // n_chunks
-        n_record_chunk = chunk_length // self.CGrecordLength
-        chunks = [(n_record_chunk, self.CGrecordLength * n_record_chunk)] * n_chunks
+        n_record_chunk = chunk_length // full_record_length
+        chunks = [(n_record_chunk, full_record_length * n_record_chunk)] * n_chunks
         n_record_chunk = self.numberOfRecords - n_record_chunk * n_chunks
         if n_record_chunk > 0:
-            chunks.append((n_record_chunk, self.CGrecordLength * n_record_chunk))
+            chunks.append((n_record_chunk, full_record_length * n_record_chunk))
         previous_index = 0
         if channel_set is None and not self.hiddenBytes and self.byte_aligned:
             # reads all, quickest but memory consuming
@@ -488,11 +487,18 @@ class Record(list):
                                                            'formats': self.numpyDataRecordFormat})  # initialise array
             simplefilter('ignore', FutureWarning)
             for n_record_chunk, chunk_size in chunks:
-                buf[previous_index: previous_index + n_record_chunk] = \
-                    fromstring(fid.read(chunk_size),
-                               dtype={'names': self.dataRecordName,
-                                      'formats': self.numpyDataRecordFormat},
-                               shape=n_record_chunk)
+                raw = fid.read(chunk_size)
+                actual_records = len(raw) // full_record_length
+                if actual_records < n_record_chunk:
+                    # file shorter than expected (e.g. MDF 2.x / truncated)
+                    n_record_chunk = actual_records
+                    raw = raw[:full_record_length * actual_records]
+                if n_record_chunk > 0:
+                    buf[previous_index: previous_index + n_record_chunk] = \
+                        frombuffer(raw,
+                                   dtype={'names': self.dataRecordName,
+                                          'formats': self.numpyDataRecordFormat},
+                                   count=n_record_chunk)
                 previous_index += n_record_chunk
             return buf
         else:  # reads only some channels from a sorted data block
@@ -538,17 +544,21 @@ class Record(list):
                                 self[rec_chan[id].channelNumber].bit_masking_needed = False
                             previous_index += n_record_chunk
                         return rec
-                    except:
+                    except Exception:
                         warn('Unexpected error: {}'.format(exc_info()))
                         warn('dataRead crashed, back to python data reading')
 
                 record_length = self.recordIDnumber + self.CGrecordLength
                 for r in range(self.numberOfRecords):  # for each record,
                     buf = fid.read(record_length)
+                    if len(buf) < record_length:
+                        break  # truncated file
                     for channel in rec_chan:
+                        seg = buf[channel.posByteBeg:channel.posByteEnd]
+                        if len(seg) < channel.CFormat.size:
+                            break  # record shorter than expected
                         (rec[channel.name][r],) = \
-                            channel.CFormat.unpack(buf[channel.posByteBeg:
-                                                       channel.posByteEnd])
+                            channel.CFormat.unpack(seg)
                 return rec.view(recarray)
 
     def read_record_buf(self, buf, channel_set=None):
@@ -699,7 +709,7 @@ class DATA(dict):
         if self.fid is None or self.fid.closed:
             self.fid = open(file_name, 'rb')
         if len(self) == 1:  # sorted dataGroup
-            record_id = list(self.keys())[0]
+            record_id = next(iter(self))
             self[record_id]['data'] = \
                 self.load_sorted(self[record_id]['record'], name_list=channel_set)
         elif len(self) >= 2:  # unsorted DataGroup
@@ -892,7 +902,7 @@ class Mdf3(MdfSkeleton):
             try:
                 info.fid = open(self.fileName, 'rb')
             except IOError:
-                raise Exception('Can not find file ' + self.fileName)
+                raise IOError('Can not find file ' + self.fileName)
 
         # reads metadata
         if not self._noDataLoading:
@@ -987,7 +997,7 @@ class Mdf3(MdfSkeleton):
                                     if chan.signalDataType in (0, 1, 9, 10, 13, 14):  # integers
                                         if chan.embedding_channel_bitOffset > 0:
                                             temp = right_shift(temp, chan.embedding_channel_bitOffset)
-                                        mask = int(pow(2, chan.bitCount) - 1)  # masks isBitUint8
+                                        mask = (1 << chan.bitCount) - 1  # masks isBitUint8
                                         temp = bitwise_and(temp, mask)
                                     else:  # should not happen
                                         warn('bit count and offset not applied to correct data type')
@@ -1291,13 +1301,13 @@ class Mdf3(MdfSkeleton):
                     data_type = 7
                 else:
                     raise Exception('Not recognized dtype')
-                if data.dtype.kind not in ['S', 'U']:
+                if data.dtype.kind not in {'S', 'U'}:
                     data_type_list = ''.join([data_type_list, data.dtype.char])
                 else:
                     data_type_list = ''.join([data_type_list, '{}s'.format(data.dtype.itemsize)])
                     number_of_bits = 8 * data.dtype.itemsize
                 record_number_of_bits += number_of_bits
-                if data.dtype.kind not in ['S', 'U']:
+                if data.dtype.kind not in {'S', 'U'}:
                     value_range_valid = 1
                     if len(data) > 0 and issubdtype(data.dtype, numpy_number):
                         maximum = npmax(data)
@@ -1322,7 +1332,7 @@ class Mdf3(MdfSkeleton):
                 # additional byte offset
                 try:
                     description = '{:\x00<128.127}'.format(desc).encode('latin-1')
-                except:
+                except Exception:
                     description = b'\x00' * 128
                 head = (b'CN', 228, 0, 0, 0, 0, 0, master_flag,
                         ('{:\x00<32.31}'.format(channel) + '\x00').encode('latin-1'),
@@ -1345,7 +1355,7 @@ class Mdf3(MdfSkeleton):
                 try:
                     unit = '{:\x00<20.19}'.format(self.get_channel_unit(channel))\
                                                   .encode('latin-1', 'replace')
-                except:
+                except Exception:
                     unit = b'\x00' * 20
                 head = (b'CC', 46, value_range_valid, minimum, maximum,
                         unit, 65535, 0)
@@ -1366,4 +1376,4 @@ class Mdf3(MdfSkeleton):
             data_group += 1
 
         # print(pointers, file=stderr)
-        fid.close()
+        fid.close()  # noqa: SIM115 — wrapping 200-line write body in try/finally would be impractical

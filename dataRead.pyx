@@ -46,7 +46,7 @@ def sorted_data_read(bytes tmp, unsigned short bit_count,
     ndarray of type record_format with number_of_records records.
     Byte order is swapped if necessary to match machine byte order before bits offset and masking
     """
-    cdef char* bit_stream = PyBytes_AsString(tmp)
+    cdef const char* bit_stream = PyBytes_AsString(tmp)
     if not array:
         if 'V' in record_format or 'S' in record_format or record_format is None:
             return read_byte(bit_stream, record_format, number_of_records,
@@ -130,8 +130,8 @@ def sorted_data_read(bytes tmp, unsigned short bit_count,
                 return read_signed_longlong(bit_stream, record_format, number_of_records,
                                         record_byte_size, pos_byte_beg, bit_count, bit_offset, n_bytes, 1)
         elif signal_data_type in (15, 16):  # complex
-            if (byteorder == 'little' and signal_data_type == 0) or \
-                    (byteorder == 'big' and signal_data_type == 1):
+            if (byteorder == 'little' and signal_data_type == 15) or \
+                    (byteorder == 'big' and signal_data_type == 16):
                 swap_flag = 0
             else: #  swap bytes
                 swap_flag = 1
@@ -144,6 +144,15 @@ def sorted_data_read(bytes tmp, unsigned short bit_count,
             elif n_bytes == 4:
                 return read_chalf(bit_stream, record_format, number_of_records,
                                       record_byte_size, pos_byte_beg, 0)
+        elif n_bytes <= 4:
+            # VLSD/VLSC channels: record stores a uint pointer/size (signal_data_type 6-12)
+            return read_unsigned_int(bit_stream, record_format, number_of_records,
+                                     record_byte_size, pos_byte_beg, n_bytes * 8, bit_offset, n_bytes,
+                                     0 if byteorder == 'little' else 1)
+        elif n_bytes <= 8:
+            return read_unsigned_longlong(bit_stream, record_format, number_of_records,
+                                          record_byte_size, pos_byte_beg, n_bytes * 8, bit_offset, n_bytes,
+                                          0 if byteorder == 'little' else 1)
         else:
             return read_byte(bit_stream, record_format, number_of_records,
                                 record_byte_size, pos_byte_beg, n_bytes, bit_count, bit_offset)
@@ -171,18 +180,16 @@ cdef inline read_half(const char* bit_stream, str record_format, unsigned long l
 
 cdef inline read_chalf(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
-    cdef uint64_t[:] buf = np.empty(number_of_records, dtype=np.uint32)  # complex_32 does not exist in numpy
+    # complex32 = real(f16) + imag(f16): return as (n_records, 2) float16 array
+    cdef np.ndarray[np.uint16_t, ndim=2] buf = np.empty((number_of_records, 2), dtype=np.uint16)
     cdef unsigned long long i
-    cdef uint16_t temp16_real = 0
-    cdef uint16_t temp16_img = 0
     for i in range(number_of_records):
-        memcpy(&temp16_real, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
-        memcpy(&temp16_img, &bit_stream[pos_byte_beg + record_byte_size * i], 2)
-        buf[i] = <uint32_t>temp16_real<<32 | <uint32_t>temp16_img
+        memcpy(&buf[i, 0], &bit_stream[pos_byte_beg + record_byte_size * i], 2)
+        memcpy(&buf[i, 1], &bit_stream[pos_byte_beg + record_byte_size * i + 2], 2)
     if swap == 0:
-        return np.asarray(buf).view(dtype=np.complex_64)  # returning single instead of half precision complex
+        return buf.view(dtype=np.float16)
     else:
-        return np.asarray(buf).view(dtype=np.complex_64).byteswap()
+        return buf.view(dtype=np.float16).byteswap()
 
 cdef inline read_float(const char* bit_stream, str record_format, unsigned long long number_of_records,
         unsigned long record_byte_size, unsigned long pos_byte_beg, unsigned char swap):
@@ -490,8 +497,9 @@ cdef inline read_signed_int(const char* bit_stream, str record_format, unsigned 
     else:  # on 3 bytes
         if swap == 0:
             for i in range(number_of_records):
+                temp4byte = 0  # must zero high byte: memcpy only writes n_bytes=3, and sign_extend may have set it to 0xFF
                 memcpy(&temp4byte, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                # right shift 
+                # right shift
                 if bit_offset > 0:
                     temp4byte = temp4byte >> bit_offset
                 # mask left part
@@ -550,7 +558,8 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp8, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp8[0]<<56 | temp8[1]<<48 | temp8[2]<<40 | temp8[3]<<32 | \
+                temp8byte = <uint64_t>temp8[0]<<56 | <uint64_t>temp8[1]<<48 | \
+                            <uint64_t>temp8[2]<<40 | <uint64_t>temp8[3]<<32 | \
                             temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes
                 # right shift
                 if bit_offset > 0:
@@ -573,7 +582,7 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp7, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp7[0]<<48 | temp7[1]<<40 | temp7[2]<<32 | \
+                temp8byte = <uint64_t>temp7[0]<<48 | <uint64_t>temp7[1]<<40 | <uint64_t>temp7[2]<<32 | \
                             temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes
                 # right shift
                 if bit_offset > 0:
@@ -596,7 +605,7 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp6, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp6[0]<<40 | temp6[1]<<32 | temp6[2]<<24 | \
+                temp8byte = <uint64_t>temp6[0]<<40 | <uint64_t>temp6[1]<<32 | temp6[2]<<24 | \
                             temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes
                 # right shift
                 if bit_offset > 0:
@@ -619,7 +628,7 @@ cdef inline read_unsigned_longlong(const char* bit_stream, str record_format, un
         else:
             for i in range(number_of_records):
                 memcpy(&temp5, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp5[0]<<32 | temp5[1]<<24 | \
+                temp8byte = <uint64_t>temp5[0]<<32 | temp5[1]<<24 | \
                             temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes
                 # right shift
                 if bit_offset > 0:
@@ -669,7 +678,8 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp8, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp8[0]<<56 | temp8[1]<<48 | temp8[2]<<40 | temp8[3]<<32 | \
+                temp8byte = <uint64_t>temp8[0]<<56 | <uint64_t>temp8[1]<<48 | \
+                            <uint64_t>temp8[2]<<40 | <uint64_t>temp8[3]<<32 | \
                             temp8[4]<<24 | temp8[5]<<16 | temp8[6]<<8 | temp8[7] #  swap bytes
                 # right shift
                 if bit_offset > 0:
@@ -698,7 +708,7 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp7, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp7[0]<<48 | temp7[1]<<40 | temp7[2]<<32 | \
+                temp8byte = <uint64_t>temp7[0]<<48 | <uint64_t>temp7[1]<<40 | <uint64_t>temp7[2]<<32 | \
                             temp7[3]<<24 | temp7[4]<<16 | temp7[5]<<8 | temp7[6] #  swap bytes
                 # right shift
                 if bit_offset > 0:
@@ -727,7 +737,7 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp6, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp6[0]<<40 | temp6[1]<<32 | temp6[2]<<24 | \
+                temp8byte = <uint64_t>temp6[0]<<40 | <uint64_t>temp6[1]<<32 | temp6[2]<<24 | \
                             temp6[3]<<16 | temp6[4]<<8 | temp6[5] #  swap bytes
                 # right shift
                 if bit_offset > 0:
@@ -756,7 +766,7 @@ cdef inline read_signed_longlong(const char* bit_stream, str record_format, unsi
         else:
             for i in range(number_of_records):
                 memcpy(&temp5, &bit_stream[pos_byte_beg + record_byte_size * i], n_bytes)
-                temp8byte = temp5[0]<<32 | temp5[1]<<24 | \
+                temp8byte = <uint64_t>temp5[0]<<32 | temp5[1]<<24 | \
                             temp5[2]<<16 | temp5[3]<<8 | temp5[4] #  swap bytes
                 # right shift
                 if bit_offset > 0:
@@ -788,7 +798,7 @@ cdef inline read_array(const char* bit_stream, str record_format, unsigned long 
     cdef unsigned long long i
     cdef unsigned long pos_byte_end = pos_byte_beg + n_bytes
     for i in range(number_of_records):
-        buf[i] = np.fromstring(bit_stream[pos_byte_beg + record_byte_size * i:\
+        buf[i] = np.frombuffer(bit_stream[pos_byte_beg + record_byte_size * i:\
             pos_byte_end + record_byte_size * i], dtype=record_format)
     if swap == 0:
         return buf
@@ -842,7 +852,7 @@ def unsorted_data_read4(record, info, bytes tmp,
     cdef dict VLSD_CG_signal_data_type = {}
     cdef dict channel_name_set = {}
     for record_id in record:
-        if record[record_id]['record'].Flags & 0b1:
+        if record[record_id]['record'].Flags & 0b100001:  # VLSD (bit 0) or VLSC compact (bit 5)
             VLSD_flag[record_id] = True
             VLSD[record[record_id]['record'].VLSD_CG[record_id]['channelName']] = []
             VLSD_CG_name[record_id] = record[record_id]['record'].VLSD_CG[record_id]['channelName']
@@ -916,14 +926,15 @@ cdef inline unsorted_read4(const char* bit_stream, bytes tmp, record_id,
         memcpy(&VLSDLen, &bit_stream[position], 4)  # VLSD length
         position += 4
         signal_data_type = VLSD_CG_signal_data_type[record_id]
+        temp = bytes(bit_stream[position:position + VLSDLen - 1])  # default: raw bytes
         if signal_data_type == 6:
-            temp = bit_stream[position:position + VLSDLen - 1].decode('ISO8859')
+            temp = temp.decode('ISO8859')
         elif signal_data_type == 7:
-            temp = bit_stream[position:position + VLSDLen - 1].decode('utf-8')
+            temp = temp.decode('utf-8')
         elif signal_data_type == 8:
-            temp = bit_stream[position:position + VLSDLen - 1].decode('<utf-16')
+            temp = temp.decode('<utf-16')
         elif signal_data_type == 9:
-            temp = bit_stream[position:position + VLSDLen - 1].decode('>utf-16')
+            temp = temp.decode('>utf-16')
         VLSD[VLSD_CG_name[record_id]].append(temp)
         position += <unsigned long long> VLSDLen
     return position, buf, VLSD, index
@@ -972,7 +983,7 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block,
         if VLSDLen[rec] > max_len:
             max_len = VLSDLen[rec]
         if max_len != 0:
-            if signal_data_type < 10:
+            if signal_data_type < 10 or signal_data_type == 17:
                 if signal_data_type == 6:
                     channel_format = 'ISO8859'
                 elif signal_data_type == 7:
@@ -981,6 +992,8 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block,
                     channel_format = '<utf-16'
                 elif signal_data_type == 9:
                     channel_format = '>utf-16'
+                elif signal_data_type == 17:
+                    channel_format = 'bom'  # BOM-per-value detection
                 else:
                     channel_format = 'utf-8'
                     printf('signal_data_type should have fixed length')
@@ -1006,6 +1019,131 @@ cdef inline equalize_string_length(const char* bit_stream, unsigned long long *p
                                    unsigned long max_len, unsigned long long n_records, channel_format):
     cdef np.ndarray output = np.zeros((n_records, ), dtype='U{}'.format(max_len))
     cdef unsigned long rec = 0
-    for rec from 0 <= rec < n_records by 1:  # resize string to same length, numpy constrain
-        output[rec] = bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]].decode(channel_format).rstrip('\x00')
+    cdef bytes raw
+    if channel_format == 'bom':
+        # signal_data_type 17: detect BOM per value
+        for rec from 0 <= rec < n_records by 1:
+            raw = bytes(bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]])
+            if len(raw) >= 3 and raw[0] == 0xEF and raw[1] == 0xBB and raw[2] == 0xBF:
+                output[rec] = raw[3:].decode('utf-8', errors='replace').rstrip('\x00')
+            elif len(raw) >= 2 and raw[0] == 0xFF and raw[1] == 0xFE:
+                output[rec] = raw[2:].decode('utf-16-le', errors='replace').rstrip('\x00')
+            elif len(raw) >= 2 and raw[0] == 0xFE and raw[1] == 0xFF:
+                output[rec] = raw[2:].decode('utf-16-be', errors='replace').rstrip('\x00')
+            elif len(raw) > 0:
+                output[rec] = raw.decode('utf-8', errors='replace').rstrip('\x00')
+    else:
+        for rec from 0 <= rec < n_records by 1:  # resize string to same length, numpy constrain
+            output[rec] = bit_stream[pointer[rec]+4:pointer[rec]+4+VLSDLen[rec]].decode(channel_format).rstrip('\x00')
+    return output
+
+
+def vd_data_read(unsigned short signal_data_type, bytes vd_block,
+                 object offsets_array, object sizes_array,
+                 unsigned long long n_records):
+    """Read VLSC channel data from raw VD block bytes.
+
+    Parameters
+    ----------------
+    signal_data_type : int
+        signal data type (6=ISO-8859-1, 7=UTF-8, 8=UTF-16-LE, 9=UTF-16-BE,
+        17=BOM, 10+=byte array)
+    vd_block : bytes
+        raw VD block data (no per-value length prefix, unlike SD blocks)
+    offsets_array : numpy uint64 array
+        byte offset of each value within vd_block
+    sizes_array : numpy uint64 array
+        byte size of each value
+    n_records : int
+        number of records
+
+    Returns
+    -------
+    numpy array of decoded strings (dtype U...) or byte arrays (dtype V...)
+    """
+    cdef const char* bit_stream = PyBytes_AsString(vd_block)
+    cdef unsigned long long i
+    cdef unsigned long long offset, size
+    cdef unsigned long max_len = 0
+
+    # Find max_len from sizes
+    for i in range(n_records):
+        size = <unsigned long long> sizes_array[i]
+        if size > max_len:
+            max_len = <unsigned long> size
+
+    if max_len == 0:
+        return None
+
+    if signal_data_type < 10 or signal_data_type == 17:
+        return vd_equalize_string(bit_stream, offsets_array, sizes_array,
+                                  max_len, n_records, signal_data_type)
+    else:
+        return vd_equalize_bytes(bit_stream, offsets_array, sizes_array,
+                                 max_len, n_records)
+
+
+cdef inline vd_equalize_string(const char* bit_stream, object offsets_array, object sizes_array,
+                                unsigned long max_len, unsigned long long n_records,
+                                unsigned short signal_data_type):
+    """Decode string values from VD block using offset/size pairs."""
+    cdef np.ndarray output = np.zeros((n_records,), dtype='U{}'.format(max_len))
+    cdef unsigned long long i
+    cdef unsigned long long offset
+    cdef unsigned long size
+    cdef bytes raw
+    if signal_data_type == 6:
+        for i in range(n_records):
+            size = <unsigned long> sizes_array[i]
+            if size > 0:
+                offset = <unsigned long long> offsets_array[i]
+                output[i] = bit_stream[offset:offset+size].decode('ISO-8859-1', errors='replace').rstrip('\x00')
+    elif signal_data_type == 7:
+        for i in range(n_records):
+            size = <unsigned long> sizes_array[i]
+            if size > 0:
+                offset = <unsigned long long> offsets_array[i]
+                output[i] = bit_stream[offset:offset+size].decode('utf-8', errors='replace').rstrip('\x00')
+    elif signal_data_type == 8:
+        for i in range(n_records):
+            size = <unsigned long> sizes_array[i]
+            if size > 0:
+                offset = <unsigned long long> offsets_array[i]
+                output[i] = bit_stream[offset:offset+size].decode('utf-16-le', errors='replace').rstrip('\x00')
+    elif signal_data_type == 9:
+        for i in range(n_records):
+            size = <unsigned long> sizes_array[i]
+            if size > 0:
+                offset = <unsigned long long> offsets_array[i]
+                output[i] = bit_stream[offset:offset+size].decode('utf-16-be', errors='replace').rstrip('\x00')
+    elif signal_data_type == 17:
+        # BOM-per-value: detect encoding from BOM bytes
+        for i in range(n_records):
+            size = <unsigned long> sizes_array[i]
+            if size > 0:
+                offset = <unsigned long long> offsets_array[i]
+                raw = bytes(bit_stream[offset:offset+size])
+                if size >= 3 and raw[0] == 0xEF and raw[1] == 0xBB and raw[2] == 0xBF:
+                    output[i] = raw[3:].decode('utf-8', errors='replace').rstrip('\x00')
+                elif size >= 2 and raw[0] == 0xFF and raw[1] == 0xFE:
+                    output[i] = raw[2:].decode('utf-16-le', errors='replace').rstrip('\x00')
+                elif size >= 2 and raw[0] == 0xFE and raw[1] == 0xFF:
+                    output[i] = raw[2:].decode('utf-16-be', errors='replace').rstrip('\x00')
+                else:
+                    output[i] = raw.decode('utf-8', errors='replace').rstrip('\x00')
+    return output
+
+
+cdef inline vd_equalize_bytes(const char* bit_stream, object offsets_array, object sizes_array,
+                               unsigned long max_len, unsigned long long n_records):
+    """Return byte-array values from VD block using offset/size pairs."""
+    cdef np.ndarray output = np.zeros((n_records,), dtype='V{}'.format(max_len))
+    cdef unsigned long long i
+    cdef unsigned long long offset
+    cdef unsigned long size
+    for i in range(n_records):
+        size = <unsigned long> sizes_array[i]
+        if size > 0:
+            offset = <unsigned long long> offsets_array[i]
+            output[i] = bytearray(bit_stream[offset:offset+size]).rjust(max_len, b'\x00')
     return output
