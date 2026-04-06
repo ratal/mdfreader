@@ -14,8 +14,6 @@ jobs:
         env:
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_ARCHS: x86_64 arm64
-          CIBW_BEFORE_BUILD: pip install setuptools numpy cython
-          CIBW_BUILD_FRONTEND: "pip; args: --no-build-isolation"
           CIBW_TEST_COMMAND: python -c "import mdfreader"
       - uses: actions/upload-artifact@v4
         with:
@@ -35,5 +33,5 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
-          pip install twine
+          pip install twine "packaging>=24.2"
           twine upload dist/* --skip-existing
