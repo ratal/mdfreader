@@ -18,7 +18,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          pip install "setuptools>=68,<76" numpy cython lxml sympy pytest
+          pip install setuptools numpy cython lxml sympy pytest
           python setup.py build_ext --inplace
           pip install -e ".[export]"
       - name: Run tests
