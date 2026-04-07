@@ -33,6 +33,12 @@ from lxml import objectify
 from .mdf import _open_mdf, dataField, descriptionField, unitField, \
     masterField, masterTypeField, idField, _convert_name
 
+try:
+    from dataRead import SymBufReader as _SymBufReader
+    _SYMBUF_AVAILABLE = True
+except ImportError:
+    _SYMBUF_AVAILABLE = False
+
 # datatypes
 _LINK = '<Q'
 _REAL = '<d'
@@ -1793,10 +1799,10 @@ class DZBlock(dict):
             M = org_data_length // zip_parameter
             aligned = M * zip_parameter
             tail = block[aligned:]
-            # frombuffer avoids a copy; .T.copy() materialises the transposed layout
-            transposed = frombuffer(block[:aligned], dtype='u1').reshape(zip_parameter, M).T.copy()
+            # reshape as (zip_parameter, M), use Fortran-contiguous copy to get row-major of transpose
+            arr = frombuffer(block[:aligned], dtype='u1').reshape(zip_parameter, M)
             del block
-            block = (transposed.tobytes() + bytes(tail)) if tail else transposed.tobytes()
+            block = (arr.T.tobytes() + bytes(tail)) if tail else arr.T.tobytes()
         return block
 
     def write(self, fid, data, record_length):
@@ -1902,7 +1908,7 @@ class HLBlock(dict):
 
 
 class Info4(dict):
-    __slots__ = ['fileName', 'fid', 'filterChannelNames', 'zipfile']
+    __slots__ = ['fileName', 'fid', 'filterChannelNames', 'zipfile', '_si_cache']
     """ information block parser fo MDF file version 4.x
 
     Attributes
@@ -1961,6 +1967,7 @@ class Info4(dict):
         self['AT'] = {}  # Attachment block
         self['allChannelList'] = set()  # all channels
         self['masters'] = dict()  # channels grouped by master
+        self._si_cache = {}  # SI block cache: pointer → dict
         self.filterChannelNames = filter_channel_names
         self.fileName = file_name
         self.fid = None
@@ -1968,14 +1975,16 @@ class Info4(dict):
             # Open file
             (self.fid, self.fileName, self.zipfile) = _open_mdf(self.fileName)
         if self.fileName is not None and fid is None:
-            self.read_info(self.fid, minimal)
+            reader = _SymBufReader(self.fid) if _SYMBUF_AVAILABLE else self.fid
+            self.read_info(reader, minimal)
             # Close the file
             self.fid.close()
             if self.zipfile:  # temporary uncompressed file, to be removed
                 remove(file_name)
         elif self.fileName is None and fid is not None:
             # called by mdfreader.mdfinfo
-            self.read_info(fid, minimal)
+            reader = _SymBufReader(fid) if _SYMBUF_AVAILABLE else fid
+            self.read_info(reader, minimal)
 
     def read_info(self, fid, minimal):
         """ read all file blocks except data
@@ -2252,12 +2261,15 @@ class Info4(dict):
             fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
         if not channel_name_list:
             if not minimal:
-                # reads Channel Source Information
-                temp = SIBlock()
-                temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                if temp:
-                    self['CN'][dg][cg][cn]['SI'] = dict()
-                    self['CN'][dg][cg][cn]['SI'].update(temp)
+                # reads Channel Source Information (cached by pointer to avoid duplicate file reads)
+                si_pointer = self['CN'][dg][cg][cn]['cn_si_source']
+                if si_pointer and si_pointer not in self._si_cache:
+                    temp = SIBlock()
+                    temp.read_si(fid, si_pointer)
+                    self._si_cache[si_pointer] = dict(temp) if temp else None
+                cached_si = self._si_cache.get(si_pointer)
+                if cached_si:
+                    self['CN'][dg][cg][cn]['SI'] = dict(cached_si)
 
             # keep original non unique channel name
             self['CN'][dg][cg][cn]['orig_name'] = self['CN'][dg][cg][cn]['name']

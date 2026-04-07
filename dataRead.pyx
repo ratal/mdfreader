@@ -9,6 +9,95 @@ from cpython.bytes cimport PyBytes_AsString
 from libc.string cimport memcpy
 cimport cython
 
+# ──────────────────────────────────────────────────────────────────────────────
+# SymBufReader — bidirectional-buffered file reader
+#
+# MDF4 metadata blocks are linked by absolute file pointers that often point
+# *backward* in the file (blocks are written newest-first). Python's default
+# BufferedReader fills its buffer forward, so every backward seek past the
+# buffer start forces a new read syscall. This class mirrors the Rust mdfr
+# SymBufReader: it keeps a fixed C-level buffer filled *centred* on the current
+# position, so backward seeks within BUFSIZE/2 are served from cache.
+# ──────────────────────────────────────────────────────────────────────────────
+
+DEF SYM_BUF_SIZE = 65536   # 64 KB — same default as Rust SymBufReader
+
+cdef class SymBufReader:
+    """Bidirectional-buffered wrapper around a Python file object.
+
+    Drop-in replacement for any ``fid`` used in mdfreader metadata parsing:
+    supports ``seek(pos[, whence])``, ``read([n])``, ``tell()``, ``fileno()``.
+    """
+    cdef object _fid                          # underlying Python file
+    cdef unsigned char _buf[SYM_BUF_SIZE]     # C-level buffer (no GC pressure)
+    cdef Py_ssize_t _buf_start                # file offset of _buf[0]
+    cdef Py_ssize_t _buf_len                  # valid bytes currently in _buf
+    cdef Py_ssize_t _pos                      # logical file position (cursor)
+
+    def __init__(self, fid):
+        self._fid = fid
+        self._buf_start = 0
+        self._buf_len = 0
+        self._pos = 0
+
+    cdef int _fill(self, Py_ssize_t pos) except -1:
+        """Refill _buf centred on pos, reading from the underlying file."""
+        cdef Py_ssize_t start = pos - (SYM_BUF_SIZE >> 1)
+        cdef bytes raw
+        cdef Py_ssize_t n
+        if start < 0:
+            start = 0
+        self._fid.seek(start)
+        raw = self._fid.read(SYM_BUF_SIZE)
+        n = len(raw)
+        memcpy(self._buf, <const unsigned char*>raw, n)
+        self._buf_start = start
+        self._buf_len = n
+        return 0
+
+    def seek(self, Py_ssize_t pos, int whence=0):
+        """Update logical cursor; does NOT touch the underlying file."""
+        if whence == 0:
+            self._pos = pos
+        elif whence == 1:
+            self._pos += pos
+        else:   # whence == 2 (from end)
+            self._fid.seek(0, 2)
+            self._pos = self._fid.tell() + pos
+        return self._pos
+
+    def tell(self):
+        return self._pos
+
+    def read(self, Py_ssize_t n=-1):
+        """Return up to n bytes from the current position (or all if n<0)."""
+        cdef Py_ssize_t pos = self._pos
+        cdef Py_ssize_t buf_end, offset, available, end
+        buf_end = self._buf_start + self._buf_len
+        # Fast path: serve directly from buffer
+        if self._buf_len > 0 and self._buf_start <= pos < buf_end:
+            offset = pos - self._buf_start
+            available = self._buf_len - offset
+            if n < 0 or available >= n:
+                end = offset + (n if n >= 0 else available)
+                data = bytes(self._buf[offset:end])
+                self._pos += len(data)
+                return data
+        # Buffer miss: refill centred on pos, then serve
+        self._fill(pos)
+        offset = pos - self._buf_start
+        if offset >= self._buf_len:
+            return b''
+        available = self._buf_len - offset
+        end = offset + (n if n >= 0 else available)
+        data = bytes(self._buf[offset:end])
+        self._pos += len(data)
+        return data
+
+    def fileno(self):
+        return self._fid.fileno()
+
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def sorted_data_read(bytes tmp, unsigned short bit_count,
