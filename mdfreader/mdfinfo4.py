@@ -39,6 +39,12 @@ try:
 except ImportError:
     _SYMBUF_AVAILABLE = False
 
+try:
+    from dataRead import read_cn_chain_fast as _read_cn_chain_fast
+    _CN_CHAIN_FAST = True
+except ImportError:
+    _CN_CHAIN_FAST = False
+
 # datatypes
 _LINK = '<Q'
 _REAL = '<d'
@@ -2192,6 +2198,148 @@ class Info4(dict):
         if not self['CG'][dg][cg]['cg_cn_first']:  # empty CG (no channels)
             self['CG'][dg][cg]['unique_channel_in_CG'] = True
             return vlsd
+
+        # ── Fast Cython path (pread + C structs) ─────────────────────────────
+        if _CN_CHAIN_FAST and hasattr(fid, 'fileno'):
+            try:
+                results = _read_cn_chain_fast(
+                    fid, self['CG'][dg][cg]['cg_cn_first'],
+                    self._si_cache, minimal, channel_name_list)
+            except Exception:
+                results = None
+
+            if results is not None:
+                self['CG'][dg][cg]['unique_channel_in_CG'] = (len(results) == 1)
+
+                # Store all CN/CC dicts
+                for cn, cn_dict, cc_dict in results:
+                    self['CN'][dg][cg][cn] = cn_dict
+                    self['CC'][dg][cg][cn] = cc_dict
+
+                # Post-process each channel
+                for cn, cn_dict, cc_dict in results:
+                    # Track MLSD channels
+                    if cn_dict['cn_type'] == 5:
+                        mlsd_channels.append(cn)
+
+                    # Complete CC blocks for complex conversion types
+                    if cc_dict.get('_needs_completion'):
+                        full_cc = CCBlock()
+                        full_cc.read_cc(fid, cn_dict['cn_cc_conversion'])
+                        self['CC'][dg][cg][cn] = full_cc
+
+                    if not channel_name_list:
+                        # Make channel name unique
+                        cn_dict['orig_name'] = cn_dict['name']
+                        cn_dict['name'] = self._unique_channel_name(
+                            fid, cn_dict['name'], dg, cg, cn)
+                        if self.filterChannelNames:
+                            cn_dict['name'] = cn_dict['name'].split('.')[-1]
+
+                        # Handle composition blocks (CA, CN, DS, CL, CV, CU)
+                        if cn_dict['cn_composition']:
+                            fid.seek(cn_dict['cn_composition'])
+                            block_id = fid.read(4)
+                            if block_id in ('##CA', b'##CA'):
+                                cn_dict['CABlock'] = CABlock()
+                                cn_dict['CABlock'].read(fid, cn_dict['cn_composition'])
+                            elif block_id in ('##CN', b'##CN'):
+                                cn_upper = cn
+                                cn_next_upper = cn_dict['cn_cn_next']
+                                cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                    fid, cn_dict['cn_composition'], dg, cg,
+                                    mlsd_channels, vlsd, minimal, channel_name_list)
+                                while self['CN'][dg][cg][cn_c]['cn_cn_next']:
+                                    cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                        fid, self['CN'][dg][cg][cn_c]['cn_cn_next'],
+                                        dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+                                # Restore upper node
+                                cn_dict['cn_cn_next'] = cn_next_upper
+                            elif block_id in (b'##DS',):
+                                block = DSBlock()
+                                block.read(fid, cn_dict['cn_composition'])
+                                cn_dict['DSBlock'] = block
+                                if block['ds_cn_composition']:
+                                    cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                        fid, block['ds_cn_composition'], dg, cg,
+                                        mlsd_channels, vlsd, minimal, channel_name_list)
+                                    while self['CN'][dg][cg][cn_c]['cn_cn_next']:
+                                        cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                            fid, self['CN'][dg][cg][cn_c]['cn_cn_next'],
+                                            dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+                            elif block_id in (b'##CL',):
+                                block = CLBlock()
+                                block.read(fid, cn_dict['cn_composition'])
+                                cn_dict['CLBlock'] = block
+                                if block['cl_composition']:
+                                    cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                        fid, block['cl_composition'], dg, cg,
+                                        mlsd_channels, vlsd, minimal, channel_name_list)
+                                    while self['CN'][dg][cg][cn_c]['cn_cn_next']:
+                                        cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                            fid, self['CN'][dg][cg][cn_c]['cn_cn_next'],
+                                            dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+                            elif block_id in (b'##CV',):
+                                block = CVBlock()
+                                block.read(fid, cn_dict['cn_composition'])
+                                cn_dict['CVBlock'] = block
+                                for ptr in ([block['cv_cn_discriminator']] + block['cv_cn_option']):
+                                    if ptr:
+                                        self.read_cn_block(fid, ptr, dg, cg,
+                                                           mlsd_channels, vlsd, minimal,
+                                                           channel_name_list, use_negative_key=True)
+                            elif block_id in (b'##CU',):
+                                block = CUBlock()
+                                block.read(fid, cn_dict['cn_composition'])
+                                cn_dict['CUBlock'] = block
+                                for ptr in block['cu_cn_member']:
+                                    if ptr:
+                                        self.read_cn_block(fid, ptr, dg, cg,
+                                                           mlsd_channels, vlsd, minimal,
+                                                           channel_name_list, use_negative_key=True)
+
+                        # Handle VLSD / MLSD / VLSC via cn_data
+                        if cn_dict['cn_data']:
+                            fid.seek(cn_dict['cn_data'])
+                            data_id = fid.read(4)
+                            if cn_dict['cn_type'] == 1:
+                                if data_id in ('##SD', b'##SD', '##DZ', b'##DZ',
+                                               '##DL', b'##DL', '##HL', b'##HL'):
+                                    try:
+                                        self['VLSD'][dg][cg].append(cn)
+                                    except KeyError:
+                                        if 'VLSD' not in self:
+                                            self['VLSD'] = {}
+                                        if dg not in self['VLSD']:
+                                            self['VLSD'][dg] = {}
+                                        if cg not in self['VLSD'][dg]:
+                                            self['VLSD'][dg][cg] = []
+                                        self['VLSD'][dg][cg].append(cn)
+                            elif cn_dict['cn_type'] == 7:
+                                extra_links = cn_dict.get('cn_default_x')
+                                if extra_links:
+                                    size_link = extra_links[0] if isinstance(extra_links, list) else extra_links
+                                    cn_dict['cn_cn_size'] = size_link
+                                cn_dict['VLSC'] = True
+                            if not minimal and data_id in ('##EV', b'##EV'):
+                                cn_dict['cn_data'] = self.read_ev_block(
+                                    fid, cn_dict['cn_data'])
+
+                # MLSD cross-reference
+                if mlsd_channels:
+                    if 'MLSD' not in self:
+                        self['MLSD'] = {}
+                    if dg not in self['MLSD']:
+                        self['MLSD'][dg] = {}
+                    self['MLSD'][dg][cg] = {}
+                for MLSDcn in mlsd_channels:
+                    for cn_k in self['CN'][dg][cg]:
+                        if self['CN'][dg][cg][cn_k]['pointer'] == self['CN'][dg][cg][MLSDcn]['cn_data']:
+                            self['MLSD'][dg][cg][MLSDcn] = cn_k
+                            break
+                return vlsd
+
+        # ── Python fallback path ──────────────────────────────────────────────
         cn, mlsd_channels, vlsd = self.read_cn_block(fid, self['CG'][dg][cg]['cg_cn_first'],
                                                      dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
         if not self['CN'][dg][cg][cn]['cn_cn_next']:  # only one channel in CGBlock
