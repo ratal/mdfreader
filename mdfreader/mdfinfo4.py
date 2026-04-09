@@ -1,12 +1,43 @@
 # -*- coding: utf-8 -*-
-""" Measured Data Format blocks parser for version 4.x
-
-Created on Sun Dec 15 12:57:28 2013
+"""MDF4 block structure parser (version 4.x).
 
 :Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
 
-mdfinfo4
---------------------------
+This module parses the *metadata* of MDF 4.x files — all block types
+(HD, DG, CG, CN, CC, SI, TX, MD, AT, EV, …) — and stores them in a
+nested ``Info4`` dict.  It does **not** read channel sample data; that
+is handled by ``mdf4reader.py``.
+
+Architecture
+------------
+The module provides two reading paths for the CN/CC/SI/TX hot path:
+
+**Fast path (Cython, default when compiled)**
+    ``read_cn_chain_fast()`` from ``dataRead.pyx`` walks the full CN
+    linked list for a channel group in a single C-level loop using
+    POSIX ``pread()`` for all file I/O (no Python file-object dispatch,
+    no GIL during reads).  Struct fields are extracted with ``memcpy``
+    into typed C packed structs.  TX/MD block text is decoded with a
+    fast ``<TX>…</TX>`` bytes scan before falling back to ``lxml``.
+    The SI block cache (``_si_cache``) prevents redundant reads when
+    multiple channels share the same source.
+
+**Python fallback path**
+    ``read_cn_block()`` / ``read_cn_blocks()`` use ``struct.unpack``
+    and the ``SymBufReader`` bidirectional file buffer.  This path is
+    used when ``dataRead`` is not compiled or when the file object has
+    no ``fileno()`` (e.g. an in-memory buffer).
+
+Key classes
+-----------
+``Info4``
+    Top-level parser.  Inherits from ``dict``; call
+    ``Info4(file_name)`` to fully parse a file.
+``CNBlock``, ``CCBlock``, ``SIBlock``, ``CommentBlock``
+    Individual block parsers used by the Python fallback path.
+``DSBlock``, ``CLBlock``, ``CVBlock``, ``CUBlock``
+    MDF 4.3 composition block parsers (data-stream, channel-list,
+    channel-variant, channel-union).
 """
 from struct import calcsize, unpack, pack, Struct
 from os import remove
@@ -1914,33 +1945,62 @@ class HLBlock(dict):
 
 
 class Info4(dict):
-    __slots__ = ['fileName', 'fid', 'filterChannelNames', 'zipfile', '_si_cache']
-    """ information block parser fo MDF file version 4.x
+    """MDF4 file structure parser — nested dict of all metadata blocks.
+
+    Parses the complete block graph of an MDF 4.x file and stores the
+    result as a nested ``dict``.  Either *file_name* or *fid* must be
+    provided.
 
     Attributes
-    --------------
-    file_name : str
-        name of file
-    fid
-        file identifier
-    zipfile
-        flag to indicate the mdf4 is packaged in a zip
+    ----------
+    fileName : str
+        Path to the MDF file.
+    fid : file object
+        Underlying binary file identifier (``None`` after the constructor
+        closes it when opened from *file_name*).
+    filterChannelNames : bool
+        Strip module-name prefix (everything up to the last ``'.'``) from
+        channel names when ``True``.
+    zipfile : bool
+        ``True`` when the MDF was stored inside a ZIP archive (the file is
+        temporarily extracted and deleted after parsing).
+    _si_cache : dict
+        File-offset → SI block dict cache shared across all channel reads
+        within one file.  Prevents redundant ``pread()`` calls for sources
+        referenced by many channels.
 
-    Notes
-    --------
-    mdfinfo(FILENAME) contains a dict of structures, for
-    each data group, containing key information about all channels in each
-    group. FILENAME is a string that specifies the name of the MDF file.
-    Either file name or fid should be given.
-    General dictionary structure is the following
+    Dictionary layout
+    -----------------
+    After construction the object exposes the following keys:
 
-    - mdfinfo['HD'] header block
-    - mdfinfo['DG'][dataGroup] Data Group block
-    - mdfinfo['CG'][dataGroup][channelGroup] Channel Group block
-    Channel block including text blocks for comment and identifier
-    - mdfinfo['CN'][dataGroup][channelGroup][channel]
-    Channel conversion information
-    - mdfinfo['CC'][dataGroup][channelGroup][channel]"""
+    ``self['HD']``
+        Header block dict.
+    ``self['DG'][dg]``
+        Data Group block dict, keyed by integer data-group index *dg*.
+    ``self['CG'][dg][cg]``
+        Channel Group block dict, keyed by (*dg*, *cg*).
+    ``self['CN'][dg][cg][cn]``
+        Channel block dict.  The key *cn* is
+        ``cn_byte_offset * 8 + cn_bit_offset`` for normal channels, or
+        ``-pointer`` for channels with flag ``CN_F_DATA_STREAM_MODE``.
+    ``self['CC'][dg][cg][cn]``
+        Channel Conversion block dict for the same channel.
+    ``self['AT']``
+        Attachment block dict.
+    ``self['VLSD'][dg][cg]``
+        List of *cn* keys whose data is stored as Variable Length Signal Data.
+    ``self['VLSD_CG'][record_id]``
+        Mapping from VLSD CG record ID to ``{'cg_cn': (cg, cn)}``.
+    ``self['MLSD'][dg][cg]``
+        Dict mapping MLSD channel key to the corresponding signal-data CN key.
+    ``self['masters']``
+        Dict of master-channel pointer → ``{'name': str, 'channels': set}``.
+    ``self['allChannelList']``
+        Set of all unique channel names across all data groups.
+    ``self['ChannelNamesByDG'][dg]``
+        Set of channel names within data group *dg* (used for deduplication).
+    """
+    __slots__ = ['fileName', 'fid', 'filterChannelNames', 'zipfile', '_si_cache']
 
     def __init__(self, file_name=None, fid=None, filter_channel_names=False, minimal=0):
         """ info4 class constructor

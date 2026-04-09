@@ -100,88 +100,133 @@ cdef class SymBufReader:
 
 
 # ─── MDF4 fast metadata reader (pread + C structs) ────────────────────────────
-# Replaces the Python struct.unpack + fid.seek/read hot path for CN/CC/SI/TX.
-# Uses POSIX pread() to eliminate Python file-object dispatch overhead and
-# a fast <TX>...</TX> bytes scan to avoid lxml for the common case.
+#
+# Goal: replace the Python struct.unpack + fid.seek/read hot path for the
+# CN/CC/SI/TX block chain with a single Cython function that eliminates all
+# Python overhead in the metadata-reading loop.
+#
+# Key techniques:
+#   pread()      — POSIX atomic offset read; no seek, no GIL, no Python
+#                  file-object dispatch (~575 k calls eliminated for a 36 k
+#                  channel file).
+#   memcpy/cast  — fields extracted directly from the raw buffer into C
+#                  packed-struct variables; no struct.unpack tuple allocation.
+#   <TX> scan    — fast bytes.find() scan for the common MD block pattern
+#                  (<CNcomment><TX>…</TX></CNcomment>), replacing lxml for
+#                  >95% of files.  lxml is used only for CDATA / namespaces.
+#   SI cache     — SI blocks are cached by file offset in _si_cache so that
+#                  shared sources (e.g., CAN bus) are read only once.
+#
+# Design constraints:
+#   • CC val/ref for cc_type 3/7-11 (formula, text-table, tab conversions)
+#     are left for the Python CCBlock.read_cc() path — they are rare and
+#     involve variable-length link arrays not worth the complexity.
+#   • Composition blocks (CA/CN/DS/CL/CV/CU) are post-processed in Python
+#     because they are recursive and apply only to a minority of channels.
+#   • _unique_channel_name() remains in Python — it requires full Info4
+#     context (allChannelList, ChannelNamesByDG) and cannot be parallelised.
 # ──────────────────────────────────────────────────────────────────────────────
 
 _SI_TYPE_MAP = {0: 'OTHER', 1: 'ECU', 2: 'BUS', 3: 'I/O', 4: 'TOOL', 5: 'USER'}
 _SI_BUS_MAP  = {0: 'NONE', 1: 'OTHER', 2: 'CAN', 3: 'LIN',
                 4: 'MOST', 5: 'FLEXRAY', 6: 'K_LINE', 7: 'ETHERNET', 8: 'USB'}
 
-# C struct layout matching on-disk MDF4 little-endian packed format.
-# All structs are packed (no padding) to match the binary layout.
+# C struct layout matching the on-disk MDF4 little-endian packed format.
+# All structs are declared ``packed`` so that Cython/GCC adds no padding.
+# Field names match the ASAM MDF4 specification (section 4.x, Table n).
+#
+# Reading strategy:
+#   1. pread(fd, &struct, sizeof(struct), file_offset)  — reads header
+#   2. data section offset = 24 + link_count * 8         — past link section
+#   3. pread(fd, &data_struct, sizeof(data_struct), offset + data_offset)
 
-cdef packed struct _CNFixedHdr:  # 88 bytes: 24-byte header + 8 standard links
-    char     id[4]
-    uint32_t reserved
-    uint64_t length
-    uint64_t link_count
-    uint64_t cn_cn_next
-    uint64_t cn_composition
-    uint64_t cn_tx_name
-    uint64_t cn_si_source
-    uint64_t cn_cc_conversion
-    uint64_t cn_data
-    uint64_t cn_md_unit
-    uint64_t cn_md_comment
+# _CNFixedHdr — 88 bytes: 24-byte common header + 8 standard CN link fields.
+# Extra links (attachments, default-X) follow at offset 88 when link_count > 8.
+cdef packed struct _CNFixedHdr:
+    char     id[4]           # b'##CN'
+    uint32_t reserved        # padding (0)
+    uint64_t length          # total block length in bytes
+    uint64_t link_count      # number of links in link section (≥8)
+    # Standard links (offsets 24–87):
+    uint64_t cn_cn_next      # next CN block in channel group (0 = last)
+    uint64_t cn_composition  # composition block (CA/CN/DS/CL/CV/CU) or 0
+    uint64_t cn_tx_name      # TX block with channel name
+    uint64_t cn_si_source    # SI block for signal source (0 if none)
+    uint64_t cn_cc_conversion # CC block for value conversion (0 = identity)
+    uint64_t cn_data         # signal data block (SD/DZ/HL/DL/CG) or 0
+    uint64_t cn_md_unit      # TX/MD block with physical unit (0 if none)
+    uint64_t cn_md_comment   # TX/MD block with channel comment (0 if none)
 
-cdef packed struct _CNData:  # 72 bytes data section
-    uint8_t  cn_type
-    uint8_t  cn_sync_type
-    uint8_t  cn_data_type
-    uint8_t  cn_bit_offset
-    uint32_t cn_byte_offset
-    uint32_t cn_bit_count
-    uint32_t cn_flags
-    uint32_t cn_invalid_bit_pos
-    uint8_t  cn_precision
+# _CNData — 72 bytes: data section located at offset 24 + link_count*8.
+cdef packed struct _CNData:
+    uint8_t  cn_type           # 0=fixed-length, 1=VLSD, 2=master,
+                               # 3=virtual master, 4=sync, 5=MLSD,
+                               # 6=virtual data, 7=VLSC (MDF 4.3)
+    uint8_t  cn_sync_type      # 0=none, 1=time, 2=angle, 3=distance, 4=index
+    uint8_t  cn_data_type      # 0-15, see ASAM MDF4 spec §4.18.2
+    uint8_t  cn_bit_offset     # bit start position within first byte (0-7)
+    uint32_t cn_byte_offset    # byte start position within the record
+    uint32_t cn_bit_count      # total bit width of channel in the record
+    uint32_t cn_flags          # bitmask; bit 17 (0x20000) = CN_F_DATA_STREAM_MODE
+    uint32_t cn_invalid_bit_pos # bit position of invalidation flag in the record
+    uint8_t  cn_precision      # display decimal precision (0xFF = default)
     uint8_t  cn_reserved
-    uint16_t cn_attachment_count
-    double   cn_val_range_min
-    double   cn_val_range_max
-    double   cn_limit_min
-    double   cn_limit_max
-    double   cn_limit_ext_min
-    double   cn_limit_ext_max
+    uint16_t cn_attachment_count # number of AT attachment references
+    double   cn_val_range_min  # raw (record) value range minimum
+    double   cn_val_range_max  # raw (record) value range maximum
+    double   cn_limit_min      # physical limit minimum
+    double   cn_limit_max      # physical limit maximum
+    double   cn_limit_ext_min  # extended limit minimum
+    double   cn_limit_ext_max  # extended limit maximum
 
-cdef packed struct _CCFixedHdr:  # 56 bytes: 24-byte header + 4 standard links
-    char     id[4]
+# _CCFixedHdr — 56 bytes: 24-byte header + 4 standard CC link fields.
+# Additional cc_ref links follow at offset 56 when link_count > 4.
+cdef packed struct _CCFixedHdr:
+    char     id[4]           # b'##CC'
     uint32_t reserved
     uint64_t length
-    uint64_t link_count
-    uint64_t cc_tx_name
-    uint64_t cc_md_unit
-    uint64_t cc_md_comment
-    uint64_t cc_cc_inverse
+    uint64_t link_count      # number of links (≥4)
+    uint64_t cc_tx_name      # TX block with conversion name (0 if none)
+    uint64_t cc_md_unit      # TX/MD block with unit (0 if none)
+    uint64_t cc_md_comment   # TX/MD block with comment (0 if none)
+    uint64_t cc_cc_inverse   # inverse CC block (0 if none)
 
-cdef packed struct _CCData:  # 24 bytes data section
-    uint8_t  cc_type
-    uint8_t  cc_precision
-    uint16_t cc_flags
-    uint16_t cc_ref_count
-    uint16_t cc_val_count
+# _CCData — 24 bytes: data section at offset 24 + link_count*8.
+# cc_val doubles and cc_ref links follow after this section.
+cdef packed struct _CCData:
+    uint8_t  cc_type         # 0=identity, 1=linear, 2=rational, 3=formula,
+                             # 4=tab-interp, 5=tab, 6=range→value,
+                             # 7=value→text, 8=range→text, 9=text→value,
+                             # 10=text→text, 11=bitfield-text
+    uint8_t  cc_precision    # decimal places for display (0xFF = inherit from CN)
+    uint16_t cc_flags        # bitmask
+    uint16_t cc_ref_count    # number of cc_ref links beyond the 4 standard links
+    uint16_t cc_val_count    # number of cc_val double entries
     double   cc_phy_range_min
     double   cc_phy_range_max
 
-cdef packed struct _SIBlock:  # 56 bytes total (header + 3 links + data)
-    char     id[4]
+# _SIBlock — 56 bytes total: 24-byte header + 3 link fields + 8 data bytes.
+cdef packed struct _SIBlock:
+    char     id[4]           # b'##SI'
     uint32_t reserved
     uint64_t length
-    uint64_t link_count
-    uint64_t si_tx_name
-    uint64_t si_tx_path
-    uint64_t si_md_comment
-    uint8_t  si_type
-    uint8_t  si_bus_type
-    uint8_t  si_flags
+    uint64_t link_count      # always 3
+    uint64_t si_tx_name      # TX block with source name
+    uint64_t si_tx_path      # TX block with source path
+    uint64_t si_md_comment   # MD/TX block with comment
+    uint8_t  si_type         # 0=OTHER, 1=ECU, 2=BUS, 3=I/O, 4=TOOL, 5=USER
+    uint8_t  si_bus_type     # 0=NONE, 1=OTHER, 2=CAN, 3=LIN, 4=MOST,
+                             # 5=FLEXRAY, 6=K_LINE, 7=ETHERNET, 8=USB
+    uint8_t  si_flags        # bit 0 = simulated source
     char     si_reserved[5]
 
-cdef packed struct _TXHdr:  # 24 bytes
-    char     id[4]
+# _TXHdr — 24-byte common header shared by TX (plain text) and MD (XML) blocks.
+# The text/XML payload immediately follows at offset 24.
+cdef packed struct _TXHdr:
+    char     id[4]           # b'##TX' (plain text) or b'##MD' (XML)
     uint32_t reserved
-    uint64_t length
-    uint64_t link_count
+    uint64_t length          # total block length in bytes (header + payload)
+    uint64_t link_count      # always 0 for TX/MD
 
 
 cdef str _fast_read_tx(int fd, uint64_t pointer):
@@ -219,11 +264,21 @@ cdef str _fast_read_tx(int fd, uint64_t pointer):
 
 
 cdef str _fast_read_tx_or_md(int fd, uint64_t pointer):
-    """Read TX or MD block via pread.
+    """Read a TX or MD block and return its text content.
 
-    TX blocks: return text directly.
-    MD blocks: fast <TX>...</TX> bytes scan (covers >95% of real MDF4 files).
-    Returns '' if pointer is 0, read fails, or scan finds no TX element.
+    TX blocks
+        The payload bytes are decoded directly as UTF-8 (ignoring errors)
+        and returned after stripping trailing null bytes.
+
+    MD blocks (XML)
+        A fast ``bytes.find()`` scan looks for ``<TX>…</TX>`` in the raw
+        payload.  This handles the standard ``<CNcomment><TX>…</TX></CNcomment>``
+        and ``<CNunit><TX>…</TX></CNunit>`` patterns that cover >95% of
+        real MDF4 files.  If the scan fails (CDATA sections, namespace
+        prefixes, nested elements), the full payload is passed to
+        ``lxml.objectify`` as a fallback.
+
+    Returns '' if *pointer* is 0, the read fails, or no TX text is found.
     """
     cdef _TXHdr hdr
     cdef Py_ssize_t content_len, nread, tx_start, tx_end, end
@@ -289,9 +344,16 @@ cdef str _fast_read_tx_or_md(int fd, uint64_t pointer):
 
 
 cdef dict _fast_read_si(int fd, uint64_t pointer):
-    """Read SI block and return a dict matching the SIBlock format.
+    """Read an SI block and return a dict matching the ``SIBlock`` Python format.
 
-    Returns None if pointer is 0 or read fails.
+    The returned dict contains the same keys as ``SIBlock.read_si()`` would
+    produce, so it can be stored directly in ``info._si_cache`` and later
+    assigned to ``info['CN'][dg][cg][cn]['SI']``.
+
+    The ``source_name`` and ``source_path`` sub-dicts are populated by reading
+    the linked TX blocks via :func:`_fast_read_tx`.
+
+    Returns ``None`` if *pointer* is 0 or the pread fails.
     """
     cdef _SIBlock si
     cdef Py_ssize_t nread
