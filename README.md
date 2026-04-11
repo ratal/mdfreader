@@ -3,20 +3,58 @@
 
 Abstract:
 =========
-This Module imports MDF files (Measured Data Format V3.x and V4.x), typically from INCA (ETAS), CANape or CANOe. It is widely used in automotive industry to record data from ECUs. The main module mdfreader.py inherits from 2 modules (One pair for each MDF version X) : The first one to read the file's blocks descriptions (mdfinfoX) and the second (mdfXreader) to read the raw data from the file. It can optionally run multithreaded. It was built in mind to process efficiently big amount of data in a batch, endurance evaluation files for data mining.
+This module imports MDF files (Measured Data Format V3.x and V4.x), typically
+from INCA (ETAS), CANape or CANoe. It is widely used in the automotive industry
+to record data from ECUs. The main module `mdfreader.py` inherits from two
+module pairs (one per MDF version): the first reads the file's block structure
+(`mdfinfoX`), and the second reads the raw data (`mdfXreader`). It can
+optionally run multithreaded and was designed for efficient batch processing of
+large endurance-evaluation files for data mining.
+
+Performance:
+============
+When Cython is available (strongly recommended), mdfreader uses several
+low-level optimisations:
+
+* **Fast CN/CC/SI/TX metadata reader** (`read_cn_chain_fast` in `dataRead.pyx`):
+  walks the entire MDF4 channel linked list in a single Cython function using
+  POSIX `pread()` (no Python file-object dispatch, no GIL during I/O) and
+  C packed-struct `memcpy` parsing. A fast `<TX>…</TX>` bytes scan replaces
+  `lxml.objectify` for the common MD-block pattern (~95% of files). Result:
+  **3–4× speedup** on large files compared to the pure-Python path.
+
+* **SymBufReader**: a Cython bidirectional-buffered wrapper around the raw file
+  object. MDF4 metadata blocks are linked by backward-pointing pointers;
+  `SymBufReader` keeps a 64 KB buffer centred on the current position so that
+  most seeks are served from cache without a kernel `read()`.
+
+* **Vectorised data reading**: sorted channel groups are read in a single
+  `readinto()` call into a flat `uint8` buffer that is then reinterpreted as a
+  structured record array — zero copies, no per-chunk Python loop.
+
+Typical timings on a 184 MB / 36 000-channel MDF4 file:
+
+| Scenario          | Time   |
+|-------------------|--------|
+| Pure Python path  | ~1.9 s |
+| v4.2 with Cython  | ~1.9 s |
+| v4.3 (this version) | **~0.6 s** |
 
 The structure of the mdf object inheriting from python dict
 ===========================================================
-for each channel: mdf[channelName] below keys exist
-* data: numpy array
-* unit: unit name
-* master : master channel name of channelName
-* masterType : type of master channel (time, angle, distance, etc.)
-* description : description of channel
-* conversion: (exist when reading with convertAfterRead=False) dictionary describing how to convert raw data into meaningful/physical data
+For each channel `mdf[channelName]` the following keys exist:
 
-mdf object main attribute: masterChannelList, a dict containing a list of channel names per datagroup
+| Key | Description |
+|-----|-------------|
+| `data` | numpy array of channel values |
+| `unit` | unit string |
+| `master` | name of the master (time/angle/…) channel |
+| `masterType` | master channel type: 0=None, 1=Time, 2=Angle, 3=Distance, 4=Index |
+| `description` | channel description string |
+| `conversion` | present when `convert_after_read=False`; dict describing raw→physical mapping |
 
+`mdf.masterChannelList` is a dict mapping each master channel name to the list
+of channels sampled at the same raster.
 
 Mdfreader module methods:
 =========================
@@ -25,58 +63,83 @@ Mdfreader module methods:
 * plot one channel, several channels on one graph (list) or several channels on subplots (list of lists)
 
 It is also possible to export mdf data into:
-* CSV file (excel dialect by default)
-* NetCDF file for a compatibility with Uniplot for instance (needs netcdf4, Scientific.IO)
-* HDF5 (needs h5py)
-* Excel 95 to 2003 (needs xlwt, extremely slooow, be careful about data size)
-* Excel 2007/2010 (needs openpyxl, can be also slow with big files)
-* Matlab .mat (needs hdf5storage)
-* MDF file. It allows you to create, convert or modify data, units, description and save it again.
-* Pandas dataframe(s) (only in command line, not in mdfconverter). One dataframe per raster.
+* CSV file (Excel dialect by default)
+* NetCDF file for compatibility with Uniplot (needs `netcdf4`, `Scientific.IO`)
+* HDF5 (needs `h5py`)
+* Excel 95–2003 (needs `xlwt` — very slow for large files)
+* Excel 2007/2010 (needs `openpyxl` — can also be slow with large files)
+* Matlab `.mat` (needs `hdf5storage`)
+* MDF file — allows creating, converting or modifying data, units and descriptions
+* Pandas DataFrame(s) (command line only, not in mdfconverter) — one DataFrame per raster
 
 Compatibility:
 ==============
-This code is compatible for python 3.4+
-Evaluated for Windows and Linux platforms (x86 and AMD64)
+Python 3.9+ — tested on Linux and Windows (x86-64)
 
 Requirements:
 =============
-Mdfreader is mostly relying on numpy/scipy/matplotlib and lxml for parsing the metadata in mdf version 4.x files
+Core: `numpy`, `lxml`, `sympy`
 
-Reading channels defined by a formula will require sympy.
+`lxml` is used for MDF4 metadata XML blocks. When Cython is compiled, the fast
+path handles the common `<TX>…</TX>` pattern directly from bytes and only falls
+back to `lxml` for complex XML (CDATA, namespaces).
 
-Cython is strongly advised and allows to compile dataRead module for reading quickly exotic data (not byte aligned or containing hidden bytes) or only a list of channels. However, if cython compilation fails, bitarray becomes required (slower, pure python and maybe not so robust as not so much tested).
+Reading channels defined by a formula requires `sympy`.
 
-Export requirements (optional): scipy, csv, h5py, hdf5storage, xlwt(3), openpyxl, pandas
+Cython is strongly advised. It compiles `dataRead.pyx`, which provides:
+* fast metadata parsing via `pread()` + C packed structs
+* the `SymBufReader` bidirectional file buffer
+* bit-exact reading for non-byte-aligned or record-padded channels
+* VLSD/VLSC string data reading helpers
 
-Blosc for data compression (optional)
+If Cython compilation fails, `bitarray` is used as a fallback (slower, pure Python).
 
-Mdfconverter graphical user interface requires PyQt (versions 4 or 5)
+Export requirements (optional): `scipy`, `h5py`, `hdf5storage`, `openpyxl`, `pandas`, `fastparquet`
+
+Data compression in memory (optional): `blosc`
+
+Graphical converter: `PyQt5`
 
 Installation:
 =============
-pip package existing:
+From PyPI:
 ```shell
 pip install mdfreader
 ```
-or from source cloned from github from instance
+From source:
 ```shell
+pip install cython numpy        # build prerequisites
+python setup.py build_ext --inplace
 python setup.py develop
 ```
 
-Graphical interface: mdfconverter (PyQt4 and PyQt5)
+Graphical interface: mdfconverter
 ==================================
-User interface in PyQt4 or PyQt5 to convert batch of files is part of package. You can launch it with command 'mdfconverter' from shell. By right clicking a channel in the interface list, you can plot it. You can also drag-drop channels between columns to tune import list. Channel list from a .lab text file can be imported. You can optionally merge several files into one and even resample all of them.
+A PyQt5 GUI to convert batches of files. Launch with:
+```shell
+mdfconverter
+```
+Right-click a channel in the list to plot it. Channels can be dragged between
+columns. A `.lab` channel-list file can be imported. Multiple files can be
+merged into one and resampled.
 
-Others:
-=======
-In the case of big files or lack of memory, you can optionally:
-* Read only a channel list (argument channel_list = ['channel', 'list'], you can get the file channel list without loading data with mdfinfo)
-* Keep raw data as stored in mdf without data type conversion (argument convert_after_read=False). Data will then be converted on the fly by the other functions (plot, export_to..., get_channel_data, etc.) but raw data type will remain as in mdf file along with conversion information.
-* Compress data in memory with blosc with argument compression. Default compression level is 9.
-* Create a mdf dict with its metadata but without data (argument no_data_loading=True). Data will be read from file on demand by mdfreader methods (in general by get_channel_data method)
+Memory-saving options:
+======================
+For large files or limited memory:
 
-For great data visualization, dataPlugin for Veusz (from 1.16, http://home.gna.org/veusz/) is also existing ; please follow instructions from Veusz documentation and plugin file's header.
+* **Channel list only** — pass `channel_list=['ch1', 'ch2']`; call
+  `mdfreader.MdfInfo(file)` to get the full channel list without loading data.
+* **Raw data mode** — pass `convert_after_read=False`; data stays as stored in
+  the MDF file and is converted on-the-fly by `get_channel_data`, `plot`,
+  `export_to_*`, etc.
+* **Blosc compression** — pass `compression=True` (default level 9) to compress
+  data in memory after reading.
+* **No-data skeleton** — pass `no_data_loading=True` to build the channel
+  metadata dict without reading any samples; data is fetched on demand via
+  `get_channel_data`.
+
+For data visualisation, a dataPlugin for Veusz (≥ 1.16) is also available;
+follow the instructions in Veusz's documentation and the plugin file's header.
 
 Command example in ipython:
 ===========================

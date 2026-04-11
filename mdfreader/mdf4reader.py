@@ -33,7 +33,7 @@ if np.lib.NumpyVersion(np.__version__) >= '2.0.0b1':
 else:
     from numpy.core.records import fromstring, fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
-from numpy import arange, right_shift, bitwise_and, all, diff, interp, zeros, concatenate, maximum
+from numpy import arange, right_shift, bitwise_and, bitwise_or, all, diff, interp, zeros, concatenate, maximum
 from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
 from numpy.lib.recfunctions import rename_fields
@@ -181,11 +181,9 @@ def _apply_unsorted_bit_masking(buf, record, info):
             if sig_dt in (2, 3):  # signed: sign-extend from bit_count-1
                 sign_bit_mask = 1 << (bit_count - 1)
                 sign_extend = ((1 << (temp.itemsize * 8 - bit_count)) - 1) << bit_count
-                sign_bits = bitwise_and(temp, sign_bit_mask)
                 temp_u = temp.view('u{}'.format(temp.itemsize))
-                for idx, sign in enumerate(sign_bits):
-                    if sign:
-                        temp_u[idx] |= sign_extend
+                negative = bitwise_and(temp_u, sign_bit_mask).astype(bool)
+                temp_u = where(negative, bitwise_or(temp_u, sign_extend), temp_u)
                 temp = temp_u.view(temp.dtype)
             buf[name] = temp
 
@@ -1339,7 +1337,7 @@ class Record(dict):
         return chunks
 
     def read_all_channels_sorted_record(self, fid):
-        """ reads all channels from file using numpy fromstring, chunk by chunk
+        """ reads all channels from file using a single numpy frombuffer call
 
         Parameters
         ------------
@@ -1351,19 +1349,14 @@ class Record(dict):
         rec : numpy recarray
             contains a matrix of raw data in a recarray (attributes corresponding to channel name)
         """
-        chunks = self.generate_chunks()
-        previous_index = 0
-        buf = recarray(self.numberOfRecords, dtype={'names': self.dataRecordName,
-                                                    'formats': self.numpyDataRecordFormat})  # initialise array
+        dtype = {'names': self.dataRecordName, 'formats': self.numpyDataRecordFormat}
+        total_size = self.CGrecordLength * self.numberOfRecords
         simplefilter('ignore', FutureWarning)
-        for n_record_chunk, chunk_size in chunks:
-            buf[previous_index: previous_index + n_record_chunk] = \
-                frombuffer(fid.read(chunk_size),
-                           dtype={'names': self.dataRecordName,
-                                  'formats': self.numpyDataRecordFormat},
-                           count=n_record_chunk)
-            previous_index += n_record_chunk
-        return buf
+        # Read into a flat uint8 buffer, then reinterpret as the structured recarray.
+        # Single allocation, no copy, and the result is writeable for in-place conversions.
+        raw = empty(total_size, dtype='u1')
+        fid.readinto(raw)
+        return raw.view(dtype).view(recarray)[:self.numberOfRecords]
 
     def read_unique_channel(self, fid, info):
         """ reads all channels from file using numpy fromstring, chunk by chunk

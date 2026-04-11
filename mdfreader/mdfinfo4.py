@@ -1,12 +1,43 @@
 # -*- coding: utf-8 -*-
-""" Measured Data Format blocks parser for version 4.x
-
-Created on Sun Dec 15 12:57:28 2013
+"""MDF4 block structure parser (version 4.x).
 
 :Author: `Aymeric Rateau <https://github.com/ratal/mdfreader>`__
 
-mdfinfo4
---------------------------
+This module parses the *metadata* of MDF 4.x files — all block types
+(HD, DG, CG, CN, CC, SI, TX, MD, AT, EV, …) — and stores them in a
+nested ``Info4`` dict.  It does **not** read channel sample data; that
+is handled by ``mdf4reader.py``.
+
+Architecture
+------------
+The module provides two reading paths for the CN/CC/SI/TX hot path:
+
+**Fast path (Cython, default when compiled)**
+    ``read_cn_chain_fast()`` from ``dataRead.pyx`` walks the full CN
+    linked list for a channel group in a single C-level loop using
+    POSIX ``pread()`` for all file I/O (no Python file-object dispatch,
+    no GIL during reads).  Struct fields are extracted with ``memcpy``
+    into typed C packed structs.  TX/MD block text is decoded with a
+    fast ``<TX>…</TX>`` bytes scan before falling back to ``lxml``.
+    The SI block cache (``_si_cache``) prevents redundant reads when
+    multiple channels share the same source.
+
+**Python fallback path**
+    ``read_cn_block()`` / ``read_cn_blocks()`` use ``struct.unpack``
+    and the ``SymBufReader`` bidirectional file buffer.  This path is
+    used when ``dataRead`` is not compiled or when the file object has
+    no ``fileno()`` (e.g. an in-memory buffer).
+
+Key classes
+-----------
+``Info4``
+    Top-level parser.  Inherits from ``dict``; call
+    ``Info4(file_name)`` to fully parse a file.
+``CNBlock``, ``CCBlock``, ``SIBlock``, ``CommentBlock``
+    Individual block parsers used by the Python fallback path.
+``DSBlock``, ``CLBlock``, ``CVBlock``, ``CUBlock``
+    MDF 4.3 composition block parsers (data-stream, channel-list,
+    channel-variant, channel-union).
 """
 from struct import calcsize, unpack, pack, Struct
 from os import remove
@@ -32,6 +63,18 @@ from xml.etree.ElementTree import Element, SubElement, \
 from lxml import objectify
 from .mdf import _open_mdf, dataField, descriptionField, unitField, \
     masterField, masterTypeField, idField, _convert_name
+
+try:
+    from dataRead import SymBufReader as _SymBufReader
+    _SYMBUF_AVAILABLE = True
+except ImportError:
+    _SYMBUF_AVAILABLE = False
+
+try:
+    from dataRead import read_cn_chain_fast as _read_cn_chain_fast
+    _CN_CHAIN_FAST = True
+except ImportError:
+    _CN_CHAIN_FAST = False
 
 # datatypes
 _LINK = '<Q'
@@ -1793,10 +1836,10 @@ class DZBlock(dict):
             M = org_data_length // zip_parameter
             aligned = M * zip_parameter
             tail = block[aligned:]
-            # frombuffer avoids a copy; .T.copy() materialises the transposed layout
-            transposed = frombuffer(block[:aligned], dtype='u1').reshape(zip_parameter, M).T.copy()
+            # reshape as (zip_parameter, M), use Fortran-contiguous copy to get row-major of transpose
+            arr = frombuffer(block[:aligned], dtype='u1').reshape(zip_parameter, M)
             del block
-            block = (transposed.tobytes() + bytes(tail)) if tail else transposed.tobytes()
+            block = (arr.T.tobytes() + bytes(tail)) if tail else arr.T.tobytes()
         return block
 
     def write(self, fid, data, record_length):
@@ -1902,33 +1945,62 @@ class HLBlock(dict):
 
 
 class Info4(dict):
-    __slots__ = ['fileName', 'fid', 'filterChannelNames', 'zipfile']
-    """ information block parser fo MDF file version 4.x
+    """MDF4 file structure parser — nested dict of all metadata blocks.
+
+    Parses the complete block graph of an MDF 4.x file and stores the
+    result as a nested ``dict``.  Either *file_name* or *fid* must be
+    provided.
 
     Attributes
-    --------------
-    file_name : str
-        name of file
-    fid
-        file identifier
-    zipfile
-        flag to indicate the mdf4 is packaged in a zip
+    ----------
+    fileName : str
+        Path to the MDF file.
+    fid : file object
+        Underlying binary file identifier (``None`` after the constructor
+        closes it when opened from *file_name*).
+    filterChannelNames : bool
+        Strip module-name prefix (everything up to the last ``'.'``) from
+        channel names when ``True``.
+    zipfile : bool
+        ``True`` when the MDF was stored inside a ZIP archive (the file is
+        temporarily extracted and deleted after parsing).
+    _si_cache : dict
+        File-offset → SI block dict cache shared across all channel reads
+        within one file.  Prevents redundant ``pread()`` calls for sources
+        referenced by many channels.
 
-    Notes
-    --------
-    mdfinfo(FILENAME) contains a dict of structures, for
-    each data group, containing key information about all channels in each
-    group. FILENAME is a string that specifies the name of the MDF file.
-    Either file name or fid should be given.
-    General dictionary structure is the following
+    Dictionary layout
+    -----------------
+    After construction the object exposes the following keys:
 
-    - mdfinfo['HD'] header block
-    - mdfinfo['DG'][dataGroup] Data Group block
-    - mdfinfo['CG'][dataGroup][channelGroup] Channel Group block
-    Channel block including text blocks for comment and identifier
-    - mdfinfo['CN'][dataGroup][channelGroup][channel]
-    Channel conversion information
-    - mdfinfo['CC'][dataGroup][channelGroup][channel]"""
+    ``self['HD']``
+        Header block dict.
+    ``self['DG'][dg]``
+        Data Group block dict, keyed by integer data-group index *dg*.
+    ``self['CG'][dg][cg]``
+        Channel Group block dict, keyed by (*dg*, *cg*).
+    ``self['CN'][dg][cg][cn]``
+        Channel block dict.  The key *cn* is
+        ``cn_byte_offset * 8 + cn_bit_offset`` for normal channels, or
+        ``-pointer`` for channels with flag ``CN_F_DATA_STREAM_MODE``.
+    ``self['CC'][dg][cg][cn]``
+        Channel Conversion block dict for the same channel.
+    ``self['AT']``
+        Attachment block dict.
+    ``self['VLSD'][dg][cg]``
+        List of *cn* keys whose data is stored as Variable Length Signal Data.
+    ``self['VLSD_CG'][record_id]``
+        Mapping from VLSD CG record ID to ``{'cg_cn': (cg, cn)}``.
+    ``self['MLSD'][dg][cg]``
+        Dict mapping MLSD channel key to the corresponding signal-data CN key.
+    ``self['masters']``
+        Dict of master-channel pointer → ``{'name': str, 'channels': set}``.
+    ``self['allChannelList']``
+        Set of all unique channel names across all data groups.
+    ``self['ChannelNamesByDG'][dg]``
+        Set of channel names within data group *dg* (used for deduplication).
+    """
+    __slots__ = ['fileName', 'fid', 'filterChannelNames', 'zipfile', '_si_cache']
 
     def __init__(self, file_name=None, fid=None, filter_channel_names=False, minimal=0):
         """ info4 class constructor
@@ -1961,6 +2033,7 @@ class Info4(dict):
         self['AT'] = {}  # Attachment block
         self['allChannelList'] = set()  # all channels
         self['masters'] = dict()  # channels grouped by master
+        self._si_cache = {}  # SI block cache: pointer → dict
         self.filterChannelNames = filter_channel_names
         self.fileName = file_name
         self.fid = None
@@ -1968,14 +2041,16 @@ class Info4(dict):
             # Open file
             (self.fid, self.fileName, self.zipfile) = _open_mdf(self.fileName)
         if self.fileName is not None and fid is None:
-            self.read_info(self.fid, minimal)
+            reader = _SymBufReader(self.fid) if _SYMBUF_AVAILABLE else self.fid
+            self.read_info(reader, minimal)
             # Close the file
             self.fid.close()
             if self.zipfile:  # temporary uncompressed file, to be removed
                 remove(file_name)
         elif self.fileName is None and fid is not None:
             # called by mdfreader.mdfinfo
-            self.read_info(fid, minimal)
+            reader = _SymBufReader(fid) if _SYMBUF_AVAILABLE else fid
+            self.read_info(reader, minimal)
 
     def read_info(self, fid, minimal):
         """ read all file blocks except data
@@ -2183,6 +2258,148 @@ class Info4(dict):
         if not self['CG'][dg][cg]['cg_cn_first']:  # empty CG (no channels)
             self['CG'][dg][cg]['unique_channel_in_CG'] = True
             return vlsd
+
+        # ── Fast Cython path (pread + C structs) ─────────────────────────────
+        if _CN_CHAIN_FAST and hasattr(fid, 'fileno'):
+            try:
+                results = _read_cn_chain_fast(
+                    fid, self['CG'][dg][cg]['cg_cn_first'],
+                    self._si_cache, minimal, channel_name_list)
+            except Exception:
+                results = None
+
+            if results is not None:
+                self['CG'][dg][cg]['unique_channel_in_CG'] = (len(results) == 1)
+
+                # Store all CN/CC dicts
+                for cn, cn_dict, cc_dict in results:
+                    self['CN'][dg][cg][cn] = cn_dict
+                    self['CC'][dg][cg][cn] = cc_dict
+
+                # Post-process each channel
+                for cn, cn_dict, cc_dict in results:
+                    # Track MLSD channels
+                    if cn_dict['cn_type'] == 5:
+                        mlsd_channels.append(cn)
+
+                    # Complete CC blocks for complex conversion types
+                    if cc_dict.get('_needs_completion'):
+                        full_cc = CCBlock()
+                        full_cc.read_cc(fid, cn_dict['cn_cc_conversion'])
+                        self['CC'][dg][cg][cn] = full_cc
+
+                    if not channel_name_list:
+                        # Make channel name unique
+                        cn_dict['orig_name'] = cn_dict['name']
+                        cn_dict['name'] = self._unique_channel_name(
+                            fid, cn_dict['name'], dg, cg, cn)
+                        if self.filterChannelNames:
+                            cn_dict['name'] = cn_dict['name'].split('.')[-1]
+
+                        # Handle composition blocks (CA, CN, DS, CL, CV, CU)
+                        if cn_dict['cn_composition']:
+                            fid.seek(cn_dict['cn_composition'])
+                            block_id = fid.read(4)
+                            if block_id in ('##CA', b'##CA'):
+                                cn_dict['CABlock'] = CABlock()
+                                cn_dict['CABlock'].read(fid, cn_dict['cn_composition'])
+                            elif block_id in ('##CN', b'##CN'):
+                                cn_upper = cn
+                                cn_next_upper = cn_dict['cn_cn_next']
+                                cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                    fid, cn_dict['cn_composition'], dg, cg,
+                                    mlsd_channels, vlsd, minimal, channel_name_list)
+                                while self['CN'][dg][cg][cn_c]['cn_cn_next']:
+                                    cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                        fid, self['CN'][dg][cg][cn_c]['cn_cn_next'],
+                                        dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+                                # Restore upper node
+                                cn_dict['cn_cn_next'] = cn_next_upper
+                            elif block_id in (b'##DS',):
+                                block = DSBlock()
+                                block.read(fid, cn_dict['cn_composition'])
+                                cn_dict['DSBlock'] = block
+                                if block['ds_cn_composition']:
+                                    cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                        fid, block['ds_cn_composition'], dg, cg,
+                                        mlsd_channels, vlsd, minimal, channel_name_list)
+                                    while self['CN'][dg][cg][cn_c]['cn_cn_next']:
+                                        cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                            fid, self['CN'][dg][cg][cn_c]['cn_cn_next'],
+                                            dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+                            elif block_id in (b'##CL',):
+                                block = CLBlock()
+                                block.read(fid, cn_dict['cn_composition'])
+                                cn_dict['CLBlock'] = block
+                                if block['cl_composition']:
+                                    cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                        fid, block['cl_composition'], dg, cg,
+                                        mlsd_channels, vlsd, minimal, channel_name_list)
+                                    while self['CN'][dg][cg][cn_c]['cn_cn_next']:
+                                        cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                                            fid, self['CN'][dg][cg][cn_c]['cn_cn_next'],
+                                            dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+                            elif block_id in (b'##CV',):
+                                block = CVBlock()
+                                block.read(fid, cn_dict['cn_composition'])
+                                cn_dict['CVBlock'] = block
+                                for ptr in ([block['cv_cn_discriminator']] + block['cv_cn_option']):
+                                    if ptr:
+                                        self.read_cn_block(fid, ptr, dg, cg,
+                                                           mlsd_channels, vlsd, minimal,
+                                                           channel_name_list, use_negative_key=True)
+                            elif block_id in (b'##CU',):
+                                block = CUBlock()
+                                block.read(fid, cn_dict['cn_composition'])
+                                cn_dict['CUBlock'] = block
+                                for ptr in block['cu_cn_member']:
+                                    if ptr:
+                                        self.read_cn_block(fid, ptr, dg, cg,
+                                                           mlsd_channels, vlsd, minimal,
+                                                           channel_name_list, use_negative_key=True)
+
+                        # Handle VLSD / MLSD / VLSC via cn_data
+                        if cn_dict['cn_data']:
+                            fid.seek(cn_dict['cn_data'])
+                            data_id = fid.read(4)
+                            if cn_dict['cn_type'] == 1:
+                                if data_id in ('##SD', b'##SD', '##DZ', b'##DZ',
+                                               '##DL', b'##DL', '##HL', b'##HL'):
+                                    try:
+                                        self['VLSD'][dg][cg].append(cn)
+                                    except KeyError:
+                                        if 'VLSD' not in self:
+                                            self['VLSD'] = {}
+                                        if dg not in self['VLSD']:
+                                            self['VLSD'][dg] = {}
+                                        if cg not in self['VLSD'][dg]:
+                                            self['VLSD'][dg][cg] = []
+                                        self['VLSD'][dg][cg].append(cn)
+                            elif cn_dict['cn_type'] == 7:
+                                extra_links = cn_dict.get('cn_default_x')
+                                if extra_links:
+                                    size_link = extra_links[0] if isinstance(extra_links, list) else extra_links
+                                    cn_dict['cn_cn_size'] = size_link
+                                cn_dict['VLSC'] = True
+                            if not minimal and data_id in ('##EV', b'##EV'):
+                                cn_dict['cn_data'] = self.read_ev_block(
+                                    fid, cn_dict['cn_data'])
+
+                # MLSD cross-reference
+                if mlsd_channels:
+                    if 'MLSD' not in self:
+                        self['MLSD'] = {}
+                    if dg not in self['MLSD']:
+                        self['MLSD'][dg] = {}
+                    self['MLSD'][dg][cg] = {}
+                for MLSDcn in mlsd_channels:
+                    for cn_k in self['CN'][dg][cg]:
+                        if self['CN'][dg][cg][cn_k]['pointer'] == self['CN'][dg][cg][MLSDcn]['cn_data']:
+                            self['MLSD'][dg][cg][MLSDcn] = cn_k
+                            break
+                return vlsd
+
+        # ── Python fallback path ──────────────────────────────────────────────
         cn, mlsd_channels, vlsd = self.read_cn_block(fid, self['CG'][dg][cg]['cg_cn_first'],
                                                      dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
         if not self['CN'][dg][cg][cn]['cn_cn_next']:  # only one channel in CGBlock
@@ -2252,12 +2469,15 @@ class Info4(dict):
             fid, self['CN'][dg][cg][cn]['cn_cc_conversion'])
         if not channel_name_list:
             if not minimal:
-                # reads Channel Source Information
-                temp = SIBlock()
-                temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                if temp:
-                    self['CN'][dg][cg][cn]['SI'] = dict()
-                    self['CN'][dg][cg][cn]['SI'].update(temp)
+                # reads Channel Source Information (cached by pointer to avoid duplicate file reads)
+                si_pointer = self['CN'][dg][cg][cn]['cn_si_source']
+                if si_pointer and si_pointer not in self._si_cache:
+                    temp = SIBlock()
+                    temp.read_si(fid, si_pointer)
+                    self._si_cache[si_pointer] = dict(temp) if temp else None
+                cached_si = self._si_cache.get(si_pointer)
+                if cached_si:
+                    self['CN'][dg][cg][cn]['SI'] = dict(cached_si)
 
             # keep original non unique channel name
             self['CN'][dg][cg][cn]['orig_name'] = self['CN'][dg][cg][cn]['name']
