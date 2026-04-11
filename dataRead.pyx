@@ -7,8 +7,22 @@ from libc.stdio cimport printf
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.bytes cimport PyBytes_AsString
 from libc.string cimport memcpy
-from posix.unistd cimport pread as c_pread
 cimport cython
+
+# pread() is POSIX-only.  On Windows we emulate it with _lseek64 + _read
+# (both thread-safe enough for our use: each call is already serialised by
+# the Python GIL since we hold it while calling read_cn_chain_fast).
+IF UNAME_SYSNAME == "Windows":
+    from libc.stdio cimport SEEK_SET
+    cdef extern from "<io.h>" nogil:
+        int _read(int fd, void *buf, unsigned int count)
+    cdef extern from "<stdio.h>" nogil:
+        long long _lseeki64(int fd, long long offset, int origin)
+    cdef inline int c_pread(int fd, void *buf, size_t count, int64_t offset) nogil:
+        _lseeki64(fd, offset, SEEK_SET)
+        return _read(fd, buf, <unsigned int>count)
+ELSE:
+    from posix.unistd cimport pread as c_pread
 
 # ──────────────────────────────────────────────────────────────────────────────
 # SymBufReader — bidirectional-buffered file reader
