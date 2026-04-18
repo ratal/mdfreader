@@ -9,20 +9,25 @@ from cpython.bytes cimport PyBytes_AsString
 from libc.string cimport memcpy
 cimport cython
 
-# pread() is POSIX-only.  On Windows we emulate it with _lseek64 + _read
-# (both thread-safe enough for our use: each call is already serialised by
-# the Python GIL since we hold it while calling read_cn_chain_fast).
-IF UNAME_SYSNAME == "Windows":
-    from libc.stdio cimport SEEK_SET
-    cdef extern from "<io.h>" nogil:
-        int _read(int fd, void *buf, unsigned int count)
-    cdef extern from "<stdio.h>" nogil:
-        long long _lseeki64(int fd, long long offset, int origin)
-    cdef inline int c_pread(int fd, void *buf, size_t count, int64_t offset) nogil:
-        _lseeki64(fd, offset, SEEK_SET)
-        return _read(fd, buf, <unsigned int>count)
-ELSE:
-    from posix.unistd cimport pread as c_pread
+# pread() is POSIX-only.  On Windows we emulate it with _lseeki64 + _read.
+# C-level conditional compilation avoids the deprecated Cython IF statement.
+cdef extern from * nogil:
+    """
+    #ifdef _WIN32
+      #include <io.h>
+      #include <stdio.h>
+      static Py_ssize_t c_pread(int fd, void *buf, size_t count, long long offset) {
+          _lseeki64(fd, offset, SEEK_SET);
+          return (Py_ssize_t)_read(fd, buf, (unsigned int)count);
+      }
+    #else
+      #include <unistd.h>
+      static Py_ssize_t c_pread(int fd, void *buf, size_t count, long long offset) {
+          return (Py_ssize_t)pread(fd, buf, count, (off_t)offset);
+      }
+    #endif
+    """
+    Py_ssize_t c_pread(int fd, void *buf, size_t count, int64_t offset)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # SymBufReader — bidirectional-buffered file reader
