@@ -63,7 +63,7 @@ class MdfImportPlugin(plugins.ImportPlugin):
     def doImport(self, params):
         """Load and resample MDF file; return list of Dataset1D objects."""
         data = Mdf(params.filename)
-        data.resample(sampling_time=params.field_results['mult'])
+        data.resample(sampling=params.field_results['mult'])
 
         datasets = []
         for ch in data.keys():
