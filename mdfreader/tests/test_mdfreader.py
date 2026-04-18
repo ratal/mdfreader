@@ -564,3 +564,69 @@ def test_compare_mdfr(mdf_file, mdfr_module):
     elif info_notes:
         # Informational differences only — emit as a warning string in the test output
         pass  # notes visible via pytest -s or -v
+
+
+# ---------------------------------------------------------------------------
+# test_start_datetime / test_get_master_channel_datetimes
+# ---------------------------------------------------------------------------
+import datetime as _dt
+
+
+@pytest.mark.parametrize("mdf_file", ALL_FILES, ids=lambda p: p.name)
+def test_start_datetime_type(mdf_file):
+    if mdf_file.name in _CUSTOM_COMPRESSION_SKIP:
+        pytest.skip("proprietary custom compression")
+    yop = mdfreader.Mdf(str(mdf_file))
+    dt = yop.start_datetime
+    if dt is not None:
+        assert isinstance(dt, _dt.datetime)
+        assert dt.tzinfo is not None, "start_datetime must be timezone-aware"
+
+
+def test_start_datetime_null_timestamp():
+    yop = mdfreader.Mdf()
+    yop.fileMetadata['time'] = 0
+    yop.fileMetadata['time_offset'] = None
+    assert yop.start_datetime is None
+
+
+def test_start_datetime_with_offset():
+    yop = mdfreader.Mdf()
+    yop.fileMetadata['time'] = 1_700_000_000.0   # 2023-11-14 22:13:20 UTC
+    yop.fileMetadata['time_offset'] = 3600        # UTC+1
+    dt = yop.start_datetime
+    assert dt.tzinfo == _dt.timezone(_dt.timedelta(seconds=3600))
+    assert dt.hour == 23  # 22:13 UTC + 1 h = 23:13 local
+
+
+@pytest.mark.parametrize("mdf_file", ALL_MDF4_FILES, ids=lambda p: p.name)
+def test_mdf4_time_offset_is_int(mdf_file):
+    if mdf_file.name in _CUSTOM_COMPRESSION_SKIP:
+        pytest.skip("proprietary custom compression")
+    yop = mdfreader.Mdf(str(mdf_file))
+    offset = yop.fileMetadata.get('time_offset')
+    if offset is not None:
+        assert type(offset) is int, f"time_offset should be int, got {type(offset)}"
+
+
+@pytest.mark.parametrize("mdf_file", MDF3_FILES, ids=lambda p: p.name)
+def test_mdf3_time_offset_range(mdf_file):
+    yop = mdfreader.Mdf(str(mdf_file))
+    offset = yop.fileMetadata.get('time_offset')
+    if offset is not None:
+        assert isinstance(offset, int)
+        assert -43200 <= offset <= 43200, f"UTC offset {offset}s out of ±12h range"
+
+
+@pytest.mark.parametrize("mdf_file", ALL_FILES[:10], ids=lambda p: p.name)
+def test_get_master_channel_datetimes(mdf_file):
+    if mdf_file.name in _CUSTOM_COMPRESSION_SKIP:
+        pytest.skip("proprietary custom compression")
+    yop = mdfreader.Mdf(str(mdf_file))
+    for master in yop.masterChannelList:
+        if yop.get_channel_master_type(master) == 1 and master in yop:
+            arr = yop.get_master_channel_datetimes(master)
+            if arr is not None:
+                assert arr.dtype == np.dtype('datetime64[ns]')
+                assert len(arr) == len(yop.get_channel_data(master))
+            break

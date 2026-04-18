@@ -1683,6 +1683,36 @@ class Mdf(Mdf4, Mdf3):
             warn('Master channel name not in mdf')
             return
 
+    def get_master_channel_datetimes(self, master_channel_name):
+        """Return a time master channel as absolute datetime64[ns] array.
+
+        Parameters
+        ----------
+        master_channel_name : str
+            Name of a master channel with masterType == 1 (Time).
+
+        Returns
+        -------
+        numpy.ndarray of datetime64[ns], or None if not found or not time-type.
+
+        Notes
+        -----
+        The timezone offset from fileMetadata['time_offset'] (if set) is baked
+        into the returned values so they represent wall-clock time in the
+        recording timezone. numpy datetime64 has no timezone concept; use
+        pandas tz_localize/tz_convert for full timezone-aware operations.
+        """
+        from numpy import array, datetime64
+        if master_channel_name not in self:
+            return None
+        if self.get_channel_master_type(master_channel_name) != 1:
+            return None
+        t = self.fileMetadata.get('time', 0)
+        offset_seconds = self.fileMetadata.get('time_offset') or 0
+        epoch_ns = int((t + offset_seconds) * 1e9)
+        relative_ns = array(self.get_channel_data(master_channel_name) * 1e9, dtype='timedelta64[ns]')
+        return datetime64(epoch_ns, 'ns') + relative_ns
+
     def export_to_parquet(self, file_name=None):
         """Exports mdf data into parquet file
 

@@ -25,6 +25,7 @@ from itertools import chain
 from random import choice
 from string import ascii_letters
 from collections import OrderedDict, defaultdict
+from datetime import datetime as _datetime, timezone as _timezone, timedelta as _timedelta
 from time import time
 from warnings import warn
 from numpy import array_repr, set_printoptions, recarray, frombuffer
@@ -595,7 +596,7 @@ class MdfSkeleton(dict):
         return channel_name in self.masterChannelList[masterField] or channel_name in self.masterChannelList
 
     def add_metadata(self, author='', organisation='', project='',
-                     subject='', comment='', time=''):
+                     subject='', comment='', time='', time_offset=None):
         """adds basic metadata to mdf class
 
         Parameters
@@ -619,6 +620,25 @@ class MdfSkeleton(dict):
         self.fileMetadata['subject'] = subject
         self.fileMetadata['comment'] = comment
         self.fileMetadata['time'] = time
+        self.fileMetadata['time_offset'] = time_offset
+
+    @property
+    def start_datetime(self):
+        """Recording start time as a timezone-aware datetime.datetime.
+
+        Returns None if timestamp is 0 or unset.
+        For MDF3 < 3.20 (no timezone in header), UTC is assumed; the stored
+        timestamp may reflect local machine time at recording.
+        """
+        t = self.fileMetadata.get('time', 0)
+        if not t:
+            return None
+        offset_seconds = self.fileMetadata.get('time_offset', None)
+        tz = _timezone(_timedelta(seconds=int(offset_seconds))) if offset_seconds is not None else _timezone.utc
+        try:
+            return _datetime.fromtimestamp(t, tz=tz)
+        except (OSError, OverflowError, ValueError):
+            return None
 
     def __str__(self):
         """representation a mdf_skeleton class data structure

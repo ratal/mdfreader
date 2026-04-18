@@ -913,6 +913,8 @@ class Mdf3(MdfSkeleton):
             try:
                 # time in nano seconds since epoch, converting in seconds floating
                 record_time = info['HDBlock']['TimeStamp'] / 1E9
+                # UTCTimeOffset: signed int16, minutes from UTC (MDF >= 3.20 only)
+                time_offset = int(info['HDBlock']['UTCTimeOffset']) * 60
             except KeyError:
                 # converts date to be compatible with ISO8601
                 day, month, year = info['HDBlock']['Date'].split(':')
@@ -922,11 +924,12 @@ class Mdf3(MdfSkeleton):
                     record_time = datetime.fromisoformat(ddate + 'T' + info['HDBlock']['Time']).timestamp()
                 except OSError:
                     record_time = 0
+                time_offset = None  # MDF < 3.20 has no timezone information
             self.add_metadata(author=info['HDBlock']['Author'],
                               organisation=info['HDBlock']['Organization'],
                               project=info['HDBlock']['ProjectName'],
                               subject=info['HDBlock']['Subject'], comment=comment,
-                              time=record_time)
+                              time=record_time, time_offset=time_offset)
 
         data_groups = info['DGBlock']  # parse all data groups
         if self._noDataLoading and channel_list is not None:

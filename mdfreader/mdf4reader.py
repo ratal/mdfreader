@@ -20,7 +20,6 @@ mdf4reader
 """
 from struct import Struct
 from struct import pack, unpack as structunpack
-from math import pow
 from io import open
 from os.path import splitext
 from multiprocessing import Queue, Process
@@ -29,9 +28,9 @@ import re
 from collections import defaultdict, OrderedDict
 import numpy as np
 if np.lib.NumpyVersion(np.__version__) >= '2.0.0b1':
-    from numpy.rec import fromstring, fromarrays
+    from numpy.rec import fromarrays
 else:
-    from numpy.core.records import fromstring, fromarrays
+    from numpy.core.records import fromarrays
 from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
 from numpy import arange, right_shift, bitwise_and, bitwise_or, all, diff, interp, zeros, concatenate, maximum
 from numpy import issubdtype, number as numpy_number
@@ -1819,9 +1818,10 @@ class Mdf4(MdfSkeleton):
         if not self._noDataLoading:
             ttime = info['HD']['hd_start_time_ns'] / 1E9
             if 1 << 1 & info['HD']['hd_time_flags']:
-                # timezone and daylight applicable
-                ttime = info['HD']['hd_tz_offset_min'] * \
-                    60 + info['HD']['hd_dst_offset_min'] * 60
+                # timezone and daylight applicable; cast to int to avoid numpy scalar in timedelta
+                time_offset = int(info['HD']['hd_tz_offset_min'] + info['HD']['hd_dst_offset_min']) * 60
+            else:
+                time_offset = None
 
             def returnField(obj, field):
                 try:
@@ -1837,9 +1837,9 @@ class Mdf4(MdfSkeleton):
                 comment = returnField(Comment, 'TX')
                 self.add_metadata(author=author, organisation=organisation,
                                   project=project, subject=subject,
-                                  comment=comment, time=ttime)
+                                  comment=comment, time=ttime, time_offset=time_offset)
             else:
-                self.add_metadata(time=ttime)
+                self.add_metadata(time=ttime, time_offset=time_offset)
 
         data_groups = info['DG']  # parse all data groups
         if self._noDataLoading and channel_list is not None:
