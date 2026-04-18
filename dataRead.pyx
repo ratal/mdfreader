@@ -1557,7 +1557,10 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block,
     -----------
     array
     """
+    if n_records == 0:
+        return None
     cdef const char* bit_stream = PyBytes_AsString(sd_block)
+    cdef unsigned long long buf_len = len(sd_block)
     cdef unsigned long max_len = 0
     cdef unsigned long vlsd_len = 0
     cdef unsigned long *VLSDLen = <unsigned long *> PyMem_Malloc(n_records * sizeof(unsigned long))
@@ -1569,11 +1572,17 @@ def sd_data_read(unsigned short signal_data_type, bytes sd_block,
         pointer[0] = 0
         VLSDLen[0] = 0
         for rec from 0 <= rec < n_records - 1 by 1:
+            if pointer[rec] + 4 > buf_len:
+                printf('VLSD sd_data_read: pointer out of bounds at record %llu\n', rec)
+                return None
             memcpy(&vlsd_len, &bit_stream[pointer[rec]], 4)
             VLSDLen[rec] = vlsd_len
             pointer[rec + 1] = VLSDLen[rec] + 4 + pointer[rec]
             if VLSDLen[rec] > max_len:
                     max_len = VLSDLen[rec]
+        if pointer[rec] + 4 > buf_len:
+            printf('VLSD sd_data_read: pointer out of bounds at last record %llu\n', rec)
+            return None
         memcpy(&vlsd_len, &bit_stream[pointer[rec]], 4)
         VLSDLen[rec] = vlsd_len
         if VLSDLen[rec] > max_len:

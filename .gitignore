@@ -33,3 +33,5 @@ dataRead.so
 dataRead.c
 .pytest_tmp/
 .claude/settings.json
+.claude/skills/*
+dataRead.cpython*
