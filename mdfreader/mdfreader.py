@@ -1719,20 +1719,25 @@ class Mdf(Mdf4, Mdf3):
         Parameters
         ----------------
         file_name : str, optional
-            file name. If no name defined, it will use original mdf name and path with .parquet extension
+            file name. If no name defined, it will use original mdf name and path with .parquet extension.
+            When the file contains multiple master channel groups, each group is written to a separate file
+            suffixed with the group index (e.g. ``recording_0.parquet``, ``recording_1.parquet``).
         """
         try:
-            from fastparquet import write as write_parquet
+            import pyarrow  # noqa: F401 — confirms pyarrow is available for pandas to_parquet
         except ImportError:
-            warn('fastparquet not installed')
+            warn('pyarrow not installed, cannot export to parquet')
             return
         if file_name is None:
-            file_name = splitext(self.fileName)[0]
-            file_name = file_name + '.parquet'
-        for master_channel_name in self.masterChannelList:
+            file_name = splitext(self.fileName)[0] + '.parquet'
+        masters = [m for m in self.masterChannelList]
+        base, ext = splitext(file_name)
+        for i, master_channel_name in enumerate(masters):
             frame = self.return_pandas_dataframe(master_channel_name)
-            if frame is not None:
-                write_parquet(file_name, frame, compression='GZIP')
+            if frame is None:
+                continue
+            out = file_name if len(masters) == 1 else f'{base}_{i}{ext}'
+            frame.to_parquet(out, engine='pyarrow', compression='gzip')
 
 
 if __name__ == "__main__":
