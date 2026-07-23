@@ -10,7 +10,7 @@ mdf3reader
 """
 from numpy import right_shift, bitwise_and, interp, empty
 from numpy import max as npmax, min as npmin
-from numpy import asarray, recarray, array, searchsorted, vectorize, exp, log
+from numpy import asarray, array, searchsorted, vectorize, exp, log, zeros
 from numpy import issubdtype, number as numpy_number
 from numpy import frombuffer
 import numpy as np
@@ -483,7 +483,7 @@ class Record(list):
         previous_index = 0
         if channel_set is None and not self.hiddenBytes and self.byte_aligned:
             # reads all, quickest but memory consuming
-            buf = recarray((self.numberOfRecords,), dtype={'names': self.dataRecordName,
+            buf = zeros((self.numberOfRecords,), dtype={'names': self.dataRecordName,
                                                            'formats': self.numpyDataRecordFormat})  # initialise array
             simplefilter('ignore', FutureWarning)
             for n_record_chunk, chunk_size in chunks:
@@ -518,7 +518,7 @@ class Record(list):
                         rec_chan.append(channel)
                         data_record_name.append(channel.name)
                         numpy_data_record_format.append(channel.nativedataFormat)
-                rec = recarray((self.numberOfRecords,), dtype={'names': data_record_name,
+                rec = zeros((self.numberOfRecords,), dtype={'names': data_record_name,
                                                                'formats': numpy_data_record_format})
                 if dataRead_available:
                     try:  # use rather cython compiled code for performance
@@ -559,7 +559,7 @@ class Record(list):
                             break  # record shorter than expected
                         (rec[channel.name][r],) = \
                             channel.CFormat.unpack(seg)
-                return rec.view(recarray)
+                return rec
 
     def read_record_buf(self, buf, channel_set=None):
         """ read stream of record bytes

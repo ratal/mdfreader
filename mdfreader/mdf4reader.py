@@ -31,7 +31,7 @@ if np.lib.NumpyVersion(np.__version__) >= '2.0.0b1':
     from numpy.rec import fromarrays
 else:
     from numpy.core.records import fromarrays
-from numpy import array, recarray, asarray, empty, where, frombuffer, reshape
+from numpy import array, asarray, empty, where, frombuffer, reshape
 from numpy import arange, right_shift, bitwise_and, bitwise_or, all, diff, interp, zeros, concatenate, maximum
 from numpy import issubdtype, number as numpy_number
 from numpy import max as npmax, min as npmin
@@ -112,7 +112,7 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
                 else:
                     return frombuffer(parent_block['data'], dtype={'names': record.dataRecordName,
                                                                    'formats': record.numpyDataRecordFormat},
-                                      count=n_records).view(recarray).copy()
+                                      count=n_records).copy()
             else:  # record is not byte aligned or channelSet not None
                 return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
@@ -134,7 +134,7 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
             if record.byte_aligned and not record.hiddenBytes:
                 return frombuffer(parent_block['data'], dtype={'names': record.dataRecordName,
                                                               'formats': record.numpyDataRecordFormat},
-                                   count=n_records).view(recarray).copy()
+                                   count=n_records).copy()
             else:
                 return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         elif channel_set is not None and sorted_flag:  # sorted data but channel list requested
@@ -950,10 +950,11 @@ class Data(dict):
                                   n_records=nrecord_chunk, sorted_flag=sorted_flag, vlsd=vlsd)
                 if tmp is None or not hasattr(tmp, 'dtype'):
                     continue
-                if not previous_index:  # initialise recarray
-                    data = recarray(record.numberOfRecords, dtype=tmp.dtype)
+                if not previous_index:  # initialise array
+                    data = zeros(record.numberOfRecords, dtype=tmp.dtype)
                 data[previous_index: previous_index + nrecord_chunk] = tmp
                 previous_index += nrecord_chunk
+                del tmp
                 if nremain:
                     data_block['data'] = remain
                 else:
@@ -1351,11 +1352,11 @@ class Record(dict):
         dtype = {'names': self.dataRecordName, 'formats': self.numpyDataRecordFormat}
         total_size = self.CGrecordLength * self.numberOfRecords
         simplefilter('ignore', FutureWarning)
-        # Read into a flat uint8 buffer, then reinterpret as the structured recarray.
+        # Read into a flat uint8 buffer, then reinterpret as the structured array.
         # Single allocation, no copy, and the result is writeable for in-place conversions.
         raw = empty(total_size, dtype='u1')
         fid.readinto(raw)
-        return raw.view(dtype).view(recarray)[:self.numberOfRecords]
+        return raw.view(dtype)[:self.numberOfRecords]
 
     def read_unique_channel(self, fid, info):
         """ reads all channels from file using numpy fromstring, chunk by chunk
@@ -1469,7 +1470,7 @@ class Record(dict):
             contains a matrix of raw data in a recarray (attributes corresponding to channel name)
         """
         if dtype is not None and channels_indexes is not None:
-            return recarray(n_records, dtype=dtype), channels_indexes
+            return zeros(n_records, dtype=dtype), channels_indexes
         else:
             if channel_set is None:
                 channel_set = self.channelNames
@@ -1484,7 +1485,7 @@ class Record(dict):
                     formats.append(self[chan].native_data_format(info))
                     names.append(self[chan].name)
             if formats:
-                rec = recarray(n_records, dtype={
+                rec = zeros(n_records, dtype={
                                'names': names, 'formats': formats})
                 return rec, channels_indexes
             else:
@@ -1518,7 +1519,7 @@ class Record(dict):
             buf, channels_indexes = self.initialise_recarray(
                 info, channel_set, n_records, dtype, channels_indexes)
         else:
-            buf = recarray(n_records, dtype=dtype)
+            buf = zeros(n_records, dtype=dtype)
         if buf is not None:  # at least some channels should be parsed
             if dataRead_available:  # use rather cython compiled code for performance
                 bytes_data = bytes(bit_stream)
@@ -1585,7 +1586,7 @@ class Record(dict):
             buf, channels_indexes = self.initialise_recarray(
                 info, channel_set, n_records, dtype, channels_indexes)
         else:
-            buf = recarray(n_records, dtype=dtype)
+            buf = zeros(n_records, dtype=dtype)
         if buf is not None:
             # read data
             from bitarray import bitarray
@@ -2001,16 +2002,21 @@ class Mdf4(MdfSkeleton):
                                                 else:
                                                     encoding = None
                                                 if encoding is not None:
-                                                    temp2 = empty(
-                                                        len(temp), dtype='U{}'.format(temp.dtype.str[-1]))
-                                                    for t in range(temp.size):
-                                                        try:
-                                                            temp2[t] = temp[t].decode(
-                                                                encoding, 'ignore')
-                                                        except Exception:
-                                                            warn(
-                                                                'Cannot decode channel {}'.format(chan.name))
-                                                            temp2[t] = ''
+                                                    max_len = temp.dtype.itemsize
+                                                    dtype_u = 'U{}'.format(max_len)
+                                                    try:
+                                                        decoded = np.char.decode(temp, encoding)
+                                                        temp2 = decoded.astype(dtype_u)
+                                                    except Exception:
+                                                        temp2 = empty(len(temp), dtype=dtype_u)
+                                                        for t in range(temp.size):
+                                                            try:
+                                                                temp2[t] = temp[t].decode(
+                                                                    encoding, 'ignore')
+                                                            except Exception:
+                                                                warn(
+                                                                    'Cannot decode channel {}'.format(chan.name))
+                                                                temp2[t] = ''
                                                     temp = temp2
 
                                             # channel creation
@@ -2037,8 +2043,7 @@ class Mdf4(MdfSkeleton):
                                                     chan.name, 'invalid_bytes{}'.format(dataGroup))
                                     else:  # invalid bytes channel
                                         if buf[record_id]['invalid_data'] is None:
-                                            invalid_data = buf[record_id]['data'].__getattribute__(
-                                                chan.name)
+                                            invalid_data = buf[record_id]['data'][chan.name]
                                         else:
                                             invalid_data = buf[record_id]['invalid_data']
                                         if not info['DG'][dataGroup]['unique_channel_in_DG']:
@@ -2057,6 +2062,7 @@ class Mdf4(MdfSkeleton):
                                             self.set_channel_data(
                                                 channels[0].name, data)
                             buf[record_id].pop('data', None)
+                            buf[record_id].pop('invalid_data', None)
                     del buf
                 if minimal > 1:
                     # clean CN, CC and CG info to free memory
@@ -3003,27 +3009,25 @@ def _value_range_to_value_table_conversion(vector, cc_val):
     val_count = int(len(cc_val) / 3)
     # cc_val layout: [lo_0,hi_0,val_0, lo_1,hi_1,val_1, ..., lo_{n-1},hi_{n-1},val_{n-1}, default]
     # so cc_val has 3*n+1 elements; key_min[n] holds the default value
-    key_min = [cc_val[i] for i in range(0, 3 * val_count + 1, 3)]
-    key_max = [cc_val[i] for i in range(1, 3 * val_count + 1, 3)]
-    value = [cc_val[i] for i in range(2, 3 * val_count + 1, 3)]
-    default_val = key_min[val_count]
-    # MDF4 spec 6.17.8: integer data uses [lo, hi] (inclusive upper);
-    # float data uses [lo, hi) (exclusive upper).
-    import numpy as np_inner
-    is_integer = np_inner.issubdtype(vector.dtype, np_inner.integer)
-    for l_index in range(len(vector)):
-        result = default_val
-        x = vector[l_index]
-        for i in range(val_count):
-            if is_integer:
-                if key_min[i] <= x <= key_max[i]:
-                    result = value[i]
-                    break
-            else:
-                if key_min[i] <= x < key_max[i]:
-                    result = value[i]
-                    break
-        vector[l_index] = result
+    key_min = [cc_val[i] for i in range(0, 3 * val_count, 3)]
+    key_max = [cc_val[i] for i in range(1, 3 * val_count, 3)]
+    value = [cc_val[i] for i in range(2, 3 * val_count, 3)]
+    default_val = cc_val[3 * val_count]
+    is_integer = issubdtype(vector.dtype, numpy_number) and np.issubdtype(vector.dtype, np.integer)
+    n = len(vector)
+    if n == 0 or val_count == 0:
+        return vector
+    key_min_arr = np.array(key_min)
+    key_max_arr = np.array(key_max)
+    if is_integer:
+        in_range = (vector[:, None] >= key_min_arr[None, :]) & (vector[:, None] <= key_max_arr[None, :])
+    else:
+        in_range = (vector[:, None] >= key_min_arr[None, :]) & (vector[:, None] < key_max_arr[None, :])
+    has_match = in_range.any(axis=1)
+    indices = np.argmax(in_range, axis=1)
+    indices = np.where(has_match, indices, val_count)
+    value_arr = np.array(value + [default_val])
+    vector[:] = value_arr[indices]
     return vector
 
 
@@ -3068,6 +3072,8 @@ def _value_to_text_conversion(vector, cc_val, cc_ref):
         elif not isinstance(cc_ref[ref], str):  # identity, non conversion
             cc_ref[ref] = lambdify(X, 'X', modules='numpy', dummify=False)
     # look up for first value in vector
+    lookup = {cc_val[i]: cc_ref[i] for i in range(len(cc_val))}
+    default = cc_ref[-1]
     key_index = where(vector[0] == cc_val)[0]
     if not len(key_index) == 0:  # value corresponding in cc_val
         temp[0] = cc_ref[key_index[0]]
@@ -3081,14 +3087,13 @@ def _value_to_text_conversion(vector, cc_val, cc_ref):
         if vector[lindex] == vector[lindex - 1]:
             temp[lindex] = temp[lindex - 1]
         else:  # value changed from previous step
-            key_index = where(vector[lindex] == cc_val)[0]
-            if not len(key_index) == 0:  # found match
-                temp[lindex] = cc_ref[key_index[0]]
+            if vector[lindex] in lookup:
+                temp[lindex] = lookup[vector[lindex]]
             else:  # default
-                if callable(cc_ref[-1]):
-                    temp[lindex] = cc_ref[-1](vector[lindex])
+                if callable(default):
+                    temp[lindex] = default(vector[lindex])
                 else:
-                    temp[lindex] = cc_ref[-1]
+                    temp[lindex] = default
     return asarray(temp)
 
 
@@ -3129,20 +3134,25 @@ def _value_range_to_text_conversion(vector, cc_val, cc_ref):
                 cc_ref[ref] = lambdify(X, '1 * X',
                                        modules='numpy', dummify=False)
             # Otherwise a string
-    # look up in range keys
-    temp = []
-    for value in vector:
-        key_index = val_count  # default index if not found
-        for i in range(val_count):
-            if key_min[i] <= value <= key_max[i]:
-                key_index = i
-                break
-        if callable(cc_ref[key_index]):
-            # TXBlock string
-            temp.append(cc_ref[key_index](value))
-        else:  # scale to be applied
-            temp.append(cc_ref[key_index])
-    return asarray(temp)
+    n = len(vector)
+    if n == 0:
+        return asarray(temp)
+    if val_count == 0:
+        return asarray([cc_ref[-1]] * n)
+    key_min_arr = np.array(key_min)
+    key_max_arr = np.array(key_max)
+    in_range = (vector[:, None] >= key_min_arr[None, :]) & (vector[:, None] <= key_max_arr[None, :])
+    has_match = in_range.any(axis=1)
+    indices = np.argmax(in_range, axis=1)
+    indices = np.where(has_match, indices, val_count)
+    result = []
+    for i in range(n):
+        ref = cc_ref[indices[i]]
+        if callable(ref):
+            result.append(ref(vector[i]))
+        else:
+            result.append(ref)
+    return asarray(result)
 
 
 def _text_to_value_conversion(vector, cc_val, cc_ref):
@@ -3160,15 +3170,9 @@ def _text_to_value_conversion(vector, cc_val, cc_ref):
     converted data to physical value
     """
     ref_count = len(cc_ref)
-    temp = []
-    for l_index in range(len(vector)):
-        key_index = ref_count  # default index if not found
-        for i in range(ref_count):
-            if vector[l_index] == cc_ref[i]:
-                key_index = i
-                break
-        temp.append(cc_val[key_index])
-    return asarray(temp)
+    mapping = {cc_ref[i]: cc_val[i] for i in range(ref_count)}
+    default = cc_val[ref_count]
+    return asarray([mapping.get(v, default) for v in vector])
 
 
 def _text_to_text_conversion(vector, cc_ref):
@@ -3185,14 +3189,9 @@ def _text_to_text_conversion(vector, cc_ref):
     converted data to physical value
     """
     ref_count = len(cc_ref) - 2
-    for l_index in range(len(vector)):
-        key_index = ref_count + 1  # default index if not found
-        for i in range(0, ref_count, 2):
-            if vector[l_index] == cc_ref[i]:
-                key_index = i
-                break
-        vector[l_index] = cc_ref[key_index]
-    return vector
+    allowed = set(cc_ref[0:ref_count:2])
+    default = cc_ref[ref_count + 1]
+    return asarray([v if v in allowed else default for v in vector])
 
 
 def _bitfield_text_table_conversion(vector, cc_val, cc_ref):
