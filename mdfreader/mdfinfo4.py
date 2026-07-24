@@ -2751,24 +2751,16 @@ class Info4(dict):
         """
         # check if already existing channel name
         if name in self['ChannelNamesByDG'][dg]:  # for unsorted data
-            if self['CN'][dg][cg][cn]['cn_si_source']:
-                temp = SIBlock()
-                temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                if temp['si_tx_name'] > 0:
-                    source_name = temp['source_name']['Comment']
-                else:
-                    source_name = cn
+            si_dict = self['CN'][dg][cg][cn].get('SI')
+            if si_dict and si_dict.get('si_tx_name', 0) > 0:
+                source_name = si_dict['source_name']['Comment']
             else:
                 source_name = cn
             name = u'{0}_{1}_{2}_{3}'.format(name, dg, cg, source_name)
         elif name in self['allChannelList']:  # for sorted data
-            if self['CN'][dg][cg][cn]['cn_si_source']:
-                temp = SIBlock()
-                temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                if temp['si_tx_name'] > 0:
-                    source_name = temp['source_name']['Comment']
-                else:
-                    source_name = dg
+            si_dict = self['CN'][dg][cg][cn].get('SI')
+            if si_dict and si_dict.get('si_tx_name', 0) > 0:
+                source_name = si_dict['source_name']['Comment']
             else:
                 source_name = dg
             name = u'{0}_{1}_{2}'.format(name, dg, source_name)
