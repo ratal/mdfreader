@@ -206,17 +206,18 @@ class MdfSkeleton(dict):
             (group name, group source, group path)
         """
         if not self._noDataLoading:
-            self[channel_name] = {}
+            channel_dict = {}
+            channel_dict[unitField] = unit
+            channel_dict[descriptionField] = description
+            channel_dict[masterField] = master_channel
+            if self.MDFVersionNumber < 400:
+                channel_dict[masterTypeField] = 1
+            else:
+                channel_dict[masterTypeField] = master_type
             if master_channel not in self.masterChannelList:
                 self.masterChannelList[master_channel] = []
             self.masterChannelList[master_channel].append(channel_name)
-            self.set_channel_unit(channel_name, unit)
-            self.set_channel_desc(channel_name, description)
-            self.set_channel_master(channel_name, master_channel)
-            if self.MDFVersionNumber < 400:  # mdf3
-                self.set_channel_master_type(channel_name, 1)
-            else:  # mdf4
-                self.set_channel_master_type(channel_name, master_type)
+            self[channel_name] = channel_dict
         self.set_channel_data(channel_name, data, compression)
         if conversion is not None:
             self[channel_name]['conversion'] = {}

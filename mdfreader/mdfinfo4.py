@@ -2775,31 +2775,23 @@ class Info4(dict):
         self['ChannelNamesByDG'][dg].add(name)
         self['allChannelList'].add(name)
 
-        if self['CG'][dg][cg]['link_count'] > 6:  # cg master link
-            try:
-                self['masters'][self['CG'][dg][cg]
-                                ['cg_cg_master']]['channels'].add(name)
-            except KeyError:
-                self['masters'][self['CG'][dg][cg]['cg_cg_master']] = dict()
-                self['masters'][self['CG'][dg][cg]
-                                ['cg_cg_master']]['channels'] = set()
-                self['masters'][self['CG'][dg][cg]['cg_cg_master']
-                                ]['name'] = 'master_{}'.format(dg)
-            self['CN'][dg][cg][cn]['masterCG'] = self['CG'][dg][cg]['cg_cg_master']
+        if self['CG'][dg][cg]['link_count'] > 6:
+            master_key = self['CG'][dg][cg]['cg_cg_master']
         else:
-            try:
-                self['masters'][self['CG'][dg][cg]
-                                ['pointer']]['channels'].add(name)
-            except KeyError:
-                self['masters'][self['CG'][dg][cg]['pointer']] = dict()
-                self['masters'][self['CG'][dg][cg]
-                                ['pointer']]['channels'] = set()
-                self['masters'][self['CG'][dg][cg]['pointer']
-                                ]['name'] = 'master_{}'.format(dg)
-            if self['CN'][dg][cg][cn]['cn_type'] in (2, 3):  # master channel
-                self['masters'][self['CG'][dg][cg]['pointer']]['name'] = name
-                self['masters'][self['CG'][dg][cg]['pointer']]['id'] = (dg, cg)
-            self['CN'][dg][cg][cn]['masterCG'] = self['CG'][dg][cg]['pointer']
+            master_key = self['CG'][dg][cg]['pointer']
+        master = self['masters'].get(master_key)
+        if master is None:
+            master = {
+                'channels': set(),
+                'name': 'master_{}'.format(dg)
+            }
+            self['masters'][master_key] = master
+        master['channels'].add(name)
+        is_master = self['CN'][dg][cg][cn]['cn_type'] in (2, 3)
+        if is_master:
+            master['name'] = name
+            master['id'] = (dg, cg)
+        self['CN'][dg][cg][cn]['masterCG'] = master_key
         return name
 
     def unique_id(self, ndg, ncg, ncn):
