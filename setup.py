@@ -18,7 +18,7 @@ except ImportError:
 
 
 name = 'mdfreader'
-version = '4.3'
+version = '4.4'
 
 description = 'A Measured Data Format file parser'
 
