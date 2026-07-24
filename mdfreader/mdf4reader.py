@@ -1093,12 +1093,14 @@ class Record(dict):
         self.append(channel.set(info))
         self.channelNames.add(self[-1].name)
 
-    def load_info(self, info):
+    def load_info(self, info, channel_set=None):
         """ gathers records related from info class
 
         Parameters
         ----------------
         info : mdfinfo4.info4 class
+        channel_set : set of str, optional
+            pre-filter for channel names to include in data arrays
         """
         self.CGrecordLength = info['CG'][self.dataGroup][self.channelGroup]['cg_data_bytes']
         self.recordIDsize = info['DG'][self.dataGroup]['dg_rec_id_size']
@@ -1130,6 +1132,21 @@ class Record(dict):
         if 'MLSD' in info:
             self.MLSD = info['MLSD']
         self.unique_channel_in_DG = info['DG'][self.dataGroup]['unique_channel_in_DG']
+
+        master_name = None
+        for cn_info in info['CN'][self.dataGroup][self.channelGroup].values():
+            master_cg = cn_info.get('masterCG')
+            if master_cg is not None and master_cg in info['masters']:
+                master_name = info['masters'][master_cg]['name']
+                break
+
+        def _should_read(name, ctype):
+            if channel_set is None:
+                return True
+            if name == master_name or ctype in (3, 6):
+                return True
+            return name in channel_set
+
         embedding_channel = None
         prev_chan = Channel4(self.dataGroup, self.channelGroup, 0)
         for channelNumber in sorted(info['CN'][self.dataGroup][self.channelGroup].keys()):
@@ -1180,48 +1197,49 @@ class Record(dict):
                     self.CANOpen = 'time'
                     embedding_channel = None
                 else:
-                    self[channelNumber] = channel
-                    self.channelNames.add(channel.name)
-                    # Checking if several channels are embedded in bytes
-                    if len(self) > 1:
-                        # all channels are already ordered in record based on byte_offset
-                        # and bit_offset so just comparing with previous channel
-                        channel_pos_bit_end = channel.pos_bit_end(info)
-                        prev_chan_byte_offset = prev_chan.byteOffset
-                        prev_chan_n_bytes = prev_chan.nBytes_aligned
-                        prev_chan_includes_curr_chan = channel.pos_bit_beg >= 8 * prev_chan_byte_offset \
-                            and channel_pos_bit_end <= 8 * (prev_chan_byte_offset + prev_chan_n_bytes)
-                        if embedding_channel is not None:
-                            embedding_channel_includes_curr_chan = \
-                                channel_pos_bit_end <= embedding_channel.pos_byte_end(
-                                    info) * 8
-                        else:
-                            embedding_channel_includes_curr_chan = False
-                        if channel.byteOffset >= prev_chan_byte_offset and \
-                                channel.pos_bit_beg < 8 * (prev_chan_byte_offset +
-                                                           prev_chan_n_bytes) < channel_pos_bit_end:
-                            # not byte aligned
-                            self.byte_aligned = False
-                        if embedding_channel is not None and \
-                                channel_pos_bit_end > embedding_channel.pos_byte_end(info) * 8:
-                            embedding_channel = None
-                        if prev_chan_includes_curr_chan or \
-                                embedding_channel_includes_curr_chan:  # bit(s) in byte(s)
-                            if embedding_channel is None and prev_chan_includes_curr_chan:
-                                embedding_channel = prev_chan  # new embedding channel detected
-                            if self.recordToChannelMatching:  # not first channel
-                                self.recordToChannelMatching[channel.name] = \
-                                    self.recordToChannelMatching[prev_chan.name]
-                            else:  # first channels
-                                self.recordToChannelMatching[channel.name] = channel.name
-                                self.numpyDataRecordFormat.append(data_format)
-                                self.dataRecordName.append(channel.name)
-                                self.recordLength += channel.nBytes_aligned
-                    if embedding_channel is None:  # adding bytes
-                        self.recordToChannelMatching[channel.name] = channel.name
-                        self.numpyDataRecordFormat.append(data_format)
-                        self.dataRecordName.append(channel.name)
-                        self.recordLength += channel.nBytes_aligned
+                    if _should_read(channel.name, channel_type):
+                        self[channelNumber] = channel
+                        self.channelNames.add(channel.name)
+                        # Checking if several channels are embedded in bytes
+                        if len(self) > 1:
+                            # all channels are already ordered in record based on byte_offset
+                            # and bit_offset so just comparing with previous channel
+                            channel_pos_bit_end = channel.pos_bit_end(info)
+                            prev_chan_byte_offset = prev_chan.byteOffset
+                            prev_chan_n_bytes = prev_chan.nBytes_aligned
+                            prev_chan_includes_curr_chan = channel.pos_bit_beg >= 8 * prev_chan_byte_offset \
+                                and channel_pos_bit_end <= 8 * (prev_chan_byte_offset + prev_chan_n_bytes)
+                            if embedding_channel is not None:
+                                embedding_channel_includes_curr_chan = \
+                                    channel_pos_bit_end <= embedding_channel.pos_byte_end(
+                                        info) * 8
+                            else:
+                                embedding_channel_includes_curr_chan = False
+                            if channel.byteOffset >= prev_chan_byte_offset and \
+                                    channel.pos_bit_beg < 8 * (prev_chan_byte_offset +
+                                                               prev_chan_n_bytes) < channel_pos_bit_end:
+                                # not byte aligned
+                                self.byte_aligned = False
+                            if embedding_channel is not None and \
+                                    channel_pos_bit_end > embedding_channel.pos_byte_end(info) * 8:
+                                embedding_channel = None
+                            if prev_chan_includes_curr_chan or \
+                                    embedding_channel_includes_curr_chan:  # bit(s) in byte(s)
+                                if embedding_channel is None and prev_chan_includes_curr_chan:
+                                    embedding_channel = prev_chan  # new embedding channel detected
+                                if self.recordToChannelMatching:  # not first channel
+                                    self.recordToChannelMatching[channel.name] = \
+                                        self.recordToChannelMatching[prev_chan.name]
+                                else:  # first channels
+                                    self.recordToChannelMatching[channel.name] = channel.name
+                                    self.numpyDataRecordFormat.append(data_format)
+                                    self.dataRecordName.append(channel.name)
+                                    self.recordLength += channel.nBytes_aligned
+                        if embedding_channel is None:  # adding bytes
+                            self.recordToChannelMatching[channel.name] = channel.name
+                            self.numpyDataRecordFormat.append(data_format)
+                            self.dataRecordName.append(channel.name)
+                            self.recordLength += channel.nBytes_aligned
 
             elif channel_type in (3, 6):  # virtual channel
                 # channel calculated based on record index later in conversion function

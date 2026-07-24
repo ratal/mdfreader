@@ -25,7 +25,9 @@ CAN_open_offset = {'ms': 0, 'days': 4, 'minute': 2, 'hour': 3, 'day': 4, 'month'
 
 class Channel4(object):
     __slots__ = ['channelNumber', 'channelGroup', 'dataGroup',
-                 'type', 'name', 'VLSD_CG_Flag', 'nBytes_aligned', 'byteOffset', 'pos_bit_beg']
+                 'type', 'name', 'VLSD_CG_Flag', 'nBytes_aligned', 'byteOffset', 'pos_bit_beg',
+                 '_cn_info', '_cn_type', '_cn_data_type', '_cn_bit_count',
+                 '_cn_bit_offset', '_cn_byte_offset', '_cn_flags', '_cn_composition']
     """ channel class gathers all about channel structure in a record
 
     Attributes
@@ -225,9 +227,9 @@ class Channel4(object):
         CNBlock class from mdfinfo4 module
         """
         try:
+            return self._cn_info
+        except AttributeError:
             return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
-        except KeyError:
-            return None
 
     def signal_data_type(self, info, byte_aligned=True):
         """ extract signal data type from info4 class
@@ -260,13 +262,13 @@ class Channel4(object):
         15 LE Complex
         16 BE Complex
         """
-        if not self.type == 4:  # Invalid bit channel
-            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type']
+        if not self.type == 4:
+            return self._cn_data_type
         else:
             if byte_aligned:
-                return 10  # byte array
+                return 10
             else:
-                return 0  # uint LE
+                return 0
 
     def bit_count(self, info):
         """ calculates channel number of bits
@@ -281,9 +283,9 @@ class Channel4(object):
         -----------
         integer corresponding to channel number of bits
         """
-        if self.type in (0, 1, 2):  # standard or array channel
-            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count']
-        elif self.type == 3:  # CAN channel
+        if self.type in (0, 1, 2):
+            return self._cn_bit_count
+        elif self.type == 3:
             if self.name == 'ms':
                 if self.signal_data_type(info) == 13:
                     return 16
@@ -293,7 +295,7 @@ class Channel4(object):
                 return 16
             else:
                 return 8
-        elif self.type == 4:  # Invalid bit channel
+        elif self.type == 4:
             return self.nBytes_aligned * 8
         else:
             warn('Not found channel type')
@@ -317,9 +319,9 @@ class Channel4(object):
         4 index
         """
         try:
-            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_sync_type']
-        except KeyError:
-            return 0  # in case of invalid bytes channel
+            return self._cn_info['cn_sync_type']
+        except (AttributeError, KeyError):
+            return 0
 
     def ca_block(self, info):
         """ Extracts channel CA Block from info4
@@ -335,61 +337,28 @@ class Channel4(object):
         CABlock object from mdfinfo4 module
         """
         try:
-            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
-        except KeyError:
+            return self._cn_info['CABlock']
+        except (AttributeError, KeyError):
             return None
 
     def is_ca_block(self, info):
         try:
-            info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
+            self._cn_info['CABlock']
             return True
-        except KeyError:
+        except (AttributeError, KeyError, TypeError):
             return False
 
     def record_id_size(self, info):
-        """ Extracts record id size from info4
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        Returns
-        -----------
-        integer describing record id size
-        0 no record id used
-        1 uint8
-        2 uint16
-        4 uint32
-        8 uint64
-        """
         return info['DG'][self.dataGroup]['dg_rec_id_size']
 
     def channel_type(self, info):
-        """ Extracts channel type from info4
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        Returns
-        -----------
-        integer describing channel type
-        0 normal channel
-        1 variable length
-        2 master channel
-        3 virtual master channel
-        4 sync channel
-        5 max length data
-        6 virtual data channel
-        """
         try:
-            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_type']
-        except KeyError:
-            return 0  # in case of invalid bytes channel
+            return self._cn_type
+        except AttributeError:
+            try:
+                return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_type']
+            except KeyError:
+                return 0
 
     def isnumeric(self, info):
         """ check this is numeric channel from data type
@@ -404,7 +373,7 @@ class Channel4(object):
             -----------
             boolean, true if numeric channel, otherwise false
         """
-        if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'] < 6:
+        if self._cn_data_type < 6:
             return True
         else:
             return False
@@ -424,25 +393,22 @@ class Channel4(object):
         -----------
         number of bytes integer
         """
-        if not self.type == 4:  # not channel containing invalid
+        if not self.type == 4:
+            bit_count = self._cn_bit_count
+            bit_offset = self._cn_bit_offset
             if aligned:
-                n_bytes = _bits_to_bytes_aligned(
-                    info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count']
-                    + info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset'],
-                    self.isnumeric(info))
+                n_bytes = _bits_to_bytes_aligned(bit_count + bit_offset, self.isnumeric(info))
             else:
-                n_bytes = _bits_to_bytes_not_aligned(
-                    info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count']
-                    + info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset'])
-            if self.type in (1, 2):  # array channel
+                n_bytes = _bits_to_bytes_not_aligned(bit_count + bit_offset)
+            if self.type in (1, 2):
                 n_bytes *= self.ca_block(info)['PNd']
                 block = self.ca_block(info)
-                while 'CABlock' in block:  # nested array
+                while 'CABlock' in block:
                     block = block['CABlock']
                     n_bytes *= block['PNd']
-            if self.type == 3:  # CAN channel
+            if self.type == 3:
                 if self.name == 'ms':
-                    if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'] == 13:
+                    if self._cn_data_type == 13:
                         n_bytes = 2
                     else:
                         n_bytes = 4
@@ -467,7 +433,7 @@ class Channel4(object):
         -----------
         boolean
         """
-        if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'] in (1, 3, 5, 9):
+        if self._cn_data_type in (1, 3, 5, 9):
             return False
         else:
             return True
@@ -495,18 +461,14 @@ class Channel4(object):
         endian, dataType : string data format
         """
         endian = ''
-        if self.type == 4:  # Invalid bit channel
+        if self.type == 4:
             data_format = '{}V'.format(self.nBytes_aligned)
-        elif info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_composition'] and \
-                'CABlock' in info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]:  # channel array
-            ca_block = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
-            endian, data_format = array_format4(
-                info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'],
-                info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count'] // 8)
-            # calculates total array size in bytes
+        elif self._cn_composition and 'CABlock' in self._cn_info:
+            ca_block = self._cn_info['CABlock']
+            endian, data_format = array_format4(self._cn_data_type, self._cn_bit_count // 8)
             array_desc = ca_block['ca_dim_size']
             Block = ca_block
-            while 'CABlock' in Block:  # nested array
+            while 'CABlock' in Block:
                 Block = Block['CABlock']
                 if isinstance(array_desc, list):
                     array_desc.append(Block['ca_dim_size'])
@@ -517,7 +479,7 @@ class Channel4(object):
             else:
                 array_desc = str(array_desc)
             data_format = array_desc + data_format
-        elif self.type == 3:  # CAN channel
+        elif self.type == 3:
             if self.name == 'ms':
                 if self.signal_data_type(info) == 13:
                     data_format = 'u2'
@@ -528,12 +490,11 @@ class Channel4(object):
             else:
                 data_format = 'u1'
             endian = '<'
-        else:  # not channel array
-            if self.channel_type(info) in (1, 7):  # VLSD/VLSC: record stores uint offset, not string
+        else:
+            if self.channel_type(info) in (1, 7):
                 endian, data_format = array_format4(0, self.nBytes_aligned)
             else:
-                endian, data_format = array_format4(
-                    info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_data_type'], self.nBytes_aligned)
+                endian, data_format = array_format4(self._cn_data_type, self.nBytes_aligned)
         return endian, data_format
 
     def data_format(self, info):
@@ -570,22 +531,19 @@ class Channel4(object):
         string data C format
         """
         signal_data_type = self.signal_data_type(info)
-        if self.type == 0:  # standard channel
+        if self.type == 0:
             if signal_data_type not in (13, 14):
-                if self.channel_type(info) in (1, 7):  # VLSD or VLSC: record stores uint size
+                if self.channel_type(info) in (1, 7):
                     endian, data_type = data_type_format4(0, self.nBytes_aligned)
                 else:
                     endian, data_type = data_type_format4(signal_data_type, self.nBytes_aligned)
                 return '{}{}'.format(endian, data_type)
-        elif self.type in (1, 2):  # array channel
+        elif self.type in (1, 2):
             ca = self.ca_block(info)
-            n_bytes = _bits_to_bytes_aligned(
-                info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_count'] +
-                info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset'],
-                self.isnumeric(info))
+            n_bytes = _bits_to_bytes_aligned(self._cn_bit_count + self._cn_bit_offset, self.isnumeric(info))
             endian, data_type = data_type_format4(signal_data_type, n_bytes)
             return '{}{}{}'.format(endian, ca['PNd'], data_type)
-        elif self.type == 3:  # CAN channel
+        elif self.type == 3:
             if self.name == 'ms':
                 if signal_data_type == 13:
                     return 'H'
@@ -595,7 +553,7 @@ class Channel4(object):
                 return 'H'
             else:
                 return 'B'
-        elif self.type == 4:  # Invalid bit channel
+        elif self.type == 4:
             return '{}s'.format(self.nBytes_aligned)
         else:
             warn('Not found channel type')
@@ -641,97 +599,35 @@ class Channel4(object):
         -----------
         integer, channel bit offset
         """
-        if self.type in (0, 1, 2):  # standard or channel array
-            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset']
-        elif self.type == 3:  # CAN channel
-            # byteOffset already includes CANOpen_offset(); only use cn_bit_offset here
-            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_bit_offset']
-        elif self.type == 4:  # Invalid bit channel
+        if self.type in (0, 1, 2):
+            return self._cn_bit_offset
+        elif self.type == 3:
+            return self._cn_bit_offset
+        elif self.type == 4:
             return 0
         else:
             warn('Not found channel type')
 
     def calc_byte_offset(self, info):
-        """ channel data bytes offset in record (without record id)
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        Returns
-        -----------
-        integer, channel bytes offset
-        """
-        if self.type in (0, 1, 2):  # standard or channel array
-            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_byte_offset']
-        elif self.type == 3:  # CAN channel
-            return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_byte_offset'] \
-                   + self.CANOpen_offset()
-        elif self.type == 4:  # Invalid bit channel
+        if self.type in (0, 1, 2):
+            return self._cn_byte_offset
+        elif self.type == 3:
+            return self._cn_byte_offset + self.CANOpen_offset()
+        elif self.type == 4:
             return info['CG'][self.dataGroup][self.channelGroup]['cg_data_bytes']
         else:
             warn('Not found channel type')
 
     def pos_byte_beg(self, info):
-        """ channel data bytes starting position in record
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        Returns
-        -----------
-        integer, channel bytes starting position
-        """
         return self.record_id_size(info) + self.byteOffset
 
     def pos_byte_end(self, info):
-        """ channel data bytes ending position in record
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        Returns
-        -----------
-        integer, channel bytes ending position
-        """
         return self.pos_byte_beg(info) + self.nBytes_aligned
 
     def pos_bit_begin(self, info):
-        """ channel data bit starting position in record
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        Returns
-        -----------
-        integer, channel bit starting position
-        """
         return self.pos_byte_beg(info) * 8 + self.bit_offset(info)
 
     def pos_bit_end(self, info):
-        """ channel data bit ending position in record
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        Returns
-        -----------
-        integer, channel bit ending position
-        """
         return self.pos_bit_beg + self.bit_count(info)
 
     def unit(self, info):
@@ -751,8 +647,8 @@ class Channel4(object):
             return ''
         if 'unit' in info['CC'][self.dataGroup][self.channelGroup][self.channelNumber]:
             unit = info['CC'][self.dataGroup][self.channelGroup][self.channelNumber]['unit']
-        elif 'unit' in info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]:
-            unit = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['unit']
+        elif 'unit' in self._cn_info:
+            unit = self._cn_info['unit']
         else:
             unit = ''
         if 'Comment' in unit:
@@ -760,27 +656,14 @@ class Channel4(object):
         return unit
 
     def desc(self, info):
-        """ channel description
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        Returns
-        -----------
-        channel description string
-        """
-        if not self.type == 3:  # CAN channel
-            if self.channelNumber in info['CN'][self.dataGroup][self.channelGroup]:
-                if 'Comment' in info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]:
-                    desc = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['Comment']
-                    if (desc is not None) and isinstance(desc, dict):
-                        if 'description' in desc:
-                            desc = desc['description']
-                        elif 'name' in desc:
-                            desc = desc['name']
+        if not self.type == 3:
+            if 'Comment' in self._cn_info:
+                desc = self._cn_info['Comment']
+                if (desc is not None) and isinstance(desc, dict):
+                    if 'description' in desc:
+                        desc = desc['description']
+                    elif 'name' in desc:
+                        desc = desc['name']
                 else:
                     desc = ''
                 return desc
@@ -791,97 +674,85 @@ class Channel4(object):
             return self.name
 
     def conversion(self, info):
-        """ channel conversion CCBlock
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        Returns
-        -----------
-        CCBlock
-        """
         try:
             return info['CC'][self.dataGroup][self.channelGroup][self.channelNumber]
         except KeyError:
             return None
 
     def set(self, info):
-        """ channel initialisation
-
-        Parameters
-        ------------
-
-        info : mdfinfo4.info4 class
-
-        """
-        self.name = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['name']
+        cn_info = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
+        self._cn_info = cn_info
+        self._cn_type = cn_info['cn_type']
+        self._cn_data_type = cn_info['cn_data_type']
+        self._cn_bit_count = cn_info['cn_bit_count']
+        self._cn_bit_offset = cn_info['cn_bit_offset']
+        self._cn_byte_offset = cn_info['cn_byte_offset']
+        self._cn_flags = cn_info['cn_flags']
+        self._cn_composition = cn_info['cn_composition']
+        self.name = cn_info['name']
         self.type = 0
-        if info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_composition'] and \
-                'CABlock' in info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]:
-            # channel array
+        if cn_info['cn_composition'] and 'CABlock' in cn_info:
             self.type = 1
-            block = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['CABlock']
-            if 'CABlock' in block:  # nested array
+            block = cn_info['CABlock']
+            if 'CABlock' in block:
                 self.type = 2
         self.nBytes_aligned = self.calc_bytes(info)
         self.byteOffset = self.calc_byte_offset(info)
         self.pos_bit_beg = self.pos_bit_begin(info)
 
     def set_CANOpen(self, info, name):
-        """ CANOpen channel intialisation
-
-        Parameters
-        ------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        name : str
-            name of channel. Should be in ('ms', 'day', 'days', 'hour',
-            'month', 'minute', 'year')
-        """
         self.type = 3
         self.name = name
+        cn_info = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
+        self._cn_info = cn_info
+        self._cn_type = cn_info['cn_type']
+        self._cn_data_type = cn_info['cn_data_type']
+        self._cn_bit_count = cn_info['cn_bit_count']
+        self._cn_bit_offset = cn_info['cn_bit_offset']
+        self._cn_byte_offset = cn_info['cn_byte_offset']
+        self._cn_flags = cn_info.get('cn_flags', 0)
+        self._cn_composition = cn_info['cn_composition']
         self.nBytes_aligned = self.calc_bytes(info)
         self.byteOffset = self.calc_byte_offset(info)
         self.pos_bit_beg = self.pos_bit_begin(info)
 
     def set_invalid_bytes(self, info):
-        """ invalid_bytes channel initialisation
-
-        Parameters
-        ------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        """
         self.type = 4
         self.name = 'invalid_bytes{}'.format(self.dataGroup)
+        try:
+            cn_info = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
+            self._cn_info = cn_info
+            self._cn_type = cn_info.get('cn_type', 0)
+            self._cn_data_type = cn_info.get('cn_data_type', 0)
+            self._cn_bit_count = cn_info.get('cn_bit_count', 0)
+            self._cn_bit_offset = cn_info.get('cn_bit_offset', 0)
+            self._cn_byte_offset = cn_info.get('cn_byte_offset', 0)
+            self._cn_flags = cn_info.get('cn_flags', 0)
+            self._cn_composition = cn_info.get('cn_composition', False)
+        except KeyError:
+            self._cn_info = None
+            self._cn_type = 4
+            self._cn_data_type = 10
+            self._cn_bit_count = 0
+            self._cn_bit_offset = 0
+            self._cn_byte_offset = 0
+            self._cn_flags = 0
+            self._cn_composition = False
         self.nBytes_aligned = self.calc_bytes(info)
         self.byteOffset = self.calc_byte_offset(info)
         self.pos_bit_beg = self.pos_bit_begin(info)
 
     def invalid_bit(self, info):
-        """ extracts from info4 the channels valid bits positions
-
-        Parameters
-        ----------------
-
-        info : mdfinfo4.info4 class
-            info4 class containing all MDF Blocks
-
-        Returns
-        -----------
-        channel valid bit position
-        """
-        return info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_invalid_bit_pos']
+        try:
+            return self._cn_info['cn_invalid_bit_pos']
+        except (AttributeError, KeyError):
+            return 0
 
     def has_invalid_bit(self, info):
-        flags = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_flags']
+        try:
+            flags = self._cn_flags
+        except AttributeError:
+            flags = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]['cn_flags']
         if flags & 0b10:
             return True
         else:
