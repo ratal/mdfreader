@@ -40,7 +40,7 @@ from numpy import nan, datetime64, array, searchsorted, clip, empty
 from numpy.ma import MaskedArray, masked, empty as ma_empty
 from .mdf3reader import Mdf3
 from .mdf4reader import Mdf4
-from .mdf import _open_mdf, dataField, descriptionField, unitField, masterField, masterTypeField, idField
+from .mdf import _open_mdf, dataField, descriptionField, unitField, masterField, masterTypeField, idField, conversionField, CompressedData
 from .mdfinfo3 import Info3, _generate_dummy_mdf3
 from .mdfinfo4 import Info4, _generate_dummy_mdf4
 
@@ -494,6 +494,12 @@ class Mdf(Mdf4, Mdf3):
         ------
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
+        if channel_name in self:
+            chan_dict = self[channel_name]
+            vec = chan_dict.get(dataField)
+            if vec is not None and not self._noDataLoading and not isinstance(vec, CompressedData):
+                if raw_data or conversionField not in chan_dict:
+                    return vec
         if self.MDFVersionNumber < 400:
             vector = self._get_channel_data3(channel_name, raw_data)
         else:

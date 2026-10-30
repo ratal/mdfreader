@@ -482,25 +482,20 @@ class Record(list):
             chunks.append((n_record_chunk, full_record_length * n_record_chunk))
         previous_index = 0
         if channel_set is None and not self.hiddenBytes and self.byte_aligned:
-            # reads all, quickest but memory consuming
-            buf = zeros((self.numberOfRecords,), dtype={'names': self.dataRecordName,
-                                                           'formats': self.numpyDataRecordFormat})  # initialise array
+            # reads all, quickest and lowest memory overhead
+            dtype = {'names': self.dataRecordName, 'formats': self.numpyDataRecordFormat}
+            total_size = full_record_length * self.numberOfRecords
             simplefilter('ignore', FutureWarning)
-            for n_record_chunk, chunk_size in chunks:
-                raw = fid.read(chunk_size)
-                actual_records = len(raw) // full_record_length
-                if actual_records < n_record_chunk:
-                    # file shorter than expected (e.g. MDF 2.x / truncated)
-                    n_record_chunk = actual_records
-                    raw = raw[:full_record_length * actual_records]
-                if n_record_chunk > 0:
-                    buf[previous_index: previous_index + n_record_chunk] = \
-                        frombuffer(raw,
-                                   dtype={'names': self.dataRecordName,
-                                          'formats': self.numpyDataRecordFormat},
-                                   count=n_record_chunk)
-                previous_index += n_record_chunk
-            return buf
+            raw = empty(total_size, dtype='u1')
+            if hasattr(fid, 'readinto'):
+                n_read = fid.readinto(raw)
+                if n_read is not None and n_read < total_size:
+                    actual_records = n_read // full_record_length
+                    return raw[:actual_records * full_record_length].view(dtype)[:actual_records]
+                return raw.view(dtype)[:self.numberOfRecords]
+            else:
+                data = fid.read(total_size)
+                return frombuffer(data, dtype=dtype)[:self.numberOfRecords]
         else:  # reads only some channels from a sorted data block
             if channel_set is None:
                 channel_set = self.channelNames
@@ -1118,7 +1113,8 @@ class Mdf3(MdfSkeleton):
             self.read3(self.fileName, convert_after_read=True)
         else:
             for channel in self:
-                self._convert_channel3(channel)
+                if 'conversion' in self[channel]:
+                    self._convert_channel3(channel)
 
     def write3(self, file_name=None):
         """Writes simple mdf 3.3 file

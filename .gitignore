@@ -32,6 +32,8 @@ mdfconverter/Ui_mdfreaderui.py
 dataRead.so
 dataRead.c
 .pytest_tmp/
-.claude/settings.json
-.claude/skills/*
+.claude/
 dataRead.cpython*
+.kilo
+.issues
+.venv

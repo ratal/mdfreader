@@ -1119,6 +1119,14 @@ class Channel3:
     change_channel_name(channel_group)
         rename duplicated channel name within unsorted channel groups
     """
+    __slots__ = [
+        'name', 'channelNumber', 'signalDataType', 'bitCount', 'posBitBeg',
+        'posBitEnd', 'byteOffset', 'bitOffset', 'nBytes_aligned',
+        'nBytes_not_aligned', 'dataFormat', 'nativedataFormat', 'CFormat',
+        'embedding_channel_bitOffset', 'posByteBeg', 'posByteEnd',
+        'bit_masking_needed', 'channelType', 'unit', 'desc', 'conversion',
+        'recAttributeName', 'RecordFormat'
+    ]
 
     def __init__(self, info, data_group, channel_group, channel_number, record_id_number):
         """ Channel class constructor
@@ -1135,41 +1143,35 @@ class Channel3:
         record_id_number : int
             Number of record ID, each one Byte
         """
-        self.name = info['CNBlock'][data_group][channel_group][channel_number]['signalName']
+        cn = info['CNBlock'][data_group][channel_group][channel_number]
+        cc = info['CCBlock'][data_group][channel_group][channel_number]
+        self.name = cn['signalName']
         self.channelNumber = channel_number
-        self.signalDataType = info['CNBlock'][data_group][channel_group][channel_number]['signalDataType']
-        if self.signalDataType not in (7, 8):
-            numeric = True
-        else:
-            numeric = False
-        self.bitCount = info['CNBlock'][data_group][channel_group][channel_number]['numberOfBits']
+        sdt = cn['signalDataType']
+        self.signalDataType = sdt
+        numeric = sdt not in (7, 8)
+        bc = cn['numberOfBits']
+        self.bitCount = bc
         byte_order = info['IDBlock']['ByteOrder']
-        self.posBitBeg = info['CNBlock'][data_group][channel_group][channel_number]['numberOfTheFirstBits']
-        self.posBitEnd = self.posBitBeg + self.bitCount
-        self.byteOffset = self.posBitBeg // 8
-        self.bitOffset = self.posBitBeg % 8
-        self.nBytes_aligned = _bits_to_bytes_aligned(self.bitCount + self.bitOffset, numeric)
-        self.nBytes_not_aligned = _bits_to_bytes_not_aligned(self.bitCount + self.bitOffset)
+        pbb = cn['numberOfTheFirstBits']
+        self.posBitBeg = pbb
+        self.posBitEnd = pbb + bc
+        self.byteOffset = pbb // 8
+        bo = pbb % 8
+        self.bitOffset = bo
+        self.nBytes_aligned = _bits_to_bytes_aligned(bc + bo, numeric)
+        self.nBytes_not_aligned = _bits_to_bytes_not_aligned(bc + bo)
         (self.dataFormat, self.nativedataFormat) = \
-            _array_format3(self.signalDataType, self.nBytes_aligned, byte_order)
-        self.CFormat = Struct(_data_type_format3(self.signalDataType, self.nBytes_aligned, byte_order))
-        self.embedding_channel_bitOffset = self.bitOffset  # for channel containing other channels
+            _array_format3(sdt, self.nBytes_aligned, byte_order)
+        self.CFormat = Struct(_data_type_format3(sdt, self.nBytes_aligned, byte_order))
+        self.embedding_channel_bitOffset = bo  # for channel containing other channels
         self.posByteBeg = record_id_number + self.byteOffset
         self.posByteEnd = record_id_number + self.byteOffset + self.nBytes_aligned
-        if not self.nBytes_aligned == self.bitCount / 8:
-            self.bit_masking_needed = True
-        else:
-            self.bit_masking_needed = False
-        self.channelType = info['CNBlock'][data_group][channel_group][channel_number]['channelType']
-        if 'physicalUnit' in info['CCBlock'][data_group][channel_group][channel_number]:
-            self.unit = info['CCBlock'][data_group][channel_group][channel_number]['physicalUnit']
-        else:
-            self.unit = ''
-        if 'signalDescription' in info['CNBlock'][data_group][channel_group][channel_number]:
-            self.desc = info['CNBlock'][data_group][channel_group][channel_number]['signalDescription']
-        else:
-            self.desc = ''
-        self.conversion = info['CCBlock'][data_group][channel_group][channel_number]
+        self.bit_masking_needed = (self.nBytes_aligned != bc / 8)
+        self.channelType = cn['channelType']
+        self.unit = cc.get('physicalUnit', '')
+        self.desc = cn.get('signalDescription', '')
+        self.conversion = cc
 
     def __str__(self):
         output = [self.channelNumber, ' ', self.name, ' ', self.signalDataType, ' ',

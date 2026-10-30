@@ -1921,6 +1921,19 @@ class Mdf4(MdfSkeleton):
                     for record_id in channel_groups:  # for each channel group in data block
                         if 'record' in buf[record_id]:
                             master_channel = buf[record_id]['record'].master
+                            cg_dict = info['CG'][buf[record_id]['record'].dataGroup].get(buf[record_id]['record'].channelGroup, {})
+                            acq_name = cg_dict.get('acq_name')
+                            gn = acq_name.get('Comment') if acq_name is not None else None
+                            acq_source = cg_dict.get('acq_source')
+                            if acq_source is not None:
+                                g_sn = acq_source.get('source_name')
+                                gs = g_sn.get('Comment') if g_sn is not None else None
+                                g_sp = acq_source.get('source_path')
+                                gp = g_sp.get('Comment') if g_sp is not None else None
+                            else:
+                                gs = None
+                                gp = None
+                            cg_group_info = (gn, gs, gp)
 
                             if self._noDataLoading and channel_list is not None:
                                 channels = [
@@ -2046,7 +2059,8 @@ class Mdf4(MdfSkeleton):
                                                              compression=compression,
                                                              identifier=info.unique_id(chan.dataGroup,
                                                                                        chan.channelGroup,
-                                                                                       chan.channelNumber))
+                                                                                       chan.channelNumber,
+                                                                                       group_info=cg_group_info))
                                             # sync channel
                                             if chan.channel_type(info) == 4:
                                                 # attach stream to be synchronised
@@ -2226,7 +2240,7 @@ class Mdf4(MdfSkeleton):
             self.read4(self.fileName, convert_after_read=True)
         else:
             if self.multiProc is False:
-                [self._convert_channel4(channelName) for channelName in self]
+                [self._convert_channel4(channelName) for channelName in self if 'conversion' in self[channelName]]
             else:  # multiprocessing
                 proc = []
                 Q = Queue()

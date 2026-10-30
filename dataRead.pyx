@@ -248,8 +248,20 @@ cdef packed struct _TXHdr:
     uint64_t link_count      # always 0 for TX/MD
 
 
-cdef str _fast_read_tx(int fd, uint64_t pointer):
-    """Read TX block text via pread. Returns '' if pointer is 0 or read fails."""
+cdef inline Py_ssize_t _pread_or_mmap(const unsigned char* mmap_buf, size_t mmap_len, int fd,
+                                       void* dest, size_t count, int64_t offset) nogil:
+    if mmap_buf != NULL:
+        if offset >= 0 and <size_t>offset + count <= mmap_len:
+            memcpy(dest, mmap_buf + offset, count)
+            return count
+        return 0
+    elif fd >= 0:
+        return c_pread(fd, dest, count, offset)
+    return 0
+
+
+cdef str _fast_read_tx(const unsigned char* mmap_buf, size_t mmap_len, int fd, uint64_t pointer):
+    """Read TX block text via mmap or pread. Returns '' if pointer is 0 or read fails."""
     cdef _TXHdr hdr
     cdef Py_ssize_t content_len, end, nread
     cdef unsigned char* buf
@@ -257,6 +269,18 @@ cdef str _fast_read_tx(int fd, uint64_t pointer):
 
     if pointer == 0:
         return ''
+    if mmap_buf != NULL:
+        if pointer + 24 > mmap_len:
+            return ''
+        memcpy(&hdr, mmap_buf + pointer, 24)
+        if hdr.length <= 24 or pointer + hdr.length > mmap_len:
+            return ''
+        content_len = <Py_ssize_t>(hdr.length - 24)
+        end = content_len
+        while end > 0 and mmap_buf[pointer + 24 + end - 1] == 0:
+            end -= 1
+        return (<bytes>(mmap_buf + pointer + 24)[:end]).decode('UTF-8', 'ignore')
+
     with nogil:
         nread = c_pread(fd, &hdr, 24, pointer)
     if nread < 24 or hdr.length <= 24:
@@ -282,23 +306,8 @@ cdef str _fast_read_tx(int fd, uint64_t pointer):
     return result
 
 
-cdef str _fast_read_tx_or_md(int fd, uint64_t pointer):
-    """Read a TX or MD block and return its text content.
-
-    TX blocks
-        The payload bytes are decoded directly as UTF-8 (ignoring errors)
-        and returned after stripping trailing null bytes.
-
-    MD blocks (XML)
-        A fast ``bytes.find()`` scan looks for ``<TX>…</TX>`` in the raw
-        payload.  This handles the standard ``<CNcomment><TX>…</TX></CNcomment>``
-        and ``<CNunit><TX>…</TX></CNunit>`` patterns that cover >95% of
-        real MDF4 files.  If the scan fails (CDATA sections, namespace
-        prefixes, nested elements), the full payload is passed to
-        ``lxml.objectify`` as a fallback.
-
-    Returns '' if *pointer* is 0, the read fails, or no TX text is found.
-    """
+cdef str _fast_read_tx_or_md(const unsigned char* mmap_buf, size_t mmap_len, int fd, uint64_t pointer):
+    """Read a TX or MD block and return its text content."""
     cdef _TXHdr hdr
     cdef Py_ssize_t content_len, nread, tx_start, tx_end, end
     cdef unsigned char* buf
@@ -307,6 +316,44 @@ cdef str _fast_read_tx_or_md(int fd, uint64_t pointer):
 
     if pointer == 0:
         return ''
+    if mmap_buf != NULL:
+        if pointer + 24 > mmap_len:
+            return ''
+        memcpy(&hdr, mmap_buf + pointer, 24)
+        if hdr.length <= 24 or pointer + hdr.length > mmap_len:
+            return ''
+        content_len = <Py_ssize_t>(hdr.length - 24)
+        end = content_len
+        while end > 0 and mmap_buf[pointer + 24 + end - 1] == 0:
+            end -= 1
+        if hdr.id[2] == b'T' and hdr.id[3] == b'X':
+            return (<bytes>(mmap_buf + pointer + 24)[:end]).decode('UTF-8', 'ignore')
+        payload = <bytes>(mmap_buf + pointer + 24)[:end]
+        tx_start = payload.find(b'<TX>')
+        if tx_start >= 0:
+            tx_start += 4
+            tx_end = payload.find(b'</TX>', tx_start)
+            if tx_end >= 0:
+                return payload[tx_start:tx_end].decode('UTF-8', 'ignore')
+        try:
+            from lxml import objectify as _obj
+            xml_tree = _obj.fromstring(payload)
+            try:
+                return str(xml_tree.TX)
+            except AttributeError:
+                pass
+            try:
+                return str(xml_tree.CNcomment.TX)
+            except AttributeError:
+                pass
+            try:
+                return str(xml_tree.CNunit.TX)
+            except AttributeError:
+                pass
+        except Exception:
+            pass
+        return ''
+
     with nogil:
         nread = c_pread(fd, &hdr, 24, pointer)
     if nread < 24 or hdr.length <= 24:
@@ -325,12 +372,10 @@ cdef str _fast_read_tx_or_md(int fd, uint64_t pointer):
         end = nread
         while end > 0 and buf[end - 1] == 0:
             end -= 1
-        # TX block (id[2]=='T', id[3]=='X')
         if hdr.id[2] == b'T' and hdr.id[3] == b'X':
             buf[end] = 0
             result = (<bytes>buf[:end]).decode('UTF-8', 'ignore')
             return result
-        # MD block: fast <TX>...</TX> scan
         payload = bytes(buf[:end])
         tx_start = payload.find(b'<TX>')
         if tx_start >= 0:
@@ -338,11 +383,9 @@ cdef str _fast_read_tx_or_md(int fd, uint64_t pointer):
             tx_end = payload.find(b'</TX>', tx_start)
             if tx_end >= 0:
                 return payload[tx_start:tx_end].decode('UTF-8', 'ignore')
-        # CDATA or namespaced XML: attempt lxml parse
         try:
             from lxml import objectify as _obj
             xml_tree = _obj.fromstring(payload)
-            # Try common paths: TX, CNcomment.TX, CNunit.TX, etc.
             try:
                 return str(xml_tree.TX)
             except AttributeError:
@@ -362,28 +405,23 @@ cdef str _fast_read_tx_or_md(int fd, uint64_t pointer):
         PyMem_Free(buf)
 
 
-cdef dict _fast_read_si(int fd, uint64_t pointer):
-    """Read an SI block and return a dict matching the ``SIBlock`` Python format.
-
-    The returned dict contains the same keys as ``SIBlock.read_si()`` would
-    produce, so it can be stored directly in ``info._si_cache`` and later
-    assigned to ``info['CN'][dg][cg][cn]['SI']``.
-
-    The ``source_name`` and ``source_path`` sub-dicts are populated by reading
-    the linked TX blocks via :func:`_fast_read_tx`.
-
-    Returns ``None`` if *pointer* is 0 or the pread fails.
-    """
+cdef dict _fast_read_si(const unsigned char* mmap_buf, size_t mmap_len, int fd, uint64_t pointer):
+    """Read an SI block and return a dict matching the SIBlock Python format."""
     cdef _SIBlock si
     cdef Py_ssize_t nread
     cdef dict result
 
     if pointer == 0:
         return None
-    with nogil:
-        nread = c_pread(fd, &si, 56, pointer)
-    if nread < 56:
-        return None
+    if mmap_buf != NULL:
+        if pointer + 56 > mmap_len:
+            return None
+        memcpy(&si, mmap_buf + pointer, 56)
+    else:
+        with nogil:
+            nread = c_pread(fd, &si, 56, pointer)
+        if nread < 56:
+            return None
     result = {
         'id': b'##SI',
         'length': si.length,
@@ -394,36 +432,42 @@ cdef dict _fast_read_si(int fd, uint64_t pointer):
         'si_type': _SI_TYPE_MAP.get(si.si_type, 'OTHER'),
         'si_bus_type': _SI_BUS_MAP.get(si.si_bus_type, 'NONE'),
         'si_flags': si.si_flags,
-        'source_name': {'Comment': _fast_read_tx(fd, si.si_tx_name)},
-        'source_path': {'Comment': _fast_read_tx(fd, si.si_tx_path)},
+        'source_name': {'Comment': _fast_read_tx(mmap_buf, mmap_len, fd, si.si_tx_name)},
+        'source_path': {'Comment': _fast_read_tx(mmap_buf, mmap_len, fd, si.si_tx_path)},
     }
     return result
 
 
 def read_cn_chain_fast(object fid, uint64_t first_pointer,
                        dict si_cache, int minimal, bint channel_name_list):
-    """Read the CN linked list starting at first_pointer using pread().
+    """Read the CN linked list starting at first_pointer using mmap or pread()."""
+    cdef const unsigned char* mmap_buf = NULL
+    cdef size_t mmap_len = 0
+    cdef const unsigned char[:] mview
+    cdef int fd = -1
+    cdef object local_mmap = None
 
-    Parameters
-    ----------
-    fid : file object (must support fileno())
-    first_pointer : uint64_t
-        File offset of the first CN block in the chain
-    si_cache : dict
-        Shared SI block cache keyed by file offset; updated in-place
-    minimal : int
-        0 = load all metadata; non-zero = skip SI and XML comment
-    channel_name_list : bool
-        True = read only channel names (skip CC/SI/unit/comment)
+    try:
+        mview = fid
+        mmap_buf = &mview[0]
+        mmap_len = <size_t>mview.shape[0]
+    except (TypeError, ValueError):
+        mmap_buf = NULL
+        mmap_len = 0
 
-    Returns
-    -------
-    list of (cn_key, cn_dict, cc_dict) tuples
-        cn_key is positive (byte_offset*8 + bit_offset) or negative (DS mode)
-        cn_dict and cc_dict match the structure produced by read_cn_block()
-        cc_dict has '_needs_completion'=True for cc_type 3/7-11
-    """
-    cdef int fd = fid.fileno()
+    if mmap_buf == NULL and hasattr(fid, 'fileno'):
+        try:
+            fd = fid.fileno()
+            import mmap as _py_mmap
+            local_mmap = _py_mmap.mmap(fd, 0, access=_py_mmap.ACCESS_READ)
+            mview = local_mmap
+            mmap_buf = &mview[0]
+            mmap_len = <size_t>mview.shape[0]
+        except Exception:
+            local_mmap = None
+            mmap_buf = NULL
+            mmap_len = 0
+
     cdef uint64_t pointer = first_pointer
     cdef _CNFixedHdr cn_hdr
     cdef _CNData cn_dat
@@ -436,171 +480,543 @@ def read_cn_chain_fast(object fid, uint64_t first_pointer,
     cdef list results = []
     cdef dict cn_dict, cc_dict, si_dict
     cdef str cn_name, unit_str, desc_str
-    cdef unsigned char extra_buf[512]   # for extra CN links (attachments)
+    cdef unsigned char extra_buf[512]
     cdef double* dbl_ptr
     cdef unsigned char* cc_val_buf
     cdef list cc_val_list
     cdef uint32_t i
 
-    while pointer != 0:
-        # ── Read CN fixed header + 8 standard links (88 bytes) ──────────────
-        with nogil:
-            nread = c_pread(fd, &cn_hdr, 88, pointer)
-        if nread < 88:
-            break
-
-        # ── Read CN data section (72 bytes at variable offset) ───────────────
-        data_offset = 24 + <Py_ssize_t>(cn_hdr.link_count) * 8
-        with nogil:
-            nread = c_pread(fd, &cn_dat, 72, pointer + data_offset)
-        if nread < 72:
-            break
-
-        # ── Compute dict key ─────────────────────────────────────────────────
-        if cn_dat.cn_flags & 0x20000:   # CN_F_DATA_STREAM_MODE
-            cn_key_neg = -<int64_t>pointer
-            cn_key = cn_key_neg
-        else:
-            cn_key_uint = (<uint64_t>cn_dat.cn_byte_offset) * 8 + cn_dat.cn_bit_offset
-            cn_key = cn_key_uint
-
-        # ── Read channel name (TX block) ─────────────────────────────────────
-        cn_name = _fast_read_tx(fd, cn_hdr.cn_tx_name) if cn_hdr.cn_tx_name else ''
-
-        # ── Build CN dict ─────────────────────────────────────────────────────
-        cn_dict = {
-            'pointer': pointer,
-            'id': b'##CN',
-            'length': cn_hdr.length,
-            'link_count': cn_hdr.link_count,
-            'cn_cn_next': cn_hdr.cn_cn_next,
-            'cn_composition': cn_hdr.cn_composition,
-            'cn_tx_name': cn_hdr.cn_tx_name,
-            'cn_si_source': cn_hdr.cn_si_source,
-            'cn_cc_conversion': cn_hdr.cn_cc_conversion,
-            'cn_data': cn_hdr.cn_data,
-            'cn_md_unit': cn_hdr.cn_md_unit,
-            'cn_md_comment': cn_hdr.cn_md_comment,
-            'cn_type': cn_dat.cn_type,
-            'cn_sync_type': cn_dat.cn_sync_type,
-            'cn_data_type': cn_dat.cn_data_type,
-            'cn_bit_offset': cn_dat.cn_bit_offset,
-            'cn_byte_offset': cn_dat.cn_byte_offset,
-            'cn_bit_count': cn_dat.cn_bit_count,
-            'cn_flags': cn_dat.cn_flags,
-            'cn_invalid_bit_pos': cn_dat.cn_invalid_bit_pos,
-            'cn_precision': cn_dat.cn_precision,
-            'cn_reserved': 0,
-            'cn_attachment_count': cn_dat.cn_attachment_count,
-            'cn_val_range_min': cn_dat.cn_val_range_min,
-            'cn_val_range_max': cn_dat.cn_val_range_max,
-            'cn_default_x': None,
-            'name': cn_name,
-        }
-
-        # ── Handle extra links (attachments, default_x) ───────────────────────
-        if cn_hdr.link_count > 8:
-            n_extra = (<Py_ssize_t>(cn_hdr.link_count) - 8) * 8
-            if n_extra <= 512:
+    try:
+        while pointer != 0:
+            if mmap_buf != NULL:
+                if pointer + 88 > mmap_len:
+                    break
+                memcpy(&cn_hdr, mmap_buf + pointer, 88)
+            else:
                 with nogil:
-                    nread = c_pread(fd, extra_buf, n_extra, pointer + 88)
-                if nread == n_extra:
-                    extra_links = []
-                    for i in range(0, n_extra, 8):
-                        lnk = 0
-                        memcpy(&lnk, extra_buf + i, 8)
-                        extra_links.append(lnk)
-                    if cn_dat.cn_attachment_count > 0:
-                        cn_dict['cn_at_reference'] = extra_links[:cn_dat.cn_attachment_count]
-                    if cn_hdr.link_count > 8 + cn_dat.cn_attachment_count:
-                        cn_dict['cn_default_x'] = extra_links[cn_dat.cn_attachment_count:]
+                    nread = c_pread(fd, &cn_hdr, 88, pointer)
+                if nread < 88:
+                    break
 
-        # ── Read unit (TX or MD block) ─────────────────────────────────────────
-        if not channel_name_list:
-            if cn_hdr.cn_md_unit:
-                unit_str = _fast_read_tx_or_md(fd, cn_hdr.cn_md_unit)
-                if unit_str:
-                    cn_dict['unit'] = unit_str
+            data_offset = 24 + <Py_ssize_t>(cn_hdr.link_count) * 8
+            if mmap_buf != NULL:
+                if pointer + data_offset + 72 > mmap_len:
+                    break
+                memcpy(&cn_dat, mmap_buf + pointer + data_offset, 72)
+            else:
+                with nogil:
+                    nread = c_pread(fd, &cn_dat, 72, pointer + data_offset)
+                if nread < 72:
+                    break
+
+            if cn_dat.cn_flags & 0x20000:   # CN_F_DATA_STREAM_MODE
+                cn_key_neg = -<int64_t>pointer
+                cn_key = cn_key_neg
+            else:
+                cn_key_uint = (<uint64_t>cn_dat.cn_byte_offset) * 8 + cn_dat.cn_bit_offset
+                cn_key = cn_key_uint
+
+            cn_name = _fast_read_tx(mmap_buf, mmap_len, fd, cn_hdr.cn_tx_name) if cn_hdr.cn_tx_name else ''
+
+            cn_dict = {
+                'pointer': pointer,
+                'id': b'##CN',
+                'length': cn_hdr.length,
+                'link_count': cn_hdr.link_count,
+                'cn_cn_next': cn_hdr.cn_cn_next,
+                'cn_composition': cn_hdr.cn_composition,
+                'cn_tx_name': cn_hdr.cn_tx_name,
+                'cn_si_source': cn_hdr.cn_si_source,
+                'cn_cc_conversion': cn_hdr.cn_cc_conversion,
+                'cn_data': cn_hdr.cn_data,
+                'cn_md_unit': cn_hdr.cn_md_unit,
+                'cn_md_comment': cn_hdr.cn_md_comment,
+                'cn_type': cn_dat.cn_type,
+                'cn_sync_type': cn_dat.cn_sync_type,
+                'cn_data_type': cn_dat.cn_data_type,
+                'cn_bit_offset': cn_dat.cn_bit_offset,
+                'cn_byte_offset': cn_dat.cn_byte_offset,
+                'cn_bit_count': cn_dat.cn_bit_count,
+                'cn_flags': cn_dat.cn_flags,
+                'cn_invalid_bit_pos': cn_dat.cn_invalid_bit_pos,
+                'cn_precision': cn_dat.cn_precision,
+                'cn_reserved': 0,
+                'cn_attachment_count': cn_dat.cn_attachment_count,
+                'cn_val_range_min': cn_dat.cn_val_range_min,
+                'cn_val_range_max': cn_dat.cn_val_range_max,
+                'cn_default_x': None,
+                'name': cn_name,
+            }
+
+            if cn_hdr.link_count > 8:
+                n_extra = (<Py_ssize_t>(cn_hdr.link_count) - 8) * 8
+                if mmap_buf != NULL:
+                    if pointer + 88 + n_extra <= mmap_len:
+                        extra_links = []
+                        for i in range(0, n_extra, 8):
+                            lnk = 0
+                            memcpy(&lnk, mmap_buf + pointer + 88 + i, 8)
+                            extra_links.append(lnk)
+                        if cn_dat.cn_attachment_count > 0:
+                            cn_dict['cn_at_reference'] = extra_links[:cn_dat.cn_attachment_count]
+                        if cn_hdr.link_count > 8 + cn_dat.cn_attachment_count:
+                            cn_dict['cn_default_x'] = extra_links[cn_dat.cn_attachment_count:]
+                elif n_extra <= 512:
+                    with nogil:
+                        nread = c_pread(fd, extra_buf, n_extra, pointer + 88)
+                    if nread == n_extra:
+                        extra_links = []
+                        for i in range(0, n_extra, 8):
+                            lnk = 0
+                            memcpy(&lnk, extra_buf + i, 8)
+                            extra_links.append(lnk)
+                        if cn_dat.cn_attachment_count > 0:
+                            cn_dict['cn_at_reference'] = extra_links[:cn_dat.cn_attachment_count]
+                        if cn_hdr.link_count > 8 + cn_dat.cn_attachment_count:
+                            cn_dict['cn_default_x'] = extra_links[cn_dat.cn_attachment_count:]
+
+            if not channel_name_list:
+                if cn_hdr.cn_md_unit:
+                    unit_str = _fast_read_tx_or_md(mmap_buf, mmap_len, fd, cn_hdr.cn_md_unit)
+                    if unit_str:
+                        cn_dict['unit'] = unit_str
+                    elif cn_dat.cn_sync_type == 1:
+                        cn_dict['unit'] = 's'
+                    elif cn_dat.cn_sync_type == 2:
+                        cn_dict['unit'] = 'rad'
+                    elif cn_dat.cn_sync_type == 3:
+                        cn_dict['unit'] = 'm'
                 elif cn_dat.cn_sync_type == 1:
                     cn_dict['unit'] = 's'
                 elif cn_dat.cn_sync_type == 2:
                     cn_dict['unit'] = 'rad'
                 elif cn_dat.cn_sync_type == 3:
                     cn_dict['unit'] = 'm'
-            elif cn_dat.cn_sync_type == 1:
-                cn_dict['unit'] = 's'
-            elif cn_dat.cn_sync_type == 2:
-                cn_dict['unit'] = 'rad'
-            elif cn_dat.cn_sync_type == 3:
-                cn_dict['unit'] = 'm'
 
-            # ── Read description (MD/TX block) ─────────────────────────────────
-            if cn_hdr.cn_md_comment:
-                desc_str = _fast_read_tx_or_md(fd, cn_hdr.cn_md_comment)
-                if desc_str:
-                    cn_dict['Comment'] = {'description': desc_str}
+                if cn_hdr.cn_md_comment:
+                    desc_str = _fast_read_tx_or_md(mmap_buf, mmap_len, fd, cn_hdr.cn_md_comment)
+                    if desc_str:
+                        cn_dict['Comment'] = {'description': desc_str}
 
-        # ── Read CC block ──────────────────────────────────────────────────────
-        cc_ptr = cn_hdr.cn_cc_conversion
-        cc_dict = {'cc_type': 0}
-        if cc_ptr != 0:
-            with nogil:
-                nread = c_pread(fd, &cc_hdr, 56, cc_ptr)
-            if nread == 56:
-                cc_data_offset = 24 + <Py_ssize_t>(cc_hdr.link_count) * 8
-                with nogil:
-                    nread = c_pread(fd, &cc_dat, 24, cc_ptr + cc_data_offset)
-                if nread == 24:
-                    cc_dict = {
-                        'pointer': cc_ptr,
-                        'id': b'##CC',
-                        'length': cc_hdr.length,
-                        'link_count': cc_hdr.link_count,
-                        'cc_tx_name': cc_hdr.cc_tx_name,
-                        'cc_md_unit': cc_hdr.cc_md_unit,
-                        'cc_md_comment': cc_hdr.cc_md_comment,
-                        'cc_cc_inverse': cc_hdr.cc_cc_inverse,
-                        'cc_type': cc_dat.cc_type,
-                        'cc_precision': cc_dat.cc_precision,
-                        'cc_flags': cc_dat.cc_flags,
-                        'cc_ref_count': cc_dat.cc_ref_count,
-                        'cc_val_count': cc_dat.cc_val_count,
-                        'cc_phy_range_min': cc_dat.cc_phy_range_min,
-                        'cc_phy_range_max': cc_dat.cc_phy_range_max,
-                    }
-                    # Read cc_val (doubles) for common conversion types
-                    if cc_dat.cc_val_count > 0 and cc_dat.cc_type not in (3, 7, 8, 9, 10, 11):
-                        n_bytes = cc_dat.cc_val_count * 8
-                        cc_val_buf = <unsigned char*>PyMem_Malloc(n_bytes)
-                        if cc_val_buf != NULL:
-                            try:
-                                with nogil:
-                                    nread = c_pread(fd, cc_val_buf,
-                                                    n_bytes,
-                                                    cc_ptr + cc_data_offset + 24)
-                                if nread == n_bytes:
-                                    dbl_ptr = <double*>cc_val_buf
+            cc_ptr = cn_hdr.cn_cc_conversion
+            cc_dict = {'cc_type': 0}
+            if cc_ptr != 0:
+                if mmap_buf != NULL:
+                    if cc_ptr + 56 <= mmap_len:
+                        memcpy(&cc_hdr, mmap_buf + cc_ptr, 56)
+                        nread = 56
+                    else:
+                        nread = 0
+                else:
+                    with nogil:
+                        nread = c_pread(fd, &cc_hdr, 56, cc_ptr)
+                if nread == 56:
+                    cc_data_offset = 24 + <Py_ssize_t>(cc_hdr.link_count) * 8
+                    if mmap_buf != NULL:
+                        if cc_ptr + cc_data_offset + 24 <= mmap_len:
+                            memcpy(&cc_dat, mmap_buf + cc_ptr + cc_data_offset, 24)
+                            nread = 24
+                        else:
+                            nread = 0
+                    else:
+                        with nogil:
+                            nread = c_pread(fd, &cc_dat, 24, cc_ptr + cc_data_offset)
+                    if nread == 24:
+                        cc_dict = {
+                            'pointer': cc_ptr,
+                            'id': b'##CC',
+                            'length': cc_hdr.length,
+                            'link_count': cc_hdr.link_count,
+                            'cc_tx_name': cc_hdr.cc_tx_name,
+                            'cc_md_unit': cc_hdr.cc_md_unit,
+                            'cc_md_comment': cc_hdr.cc_md_comment,
+                            'cc_cc_inverse': cc_hdr.cc_cc_inverse,
+                            'cc_type': cc_dat.cc_type,
+                            'cc_precision': cc_dat.cc_precision,
+                            'cc_flags': cc_dat.cc_flags,
+                            'cc_ref_count': cc_dat.cc_ref_count,
+                            'cc_val_count': cc_dat.cc_val_count,
+                            'cc_phy_range_min': cc_dat.cc_phy_range_min,
+                            'cc_phy_range_max': cc_dat.cc_phy_range_max,
+                        }
+                        if cc_dat.cc_val_count > 0 and cc_dat.cc_type not in (3, 7, 8, 9, 10, 11):
+                            n_bytes = cc_dat.cc_val_count * 8
+                            if mmap_buf != NULL:
+                                if cc_ptr + cc_data_offset + 24 + n_bytes <= mmap_len:
+                                    dbl_ptr = <double*>(mmap_buf + cc_ptr + cc_data_offset + 24)
                                     cc_val_list = []
                                     for i in range(cc_dat.cc_val_count):
                                         cc_val_list.append(dbl_ptr[i])
                                     cc_dict['cc_val'] = cc_val_list
-                            finally:
-                                PyMem_Free(cc_val_buf)
-                    # Mark complex CC types for Python re-read
-                    if cc_dat.cc_type in (3, 7, 8, 9, 10, 11):
+                            else:
+                                cc_val_buf = <unsigned char*>PyMem_Malloc(n_bytes)
+                                if cc_val_buf != NULL:
+                                    try:
+                                        with nogil:
+                                            nread = c_pread(fd, cc_val_buf, n_bytes, cc_ptr + cc_data_offset + 24)
+                                        if nread == n_bytes:
+                                            dbl_ptr = <double*>cc_val_buf
+                                            cc_val_list = []
+                                            for i in range(cc_dat.cc_val_count):
+                                                cc_val_list.append(dbl_ptr[i])
+                                            cc_dict['cc_val'] = cc_val_list
+                                    finally:
+                                        PyMem_Free(cc_val_buf)
+                        if cc_dat.cc_type in (3, 7, 8, 9, 10, 11):
+                            cc_dict['_needs_completion'] = True
+
+            if not minimal and not channel_name_list and cn_hdr.cn_si_source != 0:
+                si_ptr = cn_hdr.cn_si_source
+                if si_ptr not in si_cache:
+                    si_cache[si_ptr] = _fast_read_si(mmap_buf, mmap_len, fd, si_ptr)
+                si_dict = si_cache.get(si_ptr)
+                if si_dict is not None:
+                    cn_dict['SI'] = si_dict
+
+            results.append((cn_key, cn_dict, cc_dict))
+            pointer = cn_hdr.cn_cn_next
+
+    finally:
+        if local_mmap is not None:
+            try:
+                local_mmap.close()
+            except Exception:
+                pass
+
+    return results
+
+
+# ─── MDF3 fast metadata reader ────────────────────────────────────────────────
+
+cdef packed struct _CNBlock3:
+    char     id[2]            # b'CN'
+    uint16_t length           # 228
+    uint32_t cn_cn_next       # pointerToNextCNBlock
+    uint32_t cn_cc_conversion # pointerToConversionFormula
+    uint32_t cn_ce_source     # pointerToCEBlock
+    uint32_t cn_cd_dependency # pointerToCDBlock
+    uint32_t cn_tx_comment    # pointerToChannelCommentBlock
+    uint16_t channel_type     # channelType (0=data, 1=master)
+    char     signal_name[32]  # signalName
+    char     signal_desc[128] # signalDescription
+    uint16_t first_bit        # numberOfTheFirstBits
+    uint16_t bit_count        # numberOfBits
+    uint16_t signal_data_type # signalDataType
+    uint16_t value_range_known# valueRangeKnown
+    double   val_range_min    # valueRangeMinimum
+    double   val_range_max    # valueRangeMaximum
+    double   rate_sample      # rateVariableSampled
+    uint32_t cn_tx_asam_name  # pointerToASAMNameBlock
+    uint32_t cn_tx_si_ident   # pointerToSignalIdentifierBlock
+    uint16_t byte_offset      # ByteOffset
+
+cdef packed struct _CCBlock3:
+    char     id[2]            # b'CC'
+    uint16_t length           # 46
+    uint16_t value_range_known# valueRangeKnown
+    double   val_range_min    # valueRangeMinimum
+    double   val_range_max    # valueRangeMaximum
+    char     unit[20]         # physicalUnit
+    uint16_t cc_type          # cc_type
+    uint16_t val_pair_count   # numberOfValuePairs
+
+
+cdef str _fast_read_tx3(const unsigned char* mmap_buf, size_t mmap_len, int fd, uint32_t pointer):
+    cdef char block_type[2]
+    cdef uint16_t block_size = 0
+    cdef Py_ssize_t content_len, end, nread
+    cdef unsigned char* buf
+    if pointer == 0:
+        return ''
+    if mmap_buf != NULL:
+        if pointer + 4 > mmap_len:
+            return ''
+        memcpy(block_type, mmap_buf + pointer, 2)
+        memcpy(&block_size, mmap_buf + pointer + 2, 2)
+        if block_size < 4 or pointer + block_size > mmap_len:
+            return ''
+        content_len = block_size - 4
+        end = content_len
+        while end > 0 and mmap_buf[pointer + 4 + end - 1] == 0:
+            end -= 1
+        return (<bytes>(mmap_buf + pointer + 4)[:end]).decode('latin1', 'replace')
+    else:
+        with nogil:
+            nread = c_pread(fd, block_type, 2, pointer)
+        if nread < 2:
+            return ''
+        with nogil:
+            nread = c_pread(fd, &block_size, 2, pointer + 2)
+        if nread < 2 or block_size < 4:
+            return ''
+        content_len = block_size - 4
+        buf = <unsigned char*>PyMem_Malloc(content_len + 1)
+        if buf == NULL:
+            return ''
+        try:
+            with nogil:
+                nread = c_pread(fd, buf, content_len, pointer + 4)
+            if nread < 1:
+                return ''
+            end = nread
+            while end > 0 and buf[end - 1] == 0:
+                end -= 1
+            buf[end] = 0
+            return (<bytes>buf[:end]).decode('latin1', 'replace')
+        finally:
+            PyMem_Free(buf)
+
+
+cdef dict _fast_read_ce3(const unsigned char* mmap_buf, size_t mmap_len, int fd, uint32_t pointer):
+    cdef uint16_t ext_type = 0
+    cdef unsigned char ce_buf[128]
+    cdef Py_ssize_t nread, end
+    cdef dict result = {}
+    cdef str ecu_id, desc, msg, sender
+    if pointer == 0:
+        return None
+    if mmap_buf != NULL:
+        if pointer + 6 > mmap_len:
+            return None
+        memcpy(&ext_type, mmap_buf + pointer + 4, 2)
+        if ext_type == 2:
+            if pointer + 6 + 116 <= mmap_len:
+                memcpy(ce_buf, mmap_buf + pointer + 6, 116)
+                end = 80
+                while end > 0 and ce_buf[4 + end - 1] == 0:
+                    end -= 1
+                desc = (<bytes>ce_buf[4:4 + end]).decode('latin1', 'replace')
+                end = 32
+                while end > 0 and ce_buf[84 + end - 1] == 0:
+                    end -= 1
+                ecu_id = (<bytes>ce_buf[84:84 + end]).decode('latin1', 'replace')
+                result['tail'] = ecu_id
+                result['ECU_id'] = ecu_id
+                result['description'] = desc
+                return result
+        elif ext_type == 19:
+            if pointer + 6 + 78 <= mmap_len:
+                memcpy(ce_buf, mmap_buf + pointer + 6, 78)
+                end = 36
+                while end > 0 and ce_buf[6 + end - 1] == 0:
+                    end -= 1
+                msg = (<bytes>ce_buf[6:6 + end]).decode('latin1', 'replace')
+                end = 36
+                while end > 0 and ce_buf[42 + end - 1] == 0:
+                    end -= 1
+                sender = (<bytes>ce_buf[42:42 + end]).decode('latin1', 'replace')
+                result['tail'] = msg
+                result['message'] = msg
+                result['sender'] = sender
+                return result
+    else:
+        with nogil:
+            nread = c_pread(fd, &ext_type, 2, pointer + 4)
+        if nread < 2:
+            return None
+        if ext_type == 2:
+            with nogil:
+                nread = c_pread(fd, ce_buf, 116, pointer + 6)
+            if nread == 116:
+                end = 80
+                while end > 0 and ce_buf[4 + end - 1] == 0:
+                    end -= 1
+                desc = (<bytes>ce_buf[4:4 + end]).decode('latin1', 'replace')
+                end = 32
+                while end > 0 and ce_buf[84 + end - 1] == 0:
+                    end -= 1
+                ecu_id = (<bytes>ce_buf[84:84 + end]).decode('latin1', 'replace')
+                result['tail'] = ecu_id
+                result['ECU_id'] = ecu_id
+                result['description'] = desc
+                return result
+        elif ext_type == 19:
+            with nogil:
+                nread = c_pread(fd, ce_buf, 78, pointer + 6)
+            if nread == 78:
+                end = 36
+                while end > 0 and ce_buf[6 + end - 1] == 0:
+                    end -= 1
+                msg = (<bytes>ce_buf[6:6 + end]).decode('latin1', 'replace')
+                end = 36
+                while end > 0 and ce_buf[42 + end - 1] == 0:
+                    end -= 1
+                sender = (<bytes>ce_buf[42:42 + end]).decode('latin1', 'replace')
+                result['tail'] = msg
+                result['message'] = msg
+                result['sender'] = sender
+                return result
+    return None
+
+
+def read_cn_chain_fast3(object fid, uint32_t first_pointer, dict ce_cache):
+    """Read MDF3 CN block chain starting at first_pointer using mmap or pread().
+    Returns list of (cn_dict, cc_dict).
+    """
+    cdef const unsigned char* mmap_buf = NULL
+    cdef size_t mmap_len = 0
+    cdef const unsigned char[:] mview
+    cdef int fd = -1
+    cdef object local_mmap = None
+
+    try:
+        mview = fid
+        mmap_buf = &mview[0]
+        mmap_len = <size_t>mview.shape[0]
+    except (TypeError, ValueError):
+        mmap_buf = NULL
+        mmap_len = 0
+
+    if mmap_buf == NULL and hasattr(fid, 'fileno'):
+        try:
+            fd = fid.fileno()
+            import mmap as _py_mmap
+            local_mmap = _py_mmap.mmap(fd, 0, access=_py_mmap.ACCESS_READ)
+            mview = local_mmap
+            mmap_buf = &mview[0]
+            mmap_len = <size_t>mview.shape[0]
+        except Exception:
+            local_mmap = None
+            mmap_buf = NULL
+            mmap_len = 0
+
+    cdef uint32_t pointer = first_pointer
+    cdef _CNBlock3 cn_dat
+    cdef _CCBlock3 cc_dat
+    cdef Py_ssize_t nread, end
+    cdef list results = []
+    cdef dict cn_dict, cc_dict, ce_dict
+    cdef str sig_name, sig_desc, long_name, comment_str, si_str, unit_str
+    cdef double p1, p2
+    cdef uint32_t cc_ptr
+
+    try:
+        while pointer != 0:
+            if mmap_buf != NULL:
+                if pointer + 228 > mmap_len:
+                    break
+                memcpy(&cn_dat, mmap_buf + pointer, 228)
+            else:
+                with nogil:
+                    nread = c_pread(fd, &cn_dat, 228, pointer)
+                if nread < 228:
+                    break
+
+            end = 32
+            while end > 0 and cn_dat.signal_name[end - 1] == 0:
+                end -= 1
+            sig_name = (<bytes>cn_dat.signal_name[:end]).decode('latin1', 'replace')
+
+            end = 128
+            while end > 0 and cn_dat.signal_desc[end - 1] == 0:
+                end -= 1
+            sig_desc = (<bytes>cn_dat.signal_desc[:end]).decode('latin1', 'replace')
+
+            if cn_dat.cn_tx_asam_name > 0:
+                long_name = _fast_read_tx3(mmap_buf, mmap_len, fd, cn_dat.cn_tx_asam_name)
+            else:
+                long_name = ''
+
+            if cn_dat.cn_tx_comment > 0:
+                comment_str = _fast_read_tx3(mmap_buf, mmap_len, fd, cn_dat.cn_tx_comment)
+            else:
+                comment_str = ''
+
+            if cn_dat.cn_tx_si_ident > 0:
+                si_str = _fast_read_tx3(mmap_buf, mmap_len, fd, cn_dat.cn_tx_si_ident)
+            else:
+                si_str = ''
+
+            if cn_dat.cn_ce_source > 0:
+                if cn_dat.cn_ce_source in ce_cache:
+                    ce_dict = ce_cache[cn_dat.cn_ce_source]
+                else:
+                    ce_dict = _fast_read_ce3(mmap_buf, mmap_len, fd, cn_dat.cn_ce_source)
+                    if ce_dict is not None:
+                        ce_cache[cn_dat.cn_ce_source] = ce_dict
+
+            cn_dict = {
+                'BlockType': b'CN',
+                'BlockSize': 228,
+                'pointerToNextCNBlock': cn_dat.cn_cn_next,
+                'pointerToConversionFormula': cn_dat.cn_cc_conversion,
+                'pointerToCEBlock': cn_dat.cn_ce_source,
+                'pointerToCDBlock': cn_dat.cn_cd_dependency,
+                'pointerToChannelCommentBlock': cn_dat.cn_tx_comment,
+                'channelType': cn_dat.channel_type,
+                'signalName': sig_name,
+                'signalDescription': sig_desc,
+                'numberOfTheFirstBits': cn_dat.first_bit,
+                'numberOfBits': cn_dat.bit_count,
+                'signalDataType': cn_dat.signal_data_type,
+                'valueRangeKnown': cn_dat.value_range_known,
+                'valueRangeMinimum': cn_dat.val_range_min,
+                'valueRangeMaximum': cn_dat.val_range_max,
+                'rateVariableSampled': cn_dat.rate_sample,
+                'pointerToASAMNameBlock': cn_dat.cn_tx_asam_name,
+                'pointerToSignalIdentifierBlock': cn_dat.cn_tx_si_ident,
+                'ByteOffset': cn_dat.byte_offset,
+                'orig_name': sig_name,
+                'asam_name': long_name,
+                'ChannelCommentBlock': comment_str,
+                'SignalIdentifierBlock': si_str,
+            }
+
+            cc_ptr = cn_dat.cn_cc_conversion
+            if cc_ptr == 0:
+                cc_dict = {'cc_type': 65535, 'BlockType': b'CC', 'BlockSize': 46}
+            else:
+                if mmap_buf != NULL:
+                    if cc_ptr + 46 <= mmap_len:
+                        memcpy(&cc_dat, mmap_buf + cc_ptr, 46)
+                        nread = 46
+                    else:
+                        nread = 0
+                else:
+                    with nogil:
+                        nread = c_pread(fd, &cc_dat, 46, cc_ptr)
+                if nread == 46:
+                    end = 20
+                    while end > 0 and cc_dat.unit[end - 1] == 0:
+                        end -= 1
+                    unit_str = (<bytes>cc_dat.unit[:end]).decode('latin1', 'replace')
+
+                    cc_dict = {
+                        'BlockType': b'CC',
+                        'BlockSize': 46,
+                        'valueRangeKnown': cc_dat.value_range_known,
+                        'valueRangeMinimum': cc_dat.val_range_min,
+                        'valueRangeMaximum': cc_dat.val_range_max,
+                        'physicalUnit': unit_str,
+                        'cc_type': cc_dat.cc_type,
+                        'numberOfValuePairs': cc_dat.val_pair_count,
+                        'conversion': {},
+                    }
+                    if cc_dat.cc_type == 0:
+                        if mmap_buf != NULL:
+                            if cc_ptr + 46 + 16 <= mmap_len:
+                                memcpy(&p1, mmap_buf + cc_ptr + 46, 8)
+                                memcpy(&p2, mmap_buf + cc_ptr + 46 + 8, 8)
+                                cc_dict['conversion'] = {'P1': p1, 'P2': p2}
+                        else:
+                            with nogil:
+                                nread = c_pread(fd, &p1, 8, cc_ptr + 46)
+                                nread = c_pread(fd, &p2, 8, cc_ptr + 46 + 8)
+                            cc_dict['conversion'] = {'P1': p1, 'P2': p2}
+                    elif cc_dat.cc_type != 65535:
                         cc_dict['_needs_completion'] = True
+                else:
+                    cc_dict = {'cc_type': 65535, 'BlockType': b'CC', 'BlockSize': 46}
 
-        # ── Read SI block (cached) ─────────────────────────────────────────────
-        if not minimal and not channel_name_list and cn_hdr.cn_si_source != 0:
-            si_ptr = cn_hdr.cn_si_source
-            if si_ptr not in si_cache:
-                si_cache[si_ptr] = _fast_read_si(fd, si_ptr)
-            si_dict = si_cache.get(si_ptr)
-            if si_dict is not None:
-                cn_dict['SI'] = si_dict
+            results.append((cn_dict, cc_dict))
+            pointer = cn_dat.cn_cn_next
 
-        results.append((cn_key, cn_dict, cc_dict))
-        pointer = cn_hdr.cn_cn_next
+    finally:
+        if local_mmap is not None:
+            try:
+                local_mmap.close()
+            except Exception:
+                pass
 
     return results
 

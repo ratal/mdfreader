@@ -26,9 +26,15 @@ dg_struct = Struct('<2sH4I2H')
 cg_struct = Struct('<2sH3I3HI')
 ce_struct = Struct('<2s2H')
 
+try:
+    from dataRead import read_cn_chain_fast3 as _read_cn_chain_fast3
+    _CN_CHAIN_FAST3 = True
+except ImportError:
+    _CN_CHAIN_FAST3 = False
+
 
 class Info3(dict):
-    __slots__ = ['fileName', 'fid', 'filterChannelNames']
+    __slots__ = ['fileName', 'fid', 'filterChannelNames', '_ce_cache']
     """ mdf file info class version 3.x
     MDFINFO is a class information about an MDF (Measure Data Format) file
     Based on following specification http://powertrainnvh.com/nvh/MDFspecificationv03.pdf
@@ -84,6 +90,7 @@ class Info3(dict):
         self['CCBlock'] = dict()  # Conversion block
         self['allChannelList'] = set()  # all channels
         self['ChannelNamesByDG'] = dict()
+        self._ce_cache = {}
         self.filterChannelNames = filter_channel_names
         self.fileName = file_name
         self.fid = None
@@ -179,105 +186,158 @@ class Info3(dict):
 
             # Get pointer to next first Channel block
             cn_pointer = self['CGBlock'][dg][cg]['pointerToFirstCNBlock']
+            n_channel = self['CGBlock'][dg][cg]['numberOfChannels']
 
-            # For each Channel
-            for channel in range(self['CGBlock'][dg][cg]['numberOfChannels']):
+            fast_channels = None
+            if _CN_CHAIN_FAST3 and cn_pointer > 0 and hasattr(fid, 'fileno'):
+                try:
+                    fast_channels = _read_cn_chain_fast3(fid, cn_pointer, self._ce_cache)
+                except Exception:
+                    fast_channels = None
 
-                # Read data Channel block info into structure
+            if fast_channels is not None:
+                for channel, (cn_dat, cc_dat) in enumerate(fast_channels):
+                    if cc_dat.pop('_needs_completion', False):
+                        cc_dat = read_cc_block(fid, cn_dat['pointerToConversionFormula'])
 
-                self['CNBlock'][dg][cg][channel] = read_cn_block(fid, cn_pointer)
-                cn_pointer = self['CNBlock'][dg][cg][channel]['pointerToNextCNBlock']
-
-                # Read Channel text blocks (TXBlock)
-
-                # Clean signal name
-                short_signal_name = self['CNBlock'][dg][cg][channel]['signalName']  # short name of signal
-                # keep original non unique channel name
-                self['CNBlock'][dg][cg][channel]['orig_name'] = short_signal_name
-
-                if self['CNBlock'][dg][cg][channel]['pointerToASAMNameBlock'] > 0:
-                    # long name of signal
-                    long_signal_name = \
-                        read_tx_block(fid, self['CNBlock'][dg][cg][channel]['pointerToASAMNameBlock'])
-                    if len(long_signal_name) > len(short_signal_name):  # long name should be used
+                    short_signal_name = cn_dat['orig_name']
+                    long_signal_name = cn_dat.get('asam_name', '')
+                    if len(long_signal_name) > len(short_signal_name):
                         signal_name = long_signal_name
                     else:
                         signal_name = short_signal_name
-                else:
-                    signal_name = short_signal_name
-                signal_name = signal_name.split('\\')
-                if len(signal_name) > 1:
-                    self['CNBlock'][dg][cg][channel]['deviceName'] = signal_name[1]
-                signal_name = signal_name[0]
-                if self.filterChannelNames:
-                    signal_name = signal_name.split('.')[-1]  # filters channels modules
+                    signal_name = signal_name.split('\\')
+                    if len(signal_name) > 1:
+                        cn_dat['deviceName'] = signal_name[1]
+                    signal_name = signal_name[0]
+                    if self.filterChannelNames:
+                        signal_name = signal_name.split('.')[-1]
 
-                if signal_name in self['ChannelNamesByDG'][dg]:  # for unsorted data
-                    pointer = self['CNBlock'][dg][cg][channel]['pointerToCEBlock']
-                    if pointer:
-                        temp = read_ce_block(fid, pointer)
+                    if signal_name in self['ChannelNamesByDG'][dg]:
+                        pointer = cn_dat['pointerToCEBlock']
+                        if pointer:
+                            temp = self._ce_cache.get(pointer)
+                            if temp is None:
+                                temp = read_ce_block(fid, pointer)
+                                self._ce_cache[pointer] = temp
+                        else:
+                            temp = dict()
+                            temp['tail'] = channel
+                        cn_dat['signalName'] = '{0}_{1}_{2}_{3}'.format(signal_name, dg, cg, temp['tail'])
+                    elif signal_name in self['allChannelList']:
+                        pointer = cn_dat['pointerToCEBlock']
+                        if pointer:
+                            temp = self._ce_cache.get(pointer)
+                            if temp is None:
+                                temp = read_ce_block(fid, pointer)
+                                self._ce_cache[pointer] = temp
+                        else:
+                            temp = dict()
+                            temp['tail'] = dg
+                        if '{0}_{1}'.format(signal_name, temp['tail']) not in self['allChannelList']:
+                            cn_dat['signalName'] = '{0}_{1}'.format(signal_name, temp['tail'])
+                        else:
+                            cn_dat['signalName'] = '{0}_{1}_{2}'.format(signal_name, dg, temp['tail'])
                     else:
-                        temp = dict()
-                        temp['tail'] = channel
-                    self['CNBlock'][dg][cg][channel]['signalName'] = \
-                        '{0}_{1}_{2}_{3}'.format(signal_name, dg, cg, temp['tail'])
-                elif signal_name in self['allChannelList']:
-                    # doublon name or master channel
-                    pointer = self['CNBlock'][dg][cg][channel]['pointerToCEBlock']
-                    if pointer:
-                        temp = read_ce_block(fid, pointer)
+                        cn_dat['signalName'] = signal_name
+                    self['ChannelNamesByDG'][dg].add(cn_dat['signalName'])
+                    self['allChannelList'].add(cn_dat['signalName'])
+                    self['CNBlock'][dg][cg][channel] = cn_dat
+                    self['CCBlock'][dg][cg][channel] = cc_dat
+            else:
+                # For each Channel
+                for channel in range(n_channel):
+
+                    # Read data Channel block info into structure
+
+                    self['CNBlock'][dg][cg][channel] = read_cn_block(fid, cn_pointer)
+                    cn_pointer = self['CNBlock'][dg][cg][channel]['pointerToNextCNBlock']
+
+                    # Read Channel text blocks (TXBlock)
+
+                    # Clean signal name
+                    short_signal_name = self['CNBlock'][dg][cg][channel]['signalName']  # short name of signal
+                    # keep original non unique channel name
+                    self['CNBlock'][dg][cg][channel]['orig_name'] = short_signal_name
+
+                    if self['CNBlock'][dg][cg][channel]['pointerToASAMNameBlock'] > 0:
+                        # long name of signal
+                        long_signal_name = \
+                            read_tx_block(fid, self['CNBlock'][dg][cg][channel]['pointerToASAMNameBlock'])
+                        if len(long_signal_name) > len(short_signal_name):  # long name should be used
+                            signal_name = long_signal_name
+                        else:
+                            signal_name = short_signal_name
                     else:
-                        temp = dict()
-                        temp['tail'] = dg
-                    if '{0}_{1}'.format(signal_name, temp['tail']) not in self['allChannelList']:
-                        self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signal_name, temp['tail'])
+                        signal_name = short_signal_name
+                    signal_name = signal_name.split('\\')
+                    if len(signal_name) > 1:
+                        self['CNBlock'][dg][cg][channel]['deviceName'] = signal_name[1]
+                    signal_name = signal_name[0]
+                    if self.filterChannelNames:
+                        signal_name = signal_name.split('.')[-1]  # filters channels modules
+
+                    if signal_name in self['ChannelNamesByDG'][dg]:  # for unsorted data
+                        pointer = self['CNBlock'][dg][cg][channel]['pointerToCEBlock']
+                        if pointer:
+                            temp = self._ce_cache.get(pointer)
+                            if temp is None:
+                                temp = read_ce_block(fid, pointer)
+                                self._ce_cache[pointer] = temp
+                        else:
+                            temp = dict()
+                            temp['tail'] = channel
+                        self['CNBlock'][dg][cg][channel]['signalName'] = \
+                            '{0}_{1}_{2}_{3}'.format(signal_name, dg, cg, temp['tail'])
+                    elif signal_name in self['allChannelList']:
+                        # doublon name or master channel
+                        pointer = self['CNBlock'][dg][cg][channel]['pointerToCEBlock']
+                        if pointer:
+                            temp = self._ce_cache.get(pointer)
+                            if temp is None:
+                                temp = read_ce_block(fid, pointer)
+                                self._ce_cache[pointer] = temp
+                        else:
+                            temp = dict()
+                            temp['tail'] = dg
+                        if '{0}_{1}'.format(signal_name, temp['tail']) not in self['allChannelList']:
+                            self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signal_name, temp['tail'])
+                        else:
+                            self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}_{2}'.format(signal_name,
+                                                                                                  dg, temp['tail'])
                     else:
-                        self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}_{2}'.format(signal_name,
-                                                                                              dg, temp['tail'])
-                else:
-                    self['CNBlock'][dg][cg][channel]['signalName'] = signal_name
-                self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][channel]['signalName'])
-                self['allChannelList'].add(self['CNBlock'][dg][cg][channel]['signalName'])
+                        self['CNBlock'][dg][cg][channel]['signalName'] = signal_name
+                    self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][channel]['signalName'])
+                    self['allChannelList'].add(self['CNBlock'][dg][cg][channel]['signalName'])
 
-                # Read channel description
-                self['CNBlock'][dg][cg][channel]['ChannelCommentBlock'] = \
-                    read_tx_block(fid, self['CNBlock'][dg][cg][channel]['pointerToChannelCommentBlock'])
+                    # Read channel description
+                    self['CNBlock'][dg][cg][channel]['ChannelCommentBlock'] = \
+                        read_tx_block(fid, self['CNBlock'][dg][cg][channel]['pointerToChannelCommentBlock'])
 
-                # Read data Text block info into structure
-                self['CNBlock'][dg][cg][channel]['SignalIdentifierBlock'] = \
-                    read_tx_block(fid, self['CNBlock'][dg][cg][channel]['pointerToSignalIdentifierBlock'])
+                    # Read data Text block info into structure
+                    self['CNBlock'][dg][cg][channel]['SignalIdentifierBlock'] = \
+                        read_tx_block(fid, self['CNBlock'][dg][cg][channel]['pointerToSignalIdentifierBlock'])
 
-                # Read Channel Conversion block (CCBlock)
-                if self['CNBlock'][dg][cg][channel]['pointerToConversionFormula'] == 0:
-                    # If no conversion formula, set to 1:1
-                    self['CCBlock'][dg][cg][channel] = {}
-                    self['CCBlock'][dg][cg][channel]['cc_type'] = 65535
-                else:  # Otherwise get conversion formula, parameters and physical units
-                    # Read data Channel Conversion block info into structure
-                    self['CCBlock'][dg][cg][channel] = \
-                        read_cc_block(fid, self['CNBlock'][dg][cg][channel]['pointerToConversionFormula'])
+                    # Read Channel Conversion block (CCBlock)
+                    if self['CNBlock'][dg][cg][channel]['pointerToConversionFormula'] == 0:
+                        # If no conversion formula, set to 1:1
+                        self['CCBlock'][dg][cg][channel] = {}
+                        self['CCBlock'][dg][cg][channel]['cc_type'] = 65535
+                    else:  # Otherwise get conversion formula, parameters and physical units
+                        # Read data Channel Conversion block info into structure
+                        self['CCBlock'][dg][cg][channel] = \
+                            read_cc_block(fid, self['CNBlock'][dg][cg][channel]['pointerToConversionFormula'])
 
             # reorder channel blocks and related blocks based on first bit position
             # this reorder is meant to improve performance while parsing records using core.records.fromfile
             # as it will not use cn_byte_offset
-            # first, calculate new mapping/order
             n_channel = len(self['CNBlock'][dg][cg])
-            Map = zeros(shape=len(self['CNBlock'][dg][cg]), dtype=[('index', 'u4'), ('first_bit', 'u4')])
-            for cn in range(n_channel):
-                Map[cn] = (cn, self['CNBlock'][dg][cg][cn]['numberOfTheFirstBits'])
-            ordered_map = sort(Map, order='first_bit')
-
-            to_change_index = Map['index'] != ordered_map['index']
-            for cn in range(n_channel):
-                if to_change_index[cn]:
-                    # offset all indexes of indexes to be moved
-                    self['CNBlock'][dg][cg][cn + n_channel] = self['CNBlock'][dg][cg].pop(cn)
-                    self['CCBlock'][dg][cg][cn + n_channel] = self['CCBlock'][dg][cg].pop(cn)
-            for cn in range(n_channel):
-                if to_change_index[cn]:
-                    # change to ordered index
-                    self['CNBlock'][dg][cg][cn] = self['CNBlock'][dg][cg].pop(ordered_map[cn][0] + n_channel)
-                    self['CCBlock'][dg][cg][cn] = self['CCBlock'][dg][cg].pop(ordered_map[cn][0] + n_channel)
+            cn_dict = self['CNBlock'][dg][cg]
+            cc_dict = self['CCBlock'][dg][cg]
+            order = sorted(range(n_channel), key=lambda i: cn_dict[i]['numberOfTheFirstBits'])
+            if any(i != old_i for i, old_i in enumerate(order)):
+                self['CNBlock'][dg][cg] = {i: cn_dict[old_i] for i, old_i in enumerate(order)}
+                self['CCBlock'][dg][cg] = {i: cc_dict[old_i] for i, old_i in enumerate(order)}
 
     def clean_dg_info(self, dg):
         """ delete CN,CC and CG blocks related to data group

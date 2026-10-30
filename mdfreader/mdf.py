@@ -206,19 +206,24 @@ class MdfSkeleton(dict):
             (group name, group source, group path)
         """
         if not self._noDataLoading:
-            channel_dict = {}
-            channel_dict[unitField] = unit
-            channel_dict[descriptionField] = description
-            channel_dict[masterField] = master_channel
-            if self.MDFVersionNumber < 400:
-                channel_dict[masterTypeField] = 1
-            else:
-                channel_dict[masterTypeField] = master_type
-            if master_channel not in self.masterChannelList:
-                self.masterChannelList[master_channel] = []
-            self.masterChannelList[master_channel].append(channel_name)
+            channel_dict = {
+                unitField: unit,
+                descriptionField: description,
+                masterField: master_channel,
+                masterTypeField: 1 if self.MDFVersionNumber < 400 else master_type,
+            }
+            if not compression:
+                channel_dict[dataField] = data
+            mlist = self.masterChannelList.get(master_channel)
+            if mlist is None:
+                mlist = []
+                self.masterChannelList[master_channel] = mlist
+            mlist.append(channel_name)
             self[channel_name] = channel_dict
-        self.set_channel_data(channel_name, data, compression)
+        else:
+            self.set_channel_data(channel_name, data, compression)
+        if compression:
+            self.set_channel_data(channel_name, data, compression)
         if conversion is not None:
             self[channel_name]['conversion'] = {}
             self[channel_name]['conversion']['type'] = conversion['cc_type']
@@ -239,6 +244,12 @@ class MdfSkeleton(dict):
                 if 'cc_ref' in conversion:
                     self[channel_name]['conversion']['parameters']['cc_ref'] = \
                         conversion['cc_ref']
+                if conversion['cc_type'] == 0:
+                    self[channel_name].pop('conversion')
+                elif conversion['cc_type'] == 1 and 'cc_val' in conversion:
+                    cc_val = conversion['cc_val']
+                    if len(cc_val) >= 2 and cc_val[0] in (0.0, -0.0) and cc_val[1] == 1.0:
+                        self[channel_name].pop('conversion')
         if info is not None:  # axis from CABlock
             ca_block = info
             axis = []
