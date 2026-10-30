@@ -40,7 +40,7 @@ from numpy import nan, datetime64, array, searchsorted, clip, empty
 from numpy.ma import MaskedArray, masked, empty as ma_empty
 from .mdf3reader import Mdf3
 from .mdf4reader import Mdf4
-from .mdf import _open_mdf, dataField, descriptionField, unitField, masterField, masterTypeField, idField
+from .mdf import _open_mdf, dataField, descriptionField, unitField, masterField, masterTypeField, idField, conversionField, CompressedData
 from .mdfinfo3 import Info3, _generate_dummy_mdf3
 from .mdfinfo4 import Info4, _generate_dummy_mdf4
 
@@ -494,6 +494,12 @@ class Mdf(Mdf4, Mdf3):
         ------
         This method is the safest to get channel data as numpy array from 'data' dict key might contain raw data
         """
+        if channel_name in self:
+            chan_dict = self[channel_name]
+            vec = chan_dict.get(dataField)
+            if vec is not None and not self._noDataLoading and not isinstance(vec, CompressedData):
+                if raw_data or conversionField not in chan_dict:
+                    return vec
         if self.MDFVersionNumber < 400:
             vector = self._get_channel_data3(channel_name, raw_data)
         else:
@@ -1683,26 +1689,61 @@ class Mdf(Mdf4, Mdf3):
             warn('Master channel name not in mdf')
             return
 
+    def get_master_channel_datetimes(self, master_channel_name):
+        """Return a time master channel as absolute datetime64[ns] array.
+
+        Parameters
+        ----------
+        master_channel_name : str
+            Name of a master channel with masterType == 1 (Time).
+
+        Returns
+        -------
+        numpy.ndarray of datetime64[ns], or None if not found or not time-type.
+
+        Notes
+        -----
+        The timezone offset from fileMetadata['time_offset'] (if set) is baked
+        into the returned values so they represent wall-clock time in the
+        recording timezone. numpy datetime64 has no timezone concept; use
+        pandas tz_localize/tz_convert for full timezone-aware operations.
+        """
+        from numpy import array, datetime64
+        if master_channel_name not in self:
+            return None
+        if self.get_channel_master_type(master_channel_name) != 1:
+            return None
+        t = self.fileMetadata.get('time', 0)
+        offset_seconds = self.fileMetadata.get('time_offset') or 0
+        epoch_ns = int((t + offset_seconds) * 1e9)
+        relative_ns = array(self.get_channel_data(master_channel_name) * 1e9, dtype='timedelta64[ns]')
+        return datetime64(epoch_ns, 'ns') + relative_ns
+
     def export_to_parquet(self, file_name=None):
         """Exports mdf data into parquet file
 
         Parameters
         ----------------
         file_name : str, optional
-            file name. If no name defined, it will use original mdf name and path with .parquet extension
+            file name. If no name defined, it will use original mdf name and path with .parquet extension.
+            When the file contains multiple master channel groups, each group is written to a separate file
+            suffixed with the group index (e.g. ``recording_0.parquet``, ``recording_1.parquet``).
         """
         try:
-            from fastparquet import write as write_parquet
+            import pyarrow  # noqa: F401 — confirms pyarrow is available for pandas to_parquet
         except ImportError:
-            warn('fastparquet not installed')
+            warn('pyarrow not installed, cannot export to parquet')
             return
         if file_name is None:
-            file_name = splitext(self.fileName)[0]
-            file_name = file_name + '.parquet'
-        for master_channel_name in self.masterChannelList:
+            file_name = splitext(self.fileName)[0] + '.parquet'
+        masters = [m for m in self.masterChannelList]
+        base, ext = splitext(file_name)
+        for i, master_channel_name in enumerate(masters):
             frame = self.return_pandas_dataframe(master_channel_name)
-            if frame is not None:
-                write_parquet(file_name, frame, compression='GZIP')
+            if frame is None:
+                continue
+            out = file_name if len(masters) == 1 else f'{base}_{i}{ext}'
+            frame.to_parquet(out, engine='pyarrow', compression='gzip')
 
 
 if __name__ == "__main__":

@@ -2151,7 +2151,7 @@ class Info4(dict):
             vlsd_cg_block = []
 
             vlsd_cg_block = self.read_cg_block(fid, dg, next_cg, self['DG'][dg]['dg_cg_first'],
-                                               vlsd_cg_block, channel_name_list=False, minimal=0)
+                                               vlsd_cg_block, channel_name_list=False, minimal=minimal)
 
             if self['CN'][dg][next_cg] and self['CG'][dg][next_cg]['unique_channel_in_CG'] and \
                     not self['CG'][dg][next_cg]['cg_cg_next']:
@@ -2167,7 +2167,7 @@ class Info4(dict):
                 self['CN'][dg][next_cg] = dict()
                 self['CC'][dg][next_cg] = dict()
                 vlsd_cg_block = self.read_cg_block(fid, dg, next_cg, self['CG'][dg][current_cg]['cg_cg_next'],
-                                                   vlsd_cg_block, channel_name_list=False, minimal=0)
+                                                   vlsd_cg_block, channel_name_list=False, minimal=minimal)
 
             if vlsd_cg_block and 'VLSD_CG' not in self:  # VLSD CG Block exiting
                 self['VLSD_CG'] = {}
@@ -2269,12 +2269,33 @@ class Info4(dict):
                 results = None
 
             if results is not None:
-                self['CG'][dg][cg]['unique_channel_in_CG'] = (len(results) == 1)
+                cg_dict = self['CG'][dg][cg]
+                cg_dict['unique_channel_in_CG'] = (len(results) == 1)
+                cn_group = self['CN'][dg][cg]
+                cc_group = self['CC'][dg][cg]
 
                 # Store all CN/CC dicts
                 for cn, cn_dict, cc_dict in results:
-                    self['CN'][dg][cg][cn] = cn_dict
-                    self['CC'][dg][cg][cn] = cc_dict
+                    cn_group[cn] = cn_dict
+                    cc_group[cn] = cc_dict
+
+                if not channel_name_list:
+                    # Pre-resolve master once per channel group
+                    if cg_dict['link_count'] > 6:
+                        master_key = cg_dict['cg_cg_master']
+                    else:
+                        master_key = cg_dict['pointer']
+                    master = self['masters'].get(master_key)
+                    if master is None:
+                        master = {
+                            'channels': set(),
+                            'name': 'master_{}'.format(dg)
+                        }
+                        self['masters'][master_key] = master
+                    master_channels = master['channels']
+                    by_dg = self['ChannelNamesByDG'][dg]
+                    all_list = self['allChannelList']
+                    filter_names = self.filterChannelNames
 
                 # Post-process each channel
                 for cn, cn_dict, cc_dict in results:
@@ -2286,15 +2307,39 @@ class Info4(dict):
                     if cc_dict.get('_needs_completion'):
                         full_cc = CCBlock()
                         full_cc.read_cc(fid, cn_dict['cn_cc_conversion'])
-                        self['CC'][dg][cg][cn] = full_cc
+                        cc_group[cn] = full_cc
 
                     if not channel_name_list:
                         # Make channel name unique
-                        cn_dict['orig_name'] = cn_dict['name']
-                        cn_dict['name'] = self._unique_channel_name(
-                            fid, cn_dict['name'], dg, cg, cn)
-                        if self.filterChannelNames:
-                            cn_dict['name'] = cn_dict['name'].split('.')[-1]
+                        orig_name = cn_dict['name']
+                        cn_dict['orig_name'] = orig_name
+                        name = orig_name
+                        if name in by_dg:
+                            si_dict = cn_dict.get('SI')
+                            if si_dict and si_dict.get('si_tx_name', 0) > 0:
+                                source_name = si_dict['source_name']['Comment']
+                            else:
+                                source_name = cn
+                            name = u'{0}_{1}_{2}_{3}'.format(name, dg, cg, source_name)
+                        elif name in all_list:
+                            si_dict = cn_dict.get('SI')
+                            if si_dict and si_dict.get('si_tx_name', 0) > 0:
+                                source_name = si_dict['source_name']['Comment']
+                            else:
+                                source_name = dg
+                            name = u'{0}_{1}_{2}'.format(name, dg, source_name)
+                        by_dg.add(name)
+                        all_list.add(name)
+
+                        master_channels.add(name)
+                        if cn_dict['cn_type'] in (2, 3):
+                            master['name'] = name
+                            master['id'] = (dg, cg)
+                        cn_dict['masterCG'] = master_key
+
+                        if filter_names:
+                            name = name.split('.')[-1]
+                        cn_dict['name'] = name
 
                         # Handle composition blocks (CA, CN, DS, CL, CV, CU)
                         if cn_dict['cn_composition']:
@@ -2751,58 +2796,42 @@ class Info4(dict):
         """
         # check if already existing channel name
         if name in self['ChannelNamesByDG'][dg]:  # for unsorted data
-            if self['CN'][dg][cg][cn]['cn_si_source']:
-                temp = SIBlock()
-                temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                if temp['si_tx_name'] > 0:
-                    source_name = temp['source_name']['Comment']
-                else:
-                    source_name = cn
+            si_dict = self['CN'][dg][cg][cn].get('SI')
+            if si_dict and si_dict.get('si_tx_name', 0) > 0:
+                source_name = si_dict['source_name']['Comment']
             else:
                 source_name = cn
             name = u'{0}_{1}_{2}_{3}'.format(name, dg, cg, source_name)
         elif name in self['allChannelList']:  # for sorted data
-            if self['CN'][dg][cg][cn]['cn_si_source']:
-                temp = SIBlock()
-                temp.read_si(fid, self['CN'][dg][cg][cn]['cn_si_source'])
-                if temp['si_tx_name'] > 0:
-                    source_name = temp['source_name']['Comment']
-                else:
-                    source_name = dg
+            si_dict = self['CN'][dg][cg][cn].get('SI')
+            if si_dict and si_dict.get('si_tx_name', 0) > 0:
+                source_name = si_dict['source_name']['Comment']
             else:
                 source_name = dg
             name = u'{0}_{1}_{2}'.format(name, dg, source_name)
         self['ChannelNamesByDG'][dg].add(name)
         self['allChannelList'].add(name)
 
-        if self['CG'][dg][cg]['link_count'] > 6:  # cg master link
-            try:
-                self['masters'][self['CG'][dg][cg]
-                                ['cg_cg_master']]['channels'].add(name)
-            except KeyError:
-                self['masters'][self['CG'][dg][cg]['cg_cg_master']] = dict()
-                self['masters'][self['CG'][dg][cg]
-                                ['cg_cg_master']]['channels'] = set()
-                self['masters'][self['CG'][dg][cg]['cg_cg_master']
-                                ]['name'] = 'master_{}'.format(dg)
-            self['CN'][dg][cg][cn]['masterCG'] = self['CG'][dg][cg]['cg_cg_master']
+        if self['CG'][dg][cg]['link_count'] > 6:
+            master_key = self['CG'][dg][cg]['cg_cg_master']
         else:
-            try:
-                self['masters'][self['CG'][dg][cg]
-                                ['pointer']]['channels'].add(name)
-            except KeyError:
-                self['masters'][self['CG'][dg][cg]['pointer']] = dict()
-                self['masters'][self['CG'][dg][cg]
-                                ['pointer']]['channels'] = set()
-                self['masters'][self['CG'][dg][cg]['pointer']
-                                ]['name'] = 'master_{}'.format(dg)
-            if self['CN'][dg][cg][cn]['cn_type'] in (2, 3):  # master channel
-                self['masters'][self['CG'][dg][cg]['pointer']]['name'] = name
-                self['masters'][self['CG'][dg][cg]['pointer']]['id'] = (dg, cg)
-            self['CN'][dg][cg][cn]['masterCG'] = self['CG'][dg][cg]['pointer']
+            master_key = self['CG'][dg][cg]['pointer']
+        master = self['masters'].get(master_key)
+        if master is None:
+            master = {
+                'channels': set(),
+                'name': 'master_{}'.format(dg)
+            }
+            self['masters'][master_key] = master
+        master['channels'].add(name)
+        is_master = self['CN'][dg][cg][cn]['cn_type'] in (2, 3)
+        if is_master:
+            master['name'] = name
+            master['id'] = (dg, cg)
+        self['CN'][dg][cg][cn]['masterCG'] = master_key
         return name
 
-    def unique_id(self, ndg, ncg, ncn):
+    def unique_id(self, ndg, ncg, ncn, group_info=None):
         """ generate unique id tuples
 
             Parameters
@@ -2816,34 +2845,41 @@ class Info4(dict):
             ncn : int
                 channel number
 
+            group_info : tuple, optional
+                precalculated (group name, group source, group path)
+
             Returns
             -----------
             tuples: (data group number, channel group number, channel number),
                     (channel name, channel source, channel path),
                     (group name, group source, group path)
         """
-        cn = self['CN'][ndg][ncg][ncn]['orig_name']
-        try:  # SI block not always existing
-            cs = self['CN'][ndg][ncg][ncn]['SI']['source_name']['Comment']
-        except KeyError:
+        cn_dict = self['CN'][ndg][ncg][ncn]
+        cn = cn_dict['orig_name']
+        si = cn_dict.get('SI')
+        if si is not None:
+            source_name = si.get('source_name')
+            cs = source_name.get('Comment') if source_name is not None else None
+            source_path = si.get('source_path')
+            cp = source_path.get('Comment') if source_path is not None else None
+        else:
             cs = None
-        try:
-            cp = self['CN'][ndg][ncg][ncn]['SI']['source_path']['Comment']
-        except KeyError:
             cp = None
-        try:
-            gn = self['CG'][ndg][ncg]['acq_name']['Comment']
-        except KeyError:
-            gn = None
-        try:
-            gs = self['CG'][ndg][ncg]['acq_source']['source_name']['Comment']
-        except KeyError:
-            gs = None
-        try:
-            gp = self['CG'][ndg][ncg]['acq_source']['source_path']['Comment']
-        except KeyError:
-            gp = None
-        return (ndg, ncg, ncn), (cn, cs, cp), (gn, gs, gp)
+        if group_info is None:
+            cg_dict = self['CG'][ndg][ncg]
+            acq_name = cg_dict.get('acq_name')
+            gn = acq_name.get('Comment') if acq_name is not None else None
+            acq_source = cg_dict.get('acq_source')
+            if acq_source is not None:
+                g_sn = acq_source.get('source_name')
+                gs = g_sn.get('Comment') if g_sn is not None else None
+                g_sp = acq_source.get('source_path')
+                gp = g_sp.get('Comment') if g_sp is not None else None
+            else:
+                gs = None
+                gp = None
+            group_info = (gn, gs, gp)
+        return (ndg, ncg, ncn), (cn, cs, cp), group_info
 
 
 def _generate_dummy_mdf4(info, channel_list):

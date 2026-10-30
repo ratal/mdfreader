@@ -18,7 +18,7 @@ except ImportError:
 
 
 name = 'mdfreader'
-version = '4.3'
+version = '4.5'
 
 description = 'A Measured Data Format file parser'
 
@@ -78,7 +78,7 @@ install_requires = ['numpy>=1.14', 'sympy', 'lxml']
 # You can install these using the following syntax, for example:
 # $ pip install -e .[dev,test]
 extras_require = {
-    'export': ['hdf5storage', 'h5py', 'scipy', 'openpyxl>2.0', 'pandas', 'fastparquet'],
+    'export': ['hdf5storage', 'h5py', 'scipy', 'openpyxl>2.0', 'pandas', 'pyarrow'],
     'plot': ['matplotlib', 'mpldatacursor'],
     'converter': ['PyQt5'],
     'experimental': ['bitarray'],

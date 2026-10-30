@@ -25,6 +25,7 @@ from itertools import chain
 from random import choice
 from string import ascii_letters
 from collections import OrderedDict, defaultdict
+from datetime import datetime as _datetime, timezone as _timezone, timedelta as _timedelta
 from time import time
 from warnings import warn
 from numpy import array_repr, set_printoptions, recarray, frombuffer
@@ -205,18 +206,24 @@ class MdfSkeleton(dict):
             (group name, group source, group path)
         """
         if not self._noDataLoading:
-            self[channel_name] = {}
-            if master_channel not in self.masterChannelList:
-                self.masterChannelList[master_channel] = []
-            self.masterChannelList[master_channel].append(channel_name)
-            self.set_channel_unit(channel_name, unit)
-            self.set_channel_desc(channel_name, description)
-            self.set_channel_master(channel_name, master_channel)
-            if self.MDFVersionNumber < 400:  # mdf3
-                self.set_channel_master_type(channel_name, 1)
-            else:  # mdf4
-                self.set_channel_master_type(channel_name, master_type)
-        self.set_channel_data(channel_name, data, compression)
+            channel_dict = {
+                unitField: unit,
+                descriptionField: description,
+                masterField: master_channel,
+                masterTypeField: 1 if self.MDFVersionNumber < 400 else master_type,
+            }
+            if not compression:
+                channel_dict[dataField] = data
+            mlist = self.masterChannelList.get(master_channel)
+            if mlist is None:
+                mlist = []
+                self.masterChannelList[master_channel] = mlist
+            mlist.append(channel_name)
+            self[channel_name] = channel_dict
+        else:
+            self.set_channel_data(channel_name, data, compression)
+        if compression:
+            self.set_channel_data(channel_name, data, compression)
         if conversion is not None:
             self[channel_name]['conversion'] = {}
             self[channel_name]['conversion']['type'] = conversion['cc_type']
@@ -237,6 +244,12 @@ class MdfSkeleton(dict):
                 if 'cc_ref' in conversion:
                     self[channel_name]['conversion']['parameters']['cc_ref'] = \
                         conversion['cc_ref']
+                if conversion['cc_type'] == 0:
+                    self[channel_name].pop('conversion')
+                elif conversion['cc_type'] == 1 and 'cc_val' in conversion:
+                    cc_val = conversion['cc_val']
+                    if len(cc_val) >= 2 and cc_val[0] in (0.0, -0.0) and cc_val[1] == 1.0:
+                        self[channel_name].pop('conversion')
         if info is not None:  # axis from CABlock
             ca_block = info
             axis = []
@@ -595,7 +608,7 @@ class MdfSkeleton(dict):
         return channel_name in self.masterChannelList[masterField] or channel_name in self.masterChannelList
 
     def add_metadata(self, author='', organisation='', project='',
-                     subject='', comment='', time=''):
+                     subject='', comment='', time='', time_offset=None):
         """adds basic metadata to mdf class
 
         Parameters
@@ -619,6 +632,25 @@ class MdfSkeleton(dict):
         self.fileMetadata['subject'] = subject
         self.fileMetadata['comment'] = comment
         self.fileMetadata['time'] = time
+        self.fileMetadata['time_offset'] = time_offset
+
+    @property
+    def start_datetime(self):
+        """Recording start time as a timezone-aware datetime.datetime.
+
+        Returns None if timestamp is 0 or unset.
+        For MDF3 < 3.20 (no timezone in header), UTC is assumed; the stored
+        timestamp may reflect local machine time at recording.
+        """
+        t = self.fileMetadata.get('time', 0)
+        if not t:
+            return None
+        offset_seconds = self.fileMetadata.get('time_offset', None)
+        tz = _timezone(_timedelta(seconds=int(offset_seconds))) if offset_seconds is not None else _timezone.utc
+        try:
+            return _datetime.fromtimestamp(t, tz=tz)
+        except (OSError, OverflowError, ValueError):
+            return None
 
     def __str__(self):
         """representation a mdf_skeleton class data structure

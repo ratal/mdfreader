@@ -10,7 +10,7 @@ mdf3reader
 """
 from numpy import right_shift, bitwise_and, interp, empty
 from numpy import max as npmax, min as npmin
-from numpy import asarray, recarray, array, searchsorted, vectorize, exp, log
+from numpy import asarray, array, searchsorted, vectorize, exp, log, zeros
 from numpy import issubdtype, number as numpy_number
 from numpy import frombuffer
 import numpy as np
@@ -482,25 +482,20 @@ class Record(list):
             chunks.append((n_record_chunk, full_record_length * n_record_chunk))
         previous_index = 0
         if channel_set is None and not self.hiddenBytes and self.byte_aligned:
-            # reads all, quickest but memory consuming
-            buf = recarray((self.numberOfRecords,), dtype={'names': self.dataRecordName,
-                                                           'formats': self.numpyDataRecordFormat})  # initialise array
+            # reads all, quickest and lowest memory overhead
+            dtype = {'names': self.dataRecordName, 'formats': self.numpyDataRecordFormat}
+            total_size = full_record_length * self.numberOfRecords
             simplefilter('ignore', FutureWarning)
-            for n_record_chunk, chunk_size in chunks:
-                raw = fid.read(chunk_size)
-                actual_records = len(raw) // full_record_length
-                if actual_records < n_record_chunk:
-                    # file shorter than expected (e.g. MDF 2.x / truncated)
-                    n_record_chunk = actual_records
-                    raw = raw[:full_record_length * actual_records]
-                if n_record_chunk > 0:
-                    buf[previous_index: previous_index + n_record_chunk] = \
-                        frombuffer(raw,
-                                   dtype={'names': self.dataRecordName,
-                                          'formats': self.numpyDataRecordFormat},
-                                   count=n_record_chunk)
-                previous_index += n_record_chunk
-            return buf
+            raw = empty(total_size, dtype='u1')
+            if hasattr(fid, 'readinto'):
+                n_read = fid.readinto(raw)
+                if n_read is not None and n_read < total_size:
+                    actual_records = n_read // full_record_length
+                    return raw[:actual_records * full_record_length].view(dtype)[:actual_records]
+                return raw.view(dtype)[:self.numberOfRecords]
+            else:
+                data = fid.read(total_size)
+                return frombuffer(data, dtype=dtype)[:self.numberOfRecords]
         else:  # reads only some channels from a sorted data block
             if channel_set is None:
                 channel_set = self.channelNames
@@ -518,7 +513,7 @@ class Record(list):
                         rec_chan.append(channel)
                         data_record_name.append(channel.name)
                         numpy_data_record_format.append(channel.nativedataFormat)
-                rec = recarray((self.numberOfRecords,), dtype={'names': data_record_name,
+                rec = zeros((self.numberOfRecords,), dtype={'names': data_record_name,
                                                                'formats': numpy_data_record_format})
                 if dataRead_available:
                     try:  # use rather cython compiled code for performance
@@ -559,7 +554,7 @@ class Record(list):
                             break  # record shorter than expected
                         (rec[channel.name][r],) = \
                             channel.CFormat.unpack(seg)
-                return rec.view(recarray)
+                return rec
 
     def read_record_buf(self, buf, channel_set=None):
         """ read stream of record bytes
@@ -913,6 +908,8 @@ class Mdf3(MdfSkeleton):
             try:
                 # time in nano seconds since epoch, converting in seconds floating
                 record_time = info['HDBlock']['TimeStamp'] / 1E9
+                # UTCTimeOffset: signed int16, minutes from UTC (MDF >= 3.20 only)
+                time_offset = int(info['HDBlock']['UTCTimeOffset']) * 60
             except KeyError:
                 # converts date to be compatible with ISO8601
                 day, month, year = info['HDBlock']['Date'].split(':')
@@ -922,11 +919,12 @@ class Mdf3(MdfSkeleton):
                     record_time = datetime.fromisoformat(ddate + 'T' + info['HDBlock']['Time']).timestamp()
                 except OSError:
                     record_time = 0
+                time_offset = None  # MDF < 3.20 has no timezone information
             self.add_metadata(author=info['HDBlock']['Author'],
                               organisation=info['HDBlock']['Organization'],
                               project=info['HDBlock']['ProjectName'],
                               subject=info['HDBlock']['Subject'], comment=comment,
-                              time=record_time)
+                              time=record_time, time_offset=time_offset)
 
         data_groups = info['DGBlock']  # parse all data groups
         if self._noDataLoading and channel_list is not None:
@@ -1115,7 +1113,8 @@ class Mdf3(MdfSkeleton):
             self.read3(self.fileName, convert_after_read=True)
         else:
             for channel in self:
-                self._convert_channel3(channel)
+                if 'conversion' in self[channel]:
+                    self._convert_channel3(channel)
 
     def write3(self, file_name=None):
         """Writes simple mdf 3.3 file
