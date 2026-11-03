@@ -18,9 +18,27 @@ __copyright__ = 'Copyright (c) 2017 Aymeric Rateau'
 __license__ = 'GPLV3'
 __version__ = "4.5"
 
+from .export import (
+    export_csv,
+    export_excel,
+    export_hdf5,
+    export_matlab,
+    export_netcdf,
+    export_parquet,
+    export_xlsx,
+    to_pandas,
+)
 from .mdfreader import Mdf, MdfInfo
 
 __all__ = [
     'Mdf',
-    'MdfInfo'
-            ]
+    'MdfInfo',
+    'export_csv',
+    'export_excel',
+    'export_hdf5',
+    'export_matlab',
+    'export_netcdf',
+    'export_parquet',
+    'export_xlsx',
+    'to_pandas',
+]

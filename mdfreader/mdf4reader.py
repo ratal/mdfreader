@@ -46,7 +46,7 @@ from .mdf import MdfSkeleton, _open_mdf, invalidChannel, dataField, \
     conversionField, idField, invalidPosField, CompressedData
 from .channel import Channel4
 try:
-    from dataRead import sorted_data_read, unsorted_data_read4, sd_data_read, vd_data_read
+    from .dataRead import sorted_data_read, unsorted_data_read4, sd_data_read, vd_data_read
     dataRead_available = True
 except ImportError:
     warn('dataRead cannot be imported, compile it with Cython', ImportWarning)
@@ -2955,7 +2955,8 @@ def _formula_conversion(vector, formula):
     ----------------
     vector : numpy 1D array
         raw data to be converted to physical value
-    formula : mdfinfo4.info4 conversion block ('CCBlock') dict
+    formula : str
+        conversion formula string (ASAM MCD-2 MC syntax)
 
     Returns
     -----------
@@ -2963,12 +2964,31 @@ def _formula_conversion(vector, formula):
     """
     try:
         from sympy import lambdify, symbols
+        from sympy.parsing.sympy_parser import parse_expr
     except ImportError:
         warn('Please install sympy to convert channel ')
         return vector
+
+    formula_str = formula.replace('pow(', 'power(').replace('POW(', 'power(')
     X = symbols('X')
-    expr = lambdify(X, formula.upper(), modules='numpy', dummify=False)
-    return expr(vector)
+    try:
+        expr = parse_expr(formula_str)
+        for sym_name in ('x', 'x1', 'X1'):
+            s = symbols(sym_name)
+            if s in expr.free_symbols:
+                expr = expr.subs(s, X)
+    except Exception:
+        expr = formula_str
+
+    custom_modules = {
+        'SIN': np.sin, 'COS': np.cos, 'TAN': np.tan,
+        'ASIN': np.arcsin, 'ACOS': np.arccos, 'ATAN': np.arctan,
+        'SINH': np.sinh, 'COSH': np.cosh, 'TANH': np.tanh,
+        'EXP': np.exp, 'LOG': np.log, 'LN': np.log,
+        'SQRT': np.sqrt, 'ABS': np.abs,
+    }
+    expr_fn = lambdify(X, expr, modules=[custom_modules, 'numpy'], dummify=False)
+    return expr_fn(vector)
 
 
 def _value_to_value_table_without_interpolation_conversion(vector, cc_val):

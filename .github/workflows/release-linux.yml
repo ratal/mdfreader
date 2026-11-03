@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Clean in-place build artifacts
-        run: rm -f dataRead*.so
+        run: rm -f mdfreader/dataRead*.so
       - name: Set up QEMU (for aarch64)
         if: matrix.arch == 'aarch64'
         uses: docker/setup-qemu-action@v3
@@ -25,7 +25,7 @@ jobs:
           CIBW_BUILD: "cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
-          CIBW_TEST_COMMAND: python -c "import mdfreader"
+          CIBW_TEST_COMMAND: python -c "import mdfreader; from mdfreader import dataRead"
       - uses: actions/upload-artifact@v4
         with:
           name: wheel-linux-${{ matrix.arch }}

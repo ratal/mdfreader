@@ -65,13 +65,13 @@ from .mdf import _open_mdf, dataField, descriptionField, unitField, \
     masterField, masterTypeField, idField, _convert_name
 
 try:
-    from dataRead import SymBufReader as _SymBufReader
+    from .dataRead import SymBufReader as _SymBufReader
     _SYMBUF_AVAILABLE = True
 except ImportError:
     _SYMBUF_AVAILABLE = False
 
 try:
-    from dataRead import read_cn_chain_fast as _read_cn_chain_fast
+    from .dataRead import read_cn_chain_fast as _read_cn_chain_fast
     _CN_CHAIN_FAST = True
 except ImportError:
     _CN_CHAIN_FAST = False
@@ -1288,7 +1288,7 @@ class CABlock(dict):
                 for x in self['ca_dim_size']:
                     self['SNd'] += x
                     self['PNd'] *= x
-            except:  # only one dimension, processing int
+            except TypeError:  # only one dimension, processing int
                 self['SNd'] = self['ca_dim_size']
                 self['PNd'] = self['SNd']
             if 1 << 5 & self['ca_flags']:  # bit5

@@ -27,7 +27,7 @@ cg_struct = Struct('<2sH3I3HI')
 ce_struct = Struct('<2s2H')
 
 try:
-    from dataRead import read_cn_chain_fast3 as _read_cn_chain_fast3
+    from .dataRead import read_cn_chain_fast3 as _read_cn_chain_fast3
     _CN_CHAIN_FAST3 = True
 except ImportError:
     _CN_CHAIN_FAST3 = False
@@ -223,7 +223,7 @@ class Info3(dict):
                         else:
                             temp = dict()
                             temp['tail'] = channel
-                        cn_dat['signalName'] = '{0}_{1}_{2}_{3}'.format(signal_name, dg, cg, temp['tail'])
+                        cn_dat['signalName'] = f"{signal_name}_{dg}_{cg}_{temp['tail']}"
                     elif signal_name in self['allChannelList']:
                         pointer = cn_dat['pointerToCEBlock']
                         if pointer:
@@ -234,10 +234,10 @@ class Info3(dict):
                         else:
                             temp = dict()
                             temp['tail'] = dg
-                        if '{0}_{1}'.format(signal_name, temp['tail']) not in self['allChannelList']:
-                            cn_dat['signalName'] = '{0}_{1}'.format(signal_name, temp['tail'])
+                        if f"{signal_name}_{temp['tail']}" not in self['allChannelList']:
+                            cn_dat['signalName'] = f"{signal_name}_{temp['tail']}"
                         else:
-                            cn_dat['signalName'] = '{0}_{1}_{2}'.format(signal_name, dg, temp['tail'])
+                            cn_dat['signalName'] = f"{signal_name}_{dg}_{temp['tail']}"
                     else:
                         cn_dat['signalName'] = signal_name
                     self['ChannelNamesByDG'][dg].add(cn_dat['signalName'])
@@ -288,7 +288,7 @@ class Info3(dict):
                             temp = dict()
                             temp['tail'] = channel
                         self['CNBlock'][dg][cg][channel]['signalName'] = \
-                            '{0}_{1}_{2}_{3}'.format(signal_name, dg, cg, temp['tail'])
+                            f"{signal_name}_{dg}_{cg}_{temp['tail']}"
                     elif signal_name in self['allChannelList']:
                         # doublon name or master channel
                         pointer = self['CNBlock'][dg][cg][channel]['pointerToCEBlock']
@@ -300,11 +300,10 @@ class Info3(dict):
                         else:
                             temp = dict()
                             temp['tail'] = dg
-                        if '{0}_{1}'.format(signal_name, temp['tail']) not in self['allChannelList']:
-                            self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}'.format(signal_name, temp['tail'])
+                        if f"{signal_name}_{temp['tail']}" not in self['allChannelList']:
+                            self['CNBlock'][dg][cg][channel]['signalName'] = f"{signal_name}_{temp['tail']}"
                         else:
-                            self['CNBlock'][dg][cg][channel]['signalName'] = '{0}_{1}_{2}'.format(signal_name,
-                                                                                                  dg, temp['tail'])
+                            self['CNBlock'][dg][cg][channel]['signalName'] = f"{signal_name}_{dg}_{temp['tail']}"
                     else:
                         self['CNBlock'][dg][cg][channel]['signalName'] = signal_name
                     self['ChannelNamesByDG'][dg].add(self['CNBlock'][dg][cg][channel]['signalName'])
@@ -448,9 +447,8 @@ class Info3(dict):
                             temp = dict()
                             temp['tail'] = channel
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = \
-                            '{0}_{1}'.format(signal_name, temp['tail'])
-                        warn('WARNING added number to duplicate signal name: {}'.
-                             format(self['CNBlock'][dataGroup][channelGroup][channel]['signalName']))
+                            f"{signal_name}_{temp['tail']}"
+                        warn(f"WARNING added number to duplicate signal name: {self['CNBlock'][dataGroup][channelGroup][channel]['signalName']}")
                     else:
                         self['CNBlock'][dataGroup][channelGroup][channel]['signalName'] = signal_name
                         names_set.add(signal_name)
@@ -652,7 +650,7 @@ def read_cc_block(fid, pointer):
         else:
             # Give warning that conversion formula is not being
             # made
-            warn('Conversion Formula type (cc_type={})not supported.'.format(temp['cc_type']))
+            warn(f"Conversion Formula type (cc_type={temp['cc_type']}) not supported.")
 
         return temp
     else:
@@ -670,7 +668,7 @@ def read_tx_block(fid, pointer):
          block_size) = tx_struct.unpack(raw)
         if block_size < 4:
             return None
-        text = unpack('{}s'.format(block_size - 4), fid.read(block_size - 4))[0]
+        text = unpack(f'{block_size - 4}s', fid.read(block_size - 4))[0]
 
         return text.rstrip(b'\x00').decode('latin1', 'replace')
 
@@ -731,9 +729,9 @@ def _generate_dummy_mdf3(info, channel_list):
             for cn in info['CNBlock'][dg][cg]:
                 name = info['CNBlock'][dg][cg][cn]['signalName']
                 if name in channel_names_by_dg:
-                    name = '{0}_{1}_{2}_{3}'.format(name, dg, cg, cn)
+                    name = f'{name}_{dg}_{cg}_{cn}'
                 elif name in all_channel_list:
-                    name = ''.join([name, '_{}'.format(dg)])
+                    name = f'{name}_{dg}'
                 if channel_list is None or name in channel_list:
                     channel_name_list.append(name)
                     all_channel_list.add(name)

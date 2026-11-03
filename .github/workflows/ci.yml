@@ -20,6 +20,6 @@ jobs:
         run: |
           pip install setuptools numpy cython lxml sympy pytest
           python setup.py build_ext --inplace
-          pip install -e ".[export]"
+          pip install -e ".[export,mdf4-compression,dev]"
       - name: Run tests
         run: pytest mdfreader/tests/ -k "not test_compare_mdfr" --tb=short -q

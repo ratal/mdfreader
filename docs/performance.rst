@@ -30,7 +30,7 @@ Benchmark (184 MB, 36 000-channel MDF4 file)
 Optimisation 1 — Fast CN/CC/SI/TX metadata reader
 --------------------------------------------------
 
-**Function:** ``read_cn_chain_fast()`` in ``dataRead.pyx``
+**Function:** ``read_cn_chain_fast()`` in ``mdfreader/dataRead.pyx``
 
 **Called from:** :meth:`~mdfreader.mdfinfo4.Info4.read_cn_blocks`
 
@@ -77,7 +77,7 @@ Unchanged paths (Python)
 Optimisation 2 — SymBufReader (bidirectional file buffer)
 ---------------------------------------------------------
 
-**Class:** ``SymBufReader`` in ``dataRead.pyx``
+**Class:** ``SymBufReader`` in ``mdfreader/dataRead.pyx``
 
 **Called from:** :meth:`~mdfreader.mdfinfo4.Info4.__init__`
 
@@ -95,7 +95,7 @@ Python ``bytes`` object) to avoid allocation and GC pressure.
 .. code-block:: python
 
    # Transparent drop-in for fid:
-   from dataRead import SymBufReader
+   from mdfreader.dataRead import SymBufReader
    reader = SymBufReader(fid)
    reader.seek(offset)
    data = reader.read(88)   # served from buffer if within ±32 KB

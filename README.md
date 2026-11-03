@@ -16,7 +16,7 @@ Performance:
 When Cython is available (strongly recommended), mdfreader uses several
 low-level optimisations:
 
-* **Fast CN/CC/SI/TX metadata reader** (`read_cn_chain_fast` in `dataRead.pyx`):
+* **Fast CN/CC/SI/TX metadata reader** (`read_cn_chain_fast` in `mdfreader/dataRead.pyx`):
   walks the entire MDF4 channel linked list in a single Cython function using
   POSIX `pread()` (no Python file-object dispatch, no GIL during I/O) and
   C packed-struct `memcpy` parsing. A fast `<TX>…</TX>` bytes scan replaces
@@ -64,9 +64,9 @@ Mdfreader module methods:
 
 It is also possible to export mdf data into:
 * CSV file (Excel dialect by default)
-* NetCDF file for compatibility with Uniplot (needs `netcdf4`, `Scientific.IO`)
+* NetCDF file for compatibility with Uniplot (needs `scipy`)
 * HDF5 (needs `h5py`)
-* Excel 95–2003 (needs `xlwt` — very slow for large files)
+* Excel 95–2003 (needs `xlwt`, extra `xls` — very slow for large files)
 * Excel 2007/2010 (needs `openpyxl` — can also be slow with large files)
 * Matlab `.mat` (needs `hdf5storage`)
 * MDF file — allows creating, converting or modifying data, units and descriptions
@@ -86,17 +86,22 @@ back to `lxml` for complex XML (CDATA, namespaces).
 
 Reading channels defined by a formula requires `sympy`.
 
-Cython is strongly advised. It compiles `dataRead.pyx`, which provides:
+Cython is strongly advised. It compiles `mdfreader/dataRead.pyx` (module `mdfreader.dataRead`), which provides:
 * fast metadata parsing via `pread()` + C packed structs
 * the `SymBufReader` bidirectional file buffer
 * bit-exact reading for non-byte-aligned or record-padded channels
 * VLSD/VLSC string data reading helpers
 
-If Cython compilation fails, `bitarray` is used as a fallback (slower, pure Python).
+If the extension cannot be compiled, installation still succeeds and a slower pure-Python path is used,
+which needs `bitarray` (`pip install mdfreader[fallback]`).
 
-Export requirements (optional): `scipy`, `h5py`, `hdf5storage`, `openpyxl`, `pandas`, `fastparquet`
+Export requirements (optional): `scipy`, `h5py`, `hdf5storage`, `openpyxl`, `pandas`, `pyarrow` (all in the `export` extra)
 
-Data compression in memory (optional): `blosc`
+ZStandard / LZ4 compressed MDF4 data blocks (optional): `pyzstd`, `lz4` (extra `mdf4-compression`)
+
+Plot cursor (optional): `mplcursors` (extra `plot`)
+
+Data compression in memory (optional): `blosc` (extra `compression`)
 
 Graphical converter: `PyQt5`
 
@@ -109,8 +114,9 @@ pip install mdfreader
 From source:
 ```shell
 pip install cython numpy        # build prerequisites
+pip install -e ".[export,dev]"  # compiles mdfreader.dataRead and installs in development mode
+# or only rebuild the extension in place:
 python setup.py build_ext --inplace
-python setup.py develop
 ```
 
 Graphical interface: mdfconverter
