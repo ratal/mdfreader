@@ -15,19 +15,22 @@ Dependencies
 mdf
 --------------------------
 """
+from __future__ import annotations
+
 import atexit
 import shutil
 import tempfile
+from collections import OrderedDict, defaultdict
 from copy import deepcopy
+from datetime import datetime as _datetime, timedelta as _timedelta, timezone as _timezone
 from io import open
-from zipfile import is_zipfile, ZipFile
 from itertools import chain
 from random import choice
 from string import ascii_letters
-from collections import OrderedDict, defaultdict
-from datetime import datetime as _datetime, timezone as _timezone, timedelta as _timedelta
 from time import time
+from typing import Any, Sequence
 from warnings import warn
+from zipfile import ZipFile, is_zipfile
 from numpy import array_repr, set_printoptions, recarray, frombuffer
 try:
     from pandas import set_option
@@ -94,10 +97,19 @@ class MdfSkeleton(dict):
         adds basic metadata from file
     """
 
-    def __init__(self, file_name=None, channel_list=None, convert_after_read=True,
-                 filter_channel_names=False, no_data_loading=False,
-                 compression=False, convert_tables=True, metadata=2,
-                 finalization_writing_to_file=False, force_file_integrity_check=False):
+    def __init__(
+        self,
+        file_name: str | None = None,
+        channel_list: Sequence[str] | set[str] | None = None,
+        convert_after_read: bool = True,
+        filter_channel_names: bool = False,
+        no_data_loading: bool = False,
+        compression: bool | str | int = False,
+        convert_tables: bool = True,
+        metadata: int = 2,
+        finalization_writing_to_file: bool = False,
+        force_file_integrity_check: bool = False,
+    ) -> None:
         """ mdf_skeleton class constructor.
 
         Parameters
@@ -175,8 +187,19 @@ class MdfSkeleton(dict):
                       finalization_writing_to_file=finalization_writing_to_file,
                       force_file_integrity_check=force_file_integrity_check)
 
-    def add_channel(self, channel_name, data, master_channel, master_type=1, unit='', description='', conversion=None,
-                    info=None, compression=False, identifier=None):
+    def add_channel(
+        self,
+        channel_name: str,
+        data: Any,
+        master_channel: str,
+        master_type: int = 1,
+        unit: str = '',
+        description: str = '',
+        conversion: Any = None,
+        info: Any = None,
+        compression: bool | str | int = False,
+        identifier: Any = None,
+    ) -> None:
         """ adds channel to mdf dict.
 
         Parameters
@@ -225,31 +248,32 @@ class MdfSkeleton(dict):
         if compression:
             self.set_channel_data(channel_name, data, compression)
         if conversion is not None:
-            self[channel_name]['conversion'] = {}
-            self[channel_name]['conversion']['type'] = conversion['cc_type']
-            self[channel_name]['conversion']['parameters'] = {}
-            if self.MDFVersionNumber < 400:  # mdf3
-                if 'conversion' in conversion:
-                    self[channel_name]['conversion']['parameters'] = \
-                        conversion['conversion']
-                if conversion['cc_type'] == 0 and \
-                        'P2' in self[channel_name]['conversion']['parameters'] and \
-                        (self[channel_name]['conversion']['parameters']['P2'] == 1.0 and
-                         self[channel_name]['conversion']['parameters']['P1'] in (0.0, -0.0)):
-                    self[channel_name].pop('conversion')
-            else:  # mdf4
-                if 'cc_val' in conversion:
-                    self[channel_name]['conversion']['parameters']['cc_val'] = \
-                        conversion['cc_val']
-                if 'cc_ref' in conversion:
-                    self[channel_name]['conversion']['parameters']['cc_ref'] = \
-                        conversion['cc_ref']
-                if conversion['cc_type'] == 0:
-                    self[channel_name].pop('conversion')
-                elif conversion['cc_type'] == 1 and 'cc_val' in conversion:
-                    cc_val = conversion['cc_val']
-                    if len(cc_val) >= 2 and cc_val[0] in (0.0, -0.0) and cc_val[1] == 1.0:
-                        self[channel_name].pop('conversion')
+            cc_type = conversion.get('cc_type')
+            if self.MDFVersionNumber >= 400:  # mdf4
+                if cc_type == 0:
+                    pass  # 1:1 identity conversion, no conversion dict needed
+                elif cc_type == 1 and 'cc_val' in conversion and len(conversion['cc_val']) >= 2 and \
+                        conversion['cc_val'][0] in (0.0, -0.0) and conversion['cc_val'][1] == 1.0:
+                    pass  # 1:1 identity linear scaling, no conversion dict needed
+                else:
+                    params = {}
+                    if 'cc_val' in conversion:
+                        params['cc_val'] = conversion['cc_val']
+                    if 'cc_ref' in conversion:
+                        params['cc_ref'] = conversion['cc_ref']
+                    self[channel_name]['conversion'] = {
+                        'type': cc_type,
+                        'parameters': params,
+                    }
+            else:  # mdf3
+                params = conversion.get('conversion', {})
+                if cc_type == 0 and params.get('P2') == 1.0 and params.get('P1') in (0.0, -0.0):
+                    pass  # 1:1 identity conversion
+                else:
+                    self[channel_name]['conversion'] = {
+                        'type': cc_type,
+                        'parameters': params,
+                    }
         if info is not None:  # axis from CABlock
             ca_block = info
             axis = []
@@ -268,7 +292,7 @@ class MdfSkeleton(dict):
         if identifier is not None:
             self[channel_name]['id'] = identifier
 
-    def remove_channel(self, channel_name):
+    def remove_channel(self, channel_name: str) -> Any:
         """ removes channel from mdf dict.
 
         Parameters
@@ -285,7 +309,7 @@ class MdfSkeleton(dict):
             self.masterChannelList[master].remove(channel_name)
         return self.pop(channel_name)
 
-    def rename_channel(self, channel_name, new_name):
+    def rename_channel(self, channel_name: str, new_name: str) -> None:
         """Modifies name of channel
 
         Parameters
@@ -343,7 +367,7 @@ class MdfSkeleton(dict):
         if field in self.get_channel(channel_name):
             return self[channel_name].pop(field)
 
-    def get_channel_unit(self, channel_name):
+    def get_channel_unit(self, channel_name: str) -> str:
         """Returns channel unit string
         Implemented for a future integration of pint
 
@@ -365,7 +389,7 @@ class MdfSkeleton(dict):
                 return ''
         return temp
 
-    def get_channel_desc(self, channel_name):
+    def get_channel_desc(self, channel_name: str) -> str:
         """Extract channel description information from mdf structure
 
         Parameters
@@ -379,7 +403,7 @@ class MdfSkeleton(dict):
         """
         return self._get_channel_field(channel_name, field=descriptionField)
 
-    def get_channel_master(self, channel_name):
+    def get_channel_master(self, channel_name: str) -> str | None:
         """Extract channel master name from mdf structure
 
         Parameters
@@ -393,7 +417,7 @@ class MdfSkeleton(dict):
         """
         return self._get_channel_field(channel_name, field=masterField)
 
-    def get_channel_master_type(self, channel_name):
+    def get_channel_master_type(self, channel_name: str) -> int | None:
         """Extract channel master type information from mdf structure
 
         Parameters
@@ -407,7 +431,7 @@ class MdfSkeleton(dict):
         """
         return self._get_channel_field(channel_name, field=masterTypeField)
 
-    def get_channel_conversion(self, channel_name):
+    def get_channel_conversion(self, channel_name: str) -> dict[str, Any] | None:
         """Extract channel conversion dict from mdf structure
 
         Parameters
@@ -421,13 +445,13 @@ class MdfSkeleton(dict):
         """
         return self._get_channel_field(channel_name, field=conversionField)
 
-    def get_invalid_bit(self, channel_name):
+    def get_invalid_bit(self, channel_name: str) -> Any:
         return self._get_channel_field(channel_name, field=invalidPosField)
 
-    def get_invalid_channel(self, channel_name):
+    def get_invalid_channel(self, channel_name: str) -> Any:
         return self._get_channel_field(channel_name, field=invalidChannel)
 
-    def get_channel(self, channel_name):
+    def get_channel(self, channel_name: str) -> dict[str, Any] | None:
         """Extract channel dict from mdf structure
 
         Parameters
@@ -444,7 +468,7 @@ class MdfSkeleton(dict):
         except KeyError:
             return None
 
-    def _get_channel_field(self, channel_name, field=None):
+    def _get_channel_field(self, channel_name: str, field: str | None = None) -> Any:
         """General purpose function to extract channel dict key value from mdf class
 
         Parameters
@@ -467,7 +491,7 @@ class MdfSkeleton(dict):
         else:
             return None
 
-    def set_channel_unit(self, channel_name, unit):
+    def set_channel_unit(self, channel_name: str, unit: str) -> None:
         """Modifies unit of channel
 
         Parameters
@@ -479,7 +503,7 @@ class MdfSkeleton(dict):
         """
         self._set_channel(channel_name, unit, field=unitField)
 
-    def set_channel_data(self, channel_name, data, compression=False):
+    def set_channel_data(self, channel_name: str, data: Any, compression: bool | str | int = False) -> None:
         """Modifies data of channel
 
         Parameters
@@ -498,7 +522,7 @@ class MdfSkeleton(dict):
         else:
             self._set_channel(channel_name, data, field=dataField)
 
-    def set_channel_desc(self, channel_name, desc):
+    def set_channel_desc(self, channel_name: str, desc: str) -> None:
         """Modifies description of channel
 
         Parameters
@@ -510,7 +534,7 @@ class MdfSkeleton(dict):
         """
         self._set_channel(channel_name, desc, field=descriptionField)
 
-    def set_channel_master(self, channel_name, master):
+    def set_channel_master(self, channel_name: str, master: str) -> None:
         """Modifies channel master name
 
         Parameters
@@ -522,7 +546,7 @@ class MdfSkeleton(dict):
         """
         self._set_channel(channel_name, master, field=masterField)
 
-    def set_channel_master_type(self, channel_name, master_type):
+    def set_channel_master_type(self, channel_name: str, master_type: int) -> None:
         """Modifies master channel type
 
         Parameters
@@ -534,7 +558,7 @@ class MdfSkeleton(dict):
         """
         self._set_channel(channel_name, master_type, field=masterTypeField)
 
-    def set_channel_conversion(self, channel_name, conversion):
+    def set_channel_conversion(self, channel_name: str, conversion: Any) -> None:
         """Modifies conversion dict of channel
 
         Parameters
@@ -546,7 +570,7 @@ class MdfSkeleton(dict):
         """
         self._set_channel(channel_name, conversion, field=conversionField)
 
-    def set_channel_attachment(self, channel_name, attachment):
+    def set_channel_attachment(self, channel_name: str, attachment: Any) -> None:
         """Modifies channel attachment
 
         Parameters
@@ -558,7 +582,7 @@ class MdfSkeleton(dict):
         """
         self._set_channel(channel_name, attachment, field=attachmentField)
 
-    def set_invalid_bit(self, channel_name, bit_position):
+    def set_invalid_bit(self, channel_name: str, bit_position: int) -> None:
         """returns the invalid bit position of channel
 
         Parameters
@@ -573,10 +597,10 @@ class MdfSkeleton(dict):
         """
         self[channel_name][invalidPosField] = bit_position
 
-    def set_invalid_channel(self, channel_name, invalid_channel):
+    def set_invalid_channel(self, channel_name: str, invalid_channel: str) -> None:
         self[channel_name][invalidChannel] = invalid_channel
 
-    def _set_channel(self, channel_name, item, field=None):
+    def _set_channel(self, channel_name: str, item: Any, field: str | None = None) -> None:
         """General purpose method to modify channel values
 
         Parameters
@@ -591,9 +615,9 @@ class MdfSkeleton(dict):
         try:
             self[channel_name][field] = item
         except KeyError:
-            warn('Channel {} not in dictionary'.format(channel_name))
+            warn(f'Channel {channel_name} not in dictionary')
 
-    def _channel_in_mdf(self, channel_name):
+    def _channel_in_mdf(self, channel_name: str) -> bool:
         """Efficiently assess if channel is already in mdf
 
         Parameters
@@ -607,8 +631,16 @@ class MdfSkeleton(dict):
         """
         return channel_name in self.masterChannelList[masterField] or channel_name in self.masterChannelList
 
-    def add_metadata(self, author='', organisation='', project='',
-                     subject='', comment='', time='', time_offset=None):
+    def add_metadata(
+        self,
+        author: str = '',
+        organisation: str = '',
+        project: str = '',
+        subject: str = '',
+        comment: str = '',
+        time: float | int = 0,
+        time_offset: float | None = None,
+    ) -> None:
         """adds basic metadata to mdf class
 
         Parameters
@@ -664,19 +696,19 @@ class MdfSkeleton(dict):
         """
         output = list()
         if self.fileName is not None:
-            output.append('file name : {}\n'.format(self.fileName))
+            output.append(f'file name : {self.fileName}\n')
         else:
             output.append('')
         for m in self.fileMetadata:
             if self.fileMetadata[m] is not None:
-                output.append('{} : {}\n'.format(m, self.fileMetadata[m]))
+                output.append(f'{m} : {self.fileMetadata[m]}\n')
         if not self._pandasframe:
             output.append('\nchannels listed by data groups:\n')
             for d in self.masterChannelList:
                 if d is not None:
-                    output.append('{}\n'.format(d))
+                    output.append(f'{d}\n')
                 for c in self.masterChannelList[d]:
-                    output.append('  {} : '.format(c))
+                    output.append(f'  {c} : ')
                     desc = self.get_channel_desc(c)
                     if desc is not None:
                         try:
@@ -691,7 +723,7 @@ class MdfSkeleton(dict):
                                                  precision=3, suppress_small=True))
                     unit = self.get_channel_unit(c)
                     if unit is not None:
-                        output.append(' {}\n'.format(unit))
+                        output.append(f' {unit}\n')
             return ''.join(output)
         else:
             set_option('max_rows', 3)
@@ -723,7 +755,7 @@ class MdfSkeleton(dict):
         return yop
 
 
-def _open_mdf(file_name):
+def _open_mdf(file_name: str) -> tuple[Any, str, bool]:
     """ Opens mdf, make a few checks and returns fid
 
     Parameters
@@ -740,7 +772,7 @@ def _open_mdf(file_name):
     try:
         fid = open(file_name, 'rb')
     except IOError:
-        raise Exception('Can not find file {}'.format(file_name))
+        raise Exception(f'Can not find file {file_name}')
     zipfile = False
     # Check whether file is MDF file -- assumes that every MDF file starts
     # with the letters MDF
@@ -757,7 +789,7 @@ def _open_mdf(file_name):
             fid = open(zip_name, 'rb')
             file_name = zip_name
         else:
-            raise Exception('file {} is not an MDF file!'.format(file_name))
+            raise Exception(f'file {file_name} is not an MDF file!')
     return (fid, file_name, zipfile)
 
 

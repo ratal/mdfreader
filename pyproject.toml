@@ -1,3 +1,62 @@
 [build-system]
 requires = ["setuptools>=68", "Cython>=3.0", "numpy>=1.14"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "mdfreader"
+dynamic = ["version"]
+description = "A Measured Data Format file parser"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Aymeric Rateau", email = "aymeric.rateau@gmail.com" }]
+keywords = ["Parser", "MDF", "file"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = ["numpy>=1.14", "sympy", "lxml"]
+
+[project.urls]
+Homepage = "https://github.com/ratal/mdfreader"
+
+[project.optional-dependencies]
+export = ["hdf5storage", "h5py", "scipy", "openpyxl>2.0", "pandas", "pyarrow"]
+xls = ["xlwt"]
+plot = ["matplotlib", "mplcursors"]
+converter = ["PyQt5"]
+# MDF4 data blocks compressed with ZStandard / LZ4
+mdf4-compression = ["pyzstd", "lz4"]
+# in-memory compression of channel data
+compression = ["blosc"]
+# pure-python fallback, only needed when the dataRead extension is not compiled
+fallback = ["bitarray"]
+experimental = ["bitarray"]
+dev = ["pytest"]
+
+[project.scripts]
+mdfconverter = "mdfconverter.mdfconverter:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "mdfreader.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["mdfreader*", "mdfconverter*"]
+exclude = ["mdfreader.tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["mdfreader/tests"]
+python_files = ["test_*.py"]
+markers = [
+    "slow: marks tests as slow (deselect with -m \"not slow\")",
+    "compare_mdfr: cross-validates mdfreader vs mdfr Rust library (run with -m compare_mdfr)",
+]
+tmp_path_retention_count = 1
+tmp_path_retention_policy = "failed"

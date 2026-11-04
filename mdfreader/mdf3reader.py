@@ -34,7 +34,7 @@ from .channel import Channel3
 if os.name == 'posix':
     from os import getlogin
 try:
-    from dataRead import sorted_data_read
+    from .dataRead import sorted_data_read
     dataRead_available = True
 except ImportError:
     warn('dataRead cannot be imported, compile it with Cython', ImportWarning)
@@ -198,15 +198,33 @@ def _formula_conversion(data, conversion):  # 10 Text Formula
     """
     try:
         from sympy import lambdify, symbols
+        from sympy.parsing.sympy_parser import parse_expr
         X = symbols('X')  # variable is X
         formula = conversion['textFormula']
         # remove trailing text after 0
-        formula = formula[:formula.find('\x00')]
+        if '\x00' in formula:
+            formula = formula[:formula.find('\x00')]
         # adapt ASAM-MCD2 syntax to sympy
-        formula = formula.replace('pow(', 'power(')
+        formula = formula.replace('pow(', 'power(').replace('POW(', 'power(')
+        try:
+            expr = parse_expr(formula)
+            for sym_name in ('x', 'x1', 'X1'):
+                s = symbols(sym_name)
+                if s in expr.free_symbols:
+                    expr = expr.subs(s, X)
+        except Exception:
+            expr = formula
+
+        custom_modules = {
+            'SIN': np.sin, 'COS': np.cos, 'TAN': np.tan,
+            'ASIN': np.arcsin, 'ACOS': np.arccos, 'ATAN': np.arctan,
+            'SINH': np.sinh, 'COSH': np.cosh, 'TANH': np.tanh,
+            'EXP': np.exp, 'LOG': np.log, 'LN': np.log,
+            'SQRT': np.sqrt, 'ABS': np.abs,
+        }
         # formula to function for evaluation
-        expr = lambdify(X, formula, modules='numpy', dummify=False)
-        return expr(data)
+        expr_fn = lambdify(X, expr, modules=[custom_modules, 'numpy'], dummify=False)
+        return expr_fn(data)
     except Exception:
         warn('Failed to convert formulae ' + conversion['textFormula'] +
              ' Sympy is correctly installed ?\n')
@@ -335,7 +353,7 @@ class Record(list):
         self.channelGroup = channel_group
         self.numpyDataRecordFormat = []
         self.dataRecordName = []
-        self.master = {'name': 'master_{}'.format(data_group), 'number': None}
+        self.master = {'name': f'master_{data_group}', 'number': None}
         self.recordToChannelMatching = {}
         self.channelNames = set()
         self.hiddenBytes = False
@@ -346,12 +364,12 @@ class Record(list):
         output.append('Channels :\n')
         for chan in self.channelNames:
             output.append(''.join([chan, '\n']))
-        output.append('Data group number : {}\n'.format(self.dataGroup))
+        output.append(f'Data group number : {self.dataGroup}\n')
         if self.master['name'] is not None:
             output.append(''.join(['Master channel : ', self.master['name'], '\n']))
         output.append('Numpy records format : \n')
         for record in self.numpyDataRecordFormat:
-            output.append('{}\n'.format(record))
+            output.append(f'{record}\n')
         return ''.join(output)
 
     def add_channel(self, info, channel_number):
@@ -381,7 +399,7 @@ class Record(list):
         self.numberOfRecords = info['CGBlock'][self.dataGroup][self.channelGroup]['numberOfRecords']
         self.dataBlockLength = self.CGrecordLength * self.numberOfRecords
         if self.recordIDnumber > 0:  # record ID existing at beginning of record
-            self.dataRecordName.append('RecordID{}'.format(self.channelGroup))
+            self.dataRecordName.append(f'RecordID{self.channelGroup}')
             self.numpyDataRecordFormat.append('uint8')
             self.dataBlockLength = (self.CGrecordLength + 1) * self.numberOfRecords
         embedding_channel = None
@@ -434,7 +452,7 @@ class Record(list):
                 self.dataRecordName.append(channel.name)
                 self.recordLength += channel.nBytes_aligned
         if self.recordIDnumber == 2:  # second record ID at end of record
-            self.dataRecordName.append('RecordID{}_2'.format(self.channelGroup))
+            self.dataRecordName.append(f'RecordID{self.channelGroup}_2')
             self.numpyDataRecordFormat.append('uint8')
             self.dataBlockLength = (self.CGrecordLength + 2) * self.numberOfRecords
         # check for hidden bytes
@@ -540,7 +558,7 @@ class Record(list):
                             previous_index += n_record_chunk
                         return rec
                     except Exception:
-                        warn('Unexpected error: {}'.format(exc_info()))
+                        warn(f'Unexpected error: {exc_info()}')
                         warn('dataRead crashed, back to python data reading')
 
                 record_length = self.recordIDnumber + self.CGrecordLength
@@ -768,7 +786,7 @@ class DATA(dict):
             for Channel in self[record_id]['record']:
                 if Channel.name in channel_name_set[record_id]:
                     buf[Channel.name] = empty((self[record_id]['record'].numberOfRecords,),
-                                              dtype='V{}'.format(Channel.nBytes_aligned))
+                                              dtype=f'V{Channel.nBytes_aligned}')
                     numpy_format[Channel.name] = Channel.dataFormat
                     pos_byte_beg[Channel.name] = Channel.posByteBeg
                     nBytes[Channel.name] = Channel.nBytes_aligned
@@ -1163,30 +1181,30 @@ class Mdf3(MdfSkeleton):
         n_data_group = len(self.masterChannelList)
         if self.fileMetadata['author'] is not None:  # Author
             try:
-                author = '{:\x00<32.31}'.format(self.fileMetadata['author']).encode('latin-1', 'ignore')
+                author = f"{self.fileMetadata['author']:\x00<32.31}".encode('latin-1', 'ignore')
             except UnicodeEncodeError:
                 author = b'\x00' * 32
         elif os.name == 'posix':
-            author = '{:\x00<32.31}'.format(getlogin()).encode('latin-1')
+            author = f"{getlogin():\x00<32.31}".encode('latin-1')
         else:
             author = b'\x00' * 32
         if self.fileMetadata['organisation'] is not None:  # Organization
             try:
-                organization = '{:\x00<32.31}'.format(self.fileMetadata['organisation']).encode('latin-1', 'ignore')
+                organization = f"{self.fileMetadata['organisation']:\x00<32.31}".encode('latin-1', 'ignore')
             except UnicodeEncodeError:
                 organization = b'\x00' * 32
         else:
             organization = b'\x00' * 32
         if self.fileMetadata['project'] is not None:  # Project
             try:
-                project = '{:\x00<32.31}'.format(self.fileMetadata['project']).encode('latin-1', 'ignore')
+                project = f"{self.fileMetadata['project']:\x00<32.31}".encode('latin-1', 'ignore')
             except UnicodeEncodeError:
                 project = b'\x00' * 32
         else:
             project = b'\x00' * 32
         if self.fileMetadata['subject'] is not None:  # Subject
             try:
-                subject = '{:\x00<32.31}'.format(self.fileMetadata['subject']).encode('latin-1', 'ignore')
+                subject = f"{self.fileMetadata['subject']:\x00<32.31}".encode('latin-1', 'ignore')
             except UnicodeEncodeError:
                 subject = b'\x00' * 32
         else:
@@ -1197,8 +1215,8 @@ class Mdf3(MdfSkeleton):
         # Time Stamp, UTC time offset, Time quality, Timer identification
         record_time = gmtime(self.fileMetadata['time'])
         head = (b'HD', 208, 272, 0, 0, n_data_group,
-                '{:\x00<10}'.format(strftime("%d:%m:%Y", record_time)).encode('latin-1'),
-                '{:\x00<8}'.format(strftime("%H:%M:%S", record_time)).encode('latin-1'),
+                f'{strftime("%d:%m:%Y", record_time):\x00<10}'.encode('latin-1'),
+                f'{strftime("%H:%M:%S", record_time):\x00<8}'.encode('latin-1'),
                 author, organization, project, subject,
                 int(self.fileMetadata['time'] * 1000000000), 1, 0,
                 b'Local PC Reference Time         ')
@@ -1249,12 +1267,12 @@ class Mdf3(MdfSkeleton):
 
             # Channel blocks writing
             pointers['CN'][data_group] = {}
-            data_list = ()
-            data_type_list = ''
+            data_list = []
             record_number_of_bits = 0
             preceeding_channel = None
             bit_offset = 0
             byte_offset = 0
+            master_channel_set = set(self.masterChannelList)
             # first channel bock pointer from CG
             position = fid.tell()
             write_pointer(fid, pointers['CG'][data_group]['firstCN'], position)
@@ -1270,7 +1288,7 @@ class Mdf3(MdfSkeleton):
                     write_pointer(fid, pointers['CN'][data_group][preceeding_channel]['nextCN'],
                                   pointers['CN'][data_group][channel]['beginCN'])
                 preceeding_channel = channel
-                if channel not in set(self.masterChannelList):
+                if channel not in master_channel_set:
                     master_flag = 0  # data channel
                 else:
                     master_flag = 1  # master channel
@@ -1280,8 +1298,7 @@ class Mdf3(MdfSkeleton):
                     bit_offset -= 0x10000
                     byte_offset += 8192
                 data = self.get_channel_data(channel)  # channel data
-                temp = data
-                data_list = data_list + (temp, )
+                data_list.append(data)
                 cn_numpy_kind = data.dtype.kind
                 cn_numpy_item_size = data.dtype.itemsize
                 number_of_bits = cn_numpy_item_size * 8
@@ -1300,17 +1317,12 @@ class Mdf3(MdfSkeleton):
                     data_type = 7
                 else:
                     raise Exception('Not recognized dtype')
-                if data.dtype.kind not in {'S', 'U'}:
-                    data_type_list = ''.join([data_type_list, data.dtype.char])
-                else:
-                    data_type_list = ''.join([data_type_list, '{}s'.format(data.dtype.itemsize)])
-                    number_of_bits = 8 * data.dtype.itemsize
                 record_number_of_bits += number_of_bits
-                if data.dtype.kind not in {'S', 'U'}:
+                if cn_numpy_kind not in {'S', 'U'}:
                     value_range_valid = 1
-                    if len(data) > 0 and issubdtype(data.dtype, numpy_number):
-                        maximum = npmax(data)
-                        minimum = npmin(data)
+                    if len(data) > 0 and cn_numpy_kind in ('i', 'u', 'f', 'b'):
+                        maximum = data.max()
+                        minimum = data.min()
                     else:
                         maximum = 0
                         minimum = 0
@@ -1330,11 +1342,11 @@ class Mdf3(MdfSkeleton):
                 # pointer to channel display name
                 # additional byte offset
                 try:
-                    description = '{:\x00<128.127}'.format(desc).encode('latin-1')
+                    description = f'{desc:\x00<128.127}'.encode('latin-1')
                 except Exception:
                     description = b'\x00' * 128
                 head = (b'CN', 228, 0, 0, 0, 0, 0, master_flag,
-                        ('{:\x00<32.31}'.format(channel) + '\x00').encode('latin-1'),
+                        (f'{channel:\x00<32.31}' + '\x00').encode('latin-1'),
                         description,
                         bit_offset, number_of_bits, data_type, value_range_valid,
                         minimum, maximum, 0, 0, 0, byte_offset)
@@ -1344,7 +1356,7 @@ class Mdf3(MdfSkeleton):
                 # TXblock for long channel name
                 write_pointer(fid, pointers['CN'][data_group][channel]['longChannelName'], fid.tell())
                 head = (b'TX', len(channel) + 4 + 1, channel.encode('latin-1') + b'\x00')
-                fid.write(pack('<2sH{}s'.format(len(channel)+1), *head))
+                fid.write(pack(f'<2sH{len(channel) + 1}s', *head))
 
                 # Conversion blocks writing
                 write_pointer(fid, pointers['CN'][data_group][channel]['CC'], fid.tell())
@@ -1352,8 +1364,7 @@ class Mdf3(MdfSkeleton):
                 # conversion already done during reading
                 # additional size information, not necessary for 65535 conversion type ?
                 try:
-                    unit = '{:\x00<20.19}'.format(self.get_channel_unit(channel))\
-                                                  .encode('latin-1', 'replace')
+                    unit = f'{self.get_channel_unit(channel):\x00<20.19}'.encode('latin-1', 'replace')
                 except Exception:
                     unit = b'\x00' * 20
                 head = (b'CC', 46, value_range_valid, minimum, maximum,
@@ -1370,7 +1381,14 @@ class Mdf3(MdfSkeleton):
             # write data pointer in datagroup
             write_pointer(fid, pointers['DG'][data_group]['data'], fid.tell())
             # dumps data vector from numpy
-            fid.write(fromarrays(data_list).tobytes(order='F'))
+            if data_list:
+                rec_dtype = np.dtype([(f'f{i}', d.dtype, d.shape[1:]) if d.ndim > 1 else (f'f{i}', d.dtype) for i, d in enumerate(data_list)])
+                rec_arr = np.empty(len(data_list[0]), dtype=rec_dtype)
+                for i, d in enumerate(data_list):
+                    rec_arr[f'f{i}'] = d
+                fid.write(rec_arr.tobytes())
+            else:
+                fid.write(b'')
 
             data_group += 1
 

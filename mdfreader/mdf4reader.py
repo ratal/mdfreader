@@ -46,7 +46,7 @@ from .mdf import MdfSkeleton, _open_mdf, invalidChannel, dataField, \
     conversionField, idField, invalidPosField, CompressedData
 from .channel import Channel4
 try:
-    from dataRead import sorted_data_read, unsorted_data_read4, sd_data_read, vd_data_read
+    from .dataRead import sorted_data_read, unsorted_data_read4, sd_data_read, vd_data_read
     dataRead_available = True
 except ImportError:
     warn('dataRead cannot be imported, compile it with Cython', ImportWarning)
@@ -951,7 +951,7 @@ class Data(dict):
                 if tmp is None or not hasattr(tmp, 'dtype'):
                     continue
                 if not previous_index:  # initialise array
-                    data = zeros(record.numberOfRecords, dtype=tmp.dtype)
+                    data = empty(record.numberOfRecords, dtype=tmp.dtype)
                 data[previous_index: previous_index + nrecord_chunk] = tmp
                 previous_index += nrecord_chunk
                 del tmp
@@ -1132,6 +1132,27 @@ class Record(dict):
         if 'MLSD' in info:
             self.MLSD = info['MLSD']
         self.unique_channel_in_DG = info['DG'][self.dataGroup]['unique_channel_in_DG']
+
+        if self.unique_channel_in_DG:
+            cn_dict = info['CN'][self.dataGroup][self.channelGroup]
+            if len(cn_dict) == 1:
+                channelNumber, cn_info = next(iter(cn_dict.items()))
+                master_cg = cn_info.get('masterCG')
+                self.master = info['masters'][master_cg]['name'] if (master_cg is not None and master_cg in info['masters']) else None
+                cn_type = cn_info.get('cn_type', 0)
+                if cn_type not in (1, 5, 7) and cn_info.get('cn_data_type', 0) not in (13, 14) and not (cn_info.get('cn_flags', 0) & 0x20000):
+                    chan_name = cn_info['name']
+                    if channel_set is None or chan_name in channel_set or chan_name == self.master:
+                        channel = Channel4(self.dataGroup, self.channelGroup, channelNumber)
+                        channel.set(info)
+                        self[channelNumber] = channel
+                        self.channelNames.add(chan_name)
+                        data_format = channel.data_format(info)
+                        self.recordToChannelMatching[chan_name] = chan_name
+                        self.numpyDataRecordFormat.append(data_format)
+                        self.dataRecordName.append(chan_name)
+                        self.recordLength += channel.nBytes_aligned
+                    return
 
         master_name = None
         for cn_info in info['CN'][self.dataGroup][self.channelGroup].values():
@@ -1391,8 +1412,7 @@ class Record(dict):
             rec : numpy recarray
                 contains a matrix of raw data in a recarray (attributes corresponding to channel name)
         """
-        nbytes = info['CG'][self.dataGroup][self.channelGroup]['cg_data_bytes'] * \
-            info['CG'][self.dataGroup][self.channelGroup]['cg_cycle_count']
+        nbytes = self.CGrecordLength * self.numberOfRecords
         dtype = {'names': self.dataRecordName, 'formats': self.numpyDataRecordFormat}
         if nbytes == 0 or not self.dataRecordName:
             fid.read(nbytes)
@@ -1873,18 +1893,24 @@ class Mdf4(MdfSkeleton):
                 if minimal > 1 and not self._noDataLoading:  # load CG, CN and CC block info
                     info.read_cg_blocks(info.fid, dataGroup,
                                         channel_set, minimal=minimal)
-                data_existing_in_data_group = False
-                for dg in info['CG'][dataGroup]:
-                    if info['CG'][dataGroup][dg]['cg_cycle_count']:
-                        data_existing_in_data_group = True  # data existing
-                        break
+                is_unique_cg = info['DG'][dataGroup]['unique_channel_in_DG']
+                if is_unique_cg:
+                    first_cg = info['DG'][dataGroup]['dg_cg_first']
+                    data_existing_in_data_group = (info['CG'][dataGroup][first_cg]['cg_cycle_count'] > 0)
+                else:
+                    data_existing_in_data_group = False
+                    for dg in info['CG'][dataGroup]:
+                        if info['CG'][dataGroup][dg]['cg_cycle_count']:
+                            data_existing_in_data_group = True  # data existing
+                            break
                 if data_existing_in_data_group:
                     # Pointer to data block
                     pointer_to_data = info['DG'][dataGroup]['dg_data']
 
                     if 'dataClass' not in info['DG'][dataGroup]:
                         buf = Data(info.fid, pointer_to_data)
-                        for channelGroup in info['CG'][dataGroup]:
+                        cgroups = (first_cg,) if is_unique_cg else info['CG'][dataGroup]
+                        for channelGroup in cgroups:
                             # create record class
                             temp = Record(dataGroup, channelGroup)
                             # load all info related to record
@@ -1998,10 +2024,7 @@ class Mdf4(MdfSkeleton):
                                                     sign_bit = bitwise_and(
                                                         temp, sign_bit_mask)
                                                     temp_u = temp.view('u{}'.format(temp.itemsize))
-                                                    for number, sign in enumerate(sign_bit):
-                                                        # negative value, sign extend
-                                                        if sign:
-                                                            temp_u[number] |= sign_extend
+                                                    temp_u[sign_bit != 0] |= sign_extend
                                                     temp = temp_u.view(temp.dtype)
                                             else:  # should not happen
                                                 warn('bit count and offset not applied to correct '
@@ -2440,7 +2463,7 @@ class Mdf4(MdfSkeleton):
             record_byte_offset = 0
             cn_flag = 0
             n_records = 0
-            data_list = ()
+            data_list = []
             last_channel = 0
             previous_n_channel = 0
             for n_channel, channel in enumerate(self.masterChannelList[masterChannel]):
@@ -2455,7 +2478,7 @@ class Mdf4(MdfSkeleton):
                     last_channel = n_channel
                     data_ndim = data.ndim - 1
                     if not data_ndim:
-                        data_list = data_list + (data, )
+                        data_list.append(data)
                         record_byte_offset += byte_count
                     else:  # data contains arrays
                         data_dim_size = data.shape
@@ -2470,12 +2493,13 @@ class Mdf4(MdfSkeleton):
                             PNd *= x
                         flattened = reshape(data, (cg_cycle_count, PNd))
                         for i in range(PNd):
-                            data_list = data_list + (flattened[:, i],)
+                            data_list.append(flattened[:, i])
                         record_byte_offset += byte_count * PNd
 
-                    if issubdtype(data.dtype, numpy_number):  # is numeric
-                        blocks[n_channel]['cn_val_range_min'] = npmin(data)
-                        blocks[n_channel]['cn_val_range_max'] = npmax(data)
+                    cn_numpy_kind = data.dtype.kind
+                    if cn_numpy_kind in ('i', 'u', 'f', 'b'):  # is numeric
+                        blocks[n_channel]['cn_val_range_min'] = data.min()
+                        blocks[n_channel]['cn_val_range_max'] = data.max()
                         # only Bit 3: Limit range valid flag
                         blocks[n_channel]['cn_flags'] = 8
                     else:
@@ -2609,7 +2633,11 @@ class Mdf4(MdfSkeleton):
             if not data_list:
                 pointer = data.write(fid, b'')
             else:
-                pointer = data.write(fid, fromarrays(data_list).tobytes(order='F'))
+                rec_dtype = np.dtype([(f'f{i}', d.dtype, d.shape[1:]) if d.ndim > 1 else (f'f{i}', d.dtype) for i, d in enumerate(data_list)])
+                rec_arr = np.empty(len(data_list[0]), dtype=rec_dtype)
+                for i, d in enumerate(data_list):
+                    rec_arr[f'f{i}'] = d
+                pointer = data.write(fid, rec_arr.tobytes())
             if compression:
                 # next DG position is not predictable due to DZ Blocks unknown length
                 fid.seek(dg_start_position + 24)
@@ -2955,7 +2983,8 @@ def _formula_conversion(vector, formula):
     ----------------
     vector : numpy 1D array
         raw data to be converted to physical value
-    formula : mdfinfo4.info4 conversion block ('CCBlock') dict
+    formula : str
+        conversion formula string (ASAM MCD-2 MC syntax)
 
     Returns
     -----------
@@ -2963,12 +2992,31 @@ def _formula_conversion(vector, formula):
     """
     try:
         from sympy import lambdify, symbols
+        from sympy.parsing.sympy_parser import parse_expr
     except ImportError:
         warn('Please install sympy to convert channel ')
         return vector
+
+    formula_str = formula.replace('pow(', 'power(').replace('POW(', 'power(')
     X = symbols('X')
-    expr = lambdify(X, formula.upper(), modules='numpy', dummify=False)
-    return expr(vector)
+    try:
+        expr = parse_expr(formula_str)
+        for sym_name in ('x', 'x1', 'X1'):
+            s = symbols(sym_name)
+            if s in expr.free_symbols:
+                expr = expr.subs(s, X)
+    except Exception:
+        expr = formula_str
+
+    custom_modules = {
+        'SIN': np.sin, 'COS': np.cos, 'TAN': np.tan,
+        'ASIN': np.arcsin, 'ACOS': np.arccos, 'ATAN': np.arctan,
+        'SINH': np.sinh, 'COSH': np.cosh, 'TANH': np.tanh,
+        'EXP': np.exp, 'LOG': np.log, 'LN': np.log,
+        'SQRT': np.sqrt, 'ABS': np.abs,
+    }
+    expr_fn = lambdify(X, expr, modules=[custom_modules, 'numpy'], dummify=False)
+    return expr_fn(vector)
 
 
 def _value_to_value_table_without_interpolation_conversion(vector, cc_val):
@@ -3079,54 +3127,41 @@ def _value_to_text_conversion(vector, cc_val, cc_ref):
     """
     str_refs = [ref for ref in cc_ref if isinstance(ref, str)]
     maxlen = max(len(ref) for ref in str_refs) if str_refs else 256
-    # initialize empty array with max length
     if len(vector) == 0 or vector.ndim > 1:
         return vector  # can't apply value-to-text to empty or multi-dim data
-    temp = empty(len(vector), dtype='U{}'.format(maxlen))
+
     # checks for scaling
-    try:
-        from sympy import lambdify, symbols
-    except ImportError:
-        warn('Please install sympy to convert channel ')
-        return vector
-    X = symbols('X')
-    for ref in range(len(cc_ref)):
-        if isinstance(cc_ref[ref], CCBlock):
-            if cc_ref[ref]['cc_type'] == 3:
-                # formula to be applied
-                cc_ref[ref] = lambdify(X, cc_ref[ref]['cc_ref']['Comment'],
-                                       modules='numpy', dummify=False)
-            elif cc_ref[ref]['cc_type'] == 1:  # linear conversion
-                cc_ref[ref] = lambdify(X, '{0}* X + {1}'.format(cc_ref[ref]['cc_val'][1], cc_ref[ref]['cc_val'][0]),
-                                       modules='numpy', dummify=False)
-            else:
-                warn('To implement missing conversion, please ask')
-        elif not isinstance(cc_ref[ref], str):  # identity, non conversion
-            cc_ref[ref] = lambdify(X, 'X', modules='numpy', dummify=False)
-    # look up for first value in vector
+    needs_sympy = any(isinstance(ref, CCBlock) or (not isinstance(ref, str) and not callable(ref)) for ref in cc_ref)
+    if needs_sympy:
+        try:
+            from sympy import lambdify, symbols
+            X = symbols('X')
+            for ref in range(len(cc_ref)):
+                if isinstance(cc_ref[ref], CCBlock):
+                    if cc_ref[ref]['cc_type'] == 3:
+                        cc_ref[ref] = lambdify(X, cc_ref[ref]['cc_ref']['Comment'],
+                                               modules='numpy', dummify=False)
+                    elif cc_ref[ref]['cc_type'] == 1:
+                        cc_ref[ref] = lambdify(X, '{0}* X + {1}'.format(cc_ref[ref]['cc_val'][1], cc_ref[ref]['cc_val'][0]),
+                                               modules='numpy', dummify=False)
+                    else:
+                        warn('To implement missing conversion, please ask')
+                elif not isinstance(cc_ref[ref], (str, bytes)) and not callable(cc_ref[ref]):
+                    cc_ref[ref] = lambdify(X, 'X', modules='numpy', dummify=False)
+        except ImportError:
+            warn('Please install sympy to convert channel ')
+            return vector
+
     lookup = {cc_val[i]: cc_ref[i] for i in range(len(cc_val))}
     default = cc_ref[-1]
-    key_index = where(vector[0] == cc_val)[0]
-    if not len(key_index) == 0:  # value corresponding in cc_val
-        temp[0] = cc_ref[key_index[0]]
-    else:  # default value
-        if callable(cc_ref[-1]):
-            temp[0] = cc_ref[-1](vector[0])
-        else:
-            temp[0] = cc_ref[-1]
-    for lindex in range(1, len(vector)):
-        # same value as before, no need to look further
-        if vector[lindex] == vector[lindex - 1]:
-            temp[lindex] = temp[lindex - 1]
-        else:  # value changed from previous step
-            if vector[lindex] in lookup:
-                temp[lindex] = lookup[vector[lindex]]
-            else:  # default
-                if callable(default):
-                    temp[lindex] = default(vector[lindex])
-                else:
-                    temp[lindex] = default
-    return asarray(temp)
+
+    unq, inv = np.unique(vector, return_inverse=True)
+    mapped_unq = [
+        lookup.get(v, default(v) if callable(default) else default)
+        for v in unq
+    ]
+    temp = asarray(mapped_unq, dtype='U{}'.format(maxlen))[inv]
+    return temp
 
 
 def _value_range_to_text_conversion(vector, cc_val, cc_ref):
@@ -3204,7 +3239,11 @@ def _text_to_value_conversion(vector, cc_val, cc_ref):
     ref_count = len(cc_ref)
     mapping = {cc_ref[i]: cc_val[i] for i in range(ref_count)}
     default = cc_val[ref_count]
-    return asarray([mapping.get(v, default) for v in vector])
+    if len(vector) == 0:
+        return asarray([])
+    unq, inv = np.unique(vector, return_inverse=True)
+    mapped_unq = [mapping.get(v, default) for v in unq]
+    return asarray(mapped_unq)[inv]
 
 
 def _text_to_text_conversion(vector, cc_ref):
@@ -3223,7 +3262,11 @@ def _text_to_text_conversion(vector, cc_ref):
     ref_count = len(cc_ref) - 2
     allowed = set(cc_ref[0:ref_count:2])
     default = cc_ref[ref_count + 1]
-    return asarray([v if v in allowed else default for v in vector])
+    if len(vector) == 0:
+        return asarray([])
+    unq, inv = np.unique(vector, return_inverse=True)
+    mapped_unq = [v if v in allowed else default for v in unq]
+    return asarray(mapped_unq)[inv]
 
 
 def _bitfield_text_table_conversion(vector, cc_val, cc_ref):

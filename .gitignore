@@ -31,9 +31,12 @@ mdfreader/tests/MDF4
 mdfconverter/Ui_mdfreaderui.py
 dataRead.so
 dataRead.c
+mdfreader/dataRead.c
 .pytest_tmp/
 .claude/
 dataRead.cpython*
+mdfreader/dataRead*.so
+mdfreader/dataRead*.pyd
 .kilo
 .issues
 .venv

@@ -13,7 +13,7 @@ jobs:
         uses: pypa/cibuildwheel@v2.22
         env:
           CIBW_BUILD: "cp39-win_amd64 cp310-win_amd64 cp311-win_amd64 cp312-win_amd64 cp313-win_amd64"
-          CIBW_TEST_COMMAND: python -c "import mdfreader"
+          CIBW_TEST_COMMAND: python -c "import mdfreader; from mdfreader import dataRead"
       - uses: actions/upload-artifact@v4
         with:
           name: wheel-windows

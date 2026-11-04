@@ -1,12 +1,7 @@
-#documentation
-recursive-include docs/build/html *
-recursive-include docs/build/latex mdfreader.pdf
-
-#example files
-#include test/mdf3/*
-#include test/MDF4/*
-
-#Misc
-#include CHANGES
 include LICENSE
-include README
+include COPYING
+include README.md
+include mdfreader/dataRead.pyx
+recursive-include mdfconverter *.ui
+prune mdfreader/tests/MDF4
+prune mdfreader/tests/mdf3

@@ -177,12 +177,7 @@ class Channel4(object):
         """ channel object attributes print
 
         """
-        return '{0} {1} {2} {3} {4} {5}'.format(self.name,
-                                                self.type,
-                                                self.dataGroup,
-                                                self.channelGroup,
-                                                self.channelNumber,
-                                                self.VLSD_CG_Flag)
+        return f'{self.name} {self.type} {self.dataGroup} {self.channelGroup} {self.channelNumber} {self.VLSD_CG_Flag}'
 
     def attachment(self, fid, info):
         """ In case of sync channel attached to channel
@@ -462,7 +457,7 @@ class Channel4(object):
         """
         endian = ''
         if self.type == 4:
-            data_format = '{}V'.format(self.nBytes_aligned)
+            data_format = f'{self.nBytes_aligned}V'
         elif self._cn_composition and 'CABlock' in self._cn_info:
             ca_block = self._cn_info['CABlock']
             endian, data_format = array_format4(self._cn_data_type, self._cn_bit_count // 8)
@@ -537,12 +532,12 @@ class Channel4(object):
                     endian, data_type = data_type_format4(0, self.nBytes_aligned)
                 else:
                     endian, data_type = data_type_format4(signal_data_type, self.nBytes_aligned)
-                return '{}{}'.format(endian, data_type)
+                return f'{endian}{data_type}'
         elif self.type in (1, 2):
             ca = self.ca_block(info)
             n_bytes = _bits_to_bytes_aligned(self._cn_bit_count + self._cn_bit_offset, self.isnumeric(info))
             endian, data_type = data_type_format4(signal_data_type, n_bytes)
-            return '{}{}{}'.format(endian, ca['PNd'], data_type)
+            return f"{endian}{ca['PNd']}{data_type}"
         elif self.type == 3:
             if self.name == 'ms':
                 if signal_data_type == 13:
@@ -554,7 +549,7 @@ class Channel4(object):
             else:
                 return 'B'
         elif self.type == 4:
-            return '{}s'.format(self.nBytes_aligned)
+            return f'{self.nBytes_aligned}s'
         else:
             warn('Not found channel type')
 
@@ -668,8 +663,7 @@ class Channel4(object):
                     desc = ''
                 return desc
             else:
-                return 'Invalid Bytes DG group {0} CG group {1}'.format(self.dataGroup,
-                                                                        self.channelGroup)
+                return f'Invalid Bytes DG group {self.dataGroup} CG group {self.channelGroup}'
         else:
             return self.name
 
@@ -718,7 +712,7 @@ class Channel4(object):
 
     def set_invalid_bytes(self, info):
         self.type = 4
-        self.name = 'invalid_bytes{}'.format(self.dataGroup)
+        self.name = f'invalid_bytes{self.dataGroup}'
         try:
             cn_info = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
             self._cn_info = cn_info
@@ -767,7 +761,7 @@ class Channel4(object):
         channel_group : int
             channelGroup number
         """
-        self.name = '{0}_{1}'.format(self.name, channel_group)
+        self.name = f'{self.name}_{channel_group}'
 
     def bit_masking_need(self, info):
         """ Valid if bit masking need
@@ -789,6 +783,55 @@ class Channel4(object):
             self.bit_masking_needed = False
 
 
+def _int_size_code(number_of_bytes, codes):
+    """ picks the smallest of the (1, 2, 4, 8) byte integer codes able to hold number_of_bytes
+
+    Parameters
+    ----------------
+    number_of_bytes : int
+        number of bytes taken by channel data in a record
+    codes : tuple of str
+        codes for respectively 1, 2, 4 and 8 bytes
+
+    Returns
+    -----------
+    code : str or None
+        None if number_of_bytes is larger than 8 bytes
+    """
+    if number_of_bytes == 1:
+        return codes[0]
+    if number_of_bytes == 2:
+        return codes[1]
+    if number_of_bytes <= 4:  # includes the 3 bytes case, stored on 4 bytes
+        return codes[2]
+    if number_of_bytes <= 8:
+        return codes[3]
+    return None
+
+
+# numpy dtype codes for 1, 2, 4 and 8 bytes integers
+_NP_UINT = ('u1', 'u2', 'u4', 'u8')
+_NP_INT = ('i1', 'i2', 'i4', 'i8')
+# struct codes for 1, 2, 4 and 8 bytes integers
+_STRUCT_UINT = ('B', 'H', 'I', 'Q')
+_STRUCT_INT = ('b', 'h', 'i', 'q')
+# data type -> (endian, kind) for numeric types, kind being 'uint', 'int', 'float' or 'complex'
+_NUMERIC_TYPES4 = {
+    0: ('<', 'uint'), 1: ('>', 'uint'),
+    2: ('<', 'int'), 3: ('>', 'int'),
+    4: ('<', 'float'), 5: ('>', 'float'),
+    15: ('<', 'complex'), 16: ('>', 'complex'),
+}
+# floating point / complex sizes (bytes) -> numpy dtype
+_NP_FLOAT = {2: 'f2', 4: 'f4', 8: 'f8'}
+_NP_COMPLEX = {4: '(2,)f2', 8: 'c8', 16: 'c16'}  # 4 bytes: half-precision [real_f16, imag_f16]
+# floating point / complex sizes (bytes) -> struct format
+_STRUCT_FLOAT = {2: 'e', 4: 'f', 8: 'd'}
+_STRUCT_COMPLEX = {4: '2e', 8: '2f', 16: '2d'}
+# string / bytes types -> endian
+_STRING_ENDIAN4 = {6: '', 7: '', 8: '<', 9: '>', 10: '', 11: '', 12: ''}
+
+
 def array_format4(signal_data_type, number_of_bytes):
     """ function returning numpy style string from channel data type and number of bits
 
@@ -804,129 +847,35 @@ def array_format4(signal_data_type, number_of_bytes):
     endian, data_type : str
         numpy dtype format used by numpy.core.records to read channel raw data
     """
-
-    if signal_data_type == 0:  # unsigned, low endian
-        if number_of_bytes == 1:
-            data_type = 'u1'
-        elif number_of_bytes == 2:
-            data_type = 'u2'
-        elif number_of_bytes <= 4:
-            data_type = 'u4'
-        elif number_of_bytes <= 8:
-            data_type = 'u8'
-        else:
-            data_type = '{}V'.format(number_of_bytes)
-        endian = '<'
-
-    elif signal_data_type == 2:  # signed int, low endian
-        if number_of_bytes == 1:
-            data_type = 'i1'
-        elif number_of_bytes == 2:
-            data_type = 'i2'
-        elif number_of_bytes <= 4:
-            data_type = 'i4'
-        elif number_of_bytes <= 8:
-            data_type = 'i8'
-        else:
-            warn('Unsupported number of bytes for signed int {}'.format(number_of_bytes))
-        endian = '<'
-
-    elif signal_data_type == 4:  # floating point, low endian
-        if number_of_bytes == 2:
-            data_type = 'f2'
-        elif number_of_bytes == 4:
-            data_type = 'f4'
-        elif number_of_bytes == 8:
-            data_type = 'f8'
-        else:
-            warn('Unsupported number of bytes for floating point {}'.format(number_of_bytes))
-        endian = '<'
-
-    elif signal_data_type == 1:  # unsigned, big endian
-        if number_of_bytes == 1:
-            data_type = 'u1'
-        elif number_of_bytes == 2:
-            data_type = 'u2'
-        elif number_of_bytes <= 4:
-            data_type = 'u4'
-        elif number_of_bytes <= 8:
-            data_type = 'u8'
-        else:
-            data_type = '{}V'.format(number_of_bytes)
-        endian = '>'
-
-    elif signal_data_type == 3:  # signed int, big endian
-        if number_of_bytes == 1:
-            data_type = 'i1'
-        elif number_of_bytes == 2:
-            data_type = 'i2'
-        elif number_of_bytes <= 4:
-            data_type = 'i4'
-        elif number_of_bytes <= 8:
-            data_type = 'i8'
-        else:
-            warn('Unsupported number of bytes for signed int {}'.format(number_of_bytes))
-        endian = '>'
-
-    elif signal_data_type == 5:  # floating point, big endian
-        if number_of_bytes == 2:
-            data_type = 'f2'
-        elif number_of_bytes == 4:
-            data_type = 'f4'
-        elif number_of_bytes == 8:
-            data_type = 'f8'
-        else:
-            warn('Unsupported number of bytes for floating point {}'.format(number_of_bytes))
-        endian = '>'
-
-    elif signal_data_type == 6:  # string ISO-8859-1 Latin
-        data_type = 'S{}'.format(number_of_bytes)
-        endian = ''
-    elif signal_data_type == 7:  # UTF-8
-        data_type = 'S{}'.format(number_of_bytes)
-        endian = ''
-    elif signal_data_type == 8:  # UTF-16 low endian
-        data_type = 'S{}'.format(number_of_bytes)
-        endian = '<'
-    elif signal_data_type == 9:  # UTF-16 big endian
-        data_type = 'S{}'.format(number_of_bytes)
-        endian = '>'
-    elif signal_data_type == 10:  # bytes array
-        data_type = 'V{}'.format(number_of_bytes)
-        endian = ''
-    elif signal_data_type in (11, 12):  # MIME sample or MIME stream
-        data_type = 'V{}'.format(number_of_bytes)
-        endian = ''
+    raw = f'V{number_of_bytes}'
+    if signal_data_type in _NUMERIC_TYPES4:
+        endian, kind = _NUMERIC_TYPES4[signal_data_type]
+        if kind == 'uint':
+            data_type = _int_size_code(number_of_bytes, _NP_UINT) or f'{number_of_bytes}V'
+        elif kind == 'int':
+            data_type = _int_size_code(number_of_bytes, _NP_INT)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for signed int {number_of_bytes}')
+                data_type = raw
+        elif kind == 'float':
+            data_type = _NP_FLOAT.get(number_of_bytes)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for floating point {number_of_bytes}')
+                data_type = raw
+        else:  # complex
+            data_type = _NP_COMPLEX.get(number_of_bytes)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for complex {number_of_bytes}')
+                data_type = raw
+    elif signal_data_type in (6, 7, 8, 9):  # strings
+        endian, data_type = _STRING_ENDIAN4[signal_data_type], f'S{number_of_bytes}'
+    elif signal_data_type in (10, 11, 12):  # bytes array, MIME sample or MIME stream
+        endian, data_type = '', raw
     elif signal_data_type in (13, 14):  # CANOpen date or time
-        data_type = ''
-        endian = ''
-    elif signal_data_type == 15:  # LE complex
-        if number_of_bytes == 4:
-            data_type = '(2,)f2'  # half-precision: [real_f16, imag_f16]
-        elif number_of_bytes == 8:
-            data_type = 'c8'
-        elif number_of_bytes == 16:
-            data_type = 'c16'
-        else:
-            warn('Unsupported number of bytes for floating point {}'.format(number_of_bytes))
-            data_type = 'V{}'.format(number_of_bytes)
-        endian = '<'
-    elif signal_data_type == 16:  # BE complex
-        if number_of_bytes == 4:
-            data_type = '(2,)f2'  # half-precision: [real_f16, imag_f16]
-        elif number_of_bytes == 8:
-            data_type = 'c8'
-        elif number_of_bytes == 16:
-            data_type = 'c16'
-        else:
-            warn('Unsupported number of bytes for floating point {}'.format(number_of_bytes))
-            data_type = 'V{}'.format(number_of_bytes)
-        endian = '>'
+        endian, data_type = '', ''
     else:
-        warn('Unsupported Signal Data Type {} {}'.format(signal_data_type, number_of_bytes))
-        endian = ''
-        data_type = 'V{}'.format(number_of_bytes)
-
+        warn(f'Unsupported Signal Data Type {signal_data_type} {number_of_bytes}')
+        endian, data_type = '', raw
     return endian, data_type
 
 
@@ -945,122 +894,31 @@ def data_type_format4(signal_data_type, number_of_bytes):
     data_type : str
         C format used by fread to read channel raw data
     """
-
-    if signal_data_type == 0:  # unsigned int
-        if number_of_bytes == 1:
-            data_type = 'B'
-        elif number_of_bytes == 2:
-            data_type = 'H'
-        elif number_of_bytes <= 4:
-            data_type = 'I'
-        elif number_of_bytes <= 8:
-            data_type = 'Q'
-        else:
-            data_type = '{}s'.format(number_of_bytes)
-        endian = '<'
-
-    elif signal_data_type == 1:  # unsigned int
-        if number_of_bytes == 1:
-            data_type = 'B'
-        elif number_of_bytes == 2:
-            data_type = 'H'
-        elif number_of_bytes <= 4:
-            data_type = 'I'
-        elif number_of_bytes <= 8:
-            data_type = 'Q'
-        else:
-            data_type = '{}s'.format(number_of_bytes)
-        endian = '>'
-
-    elif signal_data_type == 2:  # signed int
-        if number_of_bytes == 1:
-            data_type = 'b'
-        elif number_of_bytes == 2:
-            data_type = 'h'
-        elif number_of_bytes <= 4:
-            data_type = 'i'
-        elif number_of_bytes <= 8:
-            data_type = 'q'
-        else:
-            warn('Unsupported number of bytes for signed int {}'.format(signal_data_type))
-        endian = '<'
-
-    elif signal_data_type == 3:  # signed int
-        if number_of_bytes == 1:
-            data_type = 'b'
-        elif number_of_bytes == 2:
-            data_type = 'h'
-        elif number_of_bytes <= 4:
-            data_type = 'i'
-        elif number_of_bytes <= 8:
-            data_type = 'q'
-        else:
-            warn('Unsupported number of bytes for signed int {}'.format(signal_data_type))
-        endian = '>'
-
-    elif signal_data_type == 4:  # floating point
-        if number_of_bytes == 2:
-            data_type = 'e'
-        elif number_of_bytes == 4:
-            data_type = 'f'
-        elif number_of_bytes == 8:
-            data_type = 'd'
-        else:
-            warn('Unsupported number of bytes for floating point {}'.format(signal_data_type))
-        endian = '<'
-
-    elif signal_data_type == 5:  # floating point
-        if number_of_bytes == 2:
-            data_type = 'e'
-        elif number_of_bytes == 4:
-            data_type = 'f'
-        elif number_of_bytes == 8:
-            data_type = 'd'
-        else:
-            warn('Unsupported number of bytes for floating point {}'.format(signal_data_type))
-        endian = '>'
-
-    elif signal_data_type in (6, 7, 10, 11, 12):  # string/bytes
-        data_type = '{}s'.format(number_of_bytes)
-        endian = ''
-
-    elif signal_data_type == 8:  # UTF16 string/bytes
-        data_type = '{}s'.format(number_of_bytes)
-        endian = '<'
-
-    elif signal_data_type == 9:  # UTF16 string/bytes
-        data_type = '{}s'.format(number_of_bytes)
-        endian = '>'
-
-    elif signal_data_type == 15:  # LE Complex
-        if number_of_bytes == 4:
-            data_type = '2e'  # 4 bytes = 2×f16 (half-precision)
-        elif number_of_bytes == 8:
-            data_type = '2f'  # 8 bytes = 2×f32
-        elif number_of_bytes == 16:
-            data_type = '2d'  # 16 bytes = 2×f64
-        else:
-            warn('Unsupported number of bytes for complex {}'.format(number_of_bytes))
-            data_type = '{}s'.format(number_of_bytes)
-        endian = '<'
-
-    elif signal_data_type == 16:  # BE Complex
-        if number_of_bytes == 4:
-            data_type = '2e'  # 4 bytes = 2×f16 (half-precision)
-        elif number_of_bytes == 8:
-            data_type = '2f'  # 8 bytes = 2×f32
-        elif number_of_bytes == 16:
-            data_type = '2d'  # 16 bytes = 2×f64
-        else:
-            warn('Unsupported number of bytes for complex {}'.format(number_of_bytes))
-            data_type = '{}s'.format(number_of_bytes)
-        endian = '>'
-
+    raw = f'{number_of_bytes}s'
+    if signal_data_type in _NUMERIC_TYPES4:
+        endian, kind = _NUMERIC_TYPES4[signal_data_type]
+        if kind == 'uint':
+            data_type = _int_size_code(number_of_bytes, _STRUCT_UINT) or raw
+        elif kind == 'int':
+            data_type = _int_size_code(number_of_bytes, _STRUCT_INT)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for signed int {number_of_bytes}')
+                data_type = raw
+        elif kind == 'float':
+            data_type = _STRUCT_FLOAT.get(number_of_bytes)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for floating point {number_of_bytes}')
+                data_type = raw
+        else:  # complex
+            data_type = _STRUCT_COMPLEX.get(number_of_bytes)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for complex {number_of_bytes}')
+                data_type = raw
+    elif signal_data_type in _STRING_ENDIAN4:  # string/bytes
+        endian, data_type = _STRING_ENDIAN4[signal_data_type], raw
     else:
-        warn('Unsupported Signal Data Type {} {}'.format(signal_data_type, number_of_bytes))
-        endian = ''
-        data_type = '{}s'.format(number_of_bytes)
-
+        warn(f'Unsupported Signal Data Type {signal_data_type} {number_of_bytes}')
+        endian, data_type = '', raw
     return endian, data_type
 
 
@@ -1188,9 +1046,29 @@ class Channel3:
         channel_group : int
             channelGroup number
         """
-        self.name = '{0}_{1}'.format(self.name, channel_group)
+        self.name = f'{self.name}_{channel_group}'
         self.recAttributeName = _convert_name(self.name)
-        self.RecordFormat = (('{}_title'.format(self.recAttributeName), self.recAttributeName), self.dataFormat)
+        self.RecordFormat = (((f'{self.recAttributeName}_title', self.recAttributeName)), self.dataFormat)
+
+
+# MDF3 numeric type -> kind ('uint', 'int', 'float')
+_NUMERIC_TYPES3 = {
+    0: 'uint', 9: 'uint', 13: 'uint',
+    1: 'int', 10: 'int', 14: 'int',
+    2: 'float', 3: 'float', 11: 'float', 12: 'float', 15: 'float', 16: 'float',
+}
+_STRUCT_FLOAT3 = {4: 'f', 8: 'd'}
+_NP_FLOAT3 = {4: 'f4', 8: 'f8'}
+
+
+def _mdf3_endian(signal_data_type, byte_order):
+    if signal_data_type in (0, 1, 2, 3):
+        return '>' if byte_order else '<'
+    elif signal_data_type in (13, 14, 15, 16):
+        return '<'
+    elif signal_data_type in (9, 10, 11, 12):
+        return '>'
+    return ''
 
 
 def _data_type_format3(signal_data_type, number_of_bytes, byte_order):
@@ -1208,57 +1086,32 @@ def _data_type_format3(signal_data_type, number_of_bytes, byte_order):
     dataType : str
         C format used by fread to read channel raw data
     """
-    if signal_data_type in (0, 9, 13):  # unsigned
-        if number_of_bytes == 1:
-            data_type = 'B'
-        elif number_of_bytes == 2:
-            data_type = 'H'
-        elif number_of_bytes <= 4:
-            data_type = 'I'
-        elif number_of_bytes <= 8:
-            data_type = 'Q'
+    raw = f'{number_of_bytes}s'
+    if signal_data_type in _NUMERIC_TYPES3:
+        kind = _NUMERIC_TYPES3[signal_data_type]
+        if kind == 'uint':
+            data_type = _int_size_code(number_of_bytes, _STRUCT_UINT)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for unsigned int {number_of_bytes}')
+                data_type = raw
+        elif kind == 'int':
+            data_type = _int_size_code(number_of_bytes, _STRUCT_INT)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for signed int {number_of_bytes}')
+                data_type = raw
         else:
-            warn('Unsupported number of bits for unsigned int {}'.format(signal_data_type))
-
-    elif signal_data_type in (1, 10, 14):  # signed int
-        if number_of_bytes == 1:
-            data_type = 'b'
-        elif number_of_bytes == 2:
-            data_type = 'h'
-        elif number_of_bytes <= 4:
-            data_type = 'i'
-        elif number_of_bytes <= 8:
-            data_type = 'q'
-        else:
-            warn('Unsupported number of bits for signed int {}'.format(signal_data_type))
-
-    elif signal_data_type in (2, 3, 11, 12, 15, 16):  # floating point
-        if number_of_bytes == 4:
-            data_type = 'f'
-        elif number_of_bytes == 8:
-            data_type = 'd'
-        else:
-            warn('Unsupported number of bit for floating point {}'.format(signal_data_type))
-
-    elif signal_data_type == 7:  # string
-        data_type = str(number_of_bytes) + 's'
-    elif signal_data_type == 8:  # array of bytes
-        data_type = str(number_of_bytes) + 's'
+            data_type = _STRUCT_FLOAT3.get(number_of_bytes)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for floating point {number_of_bytes}')
+                data_type = raw
+    elif signal_data_type in (7, 8):
+        data_type = raw
     else:
-        warn('Unsupported Signal Data Type {0} nBits {1}'.format(signal_data_type, number_of_bytes))
+        warn(f'Unsupported Signal Data Type {signal_data_type} nBytes {number_of_bytes}')
+        data_type = raw
 
-    # deal with byte order
-    if signal_data_type in (0, 1, 2, 3):
-        if byte_order:
-            data_type = '>{}'.format(data_type)
-        else:
-            data_type = '<{}'.format(data_type)
-    elif signal_data_type in (13, 14, 15, 16):  # low endian
-        data_type = '<{}'.format(data_type)
-    elif signal_data_type in (9, 10, 11, 12):  # big endian
-        data_type = '>{}'.format(data_type)
-
-    return data_type
+    endian = _mdf3_endian(signal_data_type, byte_order)
+    return endian + data_type
 
 
 def _array_format3(signal_data_type, number_of_bytes, byte_order):
@@ -1275,57 +1128,32 @@ def _array_format3(signal_data_type, number_of_bytes, byte_order):
     dataType : str
         numpy dtype format used by numpy.core.records to read channel raw data
     """
-    # Formats used by numpy
-
-    if signal_data_type in (0, 9, 13):  # unsigned
-        if number_of_bytes == 1:
-            data_type = 'u1'
-        elif number_of_bytes == 2:
-            data_type = 'u2'
-        elif number_of_bytes <= 4:
-            data_type = 'u4'
-        elif number_of_bytes <= 8:
-            data_type = 'u8'
+    raw = f'V{number_of_bytes}'
+    if signal_data_type in _NUMERIC_TYPES3:
+        kind = _NUMERIC_TYPES3[signal_data_type]
+        if kind == 'uint':
+            data_type = _int_size_code(number_of_bytes, _NP_UINT)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for unsigned int {number_of_bytes}')
+                data_type = raw
+        elif kind == 'int':
+            data_type = _int_size_code(number_of_bytes, _NP_INT)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for signed int {number_of_bytes}')
+                data_type = raw
         else:
-            warn('Unsupported number of bits for unsigned int {} nBits '.format(signal_data_type, number_of_bytes))
-
-    elif signal_data_type in (1, 10, 14):  # signed int
-        if number_of_bytes == 1:
-            data_type = 'i1'
-        elif number_of_bytes == 2:
-            data_type = 'i2'
-        elif number_of_bytes <= 4:
-            data_type = 'i4'
-        elif number_of_bytes <= 8:
-            data_type = 'i8'
-        else:
-            warn('Unsupported number of bits for signed int {0} nBits {1}'.format(signal_data_type, number_of_bytes))
-
-    elif signal_data_type in (2, 3, 11, 12, 15, 16):  # floating point
-        if number_of_bytes == 4:
-            data_type = 'f4'
-        elif number_of_bytes == 8:
-            data_type = 'f8'
-        else:
-            warn('Unsupported number of bit for floating point {0} nBits {1}'.format(signal_data_type, number_of_bytes))
-
-    elif signal_data_type == 7:  # string
-        data_type = 'S{}'.format(number_of_bytes)  # not directly processed
-    elif signal_data_type == 8:  # array of bytes
-        data_type = 'V{}'.format(number_of_bytes)  # not directly processed
+            data_type = _NP_FLOAT3.get(number_of_bytes)
+            if data_type is None:
+                warn(f'Unsupported number of bytes for floating point {number_of_bytes}')
+                data_type = raw
+    elif signal_data_type == 7:
+        data_type = f'S{number_of_bytes}'
+    elif signal_data_type == 8:
+        data_type = raw
     else:
-        warn('Unsupported Signal Data Type {0} nBits {1}'.format(signal_data_type, number_of_bytes))
+        warn(f'Unsupported Signal Data Type {signal_data_type} nBytes {number_of_bytes}')
+        data_type = raw
 
     native_data_type = data_type
-    # deal with byte order
-    if signal_data_type in (0, 1, 2, 3):
-        if byte_order:
-            data_type = '>{}'.format(data_type)
-        else:
-            data_type = '<{}'.format(data_type)
-    elif signal_data_type in (13, 14, 15, 16):  # low endian
-        data_type = '<{}'.format(data_type)
-    elif signal_data_type in (9, 10, 11, 12):  # big endian
-        data_type = '>{}'.format(data_type)
-
-    return (data_type, native_data_type)
+    endian = _mdf3_endian(signal_data_type, byte_order)
+    return (endian + data_type, native_data_type)
