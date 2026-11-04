@@ -99,7 +99,7 @@ def export_csv(mdf: Any, file_name: str | None = None, sampling: float | None = 
     encoding = 'utf8' if getattr(mdf, 'MDFVersionNumber', 400) >= 400 else 'latin-1'
 
     with open(file_name, 'wt', encoding=encoding, newline='') as f:
-        writer = csv.writer(f, dialect=csv.excel)
+        writer = csv.writer(f, dialect=csv.excel, escapechar='\\')
         # Header: channel names
         valid_channels = [
             name for name in mdf
@@ -108,7 +108,7 @@ def export_csv(mdf: Any, file_name: str | None = None, sampling: float | None = 
         ]
         writer.writerow(valid_channels)
         # Units
-        writer.writerow([mdf.get_channel_unit(name) for name in valid_channels])
+        writer.writerow([mdf.get_channel_unit(name) or '' for name in valid_channels])
 
         temp = []
         ref_len = None
@@ -122,7 +122,9 @@ def export_csv(mdf: Any, file_name: str | None = None, sampling: float | None = 
         if temp:
             buf = vstack(temp).transpose()
             r, _ = buf.shape
-            writer.writerows([list(buf[i, :]) for i in range(r)])
+            chunk_size = 500
+            for i in range(0, r, chunk_size):
+                writer.writerows(buf[i:i + chunk_size].tolist())
 
     return file_name
 
@@ -297,6 +299,8 @@ def export_hdf5(
         0: 'None', 1: 'Time', 2: 'Angle', 3: 'Distance', 4: 'Index', None: 'None',
     }
 
+    chunks = True if compression is not None else None
+
     if len(mdf.masterChannelList) > 1:
         groups: dict[str, int] = {}
         n_groups = 0
@@ -322,11 +326,15 @@ def export_hdf5(
                     data=channel_data,
                     compression=compression,
                     compression_opts=compression_opts,
-                    chunks=True,
+                    chunks=chunks,
                 )
-                set_attribute(dset, unitField, mdf.get_channel_unit(channel))
+                unit = mdf.get_channel_unit(channel)
+                if unit:
+                    set_attribute(dset, unitField, unit)
                 if descriptionField in mdf[channel]:
-                    set_attribute(dset, descriptionField, mdf.get_channel_desc(channel))
+                    desc = mdf.get_channel_desc(channel)
+                    if desc:
+                        set_attribute(dset, descriptionField, desc)
     else:
         master_name = next(iter(mdf.masterChannelList)) if mdf.masterChannelList else ''
         set_attribute(file_group, masterField, master_name)
@@ -341,11 +349,15 @@ def export_hdf5(
                     data=channel_data,
                     compression=compression,
                     compression_opts=compression_opts,
-                    chunks=True,
+                    chunks=chunks,
                 )
-                set_attribute(dset, unitField, mdf.get_channel_unit(channel))
+                unit = mdf.get_channel_unit(channel)
+                if unit:
+                    set_attribute(dset, unitField, unit)
                 if descriptionField in mdf[channel]:
-                    set_attribute(dset, descriptionField, mdf.get_channel_desc(channel))
+                    desc = mdf.get_channel_desc(channel)
+                    if desc:
+                        set_attribute(dset, descriptionField, desc)
 
     f.close()
     return file_name
@@ -366,6 +378,85 @@ def export_matlab(mdf: Any, file_name: str | None = None) -> str | None:
     str or None
         Path to the generated .mat file.
     """
+    if file_name is None:
+        file_name = f"{splitext(mdf.fileName)[0]}.mat"
+
+    # Fast direct HDF5 MAT 7.3 writer if h5py is installed
+    try:
+        import h5py
+        matlab_class_map = {
+            'f8': b'double', 'f4': b'single', 'i8': b'int64', 'u8': b'uint64',
+            'i4': b'int32', 'u4': b'uint32', 'i2': b'int16', 'u2': b'uint16',
+            'i1': b'int8', 'u1': b'uint8', 'b1': b'logical',
+        }
+        with h5py.File(file_name, 'w', userblock_size=512) as f:
+            g_mcl = f.create_group('masterChannelList')
+            g_mcl.attrs['MATLAB_class'] = np.bytes_(b'struct')
+            g_masters = {}
+            for master in mdf.masterChannelList:
+                master_mat_name = _convert_to_matlab_name(master) or master
+                gm = g_mcl.create_group(master_mat_name)
+                gm.attrs['MATLAB_class'] = np.bytes_(b'struct')
+                g_masters[master] = gm
+
+            for channel in mdf:
+                data = mdf.get_channel_data(channel)
+                if data.dtype.kind not in ('S', 'U', 'V'):
+                    channel_name = _convert_to_matlab_name(channel)
+                    if not channel_name:
+                        warn(f'Could not export {channel}, name is not compatible with Matlab')
+                        continue
+                    if getattr(data.dtype, 'base', None) is not None and data.dtype.base.name == 'float16':
+                        data = data.astype(float32)
+                    if isinstance(data, MaskedArray):
+                        data = data.filled()
+                    data_view = data.reshape(-1, 1) if data.ndim == 1 else data
+                    dset = f.create_dataset(channel_name, data=data_view)
+                    cls_name = matlab_class_map.get(data.dtype.str[1:], b'double')
+                    dset.attrs['MATLAB_class'] = np.bytes_(cls_name)
+
+                    unit = mdf.get_channel_unit(channel)
+                    desc = mdf.get_channel_desc(channel)
+                    master = mdf.get_channel_master(channel)
+                    if unit or desc or master == channel:
+                        gm = g_masters.get(master)
+                        if gm is not None:
+                            gc = gm.create_group(channel_name)
+                            gc.attrs['MATLAB_class'] = np.bytes_(b'struct')
+                            if desc:
+                                ds_desc = gc.create_dataset(
+                                    'description',
+                                    data=np.array([[ord(c) for c in desc]], dtype='uint16'),
+                                )
+                                ds_desc.attrs['MATLAB_class'] = np.bytes_(b'char')
+                                ds_desc.attrs['MATLAB_int_decode'] = np.int64(2)
+                            if unit:
+                                ds_unit = gc.create_dataset(
+                                    'unit',
+                                    data=np.array([[ord(c) for c in unit]], dtype='uint16'),
+                                )
+                                ds_unit.attrs['MATLAB_class'] = np.bytes_(b'char')
+                                ds_unit.attrs['MATLAB_int_decode'] = np.int64(2)
+                            if master == channel:
+                                mt = mdf.get_channel_master_type(channel)
+                                ds_mt = gc.create_dataset(
+                                    'masterType',
+                                    data=np.array([[mt if mt is not None else 0]], dtype='int64'),
+                                )
+                                ds_mt.attrs['MATLAB_class'] = np.bytes_(b'int64')
+
+        hdr = bytearray(512)
+        text = b'MATLAB 7.3 MAT-file, Platform: POSIX, Created by mdfreader HDF5 schema 0.5 .'
+        hdr[:len(text)] = text
+        hdr[124:128] = b'\x00\x02IM'
+        with open(file_name, 'r+b') as fb:
+            fb.seek(0)
+            fb.write(hdr)
+
+        return file_name
+    except Exception:
+        pass
+
     try:
         from hdf5storage import savemat
     except ImportError:
@@ -375,9 +466,6 @@ def export_matlab(mdf: Any, file_name: str | None = None) -> str | None:
         except ImportError:
             warn('scipy module also not found')
             return None
-
-    if file_name is None:
-        file_name = f"{splitext(mdf.fileName)[0]}.mat"
 
     temp: dict[str, Any] = {'masterChannelList': {}}
     for master in mdf.masterChannelList:

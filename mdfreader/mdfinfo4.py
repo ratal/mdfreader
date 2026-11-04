@@ -2108,8 +2108,7 @@ class Info4(dict):
         self['ChannelNamesByDG'] = {}
         if self['HD']['hd_dg_first']:
             next_dg = self['HD']['hd_dg_first']
-            self['DG'][next_dg] = {}
-            self['DG'][next_dg].update(DGBlock(fid, self['HD']['hd_dg_first']))
+            self['DG'][next_dg] = DGBlock(fid, next_dg)
             self['ChannelNamesByDG'][next_dg] = set()
             if minimal < 2:
                 # reads Channel Group blocks
@@ -2117,9 +2116,7 @@ class Info4(dict):
             while self['DG'][next_dg]['dg_dg_next']:
                 current_dg = next_dg
                 next_dg = self['DG'][next_dg]['dg_dg_next']
-                self['DG'][next_dg] = {}
-                self['DG'][next_dg].update(
-                    DGBlock(fid, self['DG'][current_dg]['dg_dg_next']))
+                self['DG'][next_dg] = DGBlock(fid, next_dg)
                 self['ChannelNamesByDG'][next_dg] = set()
                 if minimal < 2:
                     # reads Channel Group blocks
@@ -2204,8 +2201,7 @@ class Info4(dict):
         -----------
         vlsd_cg_block : boolean
         """
-        self['CG'][dg][cg] = {}
-        self['CG'][dg][cg].update(CGBlock(fid, pointer))
+        self['CG'][dg][cg] = CGBlock(fid, pointer)
         if not channel_name_list and minimal:
             # reads Source Information Block
             temp = SIBlock()
@@ -2274,11 +2270,6 @@ class Info4(dict):
                 cn_group = self['CN'][dg][cg]
                 cc_group = self['CC'][dg][cg]
 
-                # Store all CN/CC dicts
-                for cn, cn_dict, cc_dict in results:
-                    cn_group[cn] = cn_dict
-                    cc_group[cn] = cc_dict
-
                 if not channel_name_list:
                     # Pre-resolve master once per channel group
                     if cg_dict['link_count'] > 6:
@@ -2297,8 +2288,11 @@ class Info4(dict):
                     all_list = self['allChannelList']
                     filter_names = self.filterChannelNames
 
-                # Post-process each channel
+                # Process channel(s)
                 for cn, cn_dict, cc_dict in results:
+                    cn_group[cn] = cn_dict
+                    cc_group[cn] = cc_dict
+
                     # Track MLSD channels
                     if cn_dict['cn_type'] == 5:
                         mlsd_channels.append(cn)

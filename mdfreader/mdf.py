@@ -248,31 +248,32 @@ class MdfSkeleton(dict):
         if compression:
             self.set_channel_data(channel_name, data, compression)
         if conversion is not None:
-            self[channel_name]['conversion'] = {}
-            self[channel_name]['conversion']['type'] = conversion['cc_type']
-            self[channel_name]['conversion']['parameters'] = {}
-            if self.MDFVersionNumber < 400:  # mdf3
-                if 'conversion' in conversion:
-                    self[channel_name]['conversion']['parameters'] = \
-                        conversion['conversion']
-                if conversion['cc_type'] == 0 and \
-                        'P2' in self[channel_name]['conversion']['parameters'] and \
-                        (self[channel_name]['conversion']['parameters']['P2'] == 1.0 and
-                         self[channel_name]['conversion']['parameters']['P1'] in (0.0, -0.0)):
-                    self[channel_name].pop('conversion')
-            else:  # mdf4
-                if 'cc_val' in conversion:
-                    self[channel_name]['conversion']['parameters']['cc_val'] = \
-                        conversion['cc_val']
-                if 'cc_ref' in conversion:
-                    self[channel_name]['conversion']['parameters']['cc_ref'] = \
-                        conversion['cc_ref']
-                if conversion['cc_type'] == 0:
-                    self[channel_name].pop('conversion')
-                elif conversion['cc_type'] == 1 and 'cc_val' in conversion:
-                    cc_val = conversion['cc_val']
-                    if len(cc_val) >= 2 and cc_val[0] in (0.0, -0.0) and cc_val[1] == 1.0:
-                        self[channel_name].pop('conversion')
+            cc_type = conversion.get('cc_type')
+            if self.MDFVersionNumber >= 400:  # mdf4
+                if cc_type == 0:
+                    pass  # 1:1 identity conversion, no conversion dict needed
+                elif cc_type == 1 and 'cc_val' in conversion and len(conversion['cc_val']) >= 2 and \
+                        conversion['cc_val'][0] in (0.0, -0.0) and conversion['cc_val'][1] == 1.0:
+                    pass  # 1:1 identity linear scaling, no conversion dict needed
+                else:
+                    params = {}
+                    if 'cc_val' in conversion:
+                        params['cc_val'] = conversion['cc_val']
+                    if 'cc_ref' in conversion:
+                        params['cc_ref'] = conversion['cc_ref']
+                    self[channel_name]['conversion'] = {
+                        'type': cc_type,
+                        'parameters': params,
+                    }
+            else:  # mdf3
+                params = conversion.get('conversion', {})
+                if cc_type == 0 and params.get('P2') == 1.0 and params.get('P1') in (0.0, -0.0):
+                    pass  # 1:1 identity conversion
+                else:
+                    self[channel_name]['conversion'] = {
+                        'type': cc_type,
+                        'parameters': params,
+                    }
         if info is not None:  # axis from CABlock
             ca_block = info
             axis = []

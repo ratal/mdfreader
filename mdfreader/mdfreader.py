@@ -889,6 +889,37 @@ class Mdf(MdfSkeleton):
         if new_master_data is None:
             new_master_data = arange(
                 old_master_data[0], old_master_data[-1], sampling)
+
+        cached_idx_right = None
+        cached_idx_left = None
+
+        def get_idx(side):
+            nonlocal cached_idx_right, cached_idx_left
+            if side == 'right':
+                if cached_idx_right is None:
+                    cached_idx_right = interp_close_point(old_master_data, new_master_data, 'right')
+                return cached_idx_right
+            else:
+                if cached_idx_left is None:
+                    cached_idx_left = interp_close_point(old_master_data, new_master_data, 'left')
+                return cached_idx_left
+
+        def interpolate_cached(new_x, x, y, interpolation_kind):
+            if interpolation_kind is None:
+                if y.dtype.kind == 'f':
+                    return interp(new_x, x, y)
+                else:
+                    return y[get_idx('right')]
+            elif interpolation_kind == 'previous':
+                return y[get_idx('left')]
+            elif interpolation_kind == 'next':
+                return y[get_idx('right')]
+            elif y.dtype.kind not in ('U', 'S'):
+                from scipy.interpolate import interp1d
+                f = interp1d(x, y, kind=interpolation_kind, fill_value="extrapolate")
+                return f(new_x)
+            else:
+                return y[get_idx('right')]
         for Name in self.masterChannelList[master_channel]:
             # forces list() because masterChannelList is dynamic, channels can be removed
             if Name == master_channel:  # master channel
@@ -898,8 +929,8 @@ class Mdf(MdfSkeleton):
                 if channel_data.dtype.kind not in ('S', 'U', 'V') and channel_data.ndim == 1:
                     # if channel not array of string
                     try:
-                        self.set_channel_data(Name, interpolate(new_master_data, old_master_data,
-                                                                channel_data, interpolation_kind))
+                        self.set_channel_data(Name, interpolate_cached(new_master_data, old_master_data,
+                                                                       channel_data, interpolation_kind))
                     except Exception:
                         if not all(diff(old_master_data) > 0):
                             warn(f'{Name} has non regularly increasing master channel {master_channel}.\n'
@@ -1258,9 +1289,24 @@ class Mdf(MdfSkeleton):
         first_channels = set(self.keys())
         second_channels = set(mdf_class.keys())
         common_channels = first_channels & second_channels
-        for channel in common_channels:
-            channel_id = mdf_class[channel].get(idField, [[channel]])[0][0]
-            mdf_class.rename_channel(channel, f'{channel}_{channel_id}')
+        if common_channels:
+            # Batch rename conflicting channels in mdf_class efficiently
+            rename_map = {}
+            for channel in common_channels:
+                channel_id = mdf_class[channel].get(idField, [[channel]])[0][0]
+                new_name = f'{channel}_{channel_id}'
+                rename_map[channel] = new_name
+                mdf_class[new_name] = mdf_class.pop(channel)
+
+            new_master_list = {}
+            for master, ch_list in mdf_class.masterChannelList.items():
+                new_master = rename_map.get(master, master)
+                updated_ch_list = [rename_map.get(ch, ch) for ch in ch_list]
+                new_master_list[new_master] = updated_ch_list
+                if new_master != master:
+                    for ch in updated_ch_list:
+                        mdf_class.set_channel_master(ch, new_master)
+            mdf_class.masterChannelList = new_master_list
         # copy the data
         for channel in mdf_class:
             self[channel] = mdf_class[channel]

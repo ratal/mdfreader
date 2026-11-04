@@ -1267,12 +1267,12 @@ class Mdf3(MdfSkeleton):
 
             # Channel blocks writing
             pointers['CN'][data_group] = {}
-            data_list = ()
-            data_type_list = ''
+            data_list = []
             record_number_of_bits = 0
             preceeding_channel = None
             bit_offset = 0
             byte_offset = 0
+            master_channel_set = set(self.masterChannelList)
             # first channel bock pointer from CG
             position = fid.tell()
             write_pointer(fid, pointers['CG'][data_group]['firstCN'], position)
@@ -1288,7 +1288,7 @@ class Mdf3(MdfSkeleton):
                     write_pointer(fid, pointers['CN'][data_group][preceeding_channel]['nextCN'],
                                   pointers['CN'][data_group][channel]['beginCN'])
                 preceeding_channel = channel
-                if channel not in set(self.masterChannelList):
+                if channel not in master_channel_set:
                     master_flag = 0  # data channel
                 else:
                     master_flag = 1  # master channel
@@ -1298,8 +1298,7 @@ class Mdf3(MdfSkeleton):
                     bit_offset -= 0x10000
                     byte_offset += 8192
                 data = self.get_channel_data(channel)  # channel data
-                temp = data
-                data_list = data_list + (temp, )
+                data_list.append(data)
                 cn_numpy_kind = data.dtype.kind
                 cn_numpy_item_size = data.dtype.itemsize
                 number_of_bits = cn_numpy_item_size * 8
@@ -1318,17 +1317,12 @@ class Mdf3(MdfSkeleton):
                     data_type = 7
                 else:
                     raise Exception('Not recognized dtype')
-                if data.dtype.kind not in {'S', 'U'}:
-                    data_type_list = ''.join([data_type_list, data.dtype.char])
-                else:
-                    data_type_list = ''.join([data_type_list, f'{data.dtype.itemsize}s'])
-                    number_of_bits = 8 * data.dtype.itemsize
                 record_number_of_bits += number_of_bits
-                if data.dtype.kind not in {'S', 'U'}:
+                if cn_numpy_kind not in {'S', 'U'}:
                     value_range_valid = 1
-                    if len(data) > 0 and issubdtype(data.dtype, numpy_number):
-                        maximum = npmax(data)
-                        minimum = npmin(data)
+                    if len(data) > 0 and cn_numpy_kind in ('i', 'u', 'f', 'b'):
+                        maximum = data.max()
+                        minimum = data.min()
                     else:
                         maximum = 0
                         minimum = 0
@@ -1387,7 +1381,14 @@ class Mdf3(MdfSkeleton):
             # write data pointer in datagroup
             write_pointer(fid, pointers['DG'][data_group]['data'], fid.tell())
             # dumps data vector from numpy
-            fid.write(fromarrays(data_list).tobytes(order='F'))
+            if data_list:
+                rec_dtype = np.dtype([(f'f{i}', d.dtype, d.shape[1:]) if d.ndim > 1 else (f'f{i}', d.dtype) for i, d in enumerate(data_list)])
+                rec_arr = np.empty(len(data_list[0]), dtype=rec_dtype)
+                for i, d in enumerate(data_list):
+                    rec_arr[f'f{i}'] = d
+                fid.write(rec_arr.tobytes())
+            else:
+                fid.write(b'')
 
             data_group += 1
 
