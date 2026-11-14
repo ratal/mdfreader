@@ -16,7 +16,7 @@
 __author__ = 'Aymeric Rateau (aymeric.rateau@gmail.com)'
 __copyright__ = 'Copyright (c) 2017 Aymeric Rateau'
 __license__ = 'GPLV3'
-__version__ = "4.6"
+__version__ = "4.6.1"
 
 from .export import (
     export_csv,
