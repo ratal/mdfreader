@@ -920,7 +920,7 @@ class Mdf(MdfSkeleton):
                 return f(new_x)
             else:
                 return y[get_idx('right')]
-        for Name in self.masterChannelList[master_channel]:
+        for Name in list(self.masterChannelList[master_channel]):
             # forces list() because masterChannelList is dynamic, channels can be removed
             if Name == master_channel:  # master channel
                 self.set_channel_data(Name, new_master_data)
@@ -936,6 +936,10 @@ class Mdf(MdfSkeleton):
                             warn(f'{Name} has non regularly increasing master channel {master_channel}.\n'
                                  ' Faulty samples will be dropped in related data group')
                             self._clean_uneven_master_data(master_channel)
+                            old_master_data = self.get_channel_data(master_channel)
+                            channel_data = self.get_channel_data(Name)
+                            cached_idx_right = None
+                            cached_idx_left = None
                             self.set_channel_data(Name, interpolate(new_master_data, old_master_data,
                                                                     channel_data, interpolation_kind))
                         elif old_master_data is not None and len(old_master_data) != len(channel_data):

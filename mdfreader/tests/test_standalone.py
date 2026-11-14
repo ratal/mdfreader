@@ -158,3 +158,26 @@ def test_functional_export_api(tmp_path):
     out = mdfreader.export_csv(m, csv_path)
     assert out == csv_path
     assert (tmp_path / "functional_export.csv").stat().st_size > 0
+
+
+def test_resample_with_non_interpolatable_channels():
+    """Regression test for issue #223: removing string/array channels during resample_group
+    must not skip subsequent channels in masterChannelList."""
+    m = mdfreader.Mdf()
+    t = np.linspace(0.0, 1.0, 101)
+    m.add_channel("Time", t, "Time", master_type=1, unit="s")
+    m.add_channel("StrChan1", np.array(["a"] * 101, dtype="U4"), "Time")
+    m.add_channel("FloatAfterStr1", t * 2.0, "Time", unit="V")
+    m.add_channel("Array2DChan", np.zeros((101, 3), dtype=np.float64), "Time")
+    m.add_channel("FloatAfterArray", t * 3.0, "Time", unit="A")
+
+    m.resample(sampling=0.1)
+
+    assert "StrChan1" not in m
+    assert "Array2DChan" not in m
+    assert "FloatAfterStr1" in m
+    assert "FloatAfterArray" in m
+    channel_lengths = {len(a["data"]) for a in m.values()}
+    assert len(channel_lengths) == 1
+    assert next(iter(channel_lengths)) == 10
+
