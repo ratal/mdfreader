@@ -2000,7 +2000,7 @@ class Info4(dict):
     ``self['ChannelNamesByDG'][dg]``
         Set of channel names within data group *dg* (used for deduplication).
     """
-    __slots__ = ['fileName', 'fid', 'filterChannelNames', 'zipfile', '_si_cache']
+    __slots__ = ['fileName', 'fid', 'filterChannelNames', 'zipfile', '_si_cache', '_mmap']
 
     def __init__(self, file_name=None, fid=None, filter_channel_names=False, minimal=0):
         """ info4 class constructor
@@ -2034,6 +2034,7 @@ class Info4(dict):
         self['allChannelList'] = set()  # all channels
         self['masters'] = dict()  # channels grouped by master
         self._si_cache = {}  # SI block cache: pointer → dict
+        self._mmap = None
         self.filterChannelNames = filter_channel_names
         self.fileName = file_name
         self.fid = None
@@ -2203,12 +2204,10 @@ class Info4(dict):
         """
         self['CG'][dg][cg] = CGBlock(fid, pointer)
         if not channel_name_list and minimal:
-            # reads Source Information Block
-            temp = SIBlock()
-            temp.read_si(fid, self['CG'][dg][cg]['cg_si_acq_source'])
-            if temp:
-                self['CG'][dg][cg]['SI'] = dict()
-                self['CG'][dg][cg]['SI'].update(temp)
+            # Reuse Source Information Block already read by read_cg if present
+            acq_source = self['CG'][dg][cg].get('acq_source')
+            if acq_source:
+                self['CG'][dg][cg]['SI'] = dict(acq_source)
 
             # reads Sample Reduction Block
             self['CG'][dg][cg]['SR'] = self.read_sr_block(
@@ -2255,11 +2254,12 @@ class Info4(dict):
             self['CG'][dg][cg]['unique_channel_in_CG'] = True
             return vlsd
 
-        # ── Fast Cython path (pread + C structs) ─────────────────────────────
-        if _CN_CHAIN_FAST and hasattr(fid, 'fileno'):
+        # ── Fast Cython path (mmap or pread + C structs) ──────────────────────
+        if _CN_CHAIN_FAST and (self._mmap is not None or hasattr(fid, 'fileno')):
             try:
+                source = self._mmap if self._mmap is not None else fid
                 results = _read_cn_chain_fast(
-                    fid, self['CG'][dg][cg]['cg_cn_first'],
+                    source, self['CG'][dg][cg]['cg_cn_first'],
                     self._si_cache, minimal, channel_name_list)
             except Exception:
                 results = None
@@ -2314,14 +2314,14 @@ class Info4(dict):
                                 source_name = si_dict['source_name']['Comment']
                             else:
                                 source_name = cn
-                            name = u'{0}_{1}_{2}_{3}'.format(name, dg, cg, source_name)
+                            name = f'{name}_{dg}_{cg}_{source_name}'
                         elif name in all_list:
                             si_dict = cn_dict.get('SI')
                             if si_dict and si_dict.get('si_tx_name', 0) > 0:
                                 source_name = si_dict['source_name']['Comment']
                             else:
                                 source_name = dg
-                            name = u'{0}_{1}_{2}'.format(name, dg, source_name)
+                            name = f'{name}_{dg}_{source_name}'
                         by_dg.add(name)
                         all_list.add(name)
 

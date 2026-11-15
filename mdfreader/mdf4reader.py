@@ -24,6 +24,7 @@ from io import open
 from os.path import splitext
 from multiprocessing import Queue, Process
 from sys import byteorder
+import mmap
 import re
 from collections import defaultdict, OrderedDict
 import numpy as np
@@ -1144,7 +1145,7 @@ class Record(dict):
                     chan_name = cn_info['name']
                     if channel_set is None or chan_name in channel_set or chan_name == self.master:
                         channel = Channel4(self.dataGroup, self.channelGroup, channelNumber)
-                        channel.set(info)
+                        channel.set(info, self.recordIDsize, cn_info)
                         self[channelNumber] = channel
                         self.channelNames.add(chan_name)
                         data_format = channel.data_format(info)
@@ -1160,6 +1161,8 @@ class Record(dict):
             if master_cg is not None and master_cg in info['masters']:
                 master_name = info['masters'][master_cg]['name']
                 break
+        if master_name is not None:
+            self.master = master_name
 
         def _should_read(name, ctype):
             if channel_set is None:
@@ -1169,25 +1172,28 @@ class Record(dict):
             return name in channel_set
 
         embedding_channel = None
+        embedding_channel_pos_bit_end = 0
+        rec_id_size = self.recordIDsize
         prev_chan = Channel4(self.dataGroup, self.channelGroup, 0)
-        for channelNumber in sorted(info['CN'][self.dataGroup][self.channelGroup].keys()):
-            cn_info = info['CN'][self.dataGroup][self.channelGroup][channelNumber]
+        cn_dict_group = info['CN'][self.dataGroup][self.channelGroup]
+        for channelNumber in sorted(cn_dict_group.keys()):
+            cn_info = cn_dict_group[channelNumber]
             if cn_info.get('cn_flags', 0) & 0x20000:  # CN_F_DATA_STREAM_MODE: not in fixed record
                 self.DS.append(channelNumber)
                 channel = Channel4(self.dataGroup, self.channelGroup, channelNumber)
-                channel.set(info)
+                channel.set(info, rec_id_size, cn_info)
                 self[channelNumber] = channel
                 self.channelNames.add(channel.name)
                 continue
             channel = Channel4(
                 self.dataGroup, self.channelGroup, channelNumber)
-            channel.set(info)
-            channel_type = channel.channel_type(info)
+            channel.set(info, rec_id_size, cn_info)
+            channel_type = channel._cn_type
             data_format = channel.data_format(info)
-            self.master = info['masters'][info['CN'][self.dataGroup]
-                                          [self.channelGroup][channelNumber]['masterCG']]['name']
+            if master_name is None:
+                self.master = info['masters'][cn_info['masterCG']]['name']
             if channel_type in (0, 2, 4, 5):  # not virtual channel
-                signal_data_type = channel.signal_data_type(info)
+                signal_data_type = channel._cn_data_type
                 if signal_data_type == 13:
                     for name in ('ms', 'minute', 'hour', 'day', 'month', 'year'):
                         # new object otherwise only modified
@@ -1225,15 +1231,14 @@ class Record(dict):
                         if len(self) > 1:
                             # all channels are already ordered in record based on byte_offset
                             # and bit_offset so just comparing with previous channel
-                            channel_pos_bit_end = channel.pos_bit_end(info)
+                            channel_pos_bit_end = channel.pos_bit_beg + channel._cn_bit_count
                             prev_chan_byte_offset = prev_chan.byteOffset
                             prev_chan_n_bytes = prev_chan.nBytes_aligned
                             prev_chan_includes_curr_chan = channel.pos_bit_beg >= 8 * prev_chan_byte_offset \
                                 and channel_pos_bit_end <= 8 * (prev_chan_byte_offset + prev_chan_n_bytes)
                             if embedding_channel is not None:
                                 embedding_channel_includes_curr_chan = \
-                                    channel_pos_bit_end <= embedding_channel.pos_byte_end(
-                                        info) * 8
+                                    channel_pos_bit_end <= embedding_channel_pos_bit_end
                             else:
                                 embedding_channel_includes_curr_chan = False
                             if channel.byteOffset >= prev_chan_byte_offset and \
@@ -1242,12 +1247,13 @@ class Record(dict):
                                 # not byte aligned
                                 self.byte_aligned = False
                             if embedding_channel is not None and \
-                                    channel_pos_bit_end > embedding_channel.pos_byte_end(info) * 8:
+                                    channel_pos_bit_end > embedding_channel_pos_bit_end:
                                 embedding_channel = None
                             if prev_chan_includes_curr_chan or \
                                     embedding_channel_includes_curr_chan:  # bit(s) in byte(s)
                                 if embedding_channel is None and prev_chan_includes_curr_chan:
                                     embedding_channel = prev_chan  # new embedding channel detected
+                                    embedding_channel_pos_bit_end = (rec_id_size + prev_chan_byte_offset + prev_chan_n_bytes) * 8
                                 if self.recordToChannelMatching:  # not first channel
                                     self.recordToChannelMatching[channel.name] = \
                                         self.recordToChannelMatching[prev_chan.name]
@@ -1348,7 +1354,7 @@ class Record(dict):
             if self.unique_channel_in_DG:
                 return self.read_unique_channel(fid, info)
             else:
-                return self.read_all_channels_sorted_record(fid)
+                return self.read_all_channels_sorted_record(fid, info)
         else:  # reads only some channels from a sorted data block
             if channel_set is None or len(channel_set & self.channelNames) > 0:
                 if self.unique_channel_in_DG:
@@ -1375,13 +1381,15 @@ class Record(dict):
                 (n_record_chunk, self.CGrecordLength * n_record_chunk))
         return chunks
 
-    def read_all_channels_sorted_record(self, fid):
+    def read_all_channels_sorted_record(self, fid, info=None):
         """ reads all channels from file using a single numpy frombuffer call
 
         Parameters
         ------------
         fid :
             file identifier
+        info :
+            info class, optional
 
         Returns
         --------
@@ -1391,6 +1399,12 @@ class Record(dict):
         dtype = {'names': self.dataRecordName, 'formats': self.numpyDataRecordFormat}
         total_size = self.CGrecordLength * self.numberOfRecords
         simplefilter('ignore', FutureWarning)
+        mm = getattr(info, '_mmap', None) if info is not None else None
+        if mm is not None:
+            pos = fid.tell()
+            if pos + total_size <= len(mm):
+                fid.seek(pos + total_size)
+                return frombuffer(mm, dtype=dtype, count=self.numberOfRecords, offset=pos)
         # Read into a flat uint8 buffer, then reinterpret as the structured array.
         # Single allocation, no copy, and the result is writeable for in-place conversions.
         raw = empty(total_size, dtype='u1')
@@ -1417,6 +1431,12 @@ class Record(dict):
         if nbytes == 0 or not self.dataRecordName:
             fid.read(nbytes)
             return frombuffer(b'', dtype=dtype)
+        mm = getattr(info, '_mmap', None) if info is not None else None
+        if mm is not None:
+            pos = fid.tell()
+            if pos + nbytes <= len(mm):
+                fid.seek(pos + nbytes)
+                return frombuffer(mm, dtype=dtype, count=self.numberOfRecords, offset=pos)
         return frombuffer(fid.read(nbytes), dtype=dtype)
 
     def read_not_all_channels_sorted_record(self, fid, info, channel_set):
@@ -1840,6 +1860,13 @@ class Mdf4(MdfSkeleton):
 
         if info.fid is None or info.fid.closed:
             info.fid = open(self.fileName, 'rb')
+        if getattr(info, '_mmap', None) is None and hasattr(info.fid, 'fileno'):
+            try:
+                import os
+                if os.fstat(info.fid.fileno()).st_size > 0:
+                    info._mmap = mmap.mmap(info.fid.fileno(), 0, access=mmap.ACCESS_COPY)
+            except Exception:
+                info._mmap = None
 
         # keep events
         try:
@@ -1967,20 +1994,28 @@ class Mdf4(MdfSkeleton):
                             else:
                                 channels = list(
                                     buf[record_id]['record'].values())
+                            cc_group = info['CC'].get(dataGroup, {}).get(buf[record_id]['record'].channelGroup, {})
+                            rec_obj = buf[record_id]['record']
+                            rec_data = buf[record_id]['data']
+                            rec_byte_aligned = rec_obj.byte_aligned
+                            rec_hidden_bytes = rec_obj.hiddenBytes
+                            rec_matching = rec_obj.recordToChannelMatching
+                            is_unique_dg = info['DG'][dataGroup]['unique_channel_in_DG']
                             for chan in channels:  # for each channel class
-                                if channel_set is None or chan.name in channel_set:
+                                chan_name = chan.name
+                                if channel_set is None or chan_name in channel_set:
                                     if not chan.type == 4:  # normal channel
+                                        chan_type = chan._cn_type if chan.type in (0, 1, 2) else chan.channel_type(info)
                                         # not virtual channel
-                                        if chan.channel_type(info) not in (3, 6):
+                                        if chan_type not in (3, 6):
                                             # in case record is used for several channels
-                                            if channel_set is None and not buf[record_id]['record'].hiddenBytes \
-                                                    and buf[record_id]['record'].byte_aligned:
-                                                record_name = buf[record_id]['record'].recordToChannelMatching[chan.name]
+                                            if channel_set is None and not rec_hidden_bytes and rec_byte_aligned:
+                                                record_name = rec_matching[chan_name]
                                             else:
-                                                record_name = chan.name
+                                                record_name = chan_name
                                             try:  # data in channel group
                                                 # extract channel vector
-                                                temp = buf[record_id]['data'][record_name]
+                                                temp = rec_data[record_name]
                                             # no sorted data but maybe VLSD data
                                             except (ValueError, IndexError, KeyError):
                                                 try:
@@ -1990,45 +2025,36 @@ class Mdf4(MdfSkeleton):
                                             except Exception:
                                                 temp = None
                                         else:  # virtual channel
-                                            temp = arange(
-                                                buf[record_id]['record'].numberOfRecords)
+                                            temp = arange(rec_obj.numberOfRecords)
 
                                         # Process concatenated bits inside uint8
-                                        bit_count = chan.bit_count(info)
-                                        if buf[record_id]['record'].byte_aligned \
-                                                and not buf[record_id]['record'].hiddenBytes and \
-                                                channel_set is None and\
+                                        bit_count = chan._cn_bit_count if chan.type in (0, 1, 2) else chan.bit_count(info)
+                                        if rec_byte_aligned and not rec_hidden_bytes and \
+                                                channel_set is None and \
                                                 0 < bit_count < 64 and bit_count not in (8, 16, 32) \
-                                                and temp is not None\
+                                                and temp is not None \
                                                 and temp.dtype.kind not in ('S', 'U'):
                                             # if channel data do not use complete bytes and Ctypes
-                                            signal_data_type = chan.signal_data_type(
-                                                info)
+                                            signal_data_type = chan._cn_data_type
                                             # integers
                                             if signal_data_type in (0, 1, 2, 3):
-                                                bit_offset = chan.bit_offset(
-                                                    info)
+                                                bit_offset = chan._cn_bit_offset if chan.type in (0, 1, 2) else chan.bit_offset(info)
+                                                mask = (1 << bit_count) - 1
                                                 if bit_offset > 0:
-                                                    temp = right_shift(
-                                                        temp, bit_offset)
-                                                # masks isBitUnit8
-                                                mask = int(
-                                                    (1 << bit_count) - 1)
-                                                temp = bitwise_and(temp, mask)
+                                                    temp = right_shift(temp, bit_offset)
+                                                    bitwise_and(temp, mask, out=temp)
+                                                else:
+                                                    temp = bitwise_and(temp, mask)
                                                 if signal_data_type in (2, 3):
                                                     # signed integer, moving bit sign of two's complement
-                                                    sign_bit_mask = (
-                                                        1 << (bit_count - 1))
-                                                    sign_extend = (
-                                                        (1 << (temp.itemsize * 8 - bit_count)) - 1) << bit_count
-                                                    sign_bit = bitwise_and(
-                                                        temp, sign_bit_mask)
-                                                    temp_u = temp.view('u{}'.format(temp.itemsize))
+                                                    sign_bit_mask = (1 << (bit_count - 1))
+                                                    sign_extend = ((1 << (temp.itemsize * 8 - bit_count)) - 1) << bit_count
+                                                    sign_bit = bitwise_and(temp, sign_bit_mask)
+                                                    temp_u = temp.view(f'u{temp.itemsize}')
                                                     temp_u[sign_bit != 0] |= sign_extend
                                                     temp = temp_u.view(temp.dtype)
                                             else:  # should not happen
-                                                warn('bit count and offset not applied to correct '
-                                                     'data type {}'.format(chan.name))
+                                                warn(f'bit count and offset not applied to correct data type {chan_name}')
 
                                         if temp is not None:  # channel contains data
                                             # half-precision complex: (2,)f2 → complex64
@@ -2074,28 +2100,28 @@ class Mdf4(MdfSkeleton):
                                                     temp = temp2
 
                                             # channel creation
-                                            self.add_channel(chan.name, temp, master_channel,
-                                                             master_type=chan.channel_sync_type(
-                                                                 info),
+                                            cn_info_obj = chan._cn_info if hasattr(chan, '_cn_info') else chan.cn_block(info)
+                                            cc_obj = cc_group.get(chan.channelNumber)
+                                            self.add_channel(chan_name, temp, master_channel,
+                                                             master_type=cn_info_obj.get('cn_sync_type', 0),
                                                              unit=chan.unit(info), description=chan.desc(info),
-                                                             conversion=chan.conversion(info), info=chan.cn_block(info),
+                                                             conversion=cc_obj, info=cn_info_obj,
                                                              compression=compression,
                                                              identifier=info.unique_id(chan.dataGroup,
                                                                                        chan.channelGroup,
                                                                                        chan.channelNumber,
                                                                                        group_info=cg_group_info))
                                             # sync channel
-                                            if chan.channel_type(info) == 4:
+                                            if chan_type == 4:
                                                 # attach stream to be synchronised
                                                 self.set_channel_attachment(
-                                                    chan.name, chan.attachment(info.fid, info))
-                                            if chan.has_invalid_bit(info) and \
-                                                    not info['DG'][dataGroup]['unique_channel_in_DG']:
+                                                    chan_name, chan.attachment(info.fid, info))
+                                            if (chan._cn_flags & 0b10) and not is_unique_dg:
                                                 # has invalid bit
                                                 self.set_invalid_bit(
-                                                    chan.name, chan.invalid_bit(info))
+                                                    chan_name, chan.invalid_bit(info))
                                                 self.set_invalid_channel(
-                                                    chan.name, 'invalid_bytes{}'.format(dataGroup))
+                                                    chan_name, f'invalid_bytes{dataGroup}')
                                     else:  # invalid bytes channel
                                         if buf[record_id]['invalid_data'] is None:
                                             invalid_data = buf[record_id]['data'][chan.name]
@@ -2123,6 +2149,7 @@ class Mdf4(MdfSkeleton):
                     # clean CN, CC and CG info to free memory
                     info.clean_dg_info(dataGroup)
         info.fid.close()  # close file
+        info._mmap = None  # release direct reference (array views retain buffer until freed)
 
         if convert_after_read and not compression:
             self._noDataLoading = False
@@ -2263,7 +2290,19 @@ class Mdf4(MdfSkeleton):
             self.read4(self.fileName, convert_after_read=True)
         else:
             if self.multiProc is False:
-                [self._convert_channel4(channelName) for channelName in self if 'conversion' in self[channelName]]
+                convert_tables = self.convertTables
+                convert_fn = self._convert_channel_data4
+                for channel_name, channel in self.items():
+                    if conversionField in channel:
+                        conv = channel[conversionField]
+                        ctype = conv['type']
+                        data = channel[dataField]
+                        if ctype == 1 and data is not None and not isinstance(data, CompressedData) \
+                                and data.dtype.kind not in ('S', 'U', 'V'):
+                            channel[dataField] = _linear_conversion(data[:], conv['parameters']['cc_val'])
+                        else:
+                            channel[dataField] = convert_fn(channel, channel_name, convert_tables)[channel_name]
+                        channel.pop(conversionField, None)
             else:  # multiprocessing
                 proc = []
                 Q = Queue()
@@ -2951,7 +2990,9 @@ def _linear_conversion(vector, cc_val):
     if p2 == 1.0 and p1 in (0.0, -0.0):
         return vector  # keeps dtype probably more compact than float64
     else:
-        return vector * p2 + p1
+        res = vector * p2
+        res += p1
+        return res
 
 
 def _rational_conversion(vector, cc_val):

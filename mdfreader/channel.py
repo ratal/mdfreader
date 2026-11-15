@@ -505,6 +505,11 @@ class Channel4(object):
         -----------
         string data format
         """
+        if self.type == 0 and not self._cn_composition:
+            sdt = 0 if self._cn_type in (1, 7) else self._cn_data_type
+            fmt = _FAST_DATA_FORMAT4.get((sdt, self.nBytes_aligned))
+            if fmt is not None:
+                return fmt
         endian, _data_format = self.numpy_format(info)
         return ''.join([endian, _data_format])
 
@@ -673,26 +678,29 @@ class Channel4(object):
         except KeyError:
             return None
 
-    def set(self, info):
-        cn_info = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
+    def set(self, info, rec_id_size=None, cn_info=None):
+        if cn_info is None:
+            cn_info = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
         self._cn_info = cn_info
         self._cn_type = cn_info['cn_type']
-        self._cn_data_type = cn_info['cn_data_type']
-        self._cn_bit_count = cn_info['cn_bit_count']
-        self._cn_bit_offset = cn_info['cn_bit_offset']
-        self._cn_byte_offset = cn_info['cn_byte_offset']
+        self._cn_data_type = cn_data_type = cn_info['cn_data_type']
+        self._cn_bit_count = cn_bit_count = cn_info['cn_bit_count']
+        self._cn_bit_offset = cn_bit_offset = cn_info['cn_bit_offset']
+        self._cn_byte_offset = cn_byte_offset = cn_info['cn_byte_offset']
         self._cn_flags = cn_info['cn_flags']
-        self._cn_composition = cn_info['cn_composition']
+        self._cn_composition = cn_composition = cn_info['cn_composition']
         self.name = cn_info['name']
-        self.type = 0
-        if cn_info['cn_composition'] and 'CABlock' in cn_info:
-            self.type = 1
-            block = cn_info['CABlock']
-            if 'CABlock' in block:
-                self.type = 2
-        self.nBytes_aligned = self.calc_bytes(info)
-        self.byteOffset = self.calc_byte_offset(info)
-        self.pos_bit_beg = self.pos_bit_begin(info)
+        if cn_composition and 'CABlock' in cn_info:
+            self.type = 2 if 'CABlock' in cn_info['CABlock'] else 1
+            self.nBytes_aligned = self.calc_bytes(info)
+            self.byteOffset = self.calc_byte_offset(info)
+        else:
+            self.type = 0
+            self.nBytes_aligned = _bits_to_bytes_aligned(cn_bit_count + cn_bit_offset, cn_data_type < 6)
+            self.byteOffset = cn_byte_offset
+        if rec_id_size is None:
+            rec_id_size = info['DG'][self.dataGroup]['dg_rec_id_size']
+        self.pos_bit_beg = (rec_id_size + self.byteOffset) * 8 + cn_bit_offset
 
     def set_CANOpen(self, info, name):
         self.type = 3
@@ -877,6 +885,16 @@ def array_format4(signal_data_type, number_of_bytes):
         warn(f'Unsupported Signal Data Type {signal_data_type} {number_of_bytes}')
         endian, data_type = '', raw
     return endian, data_type
+
+
+_FAST_DATA_FORMAT4 = {
+    (sdt, nb): ''.join(array_format4(sdt, nb))
+    for sdt in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16)
+    for nb in (1, 2, 3, 4, 5, 6, 7, 8, 16)
+    if not (sdt in (2, 3) and nb not in (1, 2, 3, 4, 5, 6, 7, 8))
+    and not (sdt in (4, 5) and nb not in (2, 4, 8))
+    and not (sdt in (15, 16) and nb not in (4, 8, 16))
+}
 
 
 def data_type_format4(signal_data_type, number_of_bytes):
