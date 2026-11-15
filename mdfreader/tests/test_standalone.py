@@ -181,3 +181,93 @@ def test_resample_with_non_interpolatable_channels():
     assert len(channel_lengths) == 1
     assert next(iter(channel_lengths)) == 10
 
+
+def test_mask_integer_bits_big_endian():
+    """Regression test for big-endian bitfields where aligned container exceeds span."""
+    from mdfreader.mdf4reader import _mask_integer_bits
+
+    # 3-byte span (bit_offset=5, bit_count=12) viewed in 4-byte >i4 container
+    # Bytes 0..2 = 0xa0 0x24 0x80 -> 0x124 = 292; byte 3 = 0xfc (trailing neighbor byte)
+    arr_pos = np.frombuffer(b"\xa0\x24\x80\xfc", dtype=">i4").copy()
+    res_pos = _mask_integer_bits(arr_pos, sig_dt=3, bit_count=12, bit_offset=5, in_place=True)
+    assert res_pos.tolist() == [292]
+
+    # Negative 12-bit BE value (-1 = 0xfff << 5 in bytes 0..2 = 0x01ffe0), byte 3 = 0xab
+    arr_neg = np.frombuffer(b"\x01\xff\xe0\xab", dtype=">i4")  # read-only view, in_place=False
+    res_neg = _mask_integer_bits(arr_neg, sig_dt=3, bit_count=12, bit_offset=5, in_place=False)
+    assert res_neg.tolist() == [-1]
+
+    # 32-bit BE signed at bit_offset=4 in 8-byte >i8 (actual=5 bytes, extra=3 bytes)
+    raw = ((-12345 & 0xFFFFFFFF) << 28).to_bytes(8, "big")
+    arr_64 = np.frombuffer(raw, dtype=">i8")
+    res_64 = _mask_integer_bits(arr_64, sig_dt=3, bit_count=32, bit_offset=4, in_place=False)
+    assert res_64.tolist() == [-12345]
+
+
+def test_apply_ca_inverse_layout():
+    """Verify ca_flags bit 6 (inverse / column-major layout) reorders per-sample dimensions."""
+    from mdfreader.mdf4reader import _apply_ca_inverse_layout
+
+    # Two samples of (3, 4) stored column-major
+    expected = np.array(
+        [[[0.1 * i + 0.01 * j + 0.001 * s for j in range(4)] for i in range(3)] for s in range(2)]
+    )
+    raw_bytes = b"".join(expected[s].tobytes(order="F") for s in range(2))
+    raw_c = np.frombuffer(raw_bytes, dtype="<f8").reshape((2, 3, 4))
+    reordered = _apply_ca_inverse_layout(raw_c, {"CABlock": {"ca_dim_size": (3, 4), "ca_flags": 64}})
+    assert reordered.flags["C_CONTIGUOUS"]
+    np.testing.assert_allclose(reordered, expected)
+
+    # Without bit 6, data stays unchanged
+    unchanged = _apply_ca_inverse_layout(raw_c, {"CABlock": {"ca_dim_size": (3, 4), "ca_flags": 0}})
+    assert unchanged is raw_c
+
+    # 1D array with bit 6 is a no-op
+    arr_1d = np.arange(8, dtype="<f8").reshape((2, 4))
+    assert _apply_ca_inverse_layout(arr_1d, {"CABlock": {"ca_dim_size": 4, "ca_flags": 64}}) is arr_1d
+
+
+def test_get_invalid_mask_bit_positions_and_missing():
+    """Verify get_invalid_mask tests (1 << (bit_pos & 0x07)) as bool and handles missing data."""
+    m = mdfreader.Mdf()
+    t = np.array([0.0, 1.0, 2.0, 3.0])
+    m.add_channel("Time", t, "Time", master_type=1, unit="s")
+    m.add_channel("sig0", np.array([10.0, 20.0, 30.0, 40.0]), "Time")
+    m.add_channel("sig6", np.array([1.0, 2.0, 3.0, 4.0]), "Time")
+    m.add_channel("sig9", np.array([5.0, 6.0, 7.0, 8.0]), "Time")
+
+    # Byte 0: 0b01000001 (bits 0 and 6), Byte 1: 0b00000010 (bit 9)
+    # Sample 1 byte 0 = 0b00111110 (62): bit 6 is 0 (must NOT match 6 & 0x07!)
+    inv = np.array([[0x41, 0x00], [0x3E, 0x02], [0x01, 0x00], [0x40, 0x02]], dtype=np.uint8)
+    m.add_channel("invalid_bytes0", inv, "Time")
+
+    m.set_invalid_channel("sig0", "invalid_bytes0")
+    m.set_invalid_bit("sig0", 0)
+    m.set_invalid_channel("sig6", "invalid_bytes0")
+    m.set_invalid_bit("sig6", 6)
+    m.set_invalid_channel("sig9", "invalid_bytes0")
+    m.set_invalid_bit("sig9", 9)
+
+    mask0 = m.get_invalid_mask("sig0")
+    mask6 = m.get_invalid_mask("sig6")
+    mask9 = m.get_invalid_mask("sig9")
+    assert mask0.dtype == bool and mask0.tolist() == [True, False, True, False]
+    assert mask6.dtype == bool and mask6.tolist() == [True, False, False, True]
+    assert mask9.dtype == bool and mask9.tolist() == [False, True, False, True]
+
+    # Missing invalid_bytes channel (e.g. partial channel_list read) returns None
+    m.add_channel("sig_missing", np.array([1.0, 2.0, 3.0, 4.0]), "Time")
+    m.set_invalid_channel("sig_missing", "invalid_bytes999")
+    m.set_invalid_bit("sig_missing", 0)
+    assert m.get_invalid_mask("sig_missing") is None
+    m.apply_invalid_bit("sig_missing")
+    assert type(m.get_channel_data("sig_missing")) is np.ndarray
+
+    # apply_invalid_bit wraps only channels with an invalid mask
+    m.apply_invalid_bit("sig6")
+    d6 = m.get_channel_data("sig6")
+    assert isinstance(d6, np.ma.MaskedArray)
+    assert d6.mask.tolist() == [True, False, False, True]
+
+
+

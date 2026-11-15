@@ -151,6 +151,86 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
                                                        'formats': [record.invalid_channel.data_format(info)]})
 
 
+def _mask_integer_bits(temp, sig_dt, bit_count, bit_offset, in_place=True):
+    """Shift, mask, and sign-extend an integer bitfield channel array.
+
+    When a big-endian integer channel (sig_dt in (1, 3)) spans fewer bytes
+    than its numpy aligned container (e.g. 3 bytes in 4-byte ``>i4``, or 5-7
+    bytes in 8-byte ``>i8``), the trailing unread bytes sit in the LSBs after
+    viewing, so the effective right shift includes
+    ``8 * (itemsize - actual_nbytes)``.
+    """
+    itemsize = temp.dtype.itemsize
+    if bit_offset == 0 and bit_count == itemsize * 8:
+        return temp
+    actual_nbytes = (bit_offset + bit_count + 7) // 8
+    extra_bytes = itemsize - actual_nbytes
+    shift = bit_offset + 8 * extra_bytes if sig_dt in (1, 3) and extra_bytes > 0 else bit_offset
+    mask = (1 << bit_count) - 1
+    temp_u = temp.view(np.dtype(f'u{itemsize}').newbyteorder(temp.dtype.byteorder))
+    if in_place and temp_u.dtype.isnative and temp_u.flags.writeable:
+        if shift > 0:
+            right_shift(temp_u, shift, out=temp_u)
+        if bit_count < itemsize * 8:
+            bitwise_and(temp_u, mask, out=temp_u)
+    else:
+        if shift > 0:
+            temp_u = right_shift(temp_u, shift)
+        if bit_count < itemsize * 8:
+            temp_u = bitwise_and(temp_u, mask)
+        elif shift == 0 and not temp_u.dtype.isnative:
+            temp_u = temp_u.astype(f'u{itemsize}', copy=True)
+    if sig_dt in (2, 3):  # signed: sign-extend from bit_count-1
+        sign_bit_mask = 1 << (bit_count - 1)
+        sign_extend = ((1 << (itemsize * 8 - bit_count)) - 1) << bit_count
+        if temp_u.ndim > 0:
+            neg_mask = bitwise_and(temp_u, sign_bit_mask) != 0
+            if neg_mask.any():
+                temp_u[neg_mask] |= sign_extend
+        else:
+            negative = bitwise_and(temp_u, sign_bit_mask).astype(bool)
+            temp_u = where(negative, bitwise_or(temp_u, sign_extend), temp_u)
+        return temp_u.view(f'i{itemsize}')
+    return temp_u
+
+
+def _apply_ca_inverse_layout(temp, cn_info):
+    """Reorder CA block dimensions from column-major (Fortran) to row-major (C)
+    when ``ca_flags`` bit 6 (inverse layout) is set in any CABlock level.
+    """
+    ca = cn_info.get('CABlock') if cn_info is not None else None
+    if ca is None or temp.ndim <= 1:
+        return temp
+    blocks = []
+    has_inverse = False
+    while ca is not None:
+        raw_dims = ca['ca_dim_size']
+        dims = [int(x) for x in raw_dims] if hasattr(raw_dims, '__iter__') else [int(raw_dims)]
+        inv = bool(ca.get('ca_flags', 0) & (1 << 6)) and len(dims) > 1
+        if inv:
+            has_inverse = True
+        blocks.append((dims, inv))
+        ca = ca.get('CABlock')
+    if not has_inverse:
+        return temp
+    expected_shape = tuple(d for dims, _ in blocks for d in dims)
+    if temp.shape[1:] != expected_shape:
+        return temp
+    mem_dims = [temp.shape[0]]
+    perm = [0]
+    axis = 1
+    for dims, inv in blocks:
+        ndim = len(dims)
+        if inv:
+            mem_dims.extend(reversed(dims))
+            perm.extend(range(axis + ndim - 1, axis - 1, -1))
+        else:
+            mem_dims.extend(dims)
+            perm.extend(range(axis, axis + ndim))
+        axis += ndim
+    return np.ascontiguousarray(temp.reshape(mem_dims).transpose(perm))
+
+
 def _apply_unsorted_bit_masking(buf, record, info):
     """Apply bit-shift and masking for non-byte-aligned channels in unsorted data.
 
@@ -178,28 +258,7 @@ def _apply_unsorted_bit_masking(buf, record, info):
             temp = buf[name]
             if temp.dtype.kind not in ('u', 'i'):
                 continue
-            mask = int((1 << bit_count) - 1)
-            if temp.dtype.isnative:
-                if bit_offset > 0:
-                    right_shift(temp, bit_offset, out=temp)
-                bitwise_and(temp, mask, out=temp)
-            else:
-                if bit_offset > 0:
-                    temp = right_shift(temp, bit_offset)
-                temp = bitwise_and(temp, mask)
-            if sig_dt in (2, 3):  # signed: sign-extend from bit_count-1
-                sign_bit_mask = 1 << (bit_count - 1)
-                sign_extend = ((1 << (temp.itemsize * 8 - bit_count)) - 1) << bit_count
-                temp_u = temp.view('u{}'.format(temp.itemsize))
-                if temp_u.ndim > 0:
-                    neg_mask = bitwise_and(temp_u, sign_bit_mask) != 0
-                    if neg_mask.any():
-                        temp_u[neg_mask] |= sign_extend
-                else:
-                    negative = bitwise_and(temp_u, sign_bit_mask).astype(bool)
-                    temp_u = where(negative, bitwise_or(temp_u, sign_extend), temp_u)
-                temp = temp_u.view(temp.dtype)
-            buf[name] = temp
+            buf[name] = _mask_integer_bits(temp, sig_dt, bit_count, bit_offset, in_place=True)
 
 
 def _read_unsorted(record, info, parent_block, record_id_size, channel_set=None):
@@ -305,6 +364,7 @@ def _read_unsorted(record, info, parent_block, record_id_size, channel_set=None)
     if buf:
         for name in buf.keys():
             buf[name] = buf[name].view(dtype=numpy_format[name])
+        _apply_unsorted_bit_masking(buf, record, info)
     # convert list to array for VLSD only
     if VLSD:
         for channel_name in VLSD:
@@ -1318,7 +1378,7 @@ class Record(dict):
                             break
             prev_chan = channel
 
-        if info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']:  # invalid bytes existing
+        if info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes'] and not (self.Flags & 0b100001):  # invalid bytes existing (not VLSD/VLSC)
             cg_data_bytes = info['CG'][self.dataGroup][self.channelGroup]['cg_data_bytes']
             # invalid bytes at the end of the data record
             invalid_bytes = Channel4(
@@ -2051,29 +2111,14 @@ class Mdf4(MdfSkeleton):
                                         bit_count = chan._cn_bit_count if chan.type in (0, 1, 2) else chan.bit_count(info)
                                         if not buf_is_unsorted and rec_byte_aligned and not rec_hidden_bytes and \
                                                 channel_set is None and \
-                                                0 < bit_count < 64 and bit_count not in (8, 16, 32) \
-                                                and temp is not None \
+                                                temp is not None \
                                                 and temp.dtype.kind not in ('S', 'U'):
-                                            # if channel data do not use complete bytes and Ctypes
                                             signal_data_type = chan._cn_data_type
-                                            # integers
-                                            if signal_data_type in (0, 1, 2, 3):
+                                            if signal_data_type in (0, 1, 2, 3) and temp.dtype.kind in ('u', 'i'):
                                                 bit_offset = chan._cn_bit_offset if chan.type in (0, 1, 2) else chan.bit_offset(info)
-                                                mask = (1 << bit_count) - 1
-                                                if bit_offset > 0:
-                                                    temp = right_shift(temp, bit_offset)
-                                                    bitwise_and(temp, mask, out=temp)
-                                                else:
-                                                    temp = bitwise_and(temp, mask)
-                                                if signal_data_type in (2, 3):
-                                                    # signed integer, moving bit sign of two's complement
-                                                    sign_bit_mask = (1 << (bit_count - 1))
-                                                    sign_extend = ((1 << (temp.itemsize * 8 - bit_count)) - 1) << bit_count
-                                                    sign_bit = bitwise_and(temp, sign_bit_mask)
-                                                    temp_u = temp.view(f'u{temp.itemsize}')
-                                                    temp_u[sign_bit != 0] |= sign_extend
-                                                    temp = temp_u.view(temp.dtype)
-                                            else:  # should not happen
+                                                if bit_count > 0 and not (bit_offset == 0 and bit_count == temp.itemsize * 8):
+                                                    temp = _mask_integer_bits(temp, signal_data_type, bit_count, bit_offset, in_place=False)
+                                            elif 0 < bit_count < 64 and bit_count not in (8, 16, 32):  # should not happen
                                                 warn(f'bit count and offset not applied to correct data type {chan_name}')
 
                                         if temp is not None:  # channel contains data
@@ -2121,6 +2166,8 @@ class Mdf4(MdfSkeleton):
 
                                             # channel creation
                                             cn_info_obj = chan._cn_info if hasattr(chan, '_cn_info') else chan.cn_block(info)
+                                            if chan.type in (1, 2):
+                                                temp = _apply_ca_inverse_layout(temp, cn_info_obj)
                                             cc_obj = cc_group.get(chan.channelNumber)
                                             self.add_channel(chan_name, temp, master_channel,
                                                              master_type=cn_info_obj.get('cn_sync_type', 0),
@@ -2753,7 +2800,8 @@ class Mdf4(MdfSkeleton):
 
         # write channels
         data = self.get_channel_data(channel)
-        if self.get_invalid_channel(channel) or isinstance(data, MaskedArray):
+        invalid_mask = None if isinstance(data, MaskedArray) else self.get_invalid_mask(channel)
+        if isinstance(data, MaskedArray) or invalid_mask is not None:
             invalid_channel = True
             # as column oriented, only one byte for DIBlock
             blocks['CG']['cg_inval_bytes'] = 1
@@ -2904,8 +2952,7 @@ class Mdf4(MdfSkeleton):
                 if isinstance(data, MaskedArray):
                     inval_data = data.mask.tobytes()
                 else:
-                    inval_data = self.get_invalid_mask(
-                        channel).astype(bool).tobytes()
+                    inval_data = invalid_mask.astype(bool).tobytes()
             if not invalid_channel and not compression:
                 pointer = data_blocks.write(fid, data.tobytes())
             else:
@@ -2930,9 +2977,11 @@ class Mdf4(MdfSkeleton):
         """
         try:
             data = self._get_channel_data4(channel_name)
-            data = data.view(MaskedArray)
-            data.mask = self.get_invalid_mask(channel_name)
-            self.set_channel_data(channel_name, data)
+            mask = self.get_invalid_mask(channel_name)
+            if mask is not None:
+                data = data.view(MaskedArray)
+                data.mask = mask
+                self.set_channel_data(channel_name, data)
             self._remove_channel_field(channel_name, invalidPosField)
             self._remove_channel_field(channel_name, invalidChannel)
         except KeyError:
@@ -2943,11 +2992,18 @@ class Mdf4(MdfSkeleton):
         invalid_channel = self._get_channel_data4(
             self.get_invalid_channel(channel_name))
         invalid_bit_pos = self.get_invalid_bit(channel_name)
-        if isinstance(invalid_bit_pos, int):  # invalid bit existing
-            invalid_byte = invalid_bit_pos >> 3
-            return bitwise_and(invalid_channel[:, invalid_byte], invalid_bit_pos & 0x07)
-        else:
+        if invalid_channel is None or not isinstance(invalid_bit_pos, int) \
+                or isinstance(invalid_bit_pos, bool) or invalid_bit_pos < 0:
             return None
+        invalid_byte = invalid_bit_pos >> 3
+        bit_mask = 1 << (invalid_bit_pos & 0x07)
+        if invalid_channel.ndim == 1:
+            if invalid_byte != 0:
+                return None
+            return (invalid_channel & bit_mask) != 0
+        if invalid_byte >= invalid_channel.shape[1]:
+            return None
+        return (invalid_channel[:, invalid_byte] & bit_mask) != 0
 
     def apply_all_invalid_bit(self):
         """Mask data of all channels based on its invalid bit definition if there is
