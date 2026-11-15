@@ -4,9 +4,10 @@ cimport numpy as np
 from sys import byteorder
 from libc.stdint cimport int64_t, uint8_t, uint16_t, uint32_t, uint64_t
 from libc.stdio cimport printf
+from libc.stdlib cimport malloc, realloc, free
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
 from cpython.bytes cimport PyBytes_AsString
-from libc.string cimport memcpy
+from libc.string cimport memcpy, memset
 cimport cython
 
 # pread() is POSIX-only.  On Windows we emulate it with _lseeki64 + _read.
@@ -306,12 +307,42 @@ cdef str _fast_read_tx(const unsigned char* mmap_buf, size_t mmap_len, int fd, u
     return result
 
 
+cdef inline str _parse_md_tx_payload(bytes payload):
+    """Extract TX text from an ##MD XML payload, skipping lxml when absent."""
+    cdef Py_ssize_t tx_start, tx_end
+    tx_start = payload.find(b'<TX>')
+    if tx_start >= 0:
+        tx_start += 4
+        tx_end = payload.find(b'</TX>', tx_start)
+        if tx_end >= 0:
+            return payload[tx_start:tx_end].decode('UTF-8', 'ignore')
+    if payload.find(b'</TX>') < 0:
+        return ''
+    try:
+        from lxml import objectify as _obj
+        xml_tree = _obj.fromstring(payload)
+        try:
+            return str(xml_tree.TX)
+        except AttributeError:
+            pass
+        try:
+            return str(xml_tree.CNcomment.TX)
+        except AttributeError:
+            pass
+        try:
+            return str(xml_tree.CNunit.TX)
+        except AttributeError:
+            pass
+    except Exception:
+        pass
+    return ''
+
+
 cdef str _fast_read_tx_or_md(const unsigned char* mmap_buf, size_t mmap_len, int fd, uint64_t pointer):
     """Read a TX or MD block and return its text content."""
     cdef _TXHdr hdr
-    cdef Py_ssize_t content_len, nread, tx_start, tx_end, end
+    cdef Py_ssize_t content_len, nread, end
     cdef unsigned char* buf
-    cdef bytes payload
     cdef str result
 
     if pointer == 0:
@@ -328,31 +359,7 @@ cdef str _fast_read_tx_or_md(const unsigned char* mmap_buf, size_t mmap_len, int
             end -= 1
         if hdr.id[2] == b'T' and hdr.id[3] == b'X':
             return (<bytes>(mmap_buf + pointer + 24)[:end]).decode('UTF-8', 'ignore')
-        payload = <bytes>(mmap_buf + pointer + 24)[:end]
-        tx_start = payload.find(b'<TX>')
-        if tx_start >= 0:
-            tx_start += 4
-            tx_end = payload.find(b'</TX>', tx_start)
-            if tx_end >= 0:
-                return payload[tx_start:tx_end].decode('UTF-8', 'ignore')
-        try:
-            from lxml import objectify as _obj
-            xml_tree = _obj.fromstring(payload)
-            try:
-                return str(xml_tree.TX)
-            except AttributeError:
-                pass
-            try:
-                return str(xml_tree.CNcomment.TX)
-            except AttributeError:
-                pass
-            try:
-                return str(xml_tree.CNunit.TX)
-            except AttributeError:
-                pass
-        except Exception:
-            pass
-        return ''
+        return _parse_md_tx_payload(<bytes>(mmap_buf + pointer + 24)[:end])
 
     with nogil:
         nread = c_pread(fd, &hdr, 24, pointer)
@@ -376,31 +383,7 @@ cdef str _fast_read_tx_or_md(const unsigned char* mmap_buf, size_t mmap_len, int
             buf[end] = 0
             result = (<bytes>buf[:end]).decode('UTF-8', 'ignore')
             return result
-        payload = bytes(buf[:end])
-        tx_start = payload.find(b'<TX>')
-        if tx_start >= 0:
-            tx_start += 4
-            tx_end = payload.find(b'</TX>', tx_start)
-            if tx_end >= 0:
-                return payload[tx_start:tx_end].decode('UTF-8', 'ignore')
-        try:
-            from lxml import objectify as _obj
-            xml_tree = _obj.fromstring(payload)
-            try:
-                return str(xml_tree.TX)
-            except AttributeError:
-                pass
-            try:
-                return str(xml_tree.CNcomment.TX)
-            except AttributeError:
-                pass
-            try:
-                return str(xml_tree.CNunit.TX)
-            except AttributeError:
-                pass
-        except Exception:
-            pass
-        return ''
+        return _parse_md_tx_payload(bytes(buf[:end]))
     finally:
         PyMem_Free(buf)
 
@@ -1817,139 +1800,383 @@ cdef inline read_array(const char* bit_stream, str record_format, unsigned long 
     else:
         return buf.byteswap()
 
-def unsorted_data_read4(record, info, bytes tmp,
-                        const unsigned short record_id_size,
-                        const unsigned long long data_block_length):
-    """ reads only the channels using offset functions, channel by channel within unsorted data
+cdef struct _UnsortedChan:
+    char* data_ptr
+    uint32_t stride
+    uint32_t offset_in_rec
+    uint32_t n_bytes
 
-    Parameters
-    ------------
-    record : class
-        record class
-    info: class
-        info class
-    tmp : bytes
-        byte stream
-    record_id_size : unsigned short
-        record id length
-    data_block_length : unsigned long long
-        length of data block minus header
 
-    Returns
-    --------
-    buf : array
-        data array
+cdef struct _VlsdEntry:
+    uint64_t offset
+    uint32_t length
 
-    """
-    cdef const char* bit_stream = PyBytes_AsString(tmp)
-    cdef unsigned long long position = 0
-    cdef unsigned char record_id_char = 0
-    cdef unsigned short record_id_short = 0
-    cdef unsigned long record_id_long = 0
-    cdef unsigned long long record_id_long_long = 0
-    # initialise data structure
-    # key is channel name
-    cdef dict buf = {}
-    cdef dict VLSD = {}
-    cdef dict pos_byte_beg = {}
-    cdef dict pos_byte_end = {}
-    cdef dict c_format_structure = {}
-    cdef dict byte_length = {}
-    cdef dict numpy_format = {}
-    # key is record id
-    cdef dict index = {}
-    cdef dict CGrecordLength = {}
-    cdef dict VLSD_flag = {}
-    cdef dict VLSD_CG_name = {}
-    cdef dict VLSD_CG_signal_data_type = {}
-    cdef dict channel_name_set = {}
-    for record_id in record:
-        if record[record_id]['record'].Flags & 0b100001:  # VLSD (bit 0) or VLSC compact (bit 5)
-            VLSD_flag[record_id] = True
-            VLSD[record[record_id]['record'].VLSD_CG[record_id]['channelName']] = []
-            VLSD_CG_name[record_id] = record[record_id]['record'].VLSD_CG[record_id]['channelName']
-            VLSD_CG_signal_data_type[record_id] = record[record_id]['record'].VLSD_CG[record_id]['channel'].signal_data_type(info)
-        else:
-            VLSD_flag[record_id] = False
-            for Channel in record[record_id]['record'].values():
-                #if not Channel.VLSD_CG_Flag:
-                buf[Channel.name] = np.empty((record[record_id]['record'].numberOfRecords,),
-                                             dtype='V{}'.format(Channel.nBytes_aligned), order ='C')
-                numpy_format[Channel.name] = Channel.data_format(info)
-                pos_byte_beg[Channel.name] = record_id_size + Channel.byteOffset
-                pos_byte_end[Channel.name] = pos_byte_beg[Channel.name] + Channel.nBytes_aligned
-            index[record_id] = 0
-            CGrecordLength[record_id] = record[record_id]['record'].CGrecordLength
-            channel_name_set[record_id] = record[record_id]['record'].channelNames
-    # read data
+
+cdef struct _UnsortedCG:
+    uint64_t record_id
+    uint64_t cg_record_length
+    uint64_t count
+    uint64_t write_idx
+    uint32_t first_chan
+    uint32_t n_chans
+    uint8_t is_vlsd
+    uint8_t skip_vlsd
+    uint8_t need_zero
+    uint32_t vlsd_signal_data_type
+    uint32_t max_payload_bytes
+    _VlsdEntry* vlsd_entries
+    uint64_t vlsd_cap
+
+
+cdef inline int _lookup_cg_idx(uint64_t rec_id, const int* lut,
+                               const _UnsortedCG* cgs, int n_cgs) noexcept nogil:
+    cdef int idx
+    if rec_id < 256:
+        return lut[rec_id]
+    for idx in range(n_cgs):
+        if cgs[idx].record_id == rec_id:
+            return idx
+    return -1
+
+
+cdef inline uint64_t _read_rec_id(const unsigned char* p,
+                                  unsigned short record_id_size) noexcept nogil:
+    cdef uint16_t id16 = 0
+    cdef uint32_t id32 = 0
+    cdef uint64_t id64 = 0
     if record_id_size == 1:
-        while position < data_block_length:
-            memcpy(&record_id_char, &bit_stream[position], 1)
-            position, buf, VLSD, index = unsorted_read4(bit_stream, tmp, record_id_char, 1,
-                                                        position, buf, VLSD, pos_byte_beg, pos_byte_end,
-                                                        c_format_structure, index, CGrecordLength,
-                                                        VLSD_flag, VLSD_CG_name, VLSD_CG_signal_data_type, channel_name_set)
+        return <uint64_t>p[0]
     elif record_id_size == 2:
-        while position < data_block_length:
-            memcpy(&record_id_short, &bit_stream[position], 2)
-            position, buf, VLSD, index = unsorted_read4(bit_stream, tmp, record_id_short, 2,
-                                                        position, buf, VLSD, pos_byte_beg, pos_byte_end,
-                                                        c_format_structure, index, CGrecordLength,
-                                                        VLSD_flag, VLSD_CG_name, VLSD_CG_signal_data_type, channel_name_set)
-    elif record_id_size == 3:
-        while position < data_block_length:
-            memcpy(&record_id_long, &bit_stream[position], 4)
-            position, buf, VLSD, index = unsorted_read4(bit_stream, tmp, record_id_long, 4,
-                                                        position, buf, VLSD, pos_byte_beg, pos_byte_end,
-                                                        c_format_structure, index, CGrecordLength,
-                                                        VLSD_flag, VLSD_CG_name, VLSD_CG_signal_data_type, channel_name_set)
+        memcpy(&id16, p, 2)
+        return <uint64_t>id16
     elif record_id_size == 4:
-        while position < data_block_length:
-            memcpy(&record_id_long_long, &bit_stream[position], 8)
-            position, buf, VLSD, index = unsorted_read4(bit_stream, tmp, record_id_long_long, 8,
-                                                        position, buf, VLSD, pos_byte_beg, pos_byte_end,
-                                                        c_format_structure, index, CGrecordLength,
-                                                        VLSD_flag, VLSD_CG_name, VLSD_CG_signal_data_type, channel_name_set)
-    # changing from bytes type to desired type
-    if buf:
-        for name in buf.keys():
-            buf[name] = buf[name].view(dtype=numpy_format[name])
-    # convert list to array for VLSD only
-    if VLSD:
-        for channel_name in VLSD:
-            VLSD[channel_name] = np.array(VLSD[channel_name])
-        buf.update(VLSD)
-    return buf
+        memcpy(&id32, p, 4)
+        return <uint64_t>id32
+    else:
+        memcpy(&id64, p, 8)
+        return id64
 
-cdef inline unsorted_read4(const char* bit_stream, bytes tmp, record_id,
-                           unsigned short record_id_size, unsigned long long position,
-                           buf, VLSD, pos_byte_beg, pos_byte_end, c_format_structure,
-                           index, CGrecordLength, VLSD_flag, VLSD_CG_name, VLSD_CG_signal_data_type,
-                           channel_name_set):
-    cdef unsigned long VLSDLen = 0
-    if not VLSD_flag[record_id]:  # not VLSD CG)
-        for channel_name in channel_name_set[record_id]:  # list of channel classes
-            buf[channel_name][index[record_id]] = \
-                   tmp[position + pos_byte_beg[channel_name]:position + pos_byte_end[channel_name]]
-        index[record_id] += 1
-        position += CGrecordLength[record_id]
-    else:  # VLSD CG
-        position += <unsigned long long> record_id_size
-        memcpy(&VLSDLen, &bit_stream[position], 4)  # VLSD length
-        position += 4
-        signal_data_type = VLSD_CG_signal_data_type[record_id]
-        temp = bytes(bit_stream[position:position + VLSDLen - 1])  # default: raw bytes
-        if signal_data_type == 6:
-            temp = temp.decode('ISO8859')
-        elif signal_data_type == 7:
-            temp = temp.decode('utf-8')
-        elif signal_data_type == 8:
-            temp = temp.decode('<utf-16')
-        elif signal_data_type == 9:
-            temp = temp.decode('>utf-16')
-        VLSD[VLSD_CG_name[record_id]].append(temp)
-        position += <unsigned long long> VLSDLen
-    return position, buf, VLSD, index
+
+@cython.wraparound(False)
+def unsorted_data_read4(record, info, const unsigned char[::1] tmp,
+                        const unsigned short record_id_size,
+                        const unsigned long long data_block_length,
+                        object channel_set=None):
+    """Reads unsorted MDF4 data block into per-channel NumPy arrays.
+
+    Uses a two-pass Cython scan over contiguous bytes/memoryview:
+    Pass 1 counts records per CG and captures VLSD/VLSC slice offsets;
+    Pass 2 copies fixed channels directly into final-dtype NumPy buffers
+    and decodes VLSD/VLSC arrays without intermediate Python lists.
+    """
+    if record_id_size not in (1, 2, 4, 8):
+        raise ValueError(f'Unsupported unsorted record_id_size: {record_id_size}')
+
+    cdef Py_ssize_t tmp_len = tmp.shape[0]
+    cdef uint64_t effective_len = <uint64_t>data_block_length
+    if <uint64_t>tmp_len < effective_len:
+        effective_len = <uint64_t>tmp_len
+    cdef const unsigned char* bit_stream = NULL
+    if tmp_len > 0:
+        bit_stream = &tmp[0]
+
+    cdef dict buf = {}
+    cdef int n_cgs = len(record)
+    if n_cgs == 0:
+        return buf
+
+    # Identify channel names backed by VLSD/VLSC CGs so we skip their dummy 8B slots
+    cdef set vlsd_chan_names = set()
+    for record_id, item in record.items():
+        rec = item['record']
+        if rec.Flags & 0b100001:
+            vlsd_chan_names.add(rec.VLSD_CG[record_id]['channelName'])
+
+    cdef list cg_chan_specs = []
+    cdef list vlsd_cg_names = [None] * n_cgs
+    cdef int total_chans = 0
+    cdef int cg_idx = 0
+    cdef int lut[256]
+    cdef int i, j
+    for i in range(256):
+        lut[i] = -1
+
+    cdef _UnsortedCG* cgs = <_UnsortedCG*>malloc(n_cgs * sizeof(_UnsortedCG))
+    if cgs == NULL:
+        raise MemoryError()
+    memset(cgs, 0, n_cgs * sizeof(_UnsortedCG))
+
+    cdef _UnsortedChan* chans = NULL
+    cdef uint64_t rec_id_u64, cg_len_u64, init_cap
+    cdef uint32_t offset_in_rec, n_bytes, plen, vlsd_len
+    cdef int err_flag = 0
+    cdef uint64_t pos = 0
+    cdef uint64_t payload_off, new_cap, k, count, max_chars
+    cdef _VlsdEntry* grown = NULL
+    cdef np.ndarray arr
+    cdef list post_view_list = []
+    cdef int ch_flat_idx = 0
+    cdef uint64_t w, src_off, avail, copy_len, e_off
+    cdef uint32_t c_idx, c_end, width, sdt, b_idx, cp, e_len
+    cdef uint8_t has_non_ascii, entry_non_ascii
+    cdef unsigned char byte_val
+    cdef uint32_t* u32_ptr
+    cdef char* s_ptr
+    cdef _VlsdEntry* entries
+
+    try:
+        for record_id, item in record.items():
+            rec = item['record']
+            rec_id_u64 = <uint64_t>record_id
+            cgs[cg_idx].record_id = rec_id_u64
+            if rec_id_u64 < 256:
+                lut[rec_id_u64] = cg_idx
+            if rec.Flags & 0b100001:
+                vlsd_name = rec.VLSD_CG[record_id]['channelName']
+                cgs[cg_idx].is_vlsd = 1
+                cgs[cg_idx].vlsd_signal_data_type = rec.VLSD_CG[record_id]['channel'].signal_data_type(info)
+                cgs[cg_idx].skip_vlsd = 1 if (channel_set is not None and vlsd_name not in channel_set) else 0
+                vlsd_cg_names[cg_idx] = vlsd_name
+                if cgs[cg_idx].skip_vlsd == 0:
+                    init_cap = <uint64_t>rec.numberOfRecords if rec.numberOfRecords > 0 else 16
+                    cgs[cg_idx].vlsd_entries = <_VlsdEntry*>malloc(init_cap * sizeof(_VlsdEntry))
+                    if cgs[cg_idx].vlsd_entries == NULL:
+                        raise MemoryError()
+                    cgs[cg_idx].vlsd_cap = init_cap
+                cg_chan_specs.append(())
+            else:
+                cgs[cg_idx].is_vlsd = 0
+                cg_len_u64 = <uint64_t>rec.CGrecordLength
+                cgs[cg_idx].cg_record_length = cg_len_u64
+                cgs[cg_idx].first_chan = total_chans
+                specs = []
+                for Channel in rec.values():
+                    cname = Channel.name
+                    if cname in vlsd_chan_names:
+                        continue
+                    chan_type = Channel._cn_type if Channel.type in (0, 1, 2) else Channel.channel_type(info)
+                    if chan_type in (3, 6):  # virtual channels generated later
+                        continue
+                    if channel_set is not None and cname not in channel_set:
+                        continue
+                    offset_in_rec = <uint32_t>(record_id_size + Channel.byteOffset)
+                    n_bytes = <uint32_t>Channel.nBytes_aligned
+                    if offset_in_rec + n_bytes > cg_len_u64:
+                        cgs[cg_idx].need_zero = 1
+                    specs.append((cname, Channel.data_format(info), offset_in_rec, n_bytes))
+                cgs[cg_idx].n_chans = len(specs)
+                total_chans += len(specs)
+                cg_chan_specs.append(specs)
+            cg_idx += 1
+
+        if total_chans > 0:
+            chans = <_UnsortedChan*>malloc(total_chans * sizeof(_UnsortedChan))
+            if chans == NULL:
+                raise MemoryError()
+            memset(chans, 0, total_chans * sizeof(_UnsortedChan))
+
+        # Pass 1: count records per CG & collect VLSD/VLSC offsets in C nogil
+        if bit_stream != NULL and effective_len > 0:
+            with nogil:
+                pos = 0
+                while pos + record_id_size <= effective_len:
+                    rec_id_u64 = _read_rec_id(&bit_stream[pos], record_id_size)
+                    cg_idx = _lookup_cg_idx(rec_id_u64, lut, cgs, n_cgs)
+                    if cg_idx < 0:
+                        err_flag = 1
+                        break
+                    if cgs[cg_idx].is_vlsd:
+                        if pos + record_id_size + 4 > effective_len:
+                            break
+                        memcpy(&vlsd_len, &bit_stream[pos + record_id_size], 4)
+                        payload_off = pos + record_id_size + 4
+                        if cgs[cg_idx].skip_vlsd == 0:
+                            plen = (vlsd_len - 1) if vlsd_len > 0 else 0
+                            if payload_off >= effective_len:
+                                plen = 0
+                            elif payload_off + plen > effective_len:
+                                plen = <uint32_t>(effective_len - payload_off)
+                            if cgs[cg_idx].count >= cgs[cg_idx].vlsd_cap:
+                                new_cap = cgs[cg_idx].vlsd_cap * 2 if cgs[cg_idx].vlsd_cap > 0 else 16
+                                grown = <_VlsdEntry*>realloc(cgs[cg_idx].vlsd_entries,
+                                                             new_cap * sizeof(_VlsdEntry))
+                                if grown == NULL:
+                                    err_flag = 2
+                                    break
+                                cgs[cg_idx].vlsd_entries = grown
+                                cgs[cg_idx].vlsd_cap = new_cap
+                            cgs[cg_idx].vlsd_entries[cgs[cg_idx].count].offset = payload_off
+                            cgs[cg_idx].vlsd_entries[cgs[cg_idx].count].length = plen
+                            if plen > cgs[cg_idx].max_payload_bytes:
+                                cgs[cg_idx].max_payload_bytes = plen
+                        cgs[cg_idx].count += 1
+                        pos = payload_off + vlsd_len
+                    else:
+                        if cgs[cg_idx].cg_record_length == 0:
+                            err_flag = 3
+                            break
+                        if pos + cgs[cg_idx].cg_record_length > effective_len:
+                            # Short tail record: needs pre-zeroed buffers for trailing bytes
+                            cgs[cg_idx].need_zero = 1
+                        cgs[cg_idx].count += 1
+                        pos += cgs[cg_idx].cg_record_length
+
+        if err_flag == 2:
+            raise MemoryError()
+        elif err_flag != 0:
+            raise ValueError(f'Corrupt unsorted MDF4 stream (code={err_flag}, pos={pos})')
+
+        # Allocate NumPy buffers directly in target dtype for fixed CGs
+        ch_flat_idx = 0
+        for i in range(n_cgs):
+            if cgs[i].is_vlsd:
+                continue
+            count = cgs[i].count
+            for cname, fmt, off_r, nb in cg_chan_specs[i]:
+                dt = np.dtype(fmt)
+                if dt.itemsize == nb:
+                    if cgs[i].need_zero:
+                        arr = np.zeros((count,), dtype=dt, order='C')
+                    else:
+                        arr = np.empty((count,), dtype=dt, order='C')
+                    buf[cname] = arr
+                else:
+                    if cgs[i].need_zero:
+                        arr = np.zeros((count,), dtype=f'V{nb}', order='C')
+                    else:
+                        arr = np.empty((count,), dtype=f'V{nb}', order='C')
+                    buf[cname] = arr
+                    post_view_list.append((cname, dt))
+                chans[ch_flat_idx].data_ptr = <char*>arr.data
+                chans[ch_flat_idx].stride = <uint32_t>arr.strides[0] if count > 1 else nb
+                chans[ch_flat_idx].offset_in_rec = off_r
+                chans[ch_flat_idx].n_bytes = nb
+                ch_flat_idx += 1
+
+        # Pass 2: scatter fixed-length CG channel payloads directly into NumPy arrays
+        if total_chans > 0 and bit_stream != NULL and effective_len > 0:
+            with nogil:
+                pos = 0
+                while pos + record_id_size <= effective_len:
+                    rec_id_u64 = _read_rec_id(&bit_stream[pos], record_id_size)
+                    cg_idx = _lookup_cg_idx(rec_id_u64, lut, cgs, n_cgs)
+                    if cg_idx < 0:
+                        break
+                    if cgs[cg_idx].is_vlsd:
+                        if pos + record_id_size + 4 > effective_len:
+                            break
+                        memcpy(&vlsd_len, &bit_stream[pos + record_id_size], 4)
+                        pos += record_id_size + 4 + vlsd_len
+                    else:
+                        w = cgs[cg_idx].write_idx
+                        if w < cgs[cg_idx].count:
+                            c_idx = cgs[cg_idx].first_chan
+                            c_end = c_idx + cgs[cg_idx].n_chans
+                            while c_idx < c_end:
+                                src_off = pos + chans[c_idx].offset_in_rec
+                                if src_off < effective_len:
+                                    avail = effective_len - src_off
+                                    copy_len = chans[c_idx].n_bytes if avail >= chans[c_idx].n_bytes else avail
+                                    if copy_len > 0:
+                                        memcpy(chans[c_idx].data_ptr + w * <uint64_t>chans[c_idx].stride,
+                                               &bit_stream[src_off], copy_len)
+                                c_idx += 1
+                            cgs[cg_idx].write_idx = w + 1
+                        pos += cgs[cg_idx].cg_record_length
+
+        for cname, dt in post_view_list:
+            buf[cname] = buf[cname].view(dtype=dt)
+
+        # Decode VLSD / VLSC channels directly into target NumPy arrays
+        for i in range(n_cgs):
+            if not cgs[i].is_vlsd or cgs[i].skip_vlsd:
+                continue
+            cname = vlsd_cg_names[i]
+            count = cgs[i].count
+            if count == 0:
+                buf[cname] = np.empty((0,), dtype='float64')
+                continue
+            sdt = cgs[i].vlsd_signal_data_type
+            entries = cgs[i].vlsd_entries
+
+            if sdt == 6:  # ISO-8859-1: each byte maps 1:1 to UCS-4 code point
+                width = cgs[i].max_payload_bytes if cgs[i].max_payload_bytes > 0 else 1
+                arr = np.zeros((count,), dtype=f'U{width}', order='C')
+                u32_ptr = <uint32_t*>arr.data
+                with nogil:
+                    for k in range(count):
+                        e_off = entries[k].offset
+                        e_len = entries[k].length
+                        for b_idx in range(e_len):
+                            u32_ptr[k * <uint64_t>width + b_idx] = <uint32_t>bit_stream[e_off + b_idx]
+                buf[cname] = arr
+            elif sdt == 7:  # UTF-8
+                has_non_ascii = 0
+                max_chars = 0
+                with nogil:
+                    for k in range(count):
+                        e_off = entries[k].offset
+                        e_len = entries[k].length
+                        cp = 0
+                        for b_idx in range(e_len):
+                            byte_val = bit_stream[e_off + b_idx]
+                            if byte_val >= 0x80:
+                                has_non_ascii = 1
+                            if (byte_val & 0xC0) != 0x80:
+                                cp += 1
+                        if cp > max_chars:
+                            max_chars = cp
+                width = <uint32_t>max_chars if max_chars > 0 else 1
+                arr = np.zeros((count,), dtype=f'U{width}', order='C')
+                u32_ptr = <uint32_t*>arr.data
+                if not has_non_ascii:
+                    with nogil:
+                        for k in range(count):
+                            e_off = entries[k].offset
+                            e_len = entries[k].length
+                            for b_idx in range(e_len):
+                                u32_ptr[k * <uint64_t>width + b_idx] = <uint32_t>bit_stream[e_off + b_idx]
+                else:
+                    for k in range(count):
+                        e_off = entries[k].offset
+                        e_len = entries[k].length
+                        entry_non_ascii = 0
+                        for b_idx in range(e_len):
+                            if bit_stream[e_off + b_idx] >= 0x80:
+                                entry_non_ascii = 1
+                                break
+                        if not entry_non_ascii:
+                            for b_idx in range(e_len):
+                                u32_ptr[k * <uint64_t>width + b_idx] = <uint32_t>bit_stream[e_off + b_idx]
+                        else:
+                            arr[k] = (<bytes>bit_stream[e_off:e_off + e_len]).decode('utf-8')
+                buf[cname] = arr
+            elif sdt in (8, 9):  # UTF-16 LE / BE
+                enc = '<utf-16' if sdt == 8 else '>utf-16'
+                buf[cname] = np.array([
+                    (<bytes>bit_stream[entries[k].offset:entries[k].offset + entries[k].length]).decode(enc)
+                    for k in range(count)
+                ])
+            else:  # raw byte array -> fixed-width |S{max_len}
+                width = cgs[i].max_payload_bytes if cgs[i].max_payload_bytes > 0 else 1
+                arr = np.zeros((count,), dtype=f'S{width}', order='C')
+                s_ptr = <char*>arr.data
+                with nogil:
+                    for k in range(count):
+                        e_len = entries[k].length
+                        if e_len > 0:
+                            memcpy(s_ptr + k * <uint64_t>width, &bit_stream[entries[k].offset], e_len)
+                buf[cname] = arr
+
+        return buf
+    finally:
+        if chans != NULL:
+            free(chans)
+        if cgs != NULL:
+            for i in range(n_cgs):
+                if cgs[i].vlsd_entries != NULL:
+                    free(cgs[i].vlsd_entries)
+            free(cgs)
 
 
 def sd_data_read(unsigned short signal_data_type, bytes sd_block,

@@ -237,6 +237,8 @@ class MdfSkeleton(dict):
             }
             if not compression:
                 channel_dict[dataField] = data
+            if identifier is not None:
+                channel_dict[idField] = identifier
             mlist = self.masterChannelList.get(master_channel)
             if mlist is None:
                 mlist = []
@@ -245,6 +247,8 @@ class MdfSkeleton(dict):
             self[channel_name] = channel_dict
         else:
             self.set_channel_data(channel_name, data, compression)
+            if identifier is not None:
+                self[channel_name][idField] = identifier
         if compression:
             self.set_channel_data(channel_name, data, compression)
         if conversion is not None:
@@ -274,7 +278,7 @@ class MdfSkeleton(dict):
                         'type': cc_type,
                         'parameters': params,
                     }
-        if info is not None:  # axis from CABlock
+        if info is not None and 'CABlock' in info:  # axis from CABlock
             ca_block = info
             axis = []
             while 'CABlock' in ca_block:
@@ -289,8 +293,6 @@ class MdfSkeleton(dict):
                     else:
                         axis = ca_block['ca_axis_value']
             self[channel_name]['axis'] = axis
-        if identifier is not None:
-            self[channel_name]['id'] = identifier
 
     def remove_channel(self, channel_name: str) -> Any:
         """ removes channel from mdf dict.

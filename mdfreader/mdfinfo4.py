@@ -40,7 +40,8 @@ Key classes
     channel-variant, channel-union).
 """
 from struct import calcsize, unpack, pack, Struct
-from os import remove
+import mmap
+from os import remove, fstat
 from warnings import warn
 from zlib import compress, decompress, decompressobj
 from numpy import zeros, array, append, frombuffer
@@ -649,7 +650,7 @@ class CommentBlock(dict):
                 try:
                     self['names'] = xml_tree.names.text
                 except AttributeError:
-                    warn('Could not parse CG block names tag')
+                    pass  # <names> element inside CGcomment is optional
             elif self['id'] in ('##TX', b'##TX'):
                 self['Comment'] = fid.read(
                     self['length'] - 24).rstrip(b'\x00').decode('UTF-8', 'ignore')
@@ -2037,21 +2038,36 @@ class Info4(dict):
         self._mmap = None
         self.filterChannelNames = filter_channel_names
         self.fileName = file_name
-        self.fid = None
+        self.zipfile = False
+        self.fid = fid
         if fid is None and file_name is not None:
             # Open file
             (self.fid, self.fileName, self.zipfile) = _open_mdf(self.fileName)
-        if self.fileName is not None and fid is None:
-            reader = _SymBufReader(self.fid) if _SYMBUF_AVAILABLE else self.fid
-            self.read_info(reader, minimal)
-            # Close the file
-            self.fid.close()
-            if self.zipfile:  # temporary uncompressed file, to be removed
-                remove(file_name)
-        elif self.fileName is None and fid is not None:
-            # called by mdfreader.mdfinfo
-            reader = _SymBufReader(fid) if _SYMBUF_AVAILABLE else fid
-            self.read_info(reader, minimal)
+        if self.fid is not None:
+            opened_mmap = False
+            if self._mmap is None and hasattr(self.fid, 'fileno'):
+                try:
+                    if fstat(self.fid.fileno()).st_size > 0:
+                        self._mmap = mmap.mmap(self.fid.fileno(), 0, access=mmap.ACCESS_COPY)
+                        opened_mmap = True
+                except Exception:
+                    self._mmap = None
+            try:
+                reader = _SymBufReader(self.fid) if _SYMBUF_AVAILABLE else self.fid
+                self.read_info(reader, minimal)
+            finally:
+                if fid is None or file_name is None:
+                    # Standalone Info4 / MdfInfo / no_data_loading: do not keep an open mapping
+                    if opened_mmap and self._mmap is not None:
+                        try:
+                            self._mmap.close()
+                        except Exception:
+                            pass
+                        self._mmap = None
+            if fid is None and self.fileName is not None:
+                self.fid.close()
+                if self.zipfile:  # temporary uncompressed file, to be removed
+                    remove(file_name)
 
     def read_info(self, fid, minimal):
         """ read all file blocks except data
@@ -2227,6 +2243,158 @@ class Info4(dict):
 
         return vlsd_cg_block
 
+    def _read_cn_composition_chain(self, fid, source, ptr, dg, cg, mlsd_channels, vlsd, minimal,
+                                   channel_name_list, master_key, master, master_channels,
+                                   by_dg, all_list, filter_names):
+        """Read a nested CN chain (from ##CN / ##DS / ##CL composition) using fast path when possible."""
+        comp_results = _read_cn_chain_fast(source, ptr, self._si_cache, minimal, channel_name_list)
+        if comp_results is not None:
+            return self._process_fast_cn_results(
+                fid, source, comp_results, dg, cg, mlsd_channels, vlsd, minimal,
+                channel_name_list, master_key, master, master_channels,
+                by_dg, all_list, filter_names)
+        cn_c, mlsd_channels, vlsd = self.read_cn_block(
+            fid, ptr, dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+        while self['CN'][dg][cg][cn_c]['cn_cn_next']:
+            cn_c, mlsd_channels, vlsd = self.read_cn_block(
+                fid, self['CN'][dg][cg][cn_c]['cn_cn_next'],
+                dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
+        return vlsd
+
+    def _process_fast_cn_results(self, fid, source, results, dg, cg, mlsd_channels, vlsd, minimal,
+                                 channel_name_list, master_key, master, master_channels,
+                                 by_dg, all_list, filter_names):
+        """Populate CN/CC/master metadata from read_cn_chain_fast() results."""
+        cn_group = self['CN'][dg][cg]
+        cc_group = self['CC'][dg][cg]
+
+        for cn, cn_dict, cc_dict in results:
+            cn_group[cn] = cn_dict
+            cc_group[cn] = cc_dict
+
+            if cn_dict['cn_type'] == 5:
+                mlsd_channels.append(cn)
+
+            if cc_dict.get('_needs_completion'):
+                full_cc = CCBlock()
+                full_cc.read_cc(fid, cn_dict['cn_cc_conversion'])
+                cc_group[cn] = full_cc
+
+            if not channel_name_list:
+                orig_name = cn_dict['name']
+                cn_dict['orig_name'] = orig_name
+                name = orig_name
+                if name in by_dg:
+                    si_dict = cn_dict.get('SI')
+                    if si_dict and si_dict.get('si_tx_name', 0) > 0:
+                        source_name = si_dict['source_name']['Comment']
+                    else:
+                        source_name = cn
+                    name = f'{name}_{dg}_{cg}_{source_name}'
+                elif name in all_list:
+                    si_dict = cn_dict.get('SI')
+                    if si_dict and si_dict.get('si_tx_name', 0) > 0:
+                        source_name = si_dict['source_name']['Comment']
+                    else:
+                        source_name = dg
+                    name = f'{name}_{dg}_{source_name}'
+                by_dg.add(name)
+                all_list.add(name)
+
+                master_channels.add(name)
+                if cn_dict['cn_type'] in (2, 3):
+                    master['name'] = name
+                    master['id'] = (dg, cg)
+                cn_dict['masterCG'] = master_key
+
+                if filter_names:
+                    name = name.split('.')[-1]
+                cn_dict['name'] = name
+
+                comp_ptr = cn_dict['cn_composition']
+                if comp_ptr:
+                    if isinstance(source, mmap.mmap) and comp_ptr + 4 <= len(source):
+                        block_id = source[comp_ptr:comp_ptr + 4]
+                    else:
+                        fid.seek(comp_ptr)
+                        block_id = fid.read(4)
+                    if block_id in ('##CA', b'##CA'):
+                        cn_dict['CABlock'] = CABlock()
+                        cn_dict['CABlock'].read(fid, comp_ptr)
+                    elif block_id in ('##CN', b'##CN'):
+                        cn_next_upper = cn_dict['cn_cn_next']
+                        vlsd = self._read_cn_composition_chain(
+                            fid, source, comp_ptr, dg, cg, mlsd_channels, vlsd, minimal,
+                            channel_name_list, master_key, master, master_channels,
+                            by_dg, all_list, filter_names)
+                        cn_dict['cn_cn_next'] = cn_next_upper
+                    elif block_id in (b'##DS',):
+                        block = DSBlock()
+                        block.read(fid, comp_ptr)
+                        cn_dict['DSBlock'] = block
+                        if block['ds_cn_composition']:
+                            vlsd = self._read_cn_composition_chain(
+                                fid, source, block['ds_cn_composition'], dg, cg, mlsd_channels, vlsd, minimal,
+                                channel_name_list, master_key, master, master_channels,
+                                by_dg, all_list, filter_names)
+                    elif block_id in (b'##CL',):
+                        block = CLBlock()
+                        block.read(fid, comp_ptr)
+                        cn_dict['CLBlock'] = block
+                        if block['cl_composition']:
+                            vlsd = self._read_cn_composition_chain(
+                                fid, source, block['cl_composition'], dg, cg, mlsd_channels, vlsd, minimal,
+                                channel_name_list, master_key, master, master_channels,
+                                by_dg, all_list, filter_names)
+                    elif block_id in (b'##CV',):
+                        block = CVBlock()
+                        block.read(fid, comp_ptr)
+                        cn_dict['CVBlock'] = block
+                        for ptr in ([block['cv_cn_discriminator']] + block['cv_cn_option']):
+                            if ptr:
+                                self.read_cn_block(fid, ptr, dg, cg,
+                                                   mlsd_channels, vlsd, minimal,
+                                                   channel_name_list, use_negative_key=True)
+                    elif block_id in (b'##CU',):
+                        block = CUBlock()
+                        block.read(fid, comp_ptr)
+                        cn_dict['CUBlock'] = block
+                        for ptr in block['cu_cn_member']:
+                            if ptr:
+                                self.read_cn_block(fid, ptr, dg, cg,
+                                                   mlsd_channels, vlsd, minimal,
+                                                   channel_name_list, use_negative_key=True)
+
+                if cn_dict['cn_data']:
+                    if isinstance(source, mmap.mmap) and cn_dict['cn_data'] + 4 <= len(source):
+                        data_id = source[cn_dict['cn_data']:cn_dict['cn_data'] + 4]
+                    else:
+                        fid.seek(cn_dict['cn_data'])
+                        data_id = fid.read(4)
+                    if cn_dict['cn_type'] == 1:
+                        if data_id in ('##SD', b'##SD', '##DZ', b'##DZ',
+                                       '##DL', b'##DL', '##HL', b'##HL'):
+                            try:
+                                self['VLSD'][dg][cg].append(cn)
+                            except KeyError:
+                                if 'VLSD' not in self:
+                                    self['VLSD'] = {}
+                                if dg not in self['VLSD']:
+                                    self['VLSD'][dg] = {}
+                                if cg not in self['VLSD'][dg]:
+                                    self['VLSD'][dg][cg] = []
+                                self['VLSD'][dg][cg].append(cn)
+                    elif cn_dict['cn_type'] == 7:
+                        extra_links = cn_dict.get('cn_default_x')
+                        if extra_links:
+                            size_link = extra_links[0] if isinstance(extra_links, list) else extra_links
+                            cn_dict['cn_cn_size'] = size_link
+                        cn_dict['VLSC'] = True
+                    if not minimal and data_id in ('##EV', b'##EV'):
+                        cn_dict['cn_data'] = self.read_ev_block(
+                            fid, cn_dict['cn_data'])
+        return vlsd
+
     def read_cn_blocks(self, fid, dg, cg, channel_name_list=False, minimal=0):
         """reads Channel blocks link to CG Block
 
@@ -2267,9 +2435,13 @@ class Info4(dict):
             if results is not None:
                 cg_dict = self['CG'][dg][cg]
                 cg_dict['unique_channel_in_CG'] = (len(results) == 1)
-                cn_group = self['CN'][dg][cg]
-                cc_group = self['CC'][dg][cg]
 
+                master_key = None
+                master = None
+                master_channels = None
+                by_dg = None
+                all_list = None
+                filter_names = self.filterChannelNames
                 if not channel_name_list:
                     # Pre-resolve master once per channel group
                     if cg_dict['link_count'] > 6:
@@ -2286,143 +2458,11 @@ class Info4(dict):
                     master_channels = master['channels']
                     by_dg = self['ChannelNamesByDG'][dg]
                     all_list = self['allChannelList']
-                    filter_names = self.filterChannelNames
 
-                # Process channel(s)
-                for cn, cn_dict, cc_dict in results:
-                    cn_group[cn] = cn_dict
-                    cc_group[cn] = cc_dict
-
-                    # Track MLSD channels
-                    if cn_dict['cn_type'] == 5:
-                        mlsd_channels.append(cn)
-
-                    # Complete CC blocks for complex conversion types
-                    if cc_dict.get('_needs_completion'):
-                        full_cc = CCBlock()
-                        full_cc.read_cc(fid, cn_dict['cn_cc_conversion'])
-                        cc_group[cn] = full_cc
-
-                    if not channel_name_list:
-                        # Make channel name unique
-                        orig_name = cn_dict['name']
-                        cn_dict['orig_name'] = orig_name
-                        name = orig_name
-                        if name in by_dg:
-                            si_dict = cn_dict.get('SI')
-                            if si_dict and si_dict.get('si_tx_name', 0) > 0:
-                                source_name = si_dict['source_name']['Comment']
-                            else:
-                                source_name = cn
-                            name = f'{name}_{dg}_{cg}_{source_name}'
-                        elif name in all_list:
-                            si_dict = cn_dict.get('SI')
-                            if si_dict and si_dict.get('si_tx_name', 0) > 0:
-                                source_name = si_dict['source_name']['Comment']
-                            else:
-                                source_name = dg
-                            name = f'{name}_{dg}_{source_name}'
-                        by_dg.add(name)
-                        all_list.add(name)
-
-                        master_channels.add(name)
-                        if cn_dict['cn_type'] in (2, 3):
-                            master['name'] = name
-                            master['id'] = (dg, cg)
-                        cn_dict['masterCG'] = master_key
-
-                        if filter_names:
-                            name = name.split('.')[-1]
-                        cn_dict['name'] = name
-
-                        # Handle composition blocks (CA, CN, DS, CL, CV, CU)
-                        if cn_dict['cn_composition']:
-                            fid.seek(cn_dict['cn_composition'])
-                            block_id = fid.read(4)
-                            if block_id in ('##CA', b'##CA'):
-                                cn_dict['CABlock'] = CABlock()
-                                cn_dict['CABlock'].read(fid, cn_dict['cn_composition'])
-                            elif block_id in ('##CN', b'##CN'):
-                                cn_upper = cn
-                                cn_next_upper = cn_dict['cn_cn_next']
-                                cn_c, mlsd_channels, vlsd = self.read_cn_block(
-                                    fid, cn_dict['cn_composition'], dg, cg,
-                                    mlsd_channels, vlsd, minimal, channel_name_list)
-                                while self['CN'][dg][cg][cn_c]['cn_cn_next']:
-                                    cn_c, mlsd_channels, vlsd = self.read_cn_block(
-                                        fid, self['CN'][dg][cg][cn_c]['cn_cn_next'],
-                                        dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
-                                # Restore upper node
-                                cn_dict['cn_cn_next'] = cn_next_upper
-                            elif block_id in (b'##DS',):
-                                block = DSBlock()
-                                block.read(fid, cn_dict['cn_composition'])
-                                cn_dict['DSBlock'] = block
-                                if block['ds_cn_composition']:
-                                    cn_c, mlsd_channels, vlsd = self.read_cn_block(
-                                        fid, block['ds_cn_composition'], dg, cg,
-                                        mlsd_channels, vlsd, minimal, channel_name_list)
-                                    while self['CN'][dg][cg][cn_c]['cn_cn_next']:
-                                        cn_c, mlsd_channels, vlsd = self.read_cn_block(
-                                            fid, self['CN'][dg][cg][cn_c]['cn_cn_next'],
-                                            dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
-                            elif block_id in (b'##CL',):
-                                block = CLBlock()
-                                block.read(fid, cn_dict['cn_composition'])
-                                cn_dict['CLBlock'] = block
-                                if block['cl_composition']:
-                                    cn_c, mlsd_channels, vlsd = self.read_cn_block(
-                                        fid, block['cl_composition'], dg, cg,
-                                        mlsd_channels, vlsd, minimal, channel_name_list)
-                                    while self['CN'][dg][cg][cn_c]['cn_cn_next']:
-                                        cn_c, mlsd_channels, vlsd = self.read_cn_block(
-                                            fid, self['CN'][dg][cg][cn_c]['cn_cn_next'],
-                                            dg, cg, mlsd_channels, vlsd, minimal, channel_name_list)
-                            elif block_id in (b'##CV',):
-                                block = CVBlock()
-                                block.read(fid, cn_dict['cn_composition'])
-                                cn_dict['CVBlock'] = block
-                                for ptr in ([block['cv_cn_discriminator']] + block['cv_cn_option']):
-                                    if ptr:
-                                        self.read_cn_block(fid, ptr, dg, cg,
-                                                           mlsd_channels, vlsd, minimal,
-                                                           channel_name_list, use_negative_key=True)
-                            elif block_id in (b'##CU',):
-                                block = CUBlock()
-                                block.read(fid, cn_dict['cn_composition'])
-                                cn_dict['CUBlock'] = block
-                                for ptr in block['cu_cn_member']:
-                                    if ptr:
-                                        self.read_cn_block(fid, ptr, dg, cg,
-                                                           mlsd_channels, vlsd, minimal,
-                                                           channel_name_list, use_negative_key=True)
-
-                        # Handle VLSD / MLSD / VLSC via cn_data
-                        if cn_dict['cn_data']:
-                            fid.seek(cn_dict['cn_data'])
-                            data_id = fid.read(4)
-                            if cn_dict['cn_type'] == 1:
-                                if data_id in ('##SD', b'##SD', '##DZ', b'##DZ',
-                                               '##DL', b'##DL', '##HL', b'##HL'):
-                                    try:
-                                        self['VLSD'][dg][cg].append(cn)
-                                    except KeyError:
-                                        if 'VLSD' not in self:
-                                            self['VLSD'] = {}
-                                        if dg not in self['VLSD']:
-                                            self['VLSD'][dg] = {}
-                                        if cg not in self['VLSD'][dg]:
-                                            self['VLSD'][dg][cg] = []
-                                        self['VLSD'][dg][cg].append(cn)
-                            elif cn_dict['cn_type'] == 7:
-                                extra_links = cn_dict.get('cn_default_x')
-                                if extra_links:
-                                    size_link = extra_links[0] if isinstance(extra_links, list) else extra_links
-                                    cn_dict['cn_cn_size'] = size_link
-                                cn_dict['VLSC'] = True
-                            if not minimal and data_id in ('##EV', b'##EV'):
-                                cn_dict['cn_data'] = self.read_ev_block(
-                                    fid, cn_dict['cn_data'])
+                vlsd = self._process_fast_cn_results(
+                    fid, source, results, dg, cg, mlsd_channels, vlsd, minimal,
+                    channel_name_list, master_key, master, master_channels,
+                    by_dg, all_list, filter_names)
 
                 # MLSD cross-reference
                 if mlsd_channels:

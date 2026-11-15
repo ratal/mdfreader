@@ -56,6 +56,8 @@ except ImportError:
 # reads by chunk of 100Mb, can be tuned for best performance
 chunk_size_reading = 100000000
 _VLSDStruct = Struct('I')
+_RECORD_ID_STRUCTS = {1: Struct('B'), 2: Struct('H'), 4: Struct('I'), 8: Struct('Q')}
+_RECORD_ID_FORMATS = {1: 'uint8', 2: 'uint16', 4: 'uint32', 8: 'uint64'}
 
 # Module-level frozensets for O(1) block ID membership checks (used in hot paths)
 _DATA_BLOCK_IDS = frozenset((b'##DT', b'##DV', b'##RD', b'##DI', b'##RV', b'##RI',
@@ -117,7 +119,8 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
             else:  # record is not byte aligned or channelSet not None
                 return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
-            return _read_unsorted(record, info, parent_block, record[next(iter(record))]['record'].recordIDsize)
+            return _read_unsorted(record, info, parent_block, record[next(iter(record))]['record'].recordIDsize,
+                                  channel_set=channel_set)
 
     elif parent_block['id'] in _SD_BLOCK_IDS:
         return _read_sd_block(record[record.VLSD[0]].signal_data_type(info), parent_block['data'],
@@ -141,7 +144,8 @@ def _data_block(record, info, parent_block, channel_set=None, n_records=None, so
         elif channel_set is not None and sorted_flag:  # sorted data but channel list requested
             return record.read_channels_from_bytes(parent_block['data'], info, channel_set, n_records)
         else:  # unsorted reading
-            return _read_unsorted(record, info, parent_block, record[next(iter(record))]['record'].recordIDsize)
+            return _read_unsorted(record, info, parent_block, record[next(iter(record))]['record'].recordIDsize,
+                                  channel_set=channel_set)
     elif parent_block['id'] in _DI_BLOCK_IDS:  # Invalid data block
         return frombuffer(parent_block['data'], dtype={'names': [record.invalid_channel.name],
                                                        'formats': [record.invalid_channel.data_format(info)]})
@@ -174,21 +178,31 @@ def _apply_unsorted_bit_masking(buf, record, info):
             temp = buf[name]
             if temp.dtype.kind not in ('u', 'i'):
                 continue
-            if bit_offset > 0:
-                temp = right_shift(temp, bit_offset)
             mask = int((1 << bit_count) - 1)
-            temp = bitwise_and(temp, mask)
+            if temp.dtype.isnative:
+                if bit_offset > 0:
+                    right_shift(temp, bit_offset, out=temp)
+                bitwise_and(temp, mask, out=temp)
+            else:
+                if bit_offset > 0:
+                    temp = right_shift(temp, bit_offset)
+                temp = bitwise_and(temp, mask)
             if sig_dt in (2, 3):  # signed: sign-extend from bit_count-1
                 sign_bit_mask = 1 << (bit_count - 1)
                 sign_extend = ((1 << (temp.itemsize * 8 - bit_count)) - 1) << bit_count
                 temp_u = temp.view('u{}'.format(temp.itemsize))
-                negative = bitwise_and(temp_u, sign_bit_mask).astype(bool)
-                temp_u = where(negative, bitwise_or(temp_u, sign_extend), temp_u)
+                if temp_u.ndim > 0:
+                    neg_mask = bitwise_and(temp_u, sign_bit_mask) != 0
+                    if neg_mask.any():
+                        temp_u[neg_mask] |= sign_extend
+                else:
+                    negative = bitwise_and(temp_u, sign_bit_mask).astype(bool)
+                    temp_u = where(negative, bitwise_or(temp_u, sign_extend), temp_u)
                 temp = temp_u.view(temp.dtype)
             buf[name] = temp
 
 
-def _read_unsorted(record, info, parent_block, record_id_size):
+def _read_unsorted(record, info, parent_block, record_id_size, channel_set=None):
     """ reads only the channels using offset functions, channel by channel within unsorted data
 
     Parameters
@@ -201,6 +215,8 @@ def _read_unsorted(record, info, parent_block, record_id_size):
         MDFBlock class containing at least parent block header
     record_id_size : int
         Size of recordId
+    channel_set : set, optional
+        Optional set of channel names to read
 
     Returns
     --------
@@ -210,7 +226,9 @@ def _read_unsorted(record, info, parent_block, record_id_size):
     data_block_length = parent_block['length'] - 24
     if dataRead_available:
         try:
-            buf = unsorted_data_read4(record, info, bytes(parent_block['data']), record_id_size, data_block_length)
+            buf = unsorted_data_read4(record, info, parent_block['data'],
+                                      record_id_size, data_block_length,
+                                      channel_set=channel_set)
             _apply_unsorted_bit_masking(buf, record, info)
             return buf
         except Exception as e:
@@ -754,7 +772,8 @@ class Data(dict):
             for recordID in self:
                 self[recordID]['data'] = {}
                 for channel in self[recordID]['record'].values():
-                    self[recordID]['data'][channel.name] = data[channel.name]
+                    if channel.name in data:
+                        self[recordID]['data'][channel.name] = data[channel.name]
 
     def load(self, record, info, name_list=None, sorted_flag=True, vlsd=None):
         """Reads data block from record definition
@@ -867,10 +886,23 @@ class Data(dict):
             if sorted_flag:  # normal sorted data block, direct read
                 temps['data'] = record.read_sorted_record(
                     self.fid, info, channel_set=name_list)
-            else:  # VLSD_CG
-                temps['data'] = self.fid.read(temps['length'] - 24)
-                temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,
-                                            sorted_flag=sorted_flag)
+            else:  # unsorted data block (DT/RD)
+                data_len = temps['length'] - 24
+                mm = getattr(info, '_mmap', None)
+                mv = None
+                if mm is not None and hasattr(self.fid, 'fileno'):
+                    mm_pos = self.fid.tell()
+                    if mm_pos + data_len <= len(mm):
+                        mv = memoryview(mm)[mm_pos:mm_pos + data_len]
+                try:
+                    temps['data'] = mv if mv is not None else self.fid.read(data_len)
+                    temps['data'] = _data_block(
+                        record, info, parent_block=temps,
+                        channel_set=name_list, n_records=None,
+                        sorted_flag=sorted_flag)
+                finally:
+                    if mv is not None:
+                        mv.release()
         elif temps['id'] in _SD_BLOCK_IDS:  # VLSD, not CG
             temps['data'] = self.fid.read(temps['length'] - 24)
             temps['data'] = _data_block(record, info, parent_block=temps, channel_set=name_list, n_records=None,
@@ -1107,26 +1139,12 @@ class Record(dict):
         self.recordIDsize = info['DG'][self.dataGroup]['dg_rec_id_size']
         if not self.recordIDsize == 0:  # no record ID
             self.dataRecordName.append('RecordID{}'.format(self.channelGroup))
-            if self.recordIDsize == 1:
-                self.numpyDataRecordFormat.append('uint8')
-                self.recordIDCFormat = Struct('B')
-                self.recordLength += 1
-                self.CGrecordLength += 1
-            elif self.recordIDsize == 2:
-                self.numpyDataRecordFormat.append('uint16')
-                self.recordIDCFormat = Struct('H')
-                self.recordLength += 2
-                self.CGrecordLength += 2
-            elif self.recordIDsize == 4:
-                self.numpyDataRecordFormat.append('uint32')
-                self.recordIDCFormat = Struct('I')
-                self.recordLength += 4
-                self.CGrecordLength += 4
-            elif self.recordIDsize == 8:
-                self.numpyDataRecordFormat.append('uint64')
-                self.recordIDCFormat = Struct('L')
-                self.recordLength += 8
-                self.CGrecordLength += 8
+            rec_id_sz = self.recordIDsize
+            if rec_id_sz in _RECORD_ID_FORMATS:
+                self.numpyDataRecordFormat.append(_RECORD_ID_FORMATS[rec_id_sz])
+                self.recordIDCFormat = _RECORD_ID_STRUCTS[rec_id_sz]
+                self.recordLength += rec_id_sz
+                self.CGrecordLength += rec_id_sz
         self.recordID = info['CG'][self.dataGroup][self.channelGroup]['cg_record_id']
         self.numberOfRecords = info['CG'][self.dataGroup][self.channelGroup]['cg_cycle_count']
         self.Flags = info['CG'][self.dataGroup][self.channelGroup]['cg_flags']
@@ -1174,7 +1192,7 @@ class Record(dict):
         embedding_channel = None
         embedding_channel_pos_bit_end = 0
         rec_id_size = self.recordIDsize
-        prev_chan = Channel4(self.dataGroup, self.channelGroup, 0)
+        prev_chan = None
         cn_dict_group = info['CN'][self.dataGroup][self.channelGroup]
         for channelNumber in sorted(cn_dict_group.keys()):
             cn_info = cn_dict_group[channelNumber]
@@ -1228,7 +1246,7 @@ class Record(dict):
                         self[channelNumber] = channel
                         self.channelNames.add(channel.name)
                         # Checking if several channels are embedded in bytes
-                        if len(self) > 1:
+                        if prev_chan is not None and len(self) > 1:
                             # all channels are already ordered in record based on byte_offset
                             # and bit_offset so just comparing with previous channel
                             channel_pos_bit_end = channel.pos_bit_beg + channel._cn_bit_count
@@ -1849,7 +1867,8 @@ class Mdf4(MdfSkeleton):
         # Read information block from file
         if info is None:
             if self.info is None:
-                info = Info4(self.fileName, None,
+                fid_arg = self.fid if (self.fid is not None and not self.fid.closed) else None
+                info = Info4(self.fileName, fid_arg,
                              filter_channel_names=filter_channel_names, minimal=minimal)
             else:
                 info = self.info
@@ -1971,8 +1990,9 @@ class Mdf4(MdfSkeleton):
                                           for channel in channel_list]
 
                     # processing data from buf then transfer to self
+                    buf_is_unsorted = (buf.type == 'unsorted')
                     for record_id in channel_groups:  # for each channel group in data block
-                        if 'record' in buf[record_id]:
+                        if 'record' in buf[record_id] and buf[record_id]['record']:
                             master_channel = buf[record_id]['record'].master
                             cg_dict = info['CG'][buf[record_id]['record'].dataGroup].get(buf[record_id]['record'].channelGroup, {})
                             acq_name = cg_dict.get('acq_name')
@@ -2009,7 +2029,7 @@ class Mdf4(MdfSkeleton):
                                         # not virtual channel
                                         if chan_type not in (3, 6):
                                             # in case record is used for several channels
-                                            if channel_set is None and not rec_hidden_bytes and rec_byte_aligned:
+                                            if not buf_is_unsorted and channel_set is None and not rec_hidden_bytes and rec_byte_aligned:
                                                 record_name = rec_matching[chan_name]
                                             else:
                                                 record_name = chan_name
@@ -2029,7 +2049,7 @@ class Mdf4(MdfSkeleton):
 
                                         # Process concatenated bits inside uint8
                                         bit_count = chan._cn_bit_count if chan.type in (0, 1, 2) else chan.bit_count(info)
-                                        if rec_byte_aligned and not rec_hidden_bytes and \
+                                        if not buf_is_unsorted and rec_byte_aligned and not rec_hidden_bytes and \
                                                 channel_set is None and \
                                                 0 < bit_count < 64 and bit_count not in (8, 16, 32) \
                                                 and temp is not None \
@@ -2989,6 +3009,10 @@ def _linear_conversion(vector, cc_val):
     p2 = cc_val[1]
     if p2 == 1.0 and p1 in (0.0, -0.0):
         return vector  # keeps dtype probably more compact than float64
+    elif vector.dtype == np.float64 and vector.flags.writeable:
+        vector *= p2
+        vector += p1
+        return vector
     else:
         res = vector * p2
         res += p1
