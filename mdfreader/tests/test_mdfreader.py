@@ -540,12 +540,30 @@ def test_compare_mdfr(mdf_file, mdfr_module):
                             if _max_neg > 100 * _max_py:
                                 info_notes.append(f'SIGN {ch}: mdfr_neg={_max_neg:.2e} >> py_max={_max_py:.2e} — mdfr bit-extraction error, skipped')
                                 continue
-                        if not np.allclose(py_f, rs_f, rtol=1e-5, atol=1e-8, equal_nan=True):
-                            max_diff = np.max(np.abs(py_f - rs_f))
+                        py_mask = np.ma.getmaskarray(py_data)
+                        rs_mask = np.ma.getmaskarray(rs_data)
+                        py_has_mask = bool(np.any(py_mask))
+                        rs_has_mask = bool(np.any(rs_mask))
+                        if (py_has_mask or rs_has_mask) and not np.array_equal(py_mask, rs_mask):
+                            n_diff = int(np.sum(np.logical_xor(py_mask, rs_mask)))
                             if _is_naming_disambiguation(ch):
-                                info_notes.append(f'NAMING {ch}: max abs diff = {max_diff:.3e} (disambiguation)')
+                                info_notes.append(f'NAMING {ch}: mask mismatch ({n_diff} samples, disambiguation)')
                             else:
-                                data_mismatches.append(f'{ch}: max abs diff = {max_diff:.3e}')
+                                data_mismatches.append(f'{ch}: mask mismatch ({n_diff} samples)')
+                        else:
+                            if py_has_mask:
+                                valid = ~py_mask
+                                py_vals = np.asarray(py_f.data if hasattr(py_f, 'data') else py_f)[valid]
+                                rs_vals = np.asarray(rs_f.data if hasattr(rs_f, 'data') else rs_f)[valid]
+                            else:
+                                py_vals = np.asarray(py_f)
+                                rs_vals = np.asarray(rs_f)
+                            if len(py_vals) > 0 and not np.allclose(py_vals, rs_vals, rtol=1e-5, atol=1e-8, equal_nan=True):
+                                max_diff = float(np.max(np.abs(py_vals - rs_vals)))
+                                if _is_naming_disambiguation(ch):
+                                    info_notes.append(f'NAMING {ch}: max abs diff = {max_diff:.3e} (disambiguation)')
+                                else:
+                                    data_mismatches.append(f'{ch}: max abs diff = {max_diff:.3e}')
                     except Exception as exc:
                         data_mismatches.append(f'{ch}: comparison error: {exc}')
         # Unit comparison — normalize mdfr's "None" string to ""

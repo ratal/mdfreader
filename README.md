@@ -46,7 +46,7 @@ For each channel `mdf[channelName]` the following keys exist:
 
 | Key | Description |
 |-----|-------------|
-| `data` | numpy array of channel values |
+| `data` | numpy array (`numpy.ma.MaskedArray` if MDF4 invalid samples are present) |
 | `unit` | unit string |
 | `master` | name of the master (time/angle/…) channel |
 | `masterType` | master channel type: 0=None, 1=Time, 2=Angle, 3=Distance, 4=Index |
@@ -213,6 +213,13 @@ Command example in ipython:
     yop.write3()  # write mdf version 3 file
     yop.attachments  # to get attachments, embedded or paths to files 
 ```
+
+Release Notes (v4.8 — Breaking Change):
+======================================
+> **Warning (Breaking API Change in 4.8):**
+> MDF4 channels with invalidation bits or `ALL_INVALID` flags now automatically return `numpy.ma.MaskedArray` when at least one sample is invalid (plain `numpy.ndarray` is kept when zero samples are masked).
+> The manual invalidation methods `apply_invalid_bit()`, `apply_all_invalid_bit()`, and `get_invalid_mask()`, as well as synthetic `invalid_bytes*` channels in the `Mdf` dict, have been removed. `resample()` also filters out masked samples before interpolating.
+
 <a href="https://scan.coverity.com/projects/ratal-mdfreader">
   <img alt="Coverity Scan Build Status"
        src="https://scan.coverity.com/projects/21368/badge.svg"/>

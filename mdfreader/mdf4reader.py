@@ -43,8 +43,8 @@ from warnings import simplefilter, warn
 from .mdfinfo4 import Info4, IDBlock, HDBlock, DGBlock, \
     CGBlock, CNBlock, FHBlock, CommentBlock, _load_header, DLBlock, \
     DZBlock, HLBlock, CCBlock, DTBlock, CABlock, DVBlock, LDBlock
-from .mdf import MdfSkeleton, _open_mdf, invalidChannel, dataField, \
-    conversionField, idField, invalidPosField, CompressedData
+from .mdf import MdfSkeleton, _open_mdf, dataField, \
+    conversionField, idField, CompressedData
 from .channel import Channel4
 try:
     from .dataRead import sorted_data_read, unsorted_data_read4, sd_data_read, vd_data_read
@@ -192,6 +192,37 @@ def _mask_integer_bits(temp, sig_dt, bit_count, bit_offset, in_place=True):
             temp_u = where(negative, bitwise_or(temp_u, sign_extend), temp_u)
         return temp_u.view(f'i{itemsize}')
     return temp_u
+
+
+def _normalize_invalid_bytes(invalid_data):
+    """Convert raw invalidation byte buffer (structured, void, or uint8) to 2D uint8 (N, nbytes)."""
+    if invalid_data is None:
+        return None
+    if invalid_data.dtype.names:
+        invalid_data = invalid_data[invalid_data.dtype.names[0]]
+    n_bytes = invalid_data.dtype.itemsize
+    if len(invalid_data) == 0 or n_bytes == 0:
+        return None
+    if invalid_data.dtype == np.uint8 and invalid_data.ndim == 2:
+        return invalid_data
+    return np.ascontiguousarray(invalid_data).view('u1').reshape(len(invalid_data), n_bytes)
+
+
+def _extract_invalid_mask(invalid_u1, invalid_bit_pos, cn_flags, n_records):
+    """Return boolean mask of invalid samples for a channel, or None if all samples are valid."""
+    if n_records == 0:
+        return None
+    if cn_flags & 0b01:  # CN_F_ALL_INVALID: every sample is invalid
+        return np.ones(n_records, dtype=bool)
+    if not (cn_flags & 0b10) or invalid_u1 is None:
+        return None
+    if not isinstance(invalid_bit_pos, int) or isinstance(invalid_bit_pos, bool) or invalid_bit_pos < 0:
+        return None
+    invalid_byte = invalid_bit_pos >> 3
+    if invalid_byte >= invalid_u1.shape[1]:
+        return None
+    mask = (invalid_u1[:, invalid_byte] & (1 << (invalid_bit_pos & 0x07))) != 0
+    return mask if mask.any() else None
 
 
 def _apply_ca_inverse_layout(temp, cn_info):
@@ -1212,7 +1243,7 @@ class Record(dict):
             self.MLSD = info['MLSD']
         self.unique_channel_in_DG = info['DG'][self.dataGroup]['unique_channel_in_DG']
 
-        if self.unique_channel_in_DG:
+        if self.unique_channel_in_DG and not info['CG'][self.dataGroup][self.channelGroup]['cg_invalid_bytes']:
             cn_dict = info['CN'][self.dataGroup][self.channelGroup]
             if len(cn_dict) == 1:
                 channelNumber, cn_info = next(iter(cn_dict.items()))
@@ -1614,12 +1645,14 @@ class Record(dict):
             names = []
             channels_indexes = []
             for chan in self:
-                if self[chan].name in channel_set and self[chan].channel_type(info) not in (3, 6) \
-                        and chan not in self.DS:
-                    # not virtual channel, not data stream channel, and part of channelSet
+                ch = self[chan]
+                if ch.name in channel_set and ch.channel_type(info) not in (3, 6) \
+                        and chan not in self.DS \
+                        and not (ch.type == 4 and ch.byteOffset + ch.nBytes_aligned > self.CGrecordLength - self.recordIDsize):
+                    # not virtual channel, not data stream channel, not out-of-record LD invalidation channel
                     channels_indexes.append(chan)
-                    formats.append(self[chan].native_data_format(info))
-                    names.append(self[chan].name)
+                    formats.append(ch.native_data_format(info))
+                    names.append(ch.name)
             if formats:
                 rec = zeros(n_records, dtype={
                                'names': names, 'formats': formats})
@@ -1850,8 +1883,6 @@ class Mdf4(MdfSkeleton):
         Converts all channels from raw data to converted data according to CCBlock information
     write4(file_name=None, compression=False)
         writes mdf 4.1 file
-    apply_invalid_bit(channel_name)
-        mask data from invalid bit channel if existing
     get_channel_name_4(name, path)
         returns a list of tuples
     """
@@ -1992,7 +2023,7 @@ class Mdf4(MdfSkeleton):
                            for channel in channel_list]
 
         for dataGroup in data_groups:
-            channel_set = channel_set_file
+            channel_set = set(channel_set_file) if channel_set_file is not None else None
             if not info['DG'][dataGroup]['dg_data'] == 0 and \
                     (channel_set is None or
                      len(channel_set & info['ChannelNamesByDG'][dataGroup]) > 0):  # there is data block and channel in
@@ -2041,6 +2072,12 @@ class Mdf4(MdfSkeleton):
                     else:
                         buf = self.info['DG'][dataGroup]['dataClass']
 
+                    if channel_set is not None:
+                        for rec_entry in buf.values():
+                            rec_i = rec_entry.get('record')
+                            if rec_i is not None and rec_i.invalid_channel is not None and rec_i.channelNames:
+                                channel_set.add(rec_i.invalid_channel.name)
+
                     # reads raw data from data block with DATA and _data_block classes
                     buf.read(channel_set, info, self.fileName)
 
@@ -2080,135 +2117,130 @@ class Mdf4(MdfSkeleton):
                             rec_byte_aligned = rec_obj.byte_aligned
                             rec_hidden_bytes = rec_obj.hiddenBytes
                             rec_matching = rec_obj.recordToChannelMatching
-                            is_unique_dg = info['DG'][dataGroup]['unique_channel_in_DG']
+                            inv_u1 = None
+                            if rec_obj.invalid_channel is not None:
+                                raw_inv = buf[record_id].get('invalid_data')
+                                if raw_inv is None and rec_data is not None:
+                                    try:
+                                        raw_inv = rec_data[rec_obj.invalid_channel.name]
+                                    except (ValueError, IndexError, KeyError, TypeError):
+                                        raw_inv = None
+                                inv_u1 = _normalize_invalid_bytes(raw_inv)
                             for chan in channels:  # for each channel class
+                                if chan.type == 4:  # invalidation bytes are applied directly as MaskedArray
+                                    continue
                                 chan_name = chan.name
                                 if channel_set is None or chan_name in channel_set:
-                                    if not chan.type == 4:  # normal channel
-                                        chan_type = chan._cn_type if chan.type in (0, 1, 2) else chan.channel_type(info)
-                                        # not virtual channel
-                                        if chan_type not in (3, 6):
-                                            # in case record is used for several channels
-                                            if not buf_is_unsorted and channel_set is None and not rec_hidden_bytes and rec_byte_aligned:
-                                                record_name = rec_matching[chan_name]
-                                            else:
-                                                record_name = chan_name
-                                            try:  # data in channel group
-                                                # extract channel vector
-                                                temp = rec_data[record_name]
-                                            # no sorted data but maybe VLSD data
-                                            except (ValueError, IndexError, KeyError):
-                                                try:
-                                                    temp = buf[record_id]['VLSD'][record_name]
-                                                except (KeyError, TypeError):
-                                                    temp = None
-                                            except Exception:
+                                    chan_type = chan._cn_type if chan.type in (0, 1, 2) else chan.channel_type(info)
+                                    # not virtual channel
+                                    if chan_type not in (3, 6):
+                                        # in case record is used for several channels
+                                        if not buf_is_unsorted and channel_set is None and not rec_hidden_bytes and rec_byte_aligned:
+                                            record_name = rec_matching[chan_name]
+                                        else:
+                                            record_name = chan_name
+                                        try:  # data in channel group
+                                            # extract channel vector
+                                            temp = rec_data[record_name]
+                                        # no sorted data but maybe VLSD data
+                                        except (ValueError, IndexError, KeyError):
+                                            try:
+                                                temp = buf[record_id]['VLSD'][record_name]
+                                            except (KeyError, TypeError):
                                                 temp = None
-                                        else:  # virtual channel
-                                            temp = arange(rec_obj.numberOfRecords)
+                                        except Exception:
+                                            temp = None
+                                    else:  # virtual channel
+                                        temp = arange(rec_obj.numberOfRecords)
 
-                                        # Process concatenated bits inside uint8
-                                        bit_count = chan._cn_bit_count if chan.type in (0, 1, 2) else chan.bit_count(info)
-                                        if not buf_is_unsorted and rec_byte_aligned and not rec_hidden_bytes and \
-                                                channel_set is None and \
-                                                temp is not None \
-                                                and temp.dtype.kind not in ('S', 'U'):
-                                            signal_data_type = chan._cn_data_type
-                                            if signal_data_type in (0, 1, 2, 3) and temp.dtype.kind in ('u', 'i'):
-                                                bit_offset = chan._cn_bit_offset if chan.type in (0, 1, 2) else chan.bit_offset(info)
-                                                if bit_count > 0 and not (bit_offset == 0 and bit_count == temp.itemsize * 8):
-                                                    temp = _mask_integer_bits(temp, signal_data_type, bit_count, bit_offset, in_place=False)
-                                            elif 0 < bit_count < 64 and bit_count not in (8, 16, 32):  # should not happen
-                                                warn(f'bit count and offset not applied to correct data type {chan_name}')
+                                    # Process concatenated bits inside uint8
+                                    bit_count = chan._cn_bit_count if chan.type in (0, 1, 2) else chan.bit_count(info)
+                                    if not buf_is_unsorted and rec_byte_aligned and not rec_hidden_bytes and \
+                                            channel_set is None and \
+                                            temp is not None \
+                                            and temp.dtype.kind not in ('S', 'U'):
+                                        signal_data_type = chan._cn_data_type
+                                        if signal_data_type in (0, 1, 2, 3) and temp.dtype.kind in ('u', 'i'):
+                                            bit_offset = chan._cn_bit_offset if chan.type in (0, 1, 2) else chan.bit_offset(info)
+                                            if bit_count > 0 and not (bit_offset == 0 and bit_count == temp.itemsize * 8):
+                                                temp = _mask_integer_bits(temp, signal_data_type, bit_count, bit_offset, in_place=False)
+                                        elif 0 < bit_count < 64 and bit_count not in (8, 16, 32):  # should not happen
+                                            warn(f'bit count and offset not applied to correct data type {chan_name}')
 
-                                        if temp is not None:  # channel contains data
-                                            # half-precision complex: (2,)f2 → complex64
-                                            if temp.ndim > 1 and temp.shape[-1] == 2 \
-                                                    and temp.dtype.kind == 'f' \
-                                                    and temp.dtype.itemsize == 2:
-                                                signal_data_type = chan.signal_data_type(info)
-                                                if signal_data_type == 16:  # BE: byteswap each f2
-                                                    temp = temp.byteswap().view(
-                                                        temp.dtype.newbyteorder())
-                                                temp = (temp[..., 0].astype('f4')
-                                                        + 1j * temp[..., 1].astype('f4'))
-                                            # string data decoding
-                                            if temp.dtype.kind == 'S':
-                                                signal_data_type = chan.signal_data_type(
-                                                    info)
-                                                if signal_data_type == 6:  # string ISO-8859-1 Latin
-                                                    encoding = 'latin-1'
-                                                elif signal_data_type == 7:  # UTF-8
-                                                    encoding = 'UTF-8'
-                                                elif signal_data_type == 8:
-                                                    encoding = 'UTF-16LE'
-                                                elif signal_data_type == 9:  # UTF-16 big endian
-                                                    encoding = 'UTF-16BE'
-                                                else:
-                                                    encoding = None
-                                                if encoding is not None:
-                                                    max_len = temp.dtype.itemsize
-                                                    dtype_u = 'U{}'.format(max_len)
-                                                    try:
-                                                        decoded = np.char.decode(temp, encoding)
-                                                        temp2 = decoded.astype(dtype_u)
-                                                    except Exception:
-                                                        temp2 = empty(len(temp), dtype=dtype_u)
-                                                        for t in range(temp.size):
-                                                            try:
-                                                                temp2[t] = temp[t].decode(
-                                                                    encoding, 'ignore')
-                                                            except Exception:
-                                                                warn(
-                                                                    'Cannot decode channel {}'.format(chan.name))
-                                                                temp2[t] = ''
-                                                    temp = temp2
+                                    if temp is not None:  # channel contains data
+                                        # half-precision complex: (2,)f2 → complex64
+                                        if temp.ndim > 1 and temp.shape[-1] == 2 \
+                                                and temp.dtype.kind == 'f' \
+                                                and temp.dtype.itemsize == 2:
+                                            signal_data_type = chan.signal_data_type(info)
+                                            if signal_data_type == 16:  # BE: byteswap each f2
+                                                temp = temp.byteswap().view(
+                                                    temp.dtype.newbyteorder())
+                                            temp = (temp[..., 0].astype('f4')
+                                                    + 1j * temp[..., 1].astype('f4'))
+                                        # string data decoding
+                                        if temp.dtype.kind == 'S':
+                                            signal_data_type = chan.signal_data_type(
+                                                info)
+                                            if signal_data_type == 6:  # string ISO-8859-1 Latin
+                                                encoding = 'latin-1'
+                                            elif signal_data_type == 7:  # UTF-8
+                                                encoding = 'UTF-8'
+                                            elif signal_data_type == 8:
+                                                encoding = 'UTF-16LE'
+                                            elif signal_data_type == 9:  # UTF-16 big endian
+                                                encoding = 'UTF-16BE'
+                                            else:
+                                                encoding = None
+                                            if encoding is not None:
+                                                max_len = temp.dtype.itemsize
+                                                dtype_u = 'U{}'.format(max_len)
+                                                try:
+                                                    decoded = np.char.decode(temp, encoding)
+                                                    temp2 = decoded.astype(dtype_u)
+                                                except Exception:
+                                                    temp2 = empty(len(temp), dtype=dtype_u)
+                                                    for t in range(temp.size):
+                                                        try:
+                                                            temp2[t] = temp[t].decode(
+                                                                encoding, 'ignore')
+                                                        except Exception:
+                                                            warn(
+                                                                'Cannot decode channel {}'.format(chan.name))
+                                                            temp2[t] = ''
+                                                temp = temp2
 
-                                            # channel creation
-                                            cn_info_obj = chan._cn_info if hasattr(chan, '_cn_info') else chan.cn_block(info)
-                                            if chan.type in (1, 2):
-                                                temp = _apply_ca_inverse_layout(temp, cn_info_obj)
-                                            cc_obj = cc_group.get(chan.channelNumber)
-                                            self.add_channel(chan_name, temp, master_channel,
-                                                             master_type=cn_info_obj.get('cn_sync_type', 0),
-                                                             unit=chan.unit(info), description=chan.desc(info),
-                                                             conversion=cc_obj, info=cn_info_obj,
-                                                             compression=compression,
-                                                             identifier=info.unique_id(chan.dataGroup,
-                                                                                       chan.channelGroup,
-                                                                                       chan.channelNumber,
-                                                                                       group_info=cg_group_info))
-                                            # sync channel
-                                            if chan_type == 4:
-                                                # attach stream to be synchronised
-                                                self.set_channel_attachment(
-                                                    chan_name, chan.attachment(info.fid, info))
-                                            if (chan._cn_flags & 0b10) and not is_unique_dg:
-                                                # has invalid bit
-                                                self.set_invalid_bit(
-                                                    chan_name, chan.invalid_bit(info))
-                                                self.set_invalid_channel(
-                                                    chan_name, f'invalid_bytes{dataGroup}')
-                                    else:  # invalid bytes channel
-                                        if buf[record_id]['invalid_data'] is None:
-                                            invalid_data = buf[record_id]['data'][chan.name]
-                                        else:
-                                            invalid_data = buf[record_id]['invalid_data']
-                                        if not info['DG'][dataGroup]['unique_channel_in_DG']:
-                                            invalid_data = frombuffer(invalid_data.tobytes(),
-                                                                      dtype='u1').reshape(len(invalid_data),
-                                                                                          invalid_data.dtype.itemsize)
-                                            self.add_channel(chan.name, invalid_data, master_channel,
-                                                             master_type=0, unit='', description='', info=None,
-                                                             compression=compression, identifier=None)
-                                        else:
-                                            # unique channel in DG, applying easily maskarray
-                                            data = self._get_channel_data4(
-                                                channels[0].name)
-                                            data = data.view(MaskedArray)
-                                            data.mask = invalid_data
-                                            self.set_channel_data(
-                                                channels[0].name, data)
+                                        # channel creation
+                                        cn_info_obj = chan._cn_info if hasattr(chan, '_cn_info') else chan.cn_block(info)
+                                        if chan.type in (1, 2):
+                                            temp = _apply_ca_inverse_layout(temp, cn_info_obj)
+                                        cn_flags = chan._cn_flags if hasattr(chan, '_cn_flags') else cn_info_obj.get('cn_flags', 0)
+                                        if cn_flags & 0b11:
+                                            inval_mask = _extract_invalid_mask(
+                                                inv_u1, chan.invalid_bit(info), cn_flags, len(temp))
+                                            if inval_mask is not None:
+                                                if temp.ndim > 1:
+                                                    inval_mask = np.broadcast_to(
+                                                        inval_mask.reshape((len(temp),) + (1,) * (temp.ndim - 1)),
+                                                        temp.shape,
+                                                    ).copy()
+                                                temp = temp.view(MaskedArray)
+                                                temp.mask = inval_mask
+                                        cc_obj = cc_group.get(chan.channelNumber)
+                                        self.add_channel(chan_name, temp, master_channel,
+                                                         master_type=cn_info_obj.get('cn_sync_type', 0),
+                                                         unit=chan.unit(info), description=chan.desc(info),
+                                                         conversion=cc_obj, info=cn_info_obj,
+                                                         compression=compression,
+                                                         identifier=info.unique_id(chan.dataGroup,
+                                                                                   chan.channelGroup,
+                                                                                   chan.channelNumber,
+                                                                                   group_info=cg_group_info))
+                                        # sync channel
+                                        if chan_type == 4:
+                                            # attach stream to be synchronised
+                                            self.set_channel_attachment(
+                                                chan_name, chan.attachment(info.fid, info))
                             buf[record_id].pop('data', None)
                             buf[record_id].pop('invalid_data', None)
                     del buf
@@ -2292,6 +2324,7 @@ class Mdf4(MdfSkeleton):
                 vector = channel[dataField][:]
         # there is conversion property
         if conversionField in channel and channel[conversionField]['type']:
+            raw_mask = np.ma.getmaskarray(vector).copy() if isinstance(vector, MaskedArray) else None
             text_type = vector.dtype.kind in [
                 'S', 'U', 'V']  # channel of string or not ?
             conversion_type = channel[conversionField]['type']
@@ -2329,6 +2362,10 @@ class Mdf4(MdfSkeleton):
             elif conversion_type == 11 and text_type and convert_tables:
                 vector = _bitfield_text_table_conversion(vector, conversion_parameter['cc_val'],
                                                          conversion_parameter['cc_ref'])
+            if raw_mask is not None and vector is not None:
+                if not isinstance(vector, MaskedArray):
+                    vector = vector.view(MaskedArray)
+                vector.mask = raw_mask
         L = dict()
         L[channel_name] = vector
         if multi_processed:
@@ -2570,6 +2607,8 @@ class Mdf4(MdfSkeleton):
             cn_flag = 0
             n_records = 0
             data_list = []
+            masked_entries = []
+            invalid_bit_idx = 0
             last_channel = 0
             previous_n_channel = 0
             for n_channel, channel in enumerate(self.masterChannelList[masterChannel]):
@@ -2603,7 +2642,14 @@ class Mdf4(MdfSkeleton):
                         record_byte_offset += byte_count * PNd
 
                     cn_numpy_kind = data.dtype.kind
-                    if cn_numpy_kind in ('i', 'u', 'f', 'b'):  # is numeric
+                    if isinstance(data, MaskedArray):
+                        blocks[n_channel]['cn_val_range_min'] = 0
+                        blocks[n_channel]['cn_val_range_max'] = 0
+                        blocks[n_channel]['cn_flags'] = (1 << 1)
+                        blocks[n_channel]['cn_invalid_bit_pos'] = invalid_bit_idx
+                        masked_entries.append((invalid_bit_idx, np.ma.getmaskarray(data)))
+                        invalid_bit_idx += 1
+                    elif cn_numpy_kind in ('i', 'u', 'f', 'b'):  # is numeric
                         blocks[n_channel]['cn_val_range_min'] = data.min()
                         blocks[n_channel]['cn_val_range_max'] = data.max()
                         # only Bit 3: Limit range valid flag
@@ -2716,17 +2762,28 @@ class Mdf4(MdfSkeleton):
                 blocks[last_channel]['CN'] = 0  # last CN link is null
             # writes size of record in CG
             blocks['CG']['cg_data_bytes'] = record_byte_offset
+            n_inval_bytes = (len(masked_entries) + 7) // 8 if masked_entries else 0
+            blocks['CG']['cg_inval_bytes'] = n_inval_bytes
+            if n_inval_bytes and data_list:
+                n_rec = len(data_list[0])
+                inval_arr = zeros((n_rec, n_inval_bytes), dtype='u1')
+                for bit_idx, mask_arr in masked_entries:
+                    m = mask_arr if mask_arr.ndim == 1 else mask_arr.reshape(n_rec, -1).any(axis=1)
+                    inval_arr[:, bit_idx >> 3] |= (m.astype('u1') << (bit_idx & 0x07))
+                for b in range(n_inval_bytes):
+                    data_list.append(inval_arr[:, b])
+            total_record_bytes = record_byte_offset + n_inval_bytes
 
             # data pointer in data group
             dg['data'] = pointer
             if compression:
                 data = HLBlock()
-                data.load(record_byte_offset, n_records, pointer)
+                data.load(total_record_bytes, n_records, pointer)
                 dg_start_position = fid.tell()
                 dg['DG'] = 0
             else:
                 data = DTBlock()
-                data.load(record_byte_offset, n_records, pointer)
+                data.load(total_record_bytes, n_records, pointer)
                 dg['DG'] = data['end_position']
 
             dg.write(fid)  # write DG block
@@ -2800,8 +2857,7 @@ class Mdf4(MdfSkeleton):
 
         # write channels
         data = self.get_channel_data(channel)
-        invalid_mask = None if isinstance(data, MaskedArray) else self.get_invalid_mask(channel)
-        if isinstance(data, MaskedArray) or invalid_mask is not None:
+        if isinstance(data, MaskedArray):
             invalid_channel = True
             # as column oriented, only one byte for DIBlock
             blocks['CG']['cg_inval_bytes'] = 1
@@ -2949,10 +3005,10 @@ class Mdf4(MdfSkeleton):
             if not invalid_channel:
                 inval_data = None
             else:  # must be 1 byte length, boolean
-                if isinstance(data, MaskedArray):
-                    inval_data = data.mask.tobytes()
-                else:
-                    inval_data = invalid_mask.astype(bool).tobytes()
+                mask = np.ma.getmaskarray(data)
+                if mask.ndim > 1:
+                    mask = mask[:, 0]
+                inval_data = mask.astype(bool).tobytes()
             if not invalid_channel and not compression:
                 pointer = data_blocks.write(fid, data.tobytes())
             else:
@@ -2966,60 +3022,6 @@ class Mdf4(MdfSkeleton):
                 fid.seek(pointer)
 
         return dg, pointer
-
-    def apply_invalid_bit(self, channel_name):
-        """Mask data of channel based on its invalid bit definition if there is
-
-        Parameters
-        ----------------
-        channel_name : str
-            Name of channel
-        """
-        try:
-            data = self._get_channel_data4(channel_name)
-            mask = self.get_invalid_mask(channel_name)
-            if mask is not None:
-                data = data.view(MaskedArray)
-                data.mask = mask
-                self.set_channel_data(channel_name, data)
-            self._remove_channel_field(channel_name, invalidPosField)
-            self._remove_channel_field(channel_name, invalidChannel)
-        except KeyError:
-            pass
-            # warn('no invalid data found for channel ')
-
-    def get_invalid_mask(self, channel_name):
-        invalid_channel = self._get_channel_data4(
-            self.get_invalid_channel(channel_name))
-        invalid_bit_pos = self.get_invalid_bit(channel_name)
-        if invalid_channel is None or not isinstance(invalid_bit_pos, int) \
-                or isinstance(invalid_bit_pos, bool) or invalid_bit_pos < 0:
-            return None
-        invalid_byte = invalid_bit_pos >> 3
-        bit_mask = 1 << (invalid_bit_pos & 0x07)
-        if invalid_channel.ndim == 1:
-            if invalid_byte != 0:
-                return None
-            return (invalid_channel & bit_mask) != 0
-        if invalid_byte >= invalid_channel.shape[1]:
-            return None
-        return (invalid_channel[:, invalid_byte] & bit_mask) != 0
-
-    def apply_all_invalid_bit(self):
-        """Mask data of all channels based on its invalid bit definition if there is
-
-        """
-        for master_channel in self.masterChannelList:
-            group_channels = set(self.masterChannelList[master_channel])
-            group_number = self[master_channel][idField][0][0]
-            invalid_channel = 'invalid_bytes{}'.format(group_number)
-            if invalid_channel in group_channels:
-                # invalid bytes channel present in this data group
-                for channel_name in self.masterChannelList[master_channel]:
-                    self.apply_invalid_bit(channel_name)
-                # remove invalid bytes channel, redundant
-                self.masterChannelList[master_channel].remove(invalid_channel)
-                self.pop(invalid_channel)
 
     def get_channel_name4(self, name, path):
         """finds mdf channel name from name and path

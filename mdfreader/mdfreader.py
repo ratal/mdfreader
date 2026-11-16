@@ -44,6 +44,7 @@ from numpy import (
     all,
     arange,
     array,
+    asarray,
     clip,
     datetime64,
     diff,
@@ -57,7 +58,7 @@ from numpy import (
     searchsorted,
     vstack,
 )
-from numpy.ma import MaskedArray, empty as ma_empty, masked
+from numpy.ma import MaskedArray, empty as ma_empty, getmaskarray, masked, masked_all
 
 from .export import (
     _convert_to_hdf5_name,
@@ -81,8 +82,6 @@ from .mdf import (
     dataField,
     descriptionField,
     idField,
-    invalidChannel,
-    invalidPosField,
     masterField,
     masterTypeField,
     unitField,
@@ -407,15 +406,6 @@ class Mdf(MdfSkeleton):
     @staticmethod
     def _convert_channel_data4(*args: Any, **kwargs: Any) -> Any:
         return Mdf4._convert_channel_data4(*args, **kwargs)
-
-    def apply_invalid_bit(self, *args: Any, **kwargs: Any) -> Any:
-        return Mdf4.apply_invalid_bit(self, *args, **kwargs)
-
-    def get_invalid_mask(self, *args: Any, **kwargs: Any) -> Any:
-        return Mdf4.get_invalid_mask(self, *args, **kwargs)
-
-    def apply_all_invalid_bit(self, *args: Any, **kwargs: Any) -> Any:
-        return Mdf4.apply_all_invalid_bit(self, *args, **kwargs)
 
     def get_channel_name4(self, *args: Any, **kwargs: Any) -> Any:
         return Mdf4.get_channel_name4(self, *args, **kwargs)
@@ -920,6 +910,16 @@ class Mdf(MdfSkeleton):
                 return f(new_x)
             else:
                 return y[get_idx('right')]
+        def interpolate_channel(new_x, x, y, kind, use_cache=True):
+            if isinstance(y, MaskedArray) or isinstance(x, MaskedArray):
+                valid = ~(getmaskarray(y) | getmaskarray(x))
+                if not valid.any():
+                    return masked_all(len(new_x), dtype=y.dtype)
+                return interpolate(new_x, asarray(x)[valid], asarray(y)[valid], kind)
+            if use_cache:
+                return interpolate_cached(new_x, x, y, kind)
+            return interpolate(new_x, x, y, kind)
+
         for Name in list(self.masterChannelList[master_channel]):
             # forces list() because masterChannelList is dynamic, channels can be removed
             if Name == master_channel:  # master channel
@@ -929,8 +929,8 @@ class Mdf(MdfSkeleton):
                 if channel_data.dtype.kind not in ('S', 'U', 'V') and channel_data.ndim == 1:
                     # if channel not array of string
                     try:
-                        self.set_channel_data(Name, interpolate_cached(new_master_data, old_master_data,
-                                                                       channel_data, interpolation_kind))
+                        self.set_channel_data(Name, interpolate_channel(
+                            new_master_data, old_master_data, channel_data, interpolation_kind, use_cache=True))
                     except Exception:
                         if not all(diff(old_master_data) > 0):
                             warn(f'{Name} has non regularly increasing master channel {master_channel}.\n'
@@ -940,8 +940,8 @@ class Mdf(MdfSkeleton):
                             channel_data = self.get_channel_data(Name)
                             cached_idx_right = None
                             cached_idx_left = None
-                            self.set_channel_data(Name, interpolate(new_master_data, old_master_data,
-                                                                    channel_data, interpolation_kind))
+                            self.set_channel_data(Name, interpolate_channel(
+                                new_master_data, old_master_data, channel_data, interpolation_kind, use_cache=False))
                         elif old_master_data is not None and len(old_master_data) != len(channel_data):
                             warn(f'{Name} and master channel {master_channel} do not have same length')
                     self.remove_channel_conversion(Name)
@@ -1132,20 +1132,6 @@ class Mdf(MdfSkeleton):
                     self.masterChannelList[master_channel_name])
                 second_class_channels = set(
                     mdf_class.masterChannelList[master_channel_name])
-                if self.MDFVersionNumber >= 400:
-                    first_class_group_number = self[master_channel_name].get(idField, [[None]])[0][0]
-                    invalid_channel = f'invalid_bytes{first_class_group_number}'
-                    if invalid_channel in first_class_channels:
-                        # invalid bits present, converting to masked array
-                        # but invalid bit channels should be removed, updating channel sets
-                        self.apply_all_invalid_bit()
-                        first_class_channels.remove(invalid_channel)
-                if mdf_class.MDFVersionNumber >= 400:
-                    second_class_group_number = mdf_class[master_channel_name].get(idField, [[None]])[0][0]
-                    invalid_channel = f'invalid_bytes{second_class_group_number}'
-                    if invalid_channel in second_class_channels:
-                        mdf_class.apply_all_invalid_bit()
-                        second_class_channels.remove(invalid_channel)
                 unioned_set = first_class_channels | second_class_channels
                 second_class_length = len(
                     mdf_class.get_channel_data(master_channel_name))
@@ -1214,14 +1200,6 @@ class Mdf(MdfSkeleton):
             elif master_channel_name in first_class_masters:
                 first_class_channels = set(
                     self.masterChannelList[master_channel_name])
-                if self.MDFVersionNumber >= 400:
-                    first_class_group_number = self[master_channel_name].get(idField, [[None]])[0][0]
-                    invalid_channel = f'invalid_bytes{first_class_group_number}'
-                    if invalid_channel in first_class_channels:
-                        # invalid bits present, converting to masked array
-                        # but invalid bit channels has been removed, updating channel sets
-                        self.apply_all_invalid_bit()
-                        first_class_channels.remove(invalid_channel)
                 master_type = self.get_channel_master_type(master_channel_name)
                 if master_type in second_masters:
                     # same kind of master existing in both classes
@@ -1244,12 +1222,6 @@ class Mdf(MdfSkeleton):
             else:
                 second_class_channels = set(
                     mdf_class.masterChannelList[master_channel_name])
-                if mdf_class.MDFVersionNumber >= 400:
-                    second_class_group_number = mdf_class[master_channel_name].get(idField, [[None]])[0][0]
-                    invalid_channel = f'invalid_bytes{second_class_group_number}'
-                    if invalid_channel in second_class_channels:
-                        mdf_class.apply_all_invalid_bit()
-                        second_class_channels.remove(invalid_channel)
                 master_type = mdf_class.get_channel_master_type(
                     master_channel_name)
                 if master_type in first_masters:
@@ -1284,11 +1256,6 @@ class Mdf(MdfSkeleton):
         --------
         If there are common channel names between the 2 mdf, channels are renamed to make them unique
         """
-        # apply eventual invalid bytes, most probably
-        if self.MDFVersionNumber >= 400:
-            self.apply_all_invalid_bit()
-        if mdf_class.MDFVersionNumber >= 400:
-            mdf_class.apply_all_invalid_bit()
         # check for same channel names
         first_channels = set(self.keys())
         second_channels = set(mdf_class.keys())

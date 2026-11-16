@@ -8,7 +8,7 @@ from warnings import warn
 
 import numpy as np
 from numpy import array, datetime64, float32, float64, vstack
-from numpy.ma import MaskedArray
+from numpy.ma import MaskedArray, masked as np_masked
 
 from .mdf import (
     dataField,
@@ -560,10 +560,13 @@ def export_excel(mdf: Any, file_name: str | None = None) -> str | None:
                 too_long_channels.append(channel_list[col])
 
             for row in range(write_count):
+                val = vector[row]
+                if val is np_masked:
+                    continue
                 if is_numeric:
-                    ws.row(row + 2).set_cell_number(col_idx, vector[row])
+                    ws.row(row + 2).set_cell_number(col_idx, val)
                 else:
-                    ws.row(row + 2).set_cell_text(col_idx, str(vector[row]))
+                    ws.row(row + 2).set_cell_text(col_idx, str(val))
 
     wb.save(file_name)
     if too_long_channels:
@@ -619,13 +622,16 @@ def export_xlsx(mdf: Any, file_name: str | None = None) -> str | None:
                     ws.cell(row=2, column=n_col).value = _clean_str(mdf.get_channel_unit(channel))
                     if data.dtype.kind in ('i', 'u') or 'f4' in data.dtype.str:
                         for r, cell_data in enumerate(data):
-                            ws.cell(row=r + 3, column=n_col).value = float64(cell_data)
+                            ws.cell(row=r + 3, column=n_col).value = (
+                                None if cell_data is np_masked else float64(cell_data)
+                            )
                     elif data.dtype.kind != 'V':
                         for r, cell_data in enumerate(data):
-                            cell_val = cell_data
-                            if isinstance(cell_val, str):
-                                cell_val = _clean_str(cell_val)
-                            ws.cell(row=r + 3, column=n_col).value = cell_val
+                            if cell_data is np_masked:
+                                ws.cell(row=r + 3, column=n_col).value = None
+                            else:
+                                cell_val = _clean_str(cell_data) if isinstance(cell_data, str) else cell_data
+                                ws.cell(row=r + 3, column=n_col).value = cell_val
                     n_col += 1
                 except IllegalCharacterError:
                     warn(f'could not export {channel}')

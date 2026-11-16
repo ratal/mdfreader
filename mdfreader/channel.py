@@ -720,7 +720,7 @@ class Channel4(object):
 
     def set_invalid_bytes(self, info):
         self.type = 4
-        self.name = f'invalid_bytes{self.dataGroup}'
+        self.name = f'invalid_bytes{self.dataGroup}_{self.channelGroup}'
         try:
             cn_info = info['CN'][self.dataGroup][self.channelGroup][self.channelNumber]
             self._cn_info = cn_info

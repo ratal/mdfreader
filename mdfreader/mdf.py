@@ -53,8 +53,6 @@ masterTypeField = 'masterType'
 conversionField = 'conversion'
 attachmentField = 'attachment'
 idField = 'id'
-invalidPosField = 'invalid_bit'
-invalidChannel = 'invalid_channel'
 
 
 class MdfSkeleton(dict):
@@ -447,12 +445,6 @@ class MdfSkeleton(dict):
         """
         return self._get_channel_field(channel_name, field=conversionField)
 
-    def get_invalid_bit(self, channel_name: str) -> Any:
-        return self._get_channel_field(channel_name, field=invalidPosField)
-
-    def get_invalid_channel(self, channel_name: str) -> Any:
-        return self._get_channel_field(channel_name, field=invalidChannel)
-
     def get_channel(self, channel_name: str) -> dict[str, Any] | None:
         """Extract channel dict from mdf structure
 
@@ -583,24 +575,6 @@ class MdfSkeleton(dict):
             channel attachment
         """
         self._set_channel(channel_name, attachment, field=attachmentField)
-
-    def set_invalid_bit(self, channel_name: str, bit_position: int) -> None:
-        """returns the invalid bit position of channel
-
-        Parameters
-        ----------------
-        channel_name : str
-            channel name
-        bit_position
-            invalid bit position of channel within invalid channel bytes
-        Returns
-        -------
-        bit position
-        """
-        self[channel_name][invalidPosField] = bit_position
-
-    def set_invalid_channel(self, channel_name: str, invalid_channel: str) -> None:
-        self[channel_name][invalidChannel] = invalid_channel
 
     def _set_channel(self, channel_name: str, item: Any, field: str | None = None) -> None:
         """General purpose method to modify channel values

@@ -104,8 +104,7 @@ def test_mdf_single_inheritance_and_mro():
 
     for method in ['read4', 'write4', '_get_channel_data4', '_convert_all_channel4',
                    '_convert_channel4', '_convert_channel_data4', '_write4_column',
-                   '_write4_non_column', 'apply_invalid_bit', 'get_invalid_mask',
-                   'apply_all_invalid_bit', 'get_channel_name4']:
+                   '_write4_non_column', 'get_channel_name4']:
         assert hasattr(Mdf, method), f"Missing MDF4 delegation: {method}"
 
 
@@ -227,47 +226,103 @@ def test_apply_ca_inverse_layout():
     assert _apply_ca_inverse_layout(arr_1d, {"CABlock": {"ca_dim_size": 4, "ca_flags": 64}}) is arr_1d
 
 
-def test_get_invalid_mask_bit_positions_and_missing():
-    """Verify get_invalid_mask tests (1 << (bit_pos & 0x07)) as bool and handles missing data."""
-    m = mdfreader.Mdf()
-    t = np.array([0.0, 1.0, 2.0, 3.0])
-    m.add_channel("Time", t, "Time", master_type=1, unit="s")
-    m.add_channel("sig0", np.array([10.0, 20.0, 30.0, 40.0]), "Time")
-    m.add_channel("sig6", np.array([1.0, 2.0, 3.0, 4.0]), "Time")
-    m.add_channel("sig9", np.array([5.0, 6.0, 7.0, 8.0]), "Time")
+def test_extract_invalid_mask_and_conversion_preservation():
+    """Verify _extract_invalid_mask (bits 0/1, multi-byte, zero-invalid -> None) and CC mask preservation."""
+    from mdfreader.mdf4reader import Mdf4, _extract_invalid_mask
+    from mdfreader.mdf import conversionField, dataField
 
     # Byte 0: 0b01000001 (bits 0 and 6), Byte 1: 0b00000010 (bit 9)
     # Sample 1 byte 0 = 0b00111110 (62): bit 6 is 0 (must NOT match 6 & 0x07!)
     inv = np.array([[0x41, 0x00], [0x3E, 0x02], [0x01, 0x00], [0x40, 0x02]], dtype=np.uint8)
-    m.add_channel("invalid_bytes0", inv, "Time")
 
-    m.set_invalid_channel("sig0", "invalid_bytes0")
-    m.set_invalid_bit("sig0", 0)
-    m.set_invalid_channel("sig6", "invalid_bytes0")
-    m.set_invalid_bit("sig6", 6)
-    m.set_invalid_channel("sig9", "invalid_bytes0")
-    m.set_invalid_bit("sig9", 9)
-
-    mask0 = m.get_invalid_mask("sig0")
-    mask6 = m.get_invalid_mask("sig6")
-    mask9 = m.get_invalid_mask("sig9")
+    mask0 = _extract_invalid_mask(inv, 0, cn_flags=0b10, n_records=4)
+    mask6 = _extract_invalid_mask(inv, 6, cn_flags=0b10, n_records=4)
+    mask9 = _extract_invalid_mask(inv, 9, cn_flags=0b10, n_records=4)
     assert mask0.dtype == bool and mask0.tolist() == [True, False, True, False]
     assert mask6.dtype == bool and mask6.tolist() == [True, False, False, True]
     assert mask9.dtype == bool and mask9.tolist() == [False, True, False, True]
 
-    # Missing invalid_bytes channel (e.g. partial channel_list read) returns None
-    m.add_channel("sig_missing", np.array([1.0, 2.0, 3.0, 4.0]), "Time")
-    m.set_invalid_channel("sig_missing", "invalid_bytes999")
-    m.set_invalid_bit("sig_missing", 0)
-    assert m.get_invalid_mask("sig_missing") is None
-    m.apply_invalid_bit("sig_missing")
-    assert type(m.get_channel_data("sig_missing")) is np.ndarray
+    # Zero masked samples -> None (keep plain ndarray, do not allocate MaskedArray)
+    assert _extract_invalid_mask(inv, 7, cn_flags=0b10, n_records=4) is None
 
-    # apply_invalid_bit wraps only channels with an invalid mask
-    m.apply_invalid_bit("sig6")
-    d6 = m.get_channel_data("sig6")
-    assert isinstance(d6, np.ma.MaskedArray)
-    assert d6.mask.tolist() == [True, False, False, True]
+    # cn_flags bit 0 (ALL_INVALID) masks all samples even without invalidation bytes
+    mask_all = _extract_invalid_mask(None, 0, cn_flags=0b01, n_records=4)
+    assert mask_all.tolist() == [True, True, True, True]
+
+    # _convert_channel_data4 preserves MaskedArray mask across table/interpolation conversions
+    raw_masked = np.ma.array([0.0, 9999.0, 2.0, 3.0], mask=[False, True, False, False])
+    chan_dict = {
+        dataField: raw_masked,
+        conversionField: {"type": 4, "parameters": {"cc_val": [0.0, 0.0, 3.0, 30.0]}},
+    }
+    converted = Mdf4._convert_channel_data4(chan_dict, "sig", convert_tables=True)["sig"]
+    assert isinstance(converted, np.ma.MaskedArray)
+    assert converted.mask.tolist() == [False, True, False, False]
+    np.testing.assert_allclose(converted.compressed(), [0.0, 20.0, 30.0])
+
+
+def test_resample_filters_masked_samples():
+    """Verify Mdf.resample skips masked placeholder values when interpolating."""
+    m = mdfreader.Mdf()
+    t = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    m.add_channel("Time", t, "Time", master_type=1, unit="s")
+    sig = np.ma.array([0.0, 1e6, 20.0, 30.0, 40.0, 50.0, 60.0],
+                      mask=[False, True, False, False, False, False, False])
+    m.add_channel("Sig", sig, "Time", unit="V")
+    all_bad = np.ma.array(np.ones(7), mask=np.ones(7, dtype=bool))
+    m.add_channel("AllBad", all_bad, "Time", unit="V")
+
+    m.resample(sampling=1.0)
+    res_sig = m.get_channel_data("Sig")
+    assert not isinstance(res_sig, np.ma.MaskedArray)
+    np.testing.assert_allclose(res_sig, [0.0, 10.0, 20.0, 30.0, 40.0, 50.0])
+
+    res_bad = m.get_channel_data("AllBad")
+    assert isinstance(res_bad, np.ma.MaskedArray)
+    assert res_bad.mask.all()
+
+
+def test_write4_and_read_masked_array_roundtrip(tmp_path):
+    """Verify MaskedArray round-trips via write4 (row/column, uncompressed/compressed) and lazy/selective reads."""
+    m = mdfreader.Mdf()
+    t = np.array([0.0, 0.1, 0.2, 0.3], dtype=np.float64)
+    sig_masked = np.ma.array([1.0, 99.0, 3.0, 4.0], dtype=np.float64, mask=[False, True, False, False])
+    sig_valid = np.array([10.0, 20.0, 30.0, 40.0], dtype=np.float64)
+    m.add_channel("Time", t, "Time", master_type=1, unit="s")
+    m.add_channel("SigMasked", sig_masked, "Time", unit="V")
+    m.add_channel("SigValid", sig_valid, "Time", unit="A")
+
+    for suffix, kwargs in [
+        ("row.mf4", {"column_oriented": False, "compression": False}),
+        ("row_comp.mf4", {"column_oriented": False, "compression": True}),
+        ("col.mf4", {"column_oriented": True, "compression": False}),
+        ("col_comp.mf4", {"column_oriented": True, "compression": True}),
+    ]:
+        out = str(tmp_path / suffix)
+        m.write4(out, **kwargs)
+
+        # Full read
+        r_full = mdfreader.Mdf(out)
+        assert not any(k.startswith("invalid_bytes") for k in r_full)
+        d_m = r_full.get_channel_data("SigMasked")
+        assert isinstance(d_m, np.ma.MaskedArray)
+        assert d_m.mask.tolist() == [False, True, False, False]
+        np.testing.assert_allclose(d_m.compressed(), [1.0, 3.0, 4.0])
+        assert type(r_full.get_channel_data("SigValid")) is np.ndarray
+
+        # Selective read (channel_list)
+        r_sel = mdfreader.Mdf(out, channel_list=["SigMasked"])
+        d_sel = r_sel.get_channel_data("SigMasked")
+        assert isinstance(d_sel, np.ma.MaskedArray)
+        assert d_sel.mask.tolist() == [False, True, False, False]
+
+        # Lazy read (no_data_loading=True)
+        r_lazy = mdfreader.Mdf(out, no_data_loading=True)
+        d_lazy = r_lazy.get_channel_data("SigMasked")
+        assert isinstance(d_lazy, np.ma.MaskedArray)
+        assert d_lazy.mask.tolist() == [False, True, False, False]
+
+
 
 
 
