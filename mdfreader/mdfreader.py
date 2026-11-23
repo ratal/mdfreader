@@ -926,8 +926,8 @@ class Mdf(MdfSkeleton):
                 self.set_channel_data(Name, new_master_data)
             else:
                 channel_data = self.get_channel_data(Name)
-                if channel_data.dtype.kind not in ('S', 'U', 'V') and channel_data.ndim == 1:
-                    # if channel not array of string
+                if channel_data.dtype.kind != 'V' and channel_data.ndim == 1:
+                    # if channel is 1D and not void/structured
                     try:
                         self.set_channel_data(Name, interpolate_cached(new_master_data, old_master_data,
                                                                        channel_data, interpolation_kind))
@@ -945,7 +945,7 @@ class Mdf(MdfSkeleton):
                         elif old_master_data is not None and len(old_master_data) != len(channel_data):
                             warn(f'{Name} and master channel {master_channel} do not have same length')
                     self.remove_channel_conversion(Name)
-                else:  # can not interpolate strings, remove channel containing string
+                else:  # can not interpolate multi-dimensional or void channels, remove channel
                     self.remove_channel(Name)
 
     def _clean_uneven_master_data(self, master_channel_name: str) -> None:
