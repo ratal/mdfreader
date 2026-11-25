@@ -136,6 +136,12 @@ class MdfSkeleton(dict):
         compression : bool optional
             flag to compress data in memory.
 
+        convert_tables : bool, optional
+            flag to apply table-based conversions (such as value-to-text,
+            value-range-to-text, text-to-value, text-to-text, and bitfield
+            text tables), True by default. Set to False to keep raw numeric
+            values instead of converting them to text.
+
         metadata: int, optional, default = 2
             Reading metadata has impact on performance, especially for mdf 4.x using xml.
             2: minimal metadata reading (mostly channel blocks)
@@ -166,7 +172,7 @@ class MdfSkeleton(dict):
         self.fileMetadata['time'] = time()
         self.MDFVersionNumber = 300
         self.filterChannelNames = filter_channel_names
-        # by default, do not convert table conversion types, taking lot of time and memory
+        # controls whether table/text conversion types (e.g. value-to-text) are applied
         self.convertTables = convert_tables
         self._pandasframe = False
         self.info = None
@@ -181,6 +187,7 @@ class MdfSkeleton(dict):
                       filter_channel_names=filter_channel_names,
                       no_data_loading=no_data_loading,
                       compression=compression,
+                      convert_tables=convert_tables,
                       metadata=metadata,
                       finalization_writing_to_file=finalization_writing_to_file,
                       force_file_integrity_check=force_file_integrity_check)

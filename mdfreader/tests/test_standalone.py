@@ -327,6 +327,56 @@ def test_write4_and_read_masked_array_roundtrip(tmp_path):
         assert d_lazy.mask.tolist() == [False, True, False, False]
 
 
+def test_convert_tables_option_skips_value_to_text():
+    """Verify convert_tables=False preserves raw numeric values instead of text."""
+    from pathlib import Path
+    from mdfreader.mdf import conversionField, dataField
+    from mdfreader.mdf4reader import Mdf4
+
+    raw = np.array([0, 1, 0, 1], dtype=np.uint8)
+    chan_dict = {
+        dataField: raw,
+        conversionField: {
+            "type": 7,
+            "parameters": {
+                "cc_val": [0.0, 1.0],
+                "cc_ref": ["NoYes1_No", "NoYes1_Yes", "Default"],
+            },
+        },
+    }
+    as_text = Mdf4._convert_channel_data4(chan_dict, "flag", convert_tables=True)["flag"]
+    assert as_text.dtype.kind in ("U", "S")
+    assert set(as_text.tolist()) == {"NoYes1_No", "NoYes1_Yes"}
+
+    as_raw = Mdf4._convert_channel_data4(chan_dict, "flag", convert_tables=False)["flag"]
+    assert as_raw.dtype == np.uint8
+    assert as_raw.tolist() == [0, 1, 0, 1]
+
+    sample = (
+        Path(__file__).parent
+        / "MDF4/MDF4.3/Base_Standard/Examples/Conversion/LookUpConversion/Vector_Value2TextConversion.mf4"
+    )
+    if sample.exists():
+        m_text = mdfreader.Mdf(str(sample), convert_tables=True)
+        m_raw_init = mdfreader.Mdf(str(sample), convert_tables=False)
+        m_raw_read = mdfreader.Mdf()
+        m_raw_read.read(str(sample), convert_tables=False)
+
+        text_channels = [
+            ch for ch in m_text
+            if m_text.get_channel_data(ch) is not None
+            and m_text.get_channel_data(ch).dtype.kind in ("U", "S")
+        ]
+        assert text_channels, "expected at least one text-converted channel in sample file"
+        for ch in text_channels:
+            assert m_raw_init.get_channel_data(ch).dtype.kind not in ("U", "S")
+            assert m_raw_read.get_channel_data(ch).dtype.kind not in ("U", "S")
+            np.testing.assert_array_equal(
+                m_raw_init.get_channel_data(ch), m_raw_read.get_channel_data(ch)
+            )
+
+
+
 
 
 

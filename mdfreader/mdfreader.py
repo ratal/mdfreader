@@ -422,6 +422,7 @@ class Mdf(MdfSkeleton):
         metadata: int = 2,
         finalization_writing_to_file: bool = False,
         force_file_integrity_check: bool = False,
+        convert_tables: bool | None = None,
     ) -> None:
         """ reads mdf file version 3.x and 4.x
 
@@ -472,6 +473,12 @@ class Mdf(MdfSkeleton):
             flags (id_unfin_flags==0). Combined with finalization_writing_to_file is
             very experimental and risky, correction should be tried in memory first.
 
+        convert_tables : bool, optional
+            If provided, overrides ``self.convertTables`` to control whether
+            table-based conversions (e.g. value-to-text, value-range-to-text,
+            text-to-value, bitfield text tables) are applied during conversion.
+            Set to False to keep raw numeric values instead of text.
+
         Notes
         --------
         If you keep convertAfterRead to true, you can set attribute mdf.multiProc to activate channel conversion
@@ -485,6 +492,8 @@ class Mdf(MdfSkeleton):
         """
         if self.fileName is None or file_name is not None:
             self.fileName = file_name
+        if convert_tables is not None:
+            self.convertTables = convert_tables
 
         # Open file
         (self.fid, self.fileName, self.zipfile) = _open_mdf(self.fileName)
